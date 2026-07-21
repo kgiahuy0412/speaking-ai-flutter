@@ -1,0 +1,893 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
+
+import '../../../config/app_config.dart';
+import '../../../core/audio/audio_input.dart';
+import '../../../core/audio/offline_intent_recognizer.dart';
+import '../../../core/audio/streaming_speech_input.dart';
+import '../domain/conversation_models.dart';
+import '../domain/conversation_repository.dart';
+
+class NextConversationRepository
+    implements
+        ConversationRepository,
+        ChunkedConversationRepository,
+        RealtimeConversationRepository,
+        OfflineIntentCatalogRepository {
+  NextConversationRepository({
+    required AppConfig config,
+    required Future<String> Function() clientIdProvider,
+    http.Client? client,
+  }) : _config = config,
+       _client = client ?? http.Client(),
+       _ownsClient = client == null,
+       _clientId = clientIdProvider();
+
+  final AppConfig _config;
+  final http.Client _client;
+  final bool _ownsClient;
+  final Future<String> _clientId;
+  Future<OfflineIntentManifest>? _offlineIntentManifest;
+
+  @override
+  Future<OfflineIntentManifest> fetchOfflineIntentManifest() {
+    return _offlineIntentManifest ??= _loadOfflineIntentManifest();
+  }
+
+  Future<OfflineIntentManifest> _loadOfflineIntentManifest() async {
+    try {
+      final uri = _config
+          .resolve('/api/offline-intents')
+          .replace(queryParameters: const <String, String>{'limit': '40'});
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
+      return OfflineIntentManifest.fromJson(
+        _decodeResponse(response),
+        backendBaseUri: _config.backendBaseUri,
+      );
+    } catch (_) {
+      _offlineIntentManifest = null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> warmAudioCache() async {
+    final clientId = await _clientId;
+    final response = await _client
+        .post(
+          _config.resolve('/api/cache/warmup'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'context': 'all',
+            'background': true,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    _decodeResponse(response);
+  }
+
+  @override
+  Future<ConversationResult> processAudio({
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    final clientId = await _clientId;
+    final audioSessionId = await _createAudioSession();
+    await _uploadAudio(audioSessionId: audioSessionId, capture: capture);
+
+    return _finalizeAudioSession(
+      clientId: clientId,
+      audioSessionId: audioSessionId,
+      capture: capture,
+      context: context,
+      childAge: childAge,
+      vadSilenceMs: vadSilenceMs,
+    );
+  }
+
+  Future<ConversationResult> _finalizeAudioSession({
+    required String clientId,
+    required String audioSessionId,
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+    Map<String, dynamic> batchTelemetry = const <String, dynamic>{},
+  }) async {
+    final benchmark = ConversationBenchmark(
+      utteranceDurationMs: capture.duration.inMilliseconds,
+      vadSilenceMs: vadSilenceMs,
+      requestedAsrMode: AsrMode.batchChunks,
+      audioInputLabel: capture.inputLabel,
+      bluetoothAudioInput: capture.isBluetoothInput,
+      initialNoiseRms: capture.initialNoiseRms,
+    );
+    final uri = _config.resolve('/api/audio-sessions/$audioSessionId/finalize');
+    final body = jsonEncode(<String, dynamic>{
+      'clientId': clientId,
+      'context': context.apiValue,
+      'childAge': childAge,
+      'asrMode': 'batch_chunks',
+      'mimeType': capture.mimeType,
+      'benchmark': <String, dynamic>{...benchmark.toJson(), ...batchTelemetry},
+    });
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        final response = await _client
+            .post(
+              uri,
+              headers: <String, String>{
+                HttpHeaders.contentTypeHeader: 'application/json',
+                'Idempotency-Key': 'finalize:$audioSessionId',
+              },
+              body: body,
+            )
+            .timeout(const Duration(seconds: 35));
+
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return ConversationResult.fromJson(
+            _decodeResponse(response),
+            backendBaseUri: _config.backendBaseUri,
+          );
+        }
+
+        if (response.statusCode != 409 && response.statusCode < 500) {
+          _decodeResponse(response);
+        }
+
+        lastError = ConversationApiException(
+          'Finalize tạm thời chưa hoàn tất (${response.statusCode}).',
+        );
+      } catch (error) {
+        lastError = error;
+      }
+
+      if (attempt < 3) {
+        await Future<void>.delayed(Duration(milliseconds: 300 * attempt));
+      }
+    }
+
+    if (lastError is ConversationApiException) {
+      throw lastError;
+    }
+    throw ConversationApiException(
+      'Không finalize được audio sau 3 lần thử: $lastError',
+    );
+  }
+
+  @override
+  Future<BatchChunkUploadSession> startBatchChunkUpload() async {
+    final stopwatch = Stopwatch()..start();
+    final audioSessionId = await _createAudioSession();
+    stopwatch.stop();
+    return _NextBatchChunkUploadSession(
+      repository: this,
+      audioSessionId: audioSessionId,
+      sessionCreateMs: stopwatch.elapsedMilliseconds,
+    );
+  }
+
+  @override
+  Future<RealtimeTranscriptionSession> startRealtimeTranscription({
+    required String audioInputLabel,
+    required bool bluetoothAudioInput,
+  }) async {
+    final clientId = await _clientId;
+    final response = await _client
+        .post(
+          _config.resolve('/api/realtime/transcription-session'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'bluetoothAudioInput': bluetoothAudioInput,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final json = _decodeResponse(response);
+    final clientSecret = json['clientSecret'];
+    final websocketUrl = json['websocketUrl'];
+    final sampleRate = json['sampleRate'];
+
+    if (clientSecret is! String ||
+        clientSecret.isEmpty ||
+        websocketUrl is! String ||
+        websocketUrl.isEmpty ||
+        sampleRate != 24000) {
+      throw const ConversationApiException(
+        'Backend không trả về cấu hình OpenAI Realtime hợp lệ.',
+      );
+    }
+
+    final socket = await WebSocket.connect(
+      websocketUrl,
+      headers: <String, String>{
+        HttpHeaders.authorizationHeader: 'Bearer $clientSecret',
+      },
+    ).timeout(const Duration(seconds: 12));
+
+    return _OpenAiRealtimeTranscriptionSession(
+      socket: socket,
+      audioInputLabel: audioInputLabel,
+      bluetoothAudioInput: bluetoothAudioInput,
+    );
+  }
+
+  @override
+  Future<ConversationResult> processStreamingText({
+    required StreamingSpeechCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    final clientId = await _clientId;
+    final requestedMode = AsrMode.values.firstWhere(
+      (mode) => mode.apiValue == capture.asrMode,
+      orElse: () => AsrMode.androidStreaming,
+    );
+    final benchmark = ConversationBenchmark(
+      utteranceDurationMs: capture.duration.inMilliseconds,
+      vadSilenceMs: vadSilenceMs,
+      requestedAsrMode: requestedMode,
+      audioInputLabel: capture.inputLabel,
+      bluetoothAudioInput: capture.isBluetoothInput,
+      initialNoiseRms: capture.initialNoiseRms,
+    );
+    final response = await _client
+        .post(
+          _config.resolve('/api/conversation'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'context': context.apiValue,
+            'childAge': childAge,
+            'sourceText': capture.sourceText,
+            'asrMode': capture.asrMode,
+            'benchmark': <String, dynamic>{
+              ...benchmark.toJson(),
+              if (capture.confidence != null)
+                'asrConfidence': capture.confidence,
+              if (capture.firstResultMs != null)
+                'asrFirstDeltaMs': capture.firstResultMs,
+              'asrFinalAfterStopMs': capture.finalAfterStopMs,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _decodeResponse(response);
+
+    return ConversationResult.fromJson(
+      json,
+      backendBaseUri: _config.backendBaseUri,
+    );
+  }
+
+  @override
+  Future<ConversationPreview?> previewStreamingText({
+    required String sourceText,
+    required PracticeContext context,
+    required int childAge,
+  }) async {
+    final clientId = await _clientId;
+    final response = await _client
+        .post(
+          _config.resolve('/api/conversation/preview'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'context': context.apiValue,
+            'childAge': childAge,
+            'sourceText': sourceText,
+          }),
+        )
+        .timeout(const Duration(seconds: 4));
+    final json = _decodeResponse(response);
+    if (json['matched'] != true) {
+      return null;
+    }
+    final rawAudioUrl = json['audioUrl'] as String?;
+    return ConversationPreview(
+      sourceText: json['sourceText'] as String? ?? sourceText,
+      englishText: json['englishText'] as String? ?? '',
+      textSource: json['textSource'] as String? ?? 'fallback',
+      audioUri: rawAudioUrl == null
+          ? null
+          : _config.backendBaseUri.resolve(rawAudioUrl),
+    );
+  }
+
+  Future<String> _createAudioSession() async {
+    final response = await _client
+        .post(_config.resolve('/api/audio-sessions'))
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeResponse(response);
+    final audioSessionId = json['audioSessionId'];
+
+    if (audioSessionId is! String || audioSessionId.isEmpty) {
+      throw const ConversationApiException(
+        'Backend không trả về audioSessionId.',
+      );
+    }
+    return audioSessionId;
+  }
+
+  Future<void> _uploadAudio({
+    required String audioSessionId,
+    required AudioCapture capture,
+  }) async {
+    final request =
+        http.MultipartRequest(
+            'POST',
+            _config.resolve('/api/audio-sessions/$audioSessionId/chunks'),
+          )
+          ..fields['sequence'] = '0'
+          ..files.add(
+            await http.MultipartFile.fromPath(
+              'audio',
+              capture.filePath,
+              filename: _audioFilename(capture.mimeType),
+            ),
+          );
+    final streamedResponse = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 25));
+    final response = await http.Response.fromStream(streamedResponse);
+    _decodeResponse(response);
+  }
+
+  Future<void> _uploadAudioBytes({
+    required String audioSessionId,
+    required int sequence,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final request =
+        http.MultipartRequest(
+            'POST',
+            _config.resolve('/api/audio-sessions/$audioSessionId/chunks'),
+          )
+          ..fields['sequence'] = sequence.toString()
+          ..files.add(
+            http.MultipartFile.fromBytes('audio', bytes, filename: filename),
+          );
+    final streamedResponse = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 10));
+    final response = await http.Response.fromStream(streamedResponse);
+    _decodeResponse(response);
+  }
+
+  Future<void> _discardAudioSession(String audioSessionId) async {
+    final response = await _client
+        .delete(_config.resolve('/api/audio-sessions/$audioSessionId/chunks'))
+        .timeout(const Duration(seconds: 5));
+    _decodeResponse(response);
+  }
+
+  @override
+  Future<ConversationLearningOutcome> review({
+    required String conversationId,
+    required bool approved,
+  }) async {
+    final clientId = await _clientId;
+    final response = await _client
+        .patch(
+          _config.resolve('/api/history'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'conversationId': conversationId,
+            'qualityApproved': approved,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeResponse(response);
+    return ConversationLearningOutcome.fromJson(
+      json['learning'],
+      approved: approved,
+    );
+  }
+
+  @override
+  Future<void> patchPlaybackLatency({
+    required String conversationId,
+    required int timeToFirstAudioMs,
+    required int audioLoadMs,
+    required bool audioFromDeviceCache,
+  }) async {
+    final clientId = await _clientId;
+    final response = await _client
+        .patch(
+          _config.resolve('/api/history'),
+          headers: const <String, String>{
+            HttpHeaders.contentTypeHeader: 'application/json',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
+            'conversationId': conversationId,
+            'latency': <String, dynamic>{
+              'audioLoadMs': audioLoadMs,
+              'audioFromDeviceCache': audioFromDeviceCache,
+              'browserAudioStartedMs': timeToFirstAudioMs,
+              'timeToFirstAudioMs': timeToFirstAudioMs,
+              'audioStartedAfterStopMs': timeToFirstAudioMs,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    _decodeResponse(response);
+  }
+
+  @override
+  Future<List<ConversationHistoryItem>> fetchHistory() async {
+    final clientId = await _clientId;
+    final uri = _config
+        .resolve('/api/history')
+        .replace(
+          queryParameters: <String, String>{
+            'limit': '100',
+            'clientId': clientId,
+          },
+        );
+    final response = await _client
+        .get(uri)
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeResponse(response);
+    final conversations = json['conversations'];
+
+    if (conversations is! List<dynamic>) {
+      return const <ConversationHistoryItem>[];
+    }
+    return conversations
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => ConversationHistoryItem.fromJson(
+            item,
+            backendBaseUri: _config.backendBaseUri,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteHistoryItem(String conversationId) async {
+    final clientId = await _clientId;
+    final uri = _config
+        .resolve('/api/history')
+        .replace(
+          queryParameters: <String, String>{
+            'conversationId': conversationId,
+            'clientId': clientId,
+          },
+        );
+    final response = await _client
+        .delete(uri)
+        .timeout(const Duration(seconds: 10));
+    _decodeResponse(response);
+  }
+
+  @override
+  Future<void> clearHistory() async {
+    final clientId = await _clientId;
+    final uri = _config
+        .resolve('/api/history')
+        .replace(queryParameters: <String, String>{'clientId': clientId});
+    final response = await _client
+        .delete(uri)
+        .timeout(const Duration(seconds: 10));
+    _decodeResponse(response);
+  }
+
+  Map<String, dynamic> _decodeResponse(http.Response response) {
+    Map<String, dynamic> json = <String, dynamic>{};
+    Object? decodeError;
+
+    if (response.body.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          json = decoded;
+        } else {
+          decodeError = const FormatException(
+            'Backend response is not a JSON object.',
+          );
+        }
+      } on FormatException catch (error) {
+        decodeError = error;
+      }
+    } else {
+      decodeError = const FormatException('Backend response is empty.');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final error = json['error'];
+      final message = error is Map<String, dynamic>
+          ? error['message'] as String?
+          : null;
+      final requestId = response.headers['x-request-id']?.trim();
+      final supportCode = requestId == null || requestId.isEmpty
+          ? ''
+          : ' Mã hỗ trợ: $requestId.';
+      throw ConversationApiException(
+        '${message ?? 'Backend trả về lỗi ${response.statusCode}.'}$supportCode',
+      );
+    }
+
+    if (decodeError != null) {
+      throw const ConversationApiException(
+        'Backend trả về dữ liệu không hợp lệ.',
+      );
+    }
+
+    return json;
+  }
+
+  String _audioFilename(String mimeType) => switch (mimeType) {
+    'audio/mp4' || 'audio/m4a' => 'utterance.m4a',
+    'audio/wav' || 'audio/wave' || 'audio/x-wav' => 'utterance.wav',
+    'audio/webm' || 'audio/webm;codecs=opus' => 'utterance.webm',
+    _ => 'utterance.audio',
+  };
+
+  @override
+  Future<void> dispose() async {
+    if (_ownsClient) {
+      _client.close();
+    }
+  }
+}
+
+class _OpenAiRealtimeTranscriptionSession
+    implements RealtimeTranscriptionSession {
+  _OpenAiRealtimeTranscriptionSession({
+    required WebSocket socket,
+    required this.audioInputLabel,
+    required this.bluetoothAudioInput,
+  }) : _socket = socket,
+       _startedAt = DateTime.now() {
+    _subscription = _socket.listen(
+      _handleMessage,
+      onError: _handleError,
+      onDone: _handleDone,
+      cancelOnError: false,
+    );
+  }
+
+  final WebSocket _socket;
+  final String audioInputLabel;
+  final bool bluetoothAudioInput;
+  final DateTime _startedAt;
+  final StreamController<String> _partialController =
+      StreamController<String>.broadcast();
+  final Completer<String> _completed = Completer<String>();
+  late final StreamSubscription<dynamic> _subscription;
+  final StringBuffer _deltas = StringBuffer();
+  DateTime? _firstDeltaAt;
+  DateTime? _stopRequestedAt;
+  String _latestTranscript = '';
+  bool _closed = false;
+
+  @override
+  Stream<String> get partialText => _partialController.stream;
+
+  @override
+  void addAudioChunk(Uint8List bytes) {
+    if (_closed || _completed.isCompleted || bytes.isEmpty) {
+      return;
+    }
+    try {
+      _socket.add(
+        jsonEncode(<String, dynamic>{
+          'type': 'input_audio_buffer.append',
+          'audio': base64Encode(bytes),
+        }),
+      );
+    } catch (error, stackTrace) {
+      _completed.completeError(
+        ConversationApiException('Không thể gửi audio Realtime: $error'),
+        stackTrace,
+      );
+    }
+  }
+
+  void _handleMessage(dynamic message) {
+    if (_closed || message is! String) {
+      return;
+    }
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(message);
+    } on FormatException {
+      return;
+    }
+    if (decoded is! Map<String, dynamic>) {
+      return;
+    }
+
+    final type = decoded['type'];
+    if (type == 'conversation.item.input_audio_transcription.delta') {
+      final delta = decoded['delta'];
+      if (delta is String && delta.isNotEmpty) {
+        _firstDeltaAt ??= DateTime.now();
+        _deltas.write(delta);
+        final partial = _deltas.toString().trim();
+        if (partial.isNotEmpty && partial != _latestTranscript) {
+          _latestTranscript = partial;
+          _partialController.add(partial);
+        }
+      }
+      return;
+    }
+
+    if (type == 'conversation.item.input_audio_transcription.completed') {
+      final transcript = decoded['transcript'];
+      if (transcript is String && transcript.trim().isNotEmpty) {
+        _latestTranscript = transcript.trim();
+      }
+      if (!_completed.isCompleted) {
+        _completed.complete(_latestTranscript);
+      }
+      return;
+    }
+
+    if (type == 'error' && !_completed.isCompleted) {
+      final error = decoded['error'];
+      final message = error is Map<String, dynamic>
+          ? error['message'] as String?
+          : null;
+      _completed.completeError(
+        ConversationApiException(
+          message ?? 'OpenAI Realtime không thể nhận diện âm thanh.',
+        ),
+      );
+    }
+  }
+
+  void _handleError(Object error, StackTrace stackTrace) {
+    if (!_completed.isCompleted) {
+      _completed.completeError(
+        ConversationApiException('Kết nối OpenAI Realtime bị lỗi: $error'),
+        stackTrace,
+      );
+    }
+  }
+
+  void _handleDone() {
+    if (!_closed && !_completed.isCompleted) {
+      _completed.completeError(
+        const ConversationApiException(
+          'Kết nối OpenAI Realtime đã đóng trước khi có kết quả.',
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<StreamingSpeechCapture> finalize() async {
+    if (_closed) {
+      throw const ConversationApiException(
+        'Lượt OpenAI Realtime đã được hoàn tất hoặc hủy.',
+      );
+    }
+    _stopRequestedAt = DateTime.now();
+
+    try {
+      if (!_completed.isCompleted) {
+        try {
+          _socket.add(
+            jsonEncode(<String, String>{'type': 'input_audio_buffer.commit'}),
+          );
+        } catch (error, stackTrace) {
+          _completed.completeError(
+            ConversationApiException(
+              'Không thể hoàn tất audio Realtime: $error',
+            ),
+            stackTrace,
+          );
+        }
+      }
+      final sourceText = await _completed.future.timeout(
+        const Duration(seconds: 10),
+      );
+      if (sourceText.trim().isEmpty) {
+        throw const ConversationApiException(
+          'Không nghe rõ câu nói. Hãy nói lại gần micro hơn.',
+        );
+      }
+      final completedAt = DateTime.now();
+      return StreamingSpeechCapture(
+        sourceText: sourceText.trim(),
+        duration: _stopRequestedAt!.difference(_startedAt),
+        inputLabel: audioInputLabel,
+        confidence: null,
+        firstResultMs: _firstDeltaAt?.difference(_startedAt).inMilliseconds,
+        finalAfterStopMs: completedAt
+            .difference(_stopRequestedAt!)
+            .inMilliseconds
+            .clamp(0, 1 << 31)
+            .toInt(),
+        asrMode: AsrMode.openAiRealtime.apiValue,
+        isBluetoothInput: bluetoothAudioInput,
+      );
+    } finally {
+      await _close();
+    }
+  }
+
+  @override
+  Future<void> discard() async {
+    if (_closed) {
+      return;
+    }
+    try {
+      if (!_completed.isCompleted) {
+        _socket.add(
+          jsonEncode(<String, String>{'type': 'input_audio_buffer.clear'}),
+        );
+      }
+    } finally {
+      await _close();
+    }
+  }
+
+  Future<void> _close() async {
+    if (_closed) {
+      return;
+    }
+    _closed = true;
+    try {
+      await _socket.close(WebSocketStatus.normalClosure);
+    } finally {
+      await _subscription.cancel();
+      await _partialController.close();
+    }
+  }
+}
+
+class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
+  _NextBatchChunkUploadSession({
+    required NextConversationRepository repository,
+    required this.audioSessionId,
+    required this.sessionCreateMs,
+  }) : _repository = repository;
+
+  final NextConversationRepository _repository;
+  final String audioSessionId;
+  final int sessionCreateMs;
+  final List<Future<void>> _pendingUploads = <Future<void>>[];
+  var _nextSequence = 1;
+  var _audioByteCount = 0;
+  var _closed = false;
+  var _discarded = false;
+
+  @override
+  void addAudioChunk(Uint8List bytes) {
+    if (_closed || bytes.isEmpty) {
+      return;
+    }
+    final sequence = _nextSequence++;
+    final immutableBytes = Uint8List.fromList(bytes);
+    _audioByteCount += immutableBytes.length;
+    final upload = _uploadWithRetry(
+      sequence: sequence,
+      bytes: immutableBytes,
+      filename: 'chunk-$sequence.pcm',
+    );
+    _pendingUploads.add(upload);
+    unawaited(upload.catchError((Object _) {}));
+  }
+
+  Future<void> _uploadWithRetry({
+    required int sequence,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await _repository._uploadAudioBytes(
+          audioSessionId: audioSessionId,
+          sequence: sequence,
+          bytes: bytes,
+          filename: filename,
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) {
+          await Future<void>.delayed(Duration(milliseconds: 150 * attempt));
+        }
+      }
+    }
+    throw ConversationApiException(
+      'Không upload được audio chunk $sequence: $lastError',
+    );
+  }
+
+  @override
+  Future<ConversationResult> finalize({
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    if (_closed) {
+      throw const ConversationApiException(
+        'Audio session đã được hoàn tất hoặc hủy.',
+      );
+    }
+    _closed = true;
+    final headerBytes = capture.streamHeaderBytes;
+    if (headerBytes == null || headerBytes.isEmpty) {
+      throw const ConversationApiException(
+        'Không tìm thấy WAV header của Batch Chunks.',
+      );
+    }
+
+    final uploadDrainStopwatch = Stopwatch()..start();
+    await Future.wait<void>(<Future<void>>[
+      ..._pendingUploads,
+      _uploadWithRetry(sequence: 0, bytes: headerBytes, filename: 'header.wav'),
+    ]);
+    uploadDrainStopwatch.stop();
+
+    return _repository._finalizeAudioSession(
+      clientId: await _repository._clientId,
+      audioSessionId: audioSessionId,
+      capture: capture,
+      context: context,
+      childAge: childAge,
+      vadSilenceMs: vadSilenceMs,
+      batchTelemetry: <String, dynamic>{
+        'batchTransport': 'streamed_pcm16_chunks',
+        'chunkIntervalMs': 250,
+        'audioChunkCount': _nextSequence - 1,
+        'uploadedAudioBytes': _audioByteCount,
+        'sessionCreateMs': sessionCreateMs,
+        'uploadDrainAfterStopMs': uploadDrainStopwatch.elapsedMilliseconds,
+      },
+    );
+  }
+
+  @override
+  Future<void> discard() async {
+    if (_discarded) {
+      return;
+    }
+    _discarded = true;
+    _closed = true;
+    await Future.wait<void>(
+      _pendingUploads.map((upload) => upload.catchError((Object _) {})),
+    );
+    await _repository._discardAudioSession(audioSessionId);
+  }
+}
+
+class ConversationApiException implements Exception {
+  const ConversationApiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
