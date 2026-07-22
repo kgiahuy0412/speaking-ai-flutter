@@ -4,6 +4,9 @@ import 'dart:typed_data';
 const int pcm16SampleRate = 24000;
 const int pcm16ChannelCount = 1;
 const int pcm16BitsPerSample = 16;
+// A 200 ms frame balances early transcript delivery with WebSocket overhead.
+// Keep this within the 150-250 ms range when tuning Realtime latency.
+const int pcmChunkDurationMs = 200;
 
 Uint8List buildPcm16WavHeader({
   required int pcmByteLength,

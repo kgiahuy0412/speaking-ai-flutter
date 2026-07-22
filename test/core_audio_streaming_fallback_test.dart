@@ -153,6 +153,42 @@ void main() {
     },
   );
 
+  test('stop briefly waits for an almost-ready Realtime connection', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[1, 2],
+    );
+    final realtimeCompleter = Completer<RealtimeTranscriptionSession>();
+    final repository = _FallbackRepository(
+      realtimeCompleter: realtimeCompleter,
+    );
+    final realtimeSession = _RecordingRealtimeSession();
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 100), () {
+        realtimeCompleter.complete(realtimeSession);
+      }),
+    );
+    await controller.stopRecording(manual: true);
+
+    expect(realtimeSession.chunks, <List<int>>[
+      <int>[1, 2],
+    ]);
+    expect(repository.batchStarted, 0);
+    expect(controller.result?.conversationId, 'stream-result');
+    controller.dispose();
+  });
+
   test(
     'Realtime connection failure uses buffered Batch Chunks at stop',
     () async {
@@ -182,6 +218,42 @@ void main() {
       controller.dispose();
     },
   );
+
+  test('stop falls back after the bounded Realtime connection wait', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[4, 5, 6],
+    );
+    final repository = _FallbackRepository(
+      realtimeCompleter: Completer<RealtimeTranscriptionSession>(),
+    );
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final stopwatch = Stopwatch()..start();
+    await controller.stopRecording(manual: true);
+    stopwatch.stop();
+
+    expect(
+      stopwatch.elapsed,
+      greaterThanOrEqualTo(const Duration(milliseconds: 450)),
+    );
+    expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 1200)));
+    expect(repository.batchStarted, 1);
+    expect(repository.batchSession.chunks, <List<int>>[
+      <int>[4, 5, 6],
+    ]);
+    expect(controller.result?.conversationId, 'batch-result');
+    controller.dispose();
+  });
 
   test(
     'preferred audio input falls back when BLE fails during start',
@@ -317,6 +389,9 @@ class _FailingRealtimeSession implements RealtimeTranscriptionSession {
   Stream<String> get partialText => const Stream<String>.empty();
 
   @override
+  void markRecordingStarted(DateTime startedAt) {}
+
+  @override
   void addAudioChunk(Uint8List bytes) {}
 
   @override
@@ -333,6 +408,9 @@ class _RecordingRealtimeSession implements RealtimeTranscriptionSession {
 
   @override
   Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  void markRecordingStarted(DateTime startedAt) {}
 
   @override
   void addAudioChunk(Uint8List bytes) {

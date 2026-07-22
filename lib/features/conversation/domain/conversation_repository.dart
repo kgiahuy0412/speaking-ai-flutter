@@ -69,6 +69,8 @@ abstract interface class ChunkedConversationRepository {
 abstract interface class RealtimeTranscriptionSession {
   Stream<String> get partialText;
 
+  void markRecordingStarted(DateTime startedAt);
+
   void addAudioChunk(Uint8List bytes);
 
   Future<StreamingSpeechCapture> finalize();

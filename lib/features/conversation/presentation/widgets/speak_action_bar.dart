@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../l10n/display_language.dart';
 import '../../domain/conversation_models.dart';
 
 class SpeakActionBar extends StatelessWidget {
@@ -33,7 +34,7 @@ class SpeakActionBar extends StatelessWidget {
         child: Semantics(
           button: true,
           enabled: !isProcessing,
-          label: _label,
+          label: _label(context),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -75,7 +76,7 @@ class SpeakActionBar extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           child: Text(
-                            _label,
+                            _label(context),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(color: Colors.white, fontSize: 20),
@@ -93,11 +94,11 @@ class SpeakActionBar extends StatelessWidget {
     );
   }
 
-  String get _label => switch (phase) {
-    ConversationPhase.recording => 'Dừng ghi âm',
-    ConversationPhase.processing => 'Đang xử lý…',
-    ConversationPhase.ready => 'Nói câu mới',
-    ConversationPhase.error => 'Thử lại',
-    ConversationPhase.idle => 'Bắt đầu nói',
+  String _label(BuildContext context) => switch (phase) {
+    ConversationPhase.recording => context.tr('Dừng ghi âm', '停止录音'),
+    ConversationPhase.processing => context.tr('Đang xử lý…', '处理中…'),
+    ConversationPhase.ready => context.tr('Nói câu mới', '说新句子'),
+    ConversationPhase.error => context.tr('Thử lại', '重试'),
+    ConversationPhase.idle => context.tr('Bắt đầu nói', '开始说话'),
   };
 }

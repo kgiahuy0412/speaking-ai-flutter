@@ -28,7 +28,11 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   bool _chunked = false;
 
   static const int _chunkByteLength =
-      pcm16SampleRate * pcm16ChannelCount * (pcm16BitsPerSample ~/ 8) ~/ 4;
+      pcm16SampleRate *
+      pcm16ChannelCount *
+      (pcm16BitsPerSample ~/ 8) *
+      pcmChunkDurationMs ~/
+      1000;
 
   @override
   String get label => 'Mic điện thoại';

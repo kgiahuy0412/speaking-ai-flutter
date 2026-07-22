@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 
@@ -25,6 +26,9 @@ class _HistorySheetState extends State<HistorySheet> {
   _HistoryFilter _filter = _HistoryFilter.all;
   bool _loading = true;
   String? _error;
+
+  String _t(String vietnamese, String simplifiedChinese) =>
+      widget.controller.displayLanguage.choose(vietnamese, simplifiedChinese);
 
   @override
   void initState() {
@@ -98,79 +102,93 @@ class _HistorySheetState extends State<HistorySheet> {
     );
     final visibleItems = _visibleItems;
 
-    return SafeArea(
-      child: SizedBox(
-        height: sheetHeight,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              _HistoryHeader(
-                count: _items.length,
-                onRefresh: () => _loadHistory(),
-                onClear: _items.isEmpty ? null : _confirmClearHistory,
-                onClose: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: 'Tìm câu tiếng Việt hoặc tiếng Anh',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: _searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                          tooltip: 'Xóa nội dung tìm kiếm',
-                        ),
-                  filled: true,
-                  fillColor: AppColors.lavenderSoft,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
+    return DisplayLanguageScope(
+      language: widget.controller.displayLanguage,
+      child: Builder(
+        builder: (context) => SafeArea(
+          child: SizedBox(
+            height: sheetHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _HistoryHeader(
+                    count: _items.length,
+                    onRefresh: () => _loadHistory(),
+                    onClear: _items.isEmpty ? null : _confirmClearHistory,
+                    onClose: () => Navigator.of(context).pop(),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: context.tr(
+                        'Tìm câu tiếng Việt hoặc tiếng Anh',
+                        '搜索越南语或英语句子',
+                      ),
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.close_rounded),
+                              tooltip: context.tr(
+                                'Xóa nội dung tìm kiếm',
+                                '清除搜索内容',
+                              ),
+                            ),
+                      filled: true,
+                      fillColor: AppColors.lavenderSoft,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _HistoryFilter.values
+                          .map(
+                            (filter) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(
+                                  context.trKnown(_filterLabel(filter)),
+                                ),
+                                selected: _filter == filter,
+                                onSelected: (_) =>
+                                    setState(() => _filter = filter),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: _HistoryBody(
+                      loading: _loading,
+                      error: _error,
+                      hasAnyItems: _items.isNotEmpty,
+                      items: visibleItems,
+                      busyItems: _busyItems,
+                      onRetry: () => _loadHistory(),
+                      onPlay: _playItem,
+                      onReview: _reviewItem,
+                      onDelete: _confirmDeleteItem,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _HistoryFilter.values
-                      .map(
-                        (filter) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(_filterLabel(filter)),
-                            selected: _filter == filter,
-                            onSelected: (_) => setState(() => _filter = filter),
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: _HistoryBody(
-                  loading: _loading,
-                  error: _error,
-                  hasAnyItems: _items.isNotEmpty,
-                  items: visibleItems,
-                  busyItems: _busyItems,
-                  onRetry: () => _loadHistory(),
-                  onPlay: _playItem,
-                  onReview: _reviewItem,
-                  onDelete: _confirmDeleteItem,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -226,8 +244,8 @@ class _HistorySheetState extends State<HistorySheet> {
         learning.message.isNotEmpty
             ? learning.message
             : approved
-            ? 'Đã đánh dấu Đúng ý.'
-            : 'Đã đánh dấu Sai ý.',
+            ? _t('Đã đánh dấu Đúng ý.', '已标记为符合原意。')
+            : _t('Đã đánh dấu Sai ý.', '已标记为不符合原意。'),
       );
     } catch (error) {
       if (mounted) {
@@ -248,19 +266,24 @@ class _HistorySheetState extends State<HistorySheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa lượt nói này?'),
-        content: Text('“${item.vietnameseText}” sẽ bị xóa khỏi lịch sử.'),
+        title: Text(_t('Xóa lượt nói này?', '删除这条记录？')),
+        content: Text(
+          _t(
+            '“${item.vietnameseText}” sẽ bị xóa khỏi lịch sử.',
+            '“${item.vietnameseText}”将从历史记录中删除。',
+          ),
+        ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Giữ lại'),
+            child: Text(_t('Giữ lại', '保留')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Xóa'),
+            child: Text(_t('Xóa', '删除')),
           ),
         ],
       ),
@@ -282,7 +305,7 @@ class _HistorySheetState extends State<HistorySheet> {
             )
             .toList(growable: false);
       });
-      _showMessage('Đã xóa lượt nói.');
+      _showMessage(_t('Đã xóa lượt nói.', '已删除这条记录。'));
     } catch (error) {
       _showMessage(_friendlyError(error), isError: true);
     } finally {
@@ -296,21 +319,24 @@ class _HistorySheetState extends State<HistorySheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa toàn bộ lịch sử?'),
-        content: const Text(
-          'Thao tác này xóa tất cả lượt nói đang lưu trên backend và không thể hoàn tác.',
+        title: Text(_t('Xóa toàn bộ lịch sử?', '清除全部历史记录？')),
+        content: Text(
+          _t(
+            'Thao tác này sẽ xóa tất cả lượt nói đã lưu và không thể hoàn tác.',
+            '此操作将删除所有已保存的对话记录，且无法撤销。',
+          ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
+            child: Text(_t('Hủy', '取消')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Xóa tất cả'),
+            child: Text(_t('Xóa tất cả', '全部删除')),
           ),
         ],
       ),
@@ -329,7 +355,7 @@ class _HistorySheetState extends State<HistorySheet> {
         _items = const <ConversationHistoryItem>[];
         _loading = false;
       });
-      _showMessage('Đã xóa toàn bộ lịch sử.');
+      _showMessage(_t('Đã xóa toàn bộ lịch sử.', '已清除全部历史记录。'));
     } catch (error) {
       if (mounted) {
         setState(() => _loading = false);
@@ -346,7 +372,9 @@ class _HistorySheetState extends State<HistorySheet> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(
+            widget.controller.displayLanguage.translateKnown(message),
+          ),
           backgroundColor: isError
               ? Theme.of(context).colorScheme.error
               : AppColors.ink,
@@ -384,11 +412,11 @@ class _HistoryHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Lịch sử gần đây',
+                context.tr('Lịch sử gần đây', '最近记录'),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               Text(
-                '$count lượt đã lưu',
+                context.tr('$count lượt đã lưu', '已保存 $count 条'),
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
@@ -399,19 +427,19 @@ class _HistoryHeader extends StatelessWidget {
         IconButton(
           onPressed: onRefresh,
           icon: const Icon(Icons.refresh_rounded),
-          tooltip: 'Làm mới lịch sử',
+          tooltip: context.tr('Làm mới lịch sử', '刷新历史记录'),
         ),
         const SizedBox(width: 4),
         IconButton(
           onPressed: onClear,
           icon: const Icon(Icons.delete_sweep_outlined),
-          tooltip: 'Xóa toàn bộ lịch sử',
+          tooltip: context.tr('Xóa toàn bộ lịch sử', '清除全部历史记录'),
         ),
         const SizedBox(width: 4),
         IconButton(
           onPressed: onClose,
           icon: const Icon(Icons.close_rounded),
-          tooltip: 'Đóng',
+          tooltip: context.tr('Đóng', '关闭'),
         ),
       ],
     );
@@ -449,8 +477,8 @@ class _HistoryBody extends StatelessWidget {
     if (error != null) {
       return _HistoryMessage(
         icon: Icons.cloud_off_rounded,
-        text: error!,
-        actionLabel: 'Thử lại',
+        text: context.trKnown(error!),
+        actionLabel: context.tr('Thử lại', '重试'),
         onAction: onRetry,
       );
     }
@@ -458,8 +486,8 @@ class _HistoryBody extends StatelessWidget {
       return _HistoryMessage(
         icon: hasAnyItems ? Icons.search_off_rounded : Icons.history_rounded,
         text: hasAnyItems
-            ? 'Không tìm thấy lượt nói phù hợp.'
-            : 'Chưa có lượt nói nào.',
+            ? context.tr('Không tìm thấy lượt nói phù hợp.', '没有找到符合条件的记录。')
+            : context.tr('Chưa có lượt nói nào.', '还没有对话记录。'),
       );
     }
 
@@ -473,7 +501,7 @@ class _HistoryBody extends StatelessWidget {
           Padding(
             padding: EdgeInsets.only(top: children.isEmpty ? 4 : 12, bottom: 8),
             child: Text(
-              _dayLabel(item.createdAt),
+              context.trKnown(_dayLabel(item.createdAt)),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: AppColors.muted,
                 fontSize: 14,
@@ -517,11 +545,12 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = _statusPresentation(item.reviewStatus);
+    final localizedStatus = context.trKnown(status.label);
 
     return Semantics(
       container: true,
       label:
-          '${status.label}. ${item.vietnameseText}. ${item.englishText}. '
+          '$localizedStatus. ${item.vietnameseText}. ${item.englishText}. '
           '${_formatTime(item.createdAt)}.',
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -580,10 +609,12 @@ class _HistoryRow extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: <Widget>[
-                  _MetadataChip(label: item.context.label),
-                  _MetadataChip(label: _sourceLabel(item)),
+                  _MetadataChip(label: context.trKnown(item.context.label)),
+                  _MetadataChip(label: context.trKnown(_sourceLabel(item))),
                   _LearningChip(item: item),
-                  _MetadataChip(label: _asrLabel(item.asrMode)),
+                  _MetadataChip(
+                    label: context.trKnown(_asrLabel(item.asrMode)),
+                  ),
                   if (item.latency.timeToFirstAudioMs > 0)
                     _MetadataChip(
                       label: '${item.latency.timeToFirstAudioMs} ms',
@@ -612,7 +643,7 @@ class _HistoryRow extends StatelessWidget {
                         Icon(status.icon, color: status.color, size: 17),
                         const SizedBox(width: 5),
                         Text(
-                          status.label,
+                          localizedStatus,
                           style: TextStyle(
                             color: status.color,
                             fontSize: 12,
@@ -633,12 +664,15 @@ class _HistoryRow extends StatelessWidget {
                       IconButton(
                         onPressed: busy ? null : onPlay,
                         icon: const Icon(Icons.play_arrow_rounded),
-                        tooltip: 'Phát lại câu tiếng Anh',
+                        tooltip: context.tr(
+                          'Phát lại câu tiếng Anh',
+                          '重新播放英语句子',
+                        ),
                       ),
                     IconButton(
                       onPressed: busy ? null : onApprove,
                       icon: const Icon(Icons.sentiment_satisfied_alt_rounded),
-                      tooltip: 'Đánh dấu Đúng ý',
+                      tooltip: context.tr('Đánh dấu Đúng ý', '标记为符合原意'),
                       style: IconButton.styleFrom(
                         backgroundColor:
                             item.reviewStatus == HistoryReviewStatus.approved
@@ -653,7 +687,7 @@ class _HistoryRow extends StatelessWidget {
                     IconButton(
                       onPressed: busy ? null : onReject,
                       icon: const Icon(Icons.sentiment_dissatisfied_rounded),
-                      tooltip: 'Đánh dấu Sai ý',
+                      tooltip: context.tr('Đánh dấu Sai ý', '标记为不符合原意'),
                       style: IconButton.styleFrom(
                         backgroundColor:
                             item.reviewStatus == HistoryReviewStatus.rejected
@@ -668,7 +702,7 @@ class _HistoryRow extends StatelessWidget {
                     IconButton(
                       onPressed: busy ? null : onDelete,
                       icon: const Icon(Icons.delete_outline_rounded),
-                      tooltip: 'Xóa lượt nói',
+                      tooltip: context.tr('Xóa lượt nói', '删除记录'),
                     ),
                   ],
                 ),
@@ -727,7 +761,7 @@ class _LearningChip extends StatelessWidget {
           Icon(presentation.icon, size: 13, color: presentation.color),
           const SizedBox(width: 4),
           Text(
-            presentation.label,
+            context.trKnown(presentation.label),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: presentation.color,
               fontSize: 11,

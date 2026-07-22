@@ -7,6 +7,7 @@ import '../../../core/audio/audio_playback_service.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
+import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 
@@ -17,6 +18,7 @@ class ConversationController extends ChangeNotifier {
     required AudioPlaybackService playbackService,
     required ConversationRepository repository,
     OfflineIntentRecognizer? offlineIntentRecognizer,
+    DisplayLanguageStore? displayLanguageStore,
     required int childAge,
     bool preferBleStreaming = true,
     bool realtimeBatchFallback = true,
@@ -26,6 +28,7 @@ class ConversationController extends ChangeNotifier {
        _playbackService = playbackService,
        _repository = repository,
        _offlineIntentRecognizer = offlineIntentRecognizer,
+       _displayLanguageStore = displayLanguageStore,
        _childAge = childAge,
        _preferBleStreaming = preferBleStreaming,
        _realtimeBatchFallback = realtimeBatchFallback,
@@ -49,6 +52,9 @@ class ConversationController extends ChangeNotifier {
     _partialTextSubscription = streamingSpeechInput?.partialText.listen(
       _onPartialText,
     );
+    if (displayLanguageStore != null) {
+      unawaited(_loadDisplayLanguage());
+    }
   }
 
   final AudioInput _audioInput;
@@ -56,6 +62,7 @@ class ConversationController extends ChangeNotifier {
   final AudioPlaybackService _playbackService;
   final ConversationRepository _repository;
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
+  final DisplayLanguageStore? _displayLanguageStore;
   final int _childAge;
   final bool _preferBleStreaming;
   final bool _realtimeBatchFallback;
@@ -83,6 +90,7 @@ class ConversationController extends ChangeNotifier {
   bool _usingOfflineIntent = false;
   BatchChunkUploadSession? _batchChunkUpload;
   RealtimeTranscriptionSession? _realtimeSession;
+  Future<void>? _realtimeConnectionFuture;
   int _realtimeConnectionGeneration = 0;
   OfflineIntentManifest? _offlineIntentManifest;
   OfflineIntentGate? _offlineIntentGate;
@@ -104,6 +112,32 @@ class ConversationController extends ChangeNotifier {
   bool? qualityApproved;
   String? errorMessage;
   String? transientMessage;
+  DisplayLanguage displayLanguage = DisplayLanguage.vietnamese;
+
+  Future<void> _loadDisplayLanguage() async {
+    final stored = await _displayLanguageStore!.read();
+    if (_disposed || stored == displayLanguage) {
+      return;
+    }
+    displayLanguage = stored;
+    notifyListeners();
+  }
+
+  void setDisplayLanguage(DisplayLanguage language) {
+    if (language == displayLanguage) {
+      return;
+    }
+    displayLanguage = language;
+    notifyListeners();
+    final store = _displayLanguageStore;
+    if (store != null) {
+      unawaited(
+        store.write(language).catchError((Object error) {
+          debugPrint('Cannot persist display language: $error');
+        }),
+      );
+    }
+  }
 
   String get inputLabel =>
       _usingStreamingSpeech ||
@@ -143,6 +177,7 @@ class ConversationController extends ChangeNotifier {
       _speechDetected = false;
       _stopInProgress = false;
       _realtimeConnectionGeneration += 1;
+      _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
       final preferAvailableBle =
           _preferBleStreaming &&
@@ -228,7 +263,7 @@ class ConversationController extends ChangeNotifier {
         const Duration(seconds: 12),
         () => unawaited(stopRecording(manual: false)),
       );
-      _noSpeechTimer = Timer(const Duration(seconds: 4), () {
+      _noSpeechTimer = Timer(const Duration(seconds: 2), () {
         if (phase == ConversationPhase.recording && !_speechDetected) {
           unawaited(stopRecording(manual: false));
         }
@@ -387,6 +422,7 @@ class ConversationController extends ChangeNotifier {
         audioInputLabel: _audioInput.label,
         bluetoothAudioInput: true,
       );
+      session.markRecordingStarted(_recordingStartedAt ?? DateTime.now());
       _realtimeFallbackBuffer.replay(session.addAudioChunk);
       _realtimeSession = session;
       _usingRealtimeTranscription = true;
@@ -423,6 +459,7 @@ class ConversationController extends ChangeNotifier {
       return;
     }
 
+    final recordingStartedAt = DateTime.now();
     final connectionGeneration = ++_realtimeConnectionGeneration;
     _realtimeChunkSubscription = chunkedInput.audioChunks.listen(
       (bytes) {
@@ -437,17 +474,25 @@ class ConversationController extends ChangeNotifier {
       },
     );
 
+    final connectionFuture = _connectRealtimeInBackground(
+      repository: realtimeRepository,
+      connectionGeneration: connectionGeneration,
+      recordingStartedAt: recordingStartedAt,
+    );
+    _realtimeConnectionFuture = connectionFuture;
     unawaited(
-      _connectRealtimeInBackground(
-        repository: realtimeRepository,
-        connectionGeneration: connectionGeneration,
-      ),
+      connectionFuture.whenComplete(() {
+        if (identical(_realtimeConnectionFuture, connectionFuture)) {
+          _realtimeConnectionFuture = null;
+        }
+      }),
     );
 
     try {
       await chunkedInput.startChunked();
     } catch (error) {
       _realtimeConnectionGeneration += 1;
+      _realtimeConnectionFuture = null;
       await _realtimeChunkSubscription?.cancel();
       _realtimeChunkSubscription = null;
       await _realtimePartialSubscription?.cancel();
@@ -469,6 +514,7 @@ class ConversationController extends ChangeNotifier {
   Future<void> _connectRealtimeInBackground({
     required RealtimeConversationRepository repository,
     required int connectionGeneration,
+    required DateTime recordingStartedAt,
   }) async {
     RealtimeTranscriptionSession? session;
     try {
@@ -476,13 +522,12 @@ class ConversationController extends ChangeNotifier {
         audioInputLabel: _audioInput.label,
         bluetoothAudioInput: _audioInput.isBluetooth,
       );
-      if (_disposed ||
-          _stopInProgress ||
-          connectionGeneration != _realtimeConnectionGeneration) {
+      if (_disposed || connectionGeneration != _realtimeConnectionGeneration) {
         await session.discard().catchError((Object _) {});
         return;
       }
 
+      session.markRecordingStarted(recordingStartedAt);
       _realtimeSession = session;
       _realtimeFallbackBuffer.replay(session.addAudioChunk);
       if (!_realtimeBatchFallback) {
@@ -497,9 +542,7 @@ class ConversationController extends ChangeNotifier {
       );
     } catch (error) {
       await session?.discard().catchError((Object _) {});
-      if (_disposed ||
-          _stopInProgress ||
-          connectionGeneration != _realtimeConnectionGeneration) {
+      if (_disposed || connectionGeneration != _realtimeConnectionGeneration) {
         return;
       }
       _usingRealtimeTranscription = false;
@@ -636,7 +679,6 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     _stopInProgress = true;
-    _realtimeConnectionGeneration += 1;
     _partialPreviewTimer?.cancel();
     _previewGeneration += 1;
     _silenceTimer?.cancel();
@@ -653,6 +695,8 @@ class ConversationController extends ChangeNotifier {
           ? Duration.zero
           : _stoppedAt!.difference(startedAt);
       if (elapsed < const Duration(milliseconds: 450)) {
+        _realtimeConnectionGeneration += 1;
+        _realtimeConnectionFuture = null;
         if (_usingStreamingSpeech) {
           await _streamingSpeechInput!.cancel();
         } else {
@@ -685,6 +729,8 @@ class ConversationController extends ChangeNotifier {
       }
 
       if (!_speechDetected && !manual) {
+        _realtimeConnectionGeneration += 1;
+        _realtimeConnectionFuture = null;
         if (_usingStreamingSpeech) {
           await _streamingSpeechInput!.cancel();
         } else {
@@ -710,7 +756,8 @@ class ConversationController extends ChangeNotifier {
           await batchUpload.discard().catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
-        transientMessage = 'Chưa nghe thấy giọng nói nên chưa gửi lên OpenAI.';
+        transientMessage =
+            'Mình chưa nghe thấy giọng nói, nên chưa gửi lên backend. Thử nói gần micro hơn nhé.';
         _stopInProgress = false;
         notifyListeners();
         return;
@@ -754,6 +801,9 @@ class ConversationController extends ChangeNotifier {
         await _offlineIntentHypothesisSubscription?.cancel();
         _offlineIntentHypothesisSubscription = null;
       }
+      await _waitForRealtimeConnectionAtStop();
+      _realtimeConnectionGeneration += 1;
+      _realtimeConnectionFuture = null;
       await _realtimeChunkSubscription?.cancel();
       _realtimeChunkSubscription = null;
       await _realtimePartialSubscription?.cancel();
@@ -830,8 +880,34 @@ class ConversationController extends ChangeNotifier {
     } catch (error) {
       _setError(_friendlyError(error));
     } finally {
+      _realtimeConnectionGeneration += 1;
+      _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
       _stopInProgress = false;
+    }
+  }
+
+  Future<void> _waitForRealtimeConnectionAtStop() async {
+    if (_realtimeSession != null) {
+      return;
+    }
+    final pendingConnection = _realtimeConnectionFuture;
+    if (pendingConnection == null) {
+      return;
+    }
+
+    final waitStopwatch = Stopwatch()..start();
+    try {
+      await pendingConnection.timeout(const Duration(milliseconds: 500));
+    } on TimeoutException {
+      debugPrint(
+        '{"event":"openai_realtime_stop_wait_timeout",'
+        '"waitMs":${waitStopwatch.elapsedMilliseconds}}',
+      );
+    } catch (error) {
+      debugPrint('OpenAI Realtime connection failed while stopping: $error');
+    } finally {
+      waitStopwatch.stop();
     }
   }
 
@@ -892,7 +968,7 @@ class ConversationController extends ChangeNotifier {
     }
     if (audioUri == null) {
       transientMessage =
-          'Bản demo không tải audio. Backend thật sẽ phát TTS tại đây.';
+          'Bản demo không tải âm thanh. Phiên bản đầy đủ sẽ phát câu tiếng Anh tại đây.';
       notifyListeners();
       return;
     }
@@ -1059,6 +1135,7 @@ class ConversationController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _realtimeConnectionGeneration += 1;
+    _realtimeConnectionFuture = null;
     _silenceTimer?.cancel();
     _noSpeechTimer?.cancel();
     _maximumDurationTimer?.cancel();

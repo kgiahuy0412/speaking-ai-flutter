@@ -16,6 +16,7 @@ import '../features/conversation/data/next_conversation_repository.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/conversation/presentation/conversation_screen.dart';
+import '../l10n/display_language.dart';
 import 'app_theme.dart';
 
 class AiSpeakingApp extends StatefulWidget {
@@ -54,6 +55,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
       repository: repository,
       offlineIntentRecognizer: MethodChannelOfflineIntentRecognizer(),
+      displayLanguageStore: const DisplayLanguageStore(),
       childAge: _config.childAge,
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,

@@ -12,7 +12,7 @@ flowchart LR
     S["Android SpeechRecognizer\npartial/final vi-VN"] --> C
     B["InnotrikBleAudioInput\nraw Opus (giai đoạn 2)"] --> A
     A --> C["ConversationController\nVAD + state machine"]
-    C --> RT["OpenAI Realtime ASR\none WebSocket per turn"]
+    C --> RT["OpenAI Realtime ASR\nWebSocket theo lượt nói"]
     RT --> C
     C --> R["ConversationRepository"]
     R --> N["Next.js HTTPS API"]
@@ -57,9 +57,9 @@ Controller chỉ biết interface, nên thay nguồn âm thanh không làm thay 
 1. Mặc định Android `SpeechRecognizer` nhận partial/final tiếng Việt và gửi text
    vào cùng pipeline backend như web streaming.
 2. Nếu dịch vụ Android không khả dụng hoặc người dùng chọn OpenAI Realtime,
-   `record` mở micro PCM16 mono 24 kHz ngay lập tức trong khi client secret và
-   WebSocket ASR được tạo song song. Audio trước lúc kết nối được giữ trong
-   buffer và replay đúng một lần khi socket sẵn sàng.
+   `record` mở micro PCM16 mono 24 kHz và đồng thời tạo client secret, mở
+   WebSocket cho đúng lượt nói. Audio trước lúc kết nối được giữ trong buffer và
+   replay đúng một lần khi WebSocket sẵn sàng; app không tạo session khi chỉ mở màn hình.
 3. Stream dBFS điều khiển hiển thị mức âm và VAD.
 4. Sau khi phát hiện tiếng nói, im lặng liên tục 700 ms sẽ tự dừng.
 5. Người dùng luôn có thể bấm Dừng.

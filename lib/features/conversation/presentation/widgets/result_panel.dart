@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../l10n/display_language.dart';
 import '../../domain/conversation_models.dart';
 
 class ResultPanel extends StatelessWidget {
@@ -37,24 +38,27 @@ class ResultPanel extends StatelessWidget {
         children: <Widget>[
           _TranslationSection(
             icon: Icons.chat_bubble_rounded,
-            label: 'Câu tiếng Việt',
+            label: context.tr('Câu tiếng Việt', '越南语句子'),
             text: currentResult?.vietnameseText,
-            placeholder: 'Câu con nói sẽ hiện ở đây',
+            placeholder: context.tr('Câu con nói sẽ hiện ở đây', '你说的句子会显示在这里'),
           ),
           const _TranslationConnector(),
           _TranslationSection(
             icon: Icons.translate_rounded,
-            label: 'English sentence',
+            label: context.tr('Câu tiếng Anh', '英语句子'),
             text: currentResult?.englishText,
-            placeholder: 'Câu tiếng Anh sẽ hiện ở đây',
+            placeholder: context.tr(
+              'Câu tiếng Anh sẽ hiện ở đây',
+              '英语句子会显示在这里',
+            ),
             trailing: currentResult == null
                 ? null
                 : Semantics(
                     button: true,
-                    label: 'Phát lại câu tiếng Anh',
+                    label: context.tr('Phát lại câu tiếng Anh', '重新播放英语句子'),
                     child: IconButton(
                       onPressed: onPlay,
-                      tooltip: 'Phát tiếng Anh',
+                      tooltip: context.tr('Phát tiếng Anh', '播放英语'),
                       icon: const Icon(Icons.play_arrow_rounded),
                       style: IconButton.styleFrom(
                         minimumSize: const Size.square(42),

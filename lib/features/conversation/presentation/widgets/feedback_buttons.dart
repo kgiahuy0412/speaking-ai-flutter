@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../l10n/display_language.dart';
 
 class FeedbackButtons extends StatelessWidget {
   const FeedbackButtons({
@@ -22,7 +23,7 @@ class FeedbackButtons extends StatelessWidget {
             constraints.maxWidth < 340 ||
             MediaQuery.textScalerOf(context).scale(1) >= 1.5;
         final approveButton = _FeedbackButton(
-          label: 'Đúng ý',
+          label: context.tr('Đúng ý', '符合原意'),
           icon: Icons.sentiment_satisfied_alt_rounded,
           foreground: AppColors.success,
           background: AppColors.successSoft,
@@ -31,7 +32,7 @@ class FeedbackButtons extends StatelessWidget {
           onPressed: () => onSelected(true),
         );
         final rejectButton = _FeedbackButton(
-          label: 'Sai ý',
+          label: context.tr('Sai ý', '不符合原意'),
           icon: Icons.sentiment_dissatisfied_rounded,
           foreground: const Color(0xFFD92D20),
           background: const Color(0xFFFFF3F2),
@@ -88,7 +89,8 @@ class _FeedbackButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       selected: selected,
-      label: '$label. ${selected ? 'Đang được chọn' : 'Chưa được chọn'}',
+      label:
+          '$label. ${selected ? context.tr('Đang được chọn', '已选择') : context.tr('Chưa được chọn', '未选择')}',
       child: OutlinedButton.icon(
         onPressed: enabled ? onPressed : null,
         icon: Icon(icon, size: 25),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../l10n/display_language.dart';
 import '../../domain/conversation_models.dart';
 
 class VoiceHero extends StatelessWidget {
@@ -66,13 +67,13 @@ class VoiceHero extends StatelessWidget {
                   _statusIcon,
                   color: accent,
                   size: 38,
-                  semanticLabel: _statusLabel,
+                  semanticLabel: _statusLabel(context),
                 ),
                 const SizedBox(height: 5),
                 Semantics(
                   liveRegion: true,
                   child: Text(
-                    _statusLabel,
+                    _statusLabel(context),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: accent,
@@ -82,7 +83,7 @@ class VoiceHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _supportingText,
+                  _supportingText(context),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.muted,
@@ -113,7 +114,7 @@ class VoiceHero extends StatelessWidget {
                                   alpha: isRecording ? 0.88 : 0.58,
                                 ),
                                 size: 70,
-                                semanticLabel: 'Mức âm thanh',
+                                semanticLabel: context.tr('Mức âm thanh', '音量'),
                               ),
                             ),
                           ),
@@ -123,7 +124,7 @@ class VoiceHero extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: onStop,
                     icon: const Icon(Icons.stop_rounded),
-                    label: const Text('Dừng'),
+                    label: Text(context.tr('Dừng', '停止')),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(132, 48),
                       backgroundColor: AppColors.coral,
@@ -133,7 +134,7 @@ class VoiceHero extends StatelessWidget {
                   )
                 else
                   Text(
-                    _helperText,
+                    _helperText(context),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.muted,
@@ -154,7 +155,10 @@ class VoiceHero extends StatelessWidget {
               height: 94,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
-              semanticLabel: 'Robot trợ lý đang vẫy tay',
+              semanticLabel: context.tr(
+                'Robot trợ lý đang vẫy tay',
+                '助手机器人正在挥手',
+              ),
             ),
           ),
         ),
@@ -162,27 +166,54 @@ class VoiceHero extends StatelessWidget {
     );
   }
 
-  String get _statusLabel => switch (phase) {
-    ConversationPhase.idle => 'Con nói tiếng Việt',
-    ConversationPhase.recording => 'Mình đang nghe…',
-    ConversationPhase.processing => 'Mình đang giúp con…',
-    ConversationPhase.ready => 'Đã có câu tiếng Anh',
-    ConversationPhase.error => 'Mình thử lại nhé',
+  String _statusLabel(BuildContext context) => switch (phase) {
+    ConversationPhase.idle => context.tr('Con nói tiếng Việt', '请说越南语'),
+    ConversationPhase.recording => context.tr('Mình đang nghe…', '正在聆听…'),
+    ConversationPhase.processing => context.tr(
+      'Mình đang giúp con…',
+      '正在为你处理…',
+    ),
+    ConversationPhase.ready => context.tr('Đã có câu tiếng Anh', '英语句子已准备好'),
+    ConversationPhase.error => context.tr('Mình thử lại nhé', '我们再试一次'),
   };
 
-  String get _supportingText => switch (phase) {
-    ConversationPhase.idle => 'Mình sẽ giúp nói bằng tiếng Anh',
-    ConversationPhase.recording => 'Nói tự nhiên và rõ ràng nhé',
-    ConversationPhase.processing => 'Chỉ một chút thôi nhé',
-    ConversationPhase.ready => 'Con có thể nghe lại câu bên dưới',
-    ConversationPhase.error => 'Kiểm tra micro hoặc kết nối backend',
+  String _supportingText(BuildContext context) => switch (phase) {
+    ConversationPhase.idle => context.tr(
+      'Mình sẽ giúp nói bằng tiếng Anh',
+      '我会帮你用英语表达',
+    ),
+    ConversationPhase.recording => context.tr(
+      'Nói tự nhiên và rõ ràng nhé',
+      '请自然、清晰地说话',
+    ),
+    ConversationPhase.processing => context.tr(
+      'Chỉ một chút thôi nhé',
+      '请稍等一下',
+    ),
+    ConversationPhase.ready => context.tr(
+      'Con có thể nghe lại câu bên dưới',
+      '可以播放下面的句子',
+    ),
+    ConversationPhase.error => context.tr(
+      'Kiểm tra micro hoặc kết nối',
+      '请检查麦克风或网络连接',
+    ),
   };
 
-  String get _helperText => switch (phase) {
-    ConversationPhase.idle => 'Bấm nút micro bên dưới để bắt đầu',
+  String _helperText(BuildContext context) => switch (phase) {
+    ConversationPhase.idle => context.tr(
+      'Bấm nút micro bên dưới để bắt đầu',
+      '点击下方麦克风按钮开始',
+    ),
     ConversationPhase.processing => '',
-    ConversationPhase.ready => 'Bấm “Nói câu mới” để tiếp tục',
-    ConversationPhase.error => 'Bấm “Thử lại” khi con sẵn sàng',
+    ConversationPhase.ready => context.tr(
+      'Bấm “Nói câu mới” để tiếp tục',
+      '点击“说新句子”继续',
+    ),
+    ConversationPhase.error => context.tr(
+      'Bấm “Thử lại” khi con sẵn sàng',
+      '准备好后点击“重试”',
+    ),
     ConversationPhase.recording => '',
   };
 

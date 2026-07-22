@@ -105,6 +105,10 @@ void main() {
           expect(benchmark['requestedAsrMode'], 'openai_realtime');
           expect(benchmark['asrFirstDeltaMs'], 510);
           expect(benchmark['asrFinalAfterStopMs'], 140);
+          expect(benchmark['realtimeSessionCreateMs'], 120);
+          expect(benchmark['realtimeWebSocketConnectMs'], 80);
+          expect(benchmark['realtimeWebSocketOpenAfterRecordingMs'], 200);
+          expect(benchmark['realtimeChunkDurationMs'], 200);
 
           return http.Response(
             jsonEncode(<String, dynamic>{
@@ -140,6 +144,10 @@ void main() {
           firstResultMs: 510,
           finalAfterStopMs: 140,
           asrMode: 'openai_realtime',
+          realtimeSessionCreateMs: 120,
+          realtimeWebSocketConnectMs: 80,
+          realtimeWebSocketOpenAfterRecordingMs: 200,
+          realtimeChunkDurationMs: 200,
         ),
         context: PracticeContext.outside,
         childAge: 6,

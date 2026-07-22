@@ -14,6 +14,10 @@ class StreamingSpeechCapture {
     this.asrMode = 'android_streaming',
     this.isBluetoothInput = false,
     this.initialNoiseRms,
+    this.realtimeSessionCreateMs,
+    this.realtimeWebSocketConnectMs,
+    this.realtimeWebSocketOpenAfterRecordingMs,
+    this.realtimeChunkDurationMs,
   });
 
   final String sourceText;
@@ -25,6 +29,10 @@ class StreamingSpeechCapture {
   final String asrMode;
   final bool isBluetoothInput;
   final double? initialNoiseRms;
+  final int? realtimeSessionCreateMs;
+  final int? realtimeWebSocketConnectMs;
+  final int? realtimeWebSocketOpenAfterRecordingMs;
+  final int? realtimeChunkDurationMs;
 }
 
 abstract interface class StreamingSpeechInput {

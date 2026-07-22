@@ -27,6 +27,7 @@
 
     <application
         android:label="Trợ lý giao tiếp"
+        android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
+import '../../../core/audio/wav_audio.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 
@@ -185,6 +187,8 @@ class NextConversationRepository
     required String audioInputLabel,
     required bool bluetoothAudioInput,
   }) async {
+    final sessionStartedAt = DateTime.now();
+    final sessionStopwatch = Stopwatch()..start();
     final clientId = await _clientId;
     final response = await _client
         .post(
@@ -213,17 +217,24 @@ class NextConversationRepository
       );
     }
 
+    sessionStopwatch.stop();
+    final websocketStopwatch = Stopwatch()..start();
     final socket = await WebSocket.connect(
       websocketUrl,
       headers: <String, String>{
         HttpHeaders.authorizationHeader: 'Bearer $clientSecret',
       },
     ).timeout(const Duration(seconds: 12));
+    websocketStopwatch.stop();
 
     return _OpenAiRealtimeTranscriptionSession(
       socket: socket,
       audioInputLabel: audioInputLabel,
       bluetoothAudioInput: bluetoothAudioInput,
+      sessionStartedAt: sessionStartedAt,
+      connectedAt: DateTime.now(),
+      sessionCreateMs: sessionStopwatch.elapsedMilliseconds,
+      websocketConnectMs: websocketStopwatch.elapsedMilliseconds,
     );
   }
 
@@ -266,6 +277,16 @@ class NextConversationRepository
               if (capture.firstResultMs != null)
                 'asrFirstDeltaMs': capture.firstResultMs,
               'asrFinalAfterStopMs': capture.finalAfterStopMs,
+              if (capture.realtimeSessionCreateMs != null)
+                'realtimeSessionCreateMs': capture.realtimeSessionCreateMs,
+              if (capture.realtimeWebSocketConnectMs != null)
+                'realtimeWebSocketConnectMs':
+                    capture.realtimeWebSocketConnectMs,
+              if (capture.realtimeWebSocketOpenAfterRecordingMs != null)
+                'realtimeWebSocketOpenAfterRecordingMs':
+                    capture.realtimeWebSocketOpenAfterRecordingMs,
+              if (capture.realtimeChunkDurationMs != null)
+                'realtimeChunkDurationMs': capture.realtimeChunkDurationMs,
             },
           }),
         )
@@ -563,8 +584,13 @@ class _OpenAiRealtimeTranscriptionSession
     required WebSocket socket,
     required this.audioInputLabel,
     required this.bluetoothAudioInput,
+    required DateTime sessionStartedAt,
+    required DateTime connectedAt,
+    required this.sessionCreateMs,
+    required this.websocketConnectMs,
   }) : _socket = socket,
-       _startedAt = DateTime.now() {
+       _sessionStartedAt = sessionStartedAt,
+       _connectedAt = connectedAt {
     _subscription = _socket.listen(
       _handleMessage,
       onError: _handleError,
@@ -576,7 +602,10 @@ class _OpenAiRealtimeTranscriptionSession
   final WebSocket _socket;
   final String audioInputLabel;
   final bool bluetoothAudioInput;
-  final DateTime _startedAt;
+  final DateTime _sessionStartedAt;
+  final DateTime _connectedAt;
+  final int sessionCreateMs;
+  final int websocketConnectMs;
   final StreamController<String> _partialController =
       StreamController<String>.broadcast();
   final Completer<String> _completed = Completer<String>();
@@ -584,11 +613,17 @@ class _OpenAiRealtimeTranscriptionSession
   final StringBuffer _deltas = StringBuffer();
   DateTime? _firstDeltaAt;
   DateTime? _stopRequestedAt;
+  DateTime? _recordingStartedAt;
   String _latestTranscript = '';
   bool _closed = false;
 
   @override
   Stream<String> get partialText => _partialController.stream;
+
+  @override
+  void markRecordingStarted(DateTime startedAt) {
+    _recordingStartedAt ??= startedAt;
+  }
 
   @override
   void addAudioChunk(Uint8List bytes) {
@@ -715,19 +750,47 @@ class _OpenAiRealtimeTranscriptionSession
         );
       }
       final completedAt = DateTime.now();
+      final latencyOrigin = _recordingStartedAt ?? _sessionStartedAt;
+      final websocketOpenAfterRecordingMs = _connectedAt
+          .difference(latencyOrigin)
+          .inMilliseconds
+          .clamp(0, 1 << 31)
+          .toInt();
+      final firstResultMs = _firstDeltaAt
+          ?.difference(latencyOrigin)
+          .inMilliseconds
+          .clamp(0, 1 << 31)
+          .toInt();
+      final finalAfterStopMs = completedAt
+          .difference(_stopRequestedAt!)
+          .inMilliseconds
+          .clamp(0, 1 << 31)
+          .toInt();
+      developer.log(
+        jsonEncode(<String, dynamic>{
+          'event': 'openai_realtime_latency',
+          'sessionCreateMs': sessionCreateMs,
+          'websocketConnectMs': websocketConnectMs,
+          'websocketOpenAfterRecordingMs': websocketOpenAfterRecordingMs,
+          'firstTranscriptDeltaAfterRecordingMs': firstResultMs,
+          'finalTranscriptAfterStopMs': finalAfterStopMs,
+          'chunkDurationMs': pcmChunkDurationMs,
+        }),
+        name: 'openai_realtime_latency',
+      );
       return StreamingSpeechCapture(
         sourceText: sourceText.trim(),
-        duration: _stopRequestedAt!.difference(_startedAt),
+        duration: _stopRequestedAt!.difference(latencyOrigin),
         inputLabel: audioInputLabel,
         confidence: null,
-        firstResultMs: _firstDeltaAt?.difference(_startedAt).inMilliseconds,
-        finalAfterStopMs: completedAt
-            .difference(_stopRequestedAt!)
-            .inMilliseconds
-            .clamp(0, 1 << 31)
-            .toInt(),
+        firstResultMs: firstResultMs,
+        finalAfterStopMs: finalAfterStopMs,
         asrMode: AsrMode.openAiRealtime.apiValue,
         isBluetoothInput: bluetoothAudioInput,
+        realtimeSessionCreateMs: sessionCreateMs,
+        realtimeWebSocketConnectMs: websocketConnectMs,
+        realtimeWebSocketOpenAfterRecordingMs: websocketOpenAfterRecordingMs,
+        realtimeChunkDurationMs: pcmChunkDurationMs,
       );
     } finally {
       await _close();
@@ -860,7 +923,7 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       vadSilenceMs: vadSilenceMs,
       batchTelemetry: <String, dynamic>{
         'batchTransport': 'streamed_pcm16_chunks',
-        'chunkIntervalMs': 250,
+        'chunkIntervalMs': pcmChunkDurationMs,
         'audioChunkCount': _nextSequence - 1,
         'uploadedAudioBytes': _audioByteCount,
         'sessionCreateMs': sessionCreateMs,

@@ -45,8 +45,9 @@ API key chuẩn không rời backend; Flutter chỉ nhận client secret hết h
 
 ### 2. Stream và finalize
 
-Flutter mở một WebSocket, gửi `input_audio_buffer.append` trong lúc nói và
-`input_audio_buffer.commit` khi Stop. Partial chỉ gọi preview rule/cache; final
+Flutter mở WebSocket ngay khi bắt đầu một lượt ghi âm và gửi
+`input_audio_buffer.append` trong lúc nói, sau đó gửi `input_audio_buffer.commit`
+khi Stop. Kết nối không được prewarm ngoài lượt nói. Partial chỉ gọi preview rule/cache; final
 text được gửi một lần vào `POST /api/conversation` với:
 
 ```json
@@ -58,7 +59,11 @@ text được gửi một lần vào `POST /api/conversation` với:
   "benchmark": {
     "requestedAsrMode": "openai_realtime",
     "asrFirstDeltaMs": 620,
-    "asrFinalAfterStopMs": 180
+    "asrFinalAfterStopMs": 180,
+    "realtimeSessionCreateMs": 140,
+    "realtimeWebSocketConnectMs": 95,
+    "realtimeWebSocketOpenAfterRecordingMs": 235,
+    "realtimeChunkDurationMs": 200
   }
 }
 ```
@@ -82,7 +87,7 @@ text được gửi một lần vào `POST /api/conversation` với:
 `multipart/form-data`:
 
 - `sequence`: `1..N` cho PCM16 và `0` cho WAV header;
-- `audio`: các chunk PCM16 mono 24 kHz khoảng 250 ms.
+- `audio`: các chunk PCM16 mono 24 kHz khoảng 200 ms.
 
 Luồng này chỉ tự bật khi Realtime không sẵn sàng. Backend ghép thành WAV hợp lệ
 và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
@@ -107,7 +112,7 @@ và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
     "bluetoothAudioInput": false,
     "initialNoiseRms": 0.013,
     "batchTransport": "streamed_pcm16_chunks",
-    "chunkIntervalMs": 250,
+    "chunkIntervalMs": 200,
     "audioChunkCount": 9,
     "uploadedAudioBytes": 72000,
     "sessionCreateMs": 28,
