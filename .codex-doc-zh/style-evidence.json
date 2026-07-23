@@ -1,0 +1,168 @@
+{
+  "input": "C:\\Users\\Windows\\Downloads\\Ke_hoach_trien_khai_V1_3_tuan_da_chinh_sua.docx",
+  "fonts_by_char_count": {},
+  "direct_run_formatting_runs": 99,
+  "direct_paragraph_formatting_paragraphs": 161,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 1,
+      "text": "K\u1ebe HO\u1ea0CH TRI\u1ec2N KHAI PHI\u00caN B\u1ea2N V1",
+      "style": "Normal"
+    },
+    {
+      "para_index": 4,
+      "text": "Phi\u00ean b\u1ea3n: V1 - K\u1ebf ho\u1ea1ch tri\u1ec3n khai 3 tu\u1ea7n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 5,
+      "text": "Tr\u1ea1ng th\u00e1i: S\u1eb5n s\u00e0ng ph\u00ea duy\u1ec7t v\u00e0 tri\u1ec3n khai",
+      "style": "Normal"
+    },
+    {
+      "para_index": 6,
+      "text": "Ng\u00e0y l\u1eadp: 22/07/2026",
+      "style": "Normal"
+    },
+    {
+      "para_index": 24,
+      "text": "Kh\u00f4ng ch\u1ea5p nh\u1eadn: Can we buy this?",
+      "style": "Normal"
+    },
+    {
+      "para_index": 25,
+      "text": "Ti\u1ebfng Vi\u1ec7t: M\u1eb9 \u01a1i, m\u00ecnh mua c\u00e1i n\u00e0y \u0111\u01b0\u1ee3c kh\u00f4ng?",
+      "style": "Normal"
+    },
+    {
+      "para_index": 26,
+      "text": "B\u1ea3n d\u1ecbch V1: Mom, can we buy this?",
+      "style": "Normal"
+    },
+    {
+      "para_index": 63,
+      "text": "Ng\u00e0y 1 - Ch\u1ed1t ti\u00eau chu\u1ea9n d\u1ecbch v\u00e0 tri\u1ec3n khai prompt V1",
+      "style": "Normal"
+    },
+    {
+      "para_index": 65,
+      "text": "Ng\u00e0y 2 - X\u00e2y b\u1ed9 d\u1eef li\u1ec7u chu\u1ea9n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 67,
+      "text": "Ng\u00e0y 3 - B\u1ed5 sung gi\u1ecdng v\u00e0 c\u00e1ch n\u00f3i v\u00f9ng mi\u1ec1n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 69,
+      "text": "Ng\u00e0y 4 - Ki\u1ec3m k\u00ea rule v\u00e0 cache",
+      "style": "Normal"
+    },
+    {
+      "para_index": 71,
+      "text": "Ng\u00e0y 5 - \u0110o baseline V0",
+      "style": "Normal"
+    },
+    {
+      "para_index": 85,
+      "text": "Ng\u00e0y 1 - Ki\u1ec3m ch\u1ee9ng prompt V1 tr\u00ean b\u1ed9 d\u1eef li\u1ec7u chu\u1ea9n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 87,
+      "text": "Ng\u00e0y 2 - Si\u1ebft rule v\u00e0 semantic matching",
+      "style": "Normal"
+    },
+    {
+      "para_index": 89,
+      "text": "Ng\u00e0y 3 - L\u00e0m s\u1ea1ch v\u00e0 phi\u00ean b\u1ea3n h\u00f3a cache",
+      "style": "Normal"
+    },
+    {
+      "para_index": 91,
+      "text": "Ng\u00e0y 4 - Ho\u00e0n thi\u1ec7n Admin correction loop",
+      "style": "Normal"
+    },
+    {
+      "para_index": 93,
+      "text": "Ng\u00e0y 5 - Ki\u1ec3m th\u1eed t\u00edch h\u1ee3p",
+      "style": "Normal"
+    },
+    {
+      "para_index": 108,
+      "text": "Ng\u00e0y 1 - Pilot c\u00f3 ki\u1ec3m so\u00e1t",
+      "style": "Normal"
+    },
+    {
+      "para_index": 110,
+      "text": "Ng\u00e0y 2 - Ph\u00e2n t\u00edch l\u1ed7i th\u1ef1c t\u1ebf",
+      "style": "Normal"
+    },
+    {
+      "para_index": 112,
+      "text": "Ng\u00e0y 3 - S\u1eeda l\u1ed7i P0/P1",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "K\u1ebe HO\u1ea0CH TRI\u1ec2N KHAI PHI\u00caN B\u1ea2N V1",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "text": "Tr\u1ee3 l\u00fd giao ti\u1ebfp AI - Flutter Android v\u00e0 Backend Next.js",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "TR\u1eccNG T\u00c2M V1  Ho\u00e0n th\u00e0nh trong 3 tu\u1ea7n, \u01b0u ti\u00ean d\u1ecbch ti\u1ebfng Vi\u1ec7t sang ti\u1ebfng Anh trung th\u00e0nh v\u1edbi c\u00e2u tr\u1ebb n\u00f3i; kh\u00f4ng t\u1ef1 r\u00fat ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "Phi\u00ean b\u1ea3n: V1 - K\u1ebf ho\u1ea1ch tri\u1ec3n khai 3 tu\u1ea7n",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "Tr\u1ea1ng th\u00e1i: S\u1eb5n s\u00e0ng ph\u00ea duy\u1ec7t v\u00e0 tri\u1ec3n khai",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "K\u1ebe HO\u1ea0CH TRI\u1ec2N KHAI PHI\u00caN B\u1ea2N V1",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "run_text": "Tr\u1ee3 l\u00fd giao ti\u1ebfp AI - Flutter Android v\u00e0 Backend Next.js",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "run_text": "TR\u1eccNG T\u00c2M V1  ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "run_text": "Ho\u00e0n th\u00e0nh trong 3 tu\u1ea7n, \u01b0u ti\u00ean d\u1ecbch ti\u1ebfng Vi\u1ec7t sang ti\u1ebfng Anh trung th\u00e0nh v\u1edbi ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "Phi\u00ean b\u1ea3n: ",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}
