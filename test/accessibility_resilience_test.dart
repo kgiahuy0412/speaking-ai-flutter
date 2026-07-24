@@ -60,6 +60,17 @@ void main() {
       );
       expect(find.byTooltip('Cài đặt'), findsOneWidget);
 
+      final topicShortcut = find.byKey(const Key('topic-listening-shortcut'));
+      await tester.ensureVisible(topicShortcut);
+      await tester.tapAt(tester.getTopLeft(topicShortcut) + const Offset(20, 20));
+      await tester.pumpAndSettle();
+      expect(find.text('Luyện nghe theo chủ đề'), findsOneWidget);
+      expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byTooltip('Quay lại'));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byTooltip('Cài đặt'));
       await tester.pump();
       expect(tester.takeException(), isNull);
