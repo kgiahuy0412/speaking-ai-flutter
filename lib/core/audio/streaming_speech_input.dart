@@ -3,6 +3,57 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 
+const _incompleteVietnameseEndings = <String>{
+  'ba',
+  'bố',
+  'con',
+  'cô',
+  'là',
+  'mà',
+  'mẹ',
+  'muốn',
+  'nên',
+  'rồi',
+  'sẽ',
+  'thì',
+  'và',
+  'đang',
+  'đã',
+};
+
+String preferCompleteVietnameseTranscript({
+  required String partialText,
+  required String finalText,
+}) {
+  final partial = partialText.trim().replaceAll(RegExp(r'\s+'), ' ');
+  final completed = finalText.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+  if (partial.isEmpty) {
+    return completed;
+  }
+  if (completed.isEmpty) {
+    return partial;
+  }
+
+  final partialTokens = partial.toLowerCase().split(' ');
+  final finalTokens = completed.toLowerCase().split(' ');
+  if (partialTokens.length < finalTokens.length + 2 ||
+      !_incompleteVietnameseEndings.contains(finalTokens.last)) {
+    return completed;
+  }
+
+  final comparedLength = finalTokens.length;
+  var matchingPrefixTokens = 0;
+  while (matchingPrefixTokens < comparedLength &&
+      partialTokens[matchingPrefixTokens] ==
+          finalTokens[matchingPrefixTokens]) {
+    matchingPrefixTokens += 1;
+  }
+  final prefixAgreement = matchingPrefixTokens / comparedLength;
+
+  return prefixAgreement >= 0.8 ? partial : completed;
+}
+
 class StreamingSpeechCapture {
   const StreamingSpeechCapture({
     required this.sourceText,
@@ -212,7 +263,12 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     if (type == 'speech.partial' || type == 'speech.final') {
       final text = event['text'];
       if (text is String && text.trim().isNotEmpty) {
-        final nextText = text.trim();
+        final nextText = type == 'speech.final'
+            ? preferCompleteVietnameseTranscript(
+                partialText: _latestText,
+                finalText: text,
+              )
+            : text.trim();
         final changed = nextText != _latestText;
         _latestText = nextText;
         _firstResultAt ??= DateTime.now();
@@ -224,7 +280,12 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
 
     if (type == 'speech.final') {
       final confidence = (event['confidence'] as num?)?.toDouble();
-      _confidence = confidence != null && confidence >= 0 ? confidence : null;
+      final finalText = event['text'];
+      final finalWasPreserved =
+          finalText is String && _latestText.trim() == finalText.trim();
+      _confidence = finalWasPreserved && confidence != null && confidence >= 0
+          ? confidence
+          : null;
       _resultAt = DateTime.now();
       _active = false;
       _completeResult(_latestText);

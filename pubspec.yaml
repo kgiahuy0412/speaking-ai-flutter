@@ -24,7 +24,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/data/listening_lessons.json
+    - assets/images/lesson-intro-stage.webp
     - assets/images/mascot-robot.png
+    - assets/images/topics/
   fonts:
     - family: Roboto
       fonts:

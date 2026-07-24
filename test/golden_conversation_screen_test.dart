@@ -7,11 +7,56 @@ import 'package:ai_speaking_flutter_app/features/conversation/domain/conversatio
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
+import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('idle screen keeps the compact hero above the fold', (
+    tester,
+  ) async {
+    await _loadGoldenFonts();
+    await tester.binding.setSurfaceSize(const Size(450, 1025));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller = ConversationController(
+      audioInput: const _PreviewAudioInput(),
+      playbackService: const _PreviewPlaybackService(),
+      repository: const _PreviewRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: ConversationScreen(
+          controller: controller,
+          config: AppConfig(
+            backendBaseUri: _previewBackendUri,
+            useDemoBackend: true,
+            childAge: 6,
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage('assets/images/mascot-robot.png'),
+        tester.element(find.byType(ConversationScreen)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(ConversationScreen),
+      matchesGoldenFile('goldens/conversation-idle-compact-450x1025.png'),
+    );
+  });
+
   testWidgets('recording screen matches the selected mobile direction', (
     tester,
   ) async {
@@ -52,6 +97,90 @@ void main() {
       matchesGoldenFile('goldens/conversation-recording-390x844.png'),
     );
   });
+
+  testWidgets('ready result screen includes the topic listening shortcut', (
+    tester,
+  ) async {
+    await _loadGoldenFonts();
+    await tester.binding.setSurfaceSize(const Size(450, 1025));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller =
+        ConversationController(
+            audioInput: const _PreviewAudioInput(),
+            playbackService: const _PreviewPlaybackService(),
+            repository: const _PreviewRepository(),
+            childAge: 6,
+          )
+          ..phase = ConversationPhase.ready
+          ..result = _readyShortcutResult;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: ConversationScreen(
+          controller: controller,
+          config: AppConfig(
+            backendBaseUri: _previewBackendUri,
+            useDemoBackend: true,
+            childAge: 6,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-listening-shortcut')), findsOneWidget);
+    await expectLater(
+      find.byType(ConversationScreen),
+      matchesGoldenFile('goldens/conversation-ready-shortcut-450x1025.png'),
+    );
+
+    await tester.tap(find.byKey(const Key('topic-listening-shortcut')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TopicListeningScreen), findsOneWidget);
+  });
+
+  testWidgets('topic listening screen matches the selected mobile direction', (
+    tester,
+  ) async {
+    await _loadGoldenFonts();
+    await tester.binding.setSurfaceSize(const Size(426, 923));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: const TopicListeningScreen(
+          language: DisplayLanguage.vietnamese,
+          childAge: 6,
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      final context = tester.element(find.byType(TopicListeningScreen));
+      await Future.wait<void>(
+        const <AssetImage>[
+          AssetImage('assets/images/mascot-robot.png'),
+          AssetImage('assets/images/topics/name-age.jpg'),
+          AssetImage('assets/images/topics/family-home.jpg'),
+          AssetImage('assets/images/topics/school-bag.jpg'),
+          AssetImage('assets/images/topics/school-day.jpg'),
+          AssetImage('assets/images/topics/numbers-time.jpg'),
+          AssetImage('assets/images/topics/favorite-food.jpg'),
+        ].map((provider) => precacheImage(provider, context)),
+      );
+    });
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(TopicListeningScreen),
+      matchesGoldenFile('goldens/topic-listening-426x923.png'),
+    );
+  });
 }
 
 Future<void> _loadGoldenFonts() async {
@@ -80,6 +209,25 @@ const _previewResult = ConversationResult(
     llmMs: 2,
     ttsMs: 1,
     timeToFirstAudioMs: 620,
+  ),
+);
+
+const _readyShortcutResult = ConversationResult(
+  conversationId: 'conv_ready_shortcut',
+  sessionId: 'sess_ready_shortcut',
+  context: PracticeContext.outside,
+  vietnameseText: 'Con muốn đi chơi với bức tượng',
+  englishText: 'I want to play with the statue.',
+  audioUri: null,
+  processingMode: 'ai',
+  textSource: 'llm',
+  audioSource: 'cache',
+  asrMode: 'android_streaming',
+  latency: ConversationLatency(
+    asrMs: 430,
+    llmMs: 220,
+    ttsMs: 1,
+    timeToFirstAudioMs: 680,
   ),
 );
 

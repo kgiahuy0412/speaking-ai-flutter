@@ -40,11 +40,11 @@ class JustAudioPlaybackService implements AudioPlaybackService {
           AudioPlayer(
             audioLoadConfiguration: const AudioLoadConfiguration(
               androidLoadControl: AndroidLoadControl(
-                minBufferDuration: Duration(seconds: 1),
+                minBufferDuration: Duration(milliseconds: 600),
                 maxBufferDuration: Duration(seconds: 8),
-                bufferForPlaybackDuration: Duration(milliseconds: 300),
+                bufferForPlaybackDuration: Duration(milliseconds: 180),
                 bufferForPlaybackAfterRebufferDuration: Duration(
-                  milliseconds: 750,
+                  milliseconds: 500,
                 ),
                 prioritizeTimeOverSizeThresholds: true,
               ),

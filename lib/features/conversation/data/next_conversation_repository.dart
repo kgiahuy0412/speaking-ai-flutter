@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -615,6 +616,7 @@ class _OpenAiRealtimeTranscriptionSession
   DateTime? _stopRequestedAt;
   DateTime? _recordingStartedAt;
   String _latestTranscript = '';
+  double? _transcriptConfidence;
   bool _closed = false;
 
   @override
@@ -677,7 +679,15 @@ class _OpenAiRealtimeTranscriptionSession
     if (type == 'conversation.item.input_audio_transcription.completed') {
       final transcript = decoded['transcript'];
       if (transcript is String && transcript.trim().isNotEmpty) {
-        _latestTranscript = transcript.trim();
+        final completedTranscript = transcript.trim();
+        final selectedTranscript = preferCompleteVietnameseTranscript(
+          partialText: _deltas.toString(),
+          finalText: completedTranscript,
+        );
+        _latestTranscript = selectedTranscript;
+        if (selectedTranscript == completedTranscript) {
+          _transcriptConfidence = _confidenceFromLogProbs(decoded['logprobs']);
+        }
       }
       if (!_completed.isCompleted) {
         _completed.complete(_latestTranscript);
@@ -782,7 +792,7 @@ class _OpenAiRealtimeTranscriptionSession
         sourceText: sourceText.trim(),
         duration: _stopRequestedAt!.difference(latencyOrigin),
         inputLabel: audioInputLabel,
-        confidence: null,
+        confidence: _transcriptConfidence,
         firstResultMs: firstResultMs,
         finalAfterStopMs: finalAfterStopMs,
         asrMode: AsrMode.openAiRealtime.apiValue,
@@ -795,6 +805,24 @@ class _OpenAiRealtimeTranscriptionSession
     } finally {
       await _close();
     }
+  }
+
+  double? _confidenceFromLogProbs(dynamic value) {
+    if (value is! List || value.isEmpty) {
+      return null;
+    }
+    final logProbs = value
+        .whereType<Map<String, dynamic>>()
+        .map((entry) => entry['logprob'])
+        .whereType<num>()
+        .map((item) => item.toDouble())
+        .toList(growable: false);
+    if (logProbs.isEmpty) {
+      return null;
+    }
+    final average =
+        logProbs.reduce((left, right) => left + right) / logProbs.length;
+    return math.exp(average).clamp(0.0, 1.0).toDouble();
   }
 
   @override
