@@ -62,7 +62,22 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
     }
 
     final audioSession = await AudioSession.instance;
-    await audioSession.configure(const AudioSessionConfiguration.speech());
+    await audioSession.configure(
+      AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.defaultToSpeaker |
+            AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ),
+    );
 
     final temporaryDirectory = await getTemporaryDirectory();
     final extension = _chunked ? 'wav' : 'm4a';

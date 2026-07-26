@@ -140,7 +140,12 @@ class SettingsSheet extends StatelessWidget {
                       },
                       child: Column(
                         children: AsrMode.values
-                            .where((mode) => mode.isUserSelectable)
+                            .where(
+                              (mode) =>
+                                  mode.isUserSelectable &&
+                                  (mode != AsrMode.androidStreaming ||
+                                      controller.supportsAndroidStreaming),
+                            )
                             .map(
                               (mode) => RadioListTile<AsrMode>(
                                 contentPadding: EdgeInsets.zero,
