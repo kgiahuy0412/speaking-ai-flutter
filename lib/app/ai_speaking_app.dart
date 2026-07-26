@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
@@ -44,6 +45,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           );
     _deviceAudioCache = DeviceAudioCache();
     unawaited(_warmAudioCaches(repository, _deviceAudioCache));
+    final supportsAndroidNativeSpeech =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming
@@ -51,10 +54,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             : null,
         fallback: PhoneMicrophoneInput(),
       ),
-      streamingSpeechInput: AndroidStreamingSpeechInput(),
+      streamingSpeechInput: supportsAndroidNativeSpeech
+          ? AndroidStreamingSpeechInput()
+          : null,
       playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
       repository: repository,
-      offlineIntentRecognizer: MethodChannelOfflineIntentRecognizer(),
+      offlineIntentRecognizer: supportsAndroidNativeSpeech
+          ? MethodChannelOfflineIntentRecognizer()
+          : null,
       displayLanguageStore: const DisplayLanguageStore(),
       childAge: _config.childAge,
       preferBleStreaming: _config.preferBleStreaming,

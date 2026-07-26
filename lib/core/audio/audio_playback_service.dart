@@ -78,11 +78,20 @@ class JustAudioPlaybackService implements AudioPlaybackService {
 
   Future<void> _configurePlaybackAudioSession() async {
     final session = await _audioSession;
-    // Music mode intentionally routes generated speech through the Android
-    // media path, which is the path used by Bluetooth Classic/A2DP speakers.
-    // Recording reconfigures the shared session for speech, so playback must
-    // restore this mode after every captured utterance.
-    await session.configure(const AudioSessionConfiguration.music());
+    // iOS uses spoken-audio playback while Android keeps the media path used
+    // by Bluetooth Classic/A2DP speakers. Recording changes the shared audio
+    // session, so restore this configuration before every playback request.
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionMode: AVAudioSessionMode.spokenAudio,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      ),
+    );
   }
 
   @override

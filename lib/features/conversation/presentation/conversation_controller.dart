@@ -145,6 +145,7 @@ class ConversationController extends ChangeNotifier {
               asrMode == AsrMode.androidStreaming)
       ? _streamingSpeechInput?.label ?? _audioInput.label
       : _audioInput.label;
+  bool get supportsAndroidStreaming => _streamingSpeechInput != null;
   bool get isBluetoothInput => _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
