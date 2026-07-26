@@ -31,3 +31,9 @@ Thumbs.db
 .env.*
 !.env.example
 dart_defines.local.json
+
+# Local AI/ASR artifacts
+/.codex-spreadsheet/aiv0-ai-precheck/
+/outputs/aiv0-ai-precheck/
+/standalone/aiv0_batch_reviewer/.asr-models/
+/standalone/aiv0_batch_reviewer/.venv-asr/
