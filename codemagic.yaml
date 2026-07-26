@@ -35,6 +35,14 @@ workflows:
             flutter create --platforms=ios --org com.innotrik .
           fi
 
+          # `flutter create` adds the starter MyApp test when this repository
+          # does not already track test/widget_test.dart. The production app
+          # uses AiSpeakingApp and has its own test suite, so remove only that
+          # untracked template instead of weakening `flutter analyze`.
+          if ! git ls-files --error-unmatch test/widget_test.dart >/dev/null 2>&1; then
+            rm -f test/widget_test.dart
+          fi
+
           # Flutter derives this value from the project name. Keep the public
           # iOS identifier aligned with the existing Android application ID.
           sed -i '' \
