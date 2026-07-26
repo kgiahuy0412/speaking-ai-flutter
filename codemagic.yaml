@@ -1,0 +1,82 @@
+workflows:
+  ios-bootstrap:
+    name: iOS Bootstrap and Simulator Validation
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      flutter: 3.44.6
+      xcode: 26.0
+      vars:
+        BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
+        USE_DEMO_BACKEND: "false"
+        CHILD_AGE: "6"
+        PREFER_BLE_STREAMING: "false"
+        REALTIME_BATCH_FALLBACK: "true"
+        REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Verify build environment
+        script: |
+          set -euo pipefail
+          flutter --version
+          dart --version
+          xcodebuild -version
+
+      - name: Generate the iOS platform when missing
+        script: |
+          set -euo pipefail
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --org com.innotrik .
+          fi
+
+          # Flutter derives this value from the project name. Keep the public
+          # iOS identifier aligned with the existing Android application ID.
+          sed -i '' \
+            's/com\.innotrik\.aiSpeakingFlutterApp/com.innotrik.aispeaking/g' \
+            ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Resolve Flutter dependencies
+        script: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Analyze Dart code
+        script: |
+          set -euo pipefail
+          flutter analyze
+
+      - name: Run automated tests
+        script: |
+          set -euo pipefail
+          flutter test
+
+      - name: Build unsigned iOS Simulator app
+        script: |
+          set -euo pipefail
+          flutter build ios \
+            --simulator \
+            --debug \
+            --dart-define=BACKEND_BASE_URL="$BACKEND_BASE_URL" \
+            --dart-define=USE_DEMO_BACKEND="$USE_DEMO_BACKEND" \
+            --dart-define=CHILD_AGE="$CHILD_AGE" \
+            --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
+            --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES"
+
+      - name: Package generated iOS scaffold
+        script: |
+          set -euo pipefail
+          /usr/bin/zip -qry ios-scaffold.zip ios \
+            -x "ios/Flutter/ephemeral/*" \
+            -x "ios/.symlinks/*" \
+            -x "ios/Pods/*"
+
+    artifacts:
+      - ios-scaffold.zip
+      - build/ios/iphonesimulator/*.app
