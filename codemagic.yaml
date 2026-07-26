@@ -59,10 +59,18 @@ workflows:
           set -euo pipefail
           flutter analyze
 
-      - name: Run automated tests
+      - name: Run platform-independent automated tests
         script: |
           set -euo pipefail
-          flutter test
+          # Golden baselines are approved on Windows. macOS rasterizes fonts
+          # and anti-aliasing differently, so run all logic/widget tests here
+          # while keeping golden verification on its baseline platform.
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          if [ -z "$NON_GOLDEN_TESTS" ]; then
+            echo "No platform-independent Flutter tests were found."
+            exit 1
+          fi
+          flutter test $NON_GOLDEN_TESTS
 
       - name: Build unsigned iOS Simulator app
         script: |
