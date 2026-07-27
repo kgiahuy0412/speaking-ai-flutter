@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
+import 'listening_progress_persistence.dart';
 
 class ListeningProgressStore {
   const ListeningProgressStore({this.progressFilePath});
@@ -9,17 +8,8 @@ class ListeningProgressStore {
   static const String _resumeSuffix = '::current-sentence';
 
   final String? progressFilePath;
-
-  Future<File> _progressFile() async {
-    final customPath = progressFilePath;
-    if (customPath != null) {
-      return File(customPath);
-    }
-    final directory = await getApplicationSupportDirectory();
-    return File(
-      '${directory.path}${Platform.pathSeparator}listening-progress.json',
-    );
-  }
+  ListeningProgressPersistence get _persistence =>
+      ListeningProgressPersistence(customPath: progressFilePath);
 
   Future<Map<String, int>> readAll() async {
     final progress = await _readRaw();
@@ -29,8 +19,11 @@ class ListeningProgressStore {
 
   Future<Map<String, int>> _readRaw() async {
     try {
-      final file = await _progressFile();
-      final decoded = jsonDecode(await file.readAsString());
+      final raw = await _persistence.read();
+      if (raw == null || raw.trim().isEmpty) {
+        return <String, int>{};
+      }
+      final decoded = jsonDecode(raw);
       if (decoded is! Map<String, Object?>) {
         return <String, int>{};
       }
@@ -68,8 +61,6 @@ class ListeningProgressStore {
   }
 
   Future<void> _writeRaw(Map<String, int> progress) async {
-    final file = await _progressFile();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(progress), flush: true);
+    await _persistence.write(jsonEncode(progress));
   }
 }

@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 
 import 'audio_input.dart';
+import 'recording_storage.dart';
 import 'wav_audio.dart';
 
 class PhoneMicrophoneInput implements ChunkedAudioInput {
@@ -26,13 +26,12 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   Completer<void>? _pcmStreamDone;
   Object? _streamError;
   bool _chunked = false;
+  bool _microphonePermissionGranted = false;
+  bool _recordConfigListenerRegistered = false;
+  int _effectiveSampleRate = pcm16SampleRate;
 
-  static const int _chunkByteLength =
-      pcm16SampleRate *
-      pcm16ChannelCount *
-      (pcm16BitsPerSample ~/ 8) *
-      pcmChunkDurationMs ~/
-      1000;
+  int get _chunkByteLength =>
+      pcm16ChunkByteLength(sampleRate: _effectiveSampleRate);
 
   @override
   String get label => 'Mic điện thoại';
@@ -55,20 +54,44 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   Stream<Uint8List> get audioChunks => _audioChunkController.stream;
 
   Future<void> _prepareRecording() async {
-    if (!await _recorder.hasPermission()) {
-      throw const AudioInputException(
-        'Ứng dụng cần quyền micro để nghe con nói.',
-      );
+    if (!_microphonePermissionGranted) {
+      if (!await _recorder.hasPermission()) {
+        throw const AudioInputException(
+          'Ứng dụng cần quyền micro để nghe con nói.',
+        );
+      }
+      _microphonePermissionGranted = true;
+    }
+
+    if (kIsWeb && !_recordConfigListenerRegistered) {
+      await _recorder.setOnConfigChanged((config) {
+        if (config.sampleRate > 0) {
+          _effectiveSampleRate = config.sampleRate;
+        }
+      });
+      _recordConfigListenerRegistered = true;
     }
 
     final audioSession = await AudioSession.instance;
-    await audioSession.configure(const AudioSessionConfiguration.speech());
+    await audioSession.configure(
+      AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.defaultToSpeaker |
+            AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
+        avAudioSessionMode: AVAudioSessionMode.voiceChat,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ),
+    );
 
-    final temporaryDirectory = await getTemporaryDirectory();
     final extension = _chunked ? 'wav' : 'm4a';
-    final fileName =
-        'utterance_${DateTime.now().microsecondsSinceEpoch}.$extension';
-    _currentPath = '${temporaryDirectory.path}/$fileName';
+    _currentPath = await createTemporaryRecordingPath(extension);
     _startedAt = DateTime.now();
     _initialNoiseRms = null;
     _streamError = null;
@@ -95,6 +118,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   @override
   Future<void> startChunked() async {
     _chunked = true;
+    _effectiveSampleRate = pcm16SampleRate;
     _pcmBytes = BytesBuilder(copy: false);
     _pendingChunkBytes = BytesBuilder(copy: false);
     _pcmStreamDone = Completer<void>();
@@ -180,6 +204,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
 
     Uint8List? streamHeaderBytes;
     int? streamedAudioBytes;
+    Uint8List? dataBytes;
     var mimeType = 'audio/mp4';
     if (_chunked) {
       final pcmBytes = _pcmBytes?.takeBytes() ?? Uint8List(0);
@@ -189,10 +214,14 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       streamedAudioBytes = pcmBytes.length;
       streamHeaderBytes = buildPcm16WavHeader(
         pcmByteLength: streamedAudioBytes,
+        sampleRate: _effectiveSampleRate,
       );
-      await File(
-        path,
-      ).writeAsBytes(<int>[...streamHeaderBytes, ...pcmBytes], flush: true);
+      final wavBytes = Uint8List.fromList(<int>[
+        ...streamHeaderBytes,
+        ...pcmBytes,
+      ]);
+      dataBytes = wavBytes;
+      await persistRecordingBytes(path, wavBytes);
       mimeType = 'audio/wav';
     }
 
@@ -205,6 +234,8 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       initialNoiseRms: _initialNoiseRms,
       streamHeaderBytes: streamHeaderBytes,
       streamedAudioBytes: streamedAudioBytes,
+      recordingSampleRate: _chunked ? _effectiveSampleRate : null,
+      dataBytes: dataBytes,
     );
   }
 

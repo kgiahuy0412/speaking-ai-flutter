@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppConfig {
   const AppConfig({
     required this.backendBaseUri,
@@ -9,10 +11,15 @@ class AppConfig {
   });
 
   factory AppConfig.fromEnvironment() {
-    const rawBackendUrl = String.fromEnvironment(
+    const configuredBackendUrl = String.fromEnvironment(
       'BACKEND_BASE_URL',
-      defaultValue: 'http://10.0.2.2:3000',
+      defaultValue: '',
     );
+    final rawBackendUrl = configuredBackendUrl.trim().isNotEmpty
+        ? configuredBackendUrl.trim()
+        : kIsWeb
+        ? 'http://localhost:3000'
+        : 'http://10.0.2.2:3000';
 
     return AppConfig(
       backendBaseUri: Uri.parse(

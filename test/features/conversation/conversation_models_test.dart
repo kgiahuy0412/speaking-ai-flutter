@@ -1,4 +1,5 @@
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -113,5 +114,21 @@ void main() {
     expect(result.learning?.status, 'observing');
     expect(result.learning?.useCount, 2);
     expect(result.learning?.threshold, 3);
+  });
+
+  test('benchmark identifies an iOS Flutter client', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    const benchmark = ConversationBenchmark(
+      utteranceDurationMs: 1200,
+      vadSilenceMs: 700,
+      requestedAsrMode: AsrMode.openAiRealtime,
+      audioInputLabel: 'Mic điện thoại',
+      bluetoothAudioInput: false,
+      initialNoiseRms: null,
+    );
+
+    expect(benchmark.toJson()['browser'], 'flutter_ios');
   });
 }

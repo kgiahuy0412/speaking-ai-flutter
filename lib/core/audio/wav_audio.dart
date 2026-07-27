@@ -8,6 +8,21 @@ const int pcm16BitsPerSample = 16;
 // Keep this within the 150-250 ms range when tuning Realtime latency.
 const int pcmChunkDurationMs = 200;
 
+int pcm16ChunkByteLength({
+  required int sampleRate,
+  int channelCount = pcm16ChannelCount,
+  int durationMs = pcmChunkDurationMs,
+}) {
+  if (sampleRate <= 0 || channelCount <= 0 || durationMs <= 0) {
+    throw ArgumentError('PCM chunk settings must be positive.');
+  }
+  return sampleRate *
+      channelCount *
+      (pcm16BitsPerSample ~/ 8) *
+      durationMs ~/
+      1000;
+}
+
 Uint8List buildPcm16WavHeader({
   required int pcmByteLength,
   int sampleRate = pcm16SampleRate,

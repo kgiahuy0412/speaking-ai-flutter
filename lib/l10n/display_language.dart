@@ -1,7 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+
+import 'display_language_persistence.dart';
 
 enum DisplayLanguage {
   vietnamese('vi', 'Tiếng Việt', 'Tiếng Việt'),
@@ -35,14 +34,9 @@ enum DisplayLanguage {
 class DisplayLanguageStore {
   const DisplayLanguageStore();
 
-  Future<File> _file() async {
-    final directory = await getApplicationSupportDirectory();
-    return File('${directory.path}/display-language.txt');
-  }
-
   Future<DisplayLanguage> read() async {
     try {
-      final code = (await (await _file()).readAsString()).trim();
+      final code = (await readDisplayLanguageCode())?.trim();
       return DisplayLanguage.values.firstWhere(
         (language) => language.code == code,
         orElse: () => DisplayLanguage.vietnamese,
@@ -52,11 +46,8 @@ class DisplayLanguageStore {
     }
   }
 
-  Future<void> write(DisplayLanguage language) async {
-    final file = await _file();
-    await file.parent.create(recursive: true);
-    await file.writeAsString(language.code, flush: true);
-  }
+  Future<void> write(DisplayLanguage language) =>
+      writeDisplayLanguageCode(language.code);
 }
 
 class DisplayLanguageScope extends InheritedWidget {
