@@ -29,4 +29,17 @@ void main() {
     expect(wav.sublist(44), pcm);
     expect(ByteData.sublistView(wav).getUint32(40, Endian.little), 4);
   });
+
+  test('keeps a 200 ms chunk at the browser effective sample rate', () {
+    expect(pcm16ChunkByteLength(sampleRate: 24000), 9600);
+    expect(pcm16ChunkByteLength(sampleRate: 48000), 19200);
+  });
+
+  test('writes the effective browser sample rate into the WAV header', () {
+    final header = buildPcm16WavHeader(pcmByteLength: 19200, sampleRate: 48000);
+    final data = ByteData.sublistView(header);
+
+    expect(data.getUint32(24, Endian.little), 48000);
+    expect(data.getUint32(28, Endian.little), 96000);
+  });
 }

@@ -41,6 +41,28 @@ void main() {
     expect(buffer.byteLength, 0);
   });
 
+  test('unlocks browser audio before stopping previous playback', () async {
+    final events = <String>[];
+    final playback = _GesturePlaybackService(events);
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+    );
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: playback,
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+    );
+
+    await controller.startRecording();
+
+    expect(events.take(2), <String>['unlock', 'stop']);
+    controller.dispose();
+  });
+
   test(
     'preferred audio input safely uses phone when BLE is unavailable',
     () async {
@@ -375,6 +397,7 @@ class _FakeChunkedInput implements ChunkedAudioInput {
     initialNoiseRms: null,
     streamHeaderBytes: Uint8List.fromList(<int>[82, 73, 70, 70]),
     streamedAudioBytes: 4,
+    recordingSampleRate: 24000,
   );
 
   @override
@@ -652,6 +675,43 @@ class _FakePlaybackService implements AudioPlaybackService {
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _GesturePlaybackService
+    implements AudioPlaybackService, UserGestureAudioPlaybackService {
+  _GesturePlaybackService(this.events);
+
+  final List<String> events;
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> unlockForUserGesture() async {
+    events.add('unlock');
+  }
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) async =>
+      const PlaybackStartMetrics(
+        audioLoadDuration: Duration.zero,
+        startedAfterRequest: Duration.zero,
+        fromDeviceCache: false,
+      );
+
+  @override
+  Future<void> stop() async {
+    events.add('stop');
+  }
 
   @override
   Future<void> dispose() async {}
