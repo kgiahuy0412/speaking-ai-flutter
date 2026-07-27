@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -104,8 +105,10 @@ class SettingsSheet extends StatelessWidget {
                           'BLE • 离线快速路径 • 实时备用',
                         ),
                         AsrMode.batchChunks => context.tr(
-                          'PCM16 • chế độ dự phòng tự động',
-                          'PCM16 • 自动备用模式',
+                          kIsWeb
+                              ? 'PCM16 • truyền trong lúc nói • tự động dự phòng'
+                              : 'PCM16 • chế độ dự phòng tự động',
+                          kIsWeb ? 'PCM16 • 说话时传输 • 自动备用' : 'PCM16 • 自动备用模式',
                         ),
                         AsrMode.deviceStreaming => context.tr(
                           'Opus BLE • cần thiết bị thật',
@@ -140,13 +143,28 @@ class SettingsSheet extends StatelessWidget {
                       },
                       child: Column(
                         children: AsrMode.values
-                            .where((mode) => mode.isUserSelectable)
+                            .where(
+                              (mode) =>
+                                  (mode.isUserSelectable ||
+                                      (kIsWeb &&
+                                          mode == AsrMode.batchChunks)) &&
+                                  (!kIsWeb || mode == AsrMode.batchChunks) &&
+                                  (mode != AsrMode.androidStreaming ||
+                                      controller.supportsAndroidStreaming),
+                            )
                             .map(
                               (mode) => RadioListTile<AsrMode>(
                                 contentPadding: EdgeInsets.zero,
                                 value: mode,
                                 enabled: mode.isBackendSupported,
-                                title: Text(context.trKnown(mode.label)),
+                                title: Text(
+                                  kIsWeb && mode == AsrMode.batchChunks
+                                      ? context.tr(
+                                          'Nhận giọng nói trực tuyến',
+                                          '在线语音识别',
+                                        )
+                                      : context.trKnown(mode.label),
+                                ),
                                 subtitle: Text(switch (mode) {
                                   AsrMode.androidStreaming => context.tr(
                                     'Nhanh như web streaming; tự dùng dịch vụ Android',
@@ -161,8 +179,12 @@ class SettingsSheet extends StatelessWidget {
                                     '当意图置信度高时自动用于 BLE',
                                   ),
                                   AsrMode.batchChunks => context.tr(
-                                    'Tự bật khi Realtime gặp lỗi; không cần chọn thủ công',
-                                    '实时识别失败时自动启用；无需手动选择',
+                                    kIsWeb
+                                        ? 'Gửi từng phần khi đang nói; xử lý an toàn khi dừng'
+                                        : 'Tự bật khi Realtime gặp lỗi; không cần chọn thủ công',
+                                    kIsWeb
+                                        ? '说话时分段发送；停止后安全处理'
+                                        : '实时识别失败时自动启用；无需手动选择',
                                   ),
                                   AsrMode.deviceStreaming => context.tr(
                                     'Bật sau khi hoàn thiện BLE + Opus decoder',

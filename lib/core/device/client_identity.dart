@@ -1,15 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+
+import 'platform_client_identity.dart';
 
 class ClientIdentity {
-  static const MethodChannel _channel = MethodChannel('ailingo_platform');
-
   Future<String>? _clientId;
 
   Future<String> getClientId() => _clientId ??= _loadClientId();
 
   Future<String> _loadClientId() async {
-    final clientId = await _channel.invokeMethod<String>('device.clientId');
+    final clientId = await loadPlatformClientId();
     final normalized = clientId?.trim();
 
     if (normalized == null || normalized.isEmpty) {

@@ -253,7 +253,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (path == null) {
       return;
     }
-    await _runMediaAction(() => widget.mediaService.play(Uri.file(path)));
+    final parsed = Uri.tryParse(path);
+    final uri = parsed != null && parsed.hasScheme ? parsed : Uri.file(path);
+    await _runMediaAction(() => widget.mediaService.play(uri));
   }
 
   Future<void> _runMediaAction(Future<void> Function() action) async {

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum PracticeContext {
   home('home', 'Ở nhà'),
   school('school', 'Ở trường'),
@@ -333,12 +335,26 @@ class ConversationBenchmark {
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'device': 'mobile',
-    'browser': 'flutter_android',
+    'browser': _flutterPlatformLabel,
     'utteranceDurationMs': utteranceDurationMs,
     'vadSilenceMs': vadSilenceMs,
     'requestedAsrMode': requestedAsrMode.apiValue,
     'audioInputLabel': audioInputLabel,
     'bluetoothAudioInput': bluetoothAudioInput,
     if (initialNoiseRms != null) 'initialNoiseRms': initialNoiseRms,
+  };
+}
+
+String get _flutterPlatformLabel {
+  if (kIsWeb) {
+    return 'flutter_web';
+  }
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.android => 'flutter_android',
+    TargetPlatform.iOS => 'flutter_ios',
+    TargetPlatform.macOS => 'flutter_macos',
+    TargetPlatform.windows => 'flutter_windows',
+    TargetPlatform.linux => 'flutter_linux',
+    TargetPlatform.fuchsia => 'flutter_fuchsia',
   };
 }

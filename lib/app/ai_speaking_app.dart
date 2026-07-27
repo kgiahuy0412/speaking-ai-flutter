@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
@@ -11,8 +12,10 @@ import '../core/audio/phone_microphone_input.dart';
 import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
 import '../core/device/client_identity.dart';
+import '../core/pwa/pwa_install_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
+import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/conversation/presentation/conversation_screen.dart';
@@ -44,6 +47,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           );
     _deviceAudioCache = DeviceAudioCache();
     unawaited(_warmAudioCaches(repository, _deviceAudioCache));
+    final supportsAndroidNativeSpeech =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming
@@ -51,15 +56,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             : null,
         fallback: PhoneMicrophoneInput(),
       ),
-      streamingSpeechInput: AndroidStreamingSpeechInput(),
+      streamingSpeechInput: supportsAndroidNativeSpeech
+          ? AndroidStreamingSpeechInput()
+          : null,
       playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
       repository: repository,
-      offlineIntentRecognizer: MethodChannelOfflineIntentRecognizer(),
+      offlineIntentRecognizer: supportsAndroidNativeSpeech
+          ? MethodChannelOfflineIntentRecognizer()
+          : null,
       displayLanguageStore: const DisplayLanguageStore(),
       childAge: _config.childAge,
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
+      initialAsrMode: kIsWeb ? AsrMode.batchChunks : null,
     );
   }
 
@@ -138,7 +148,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       title: 'Trợ lý giao tiếp',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: ConversationScreen(controller: _controller, config: _config),
+      home: PwaInstallGate(
+        child: ConversationScreen(controller: _controller, config: _config),
+      ),
     );
   }
 }
