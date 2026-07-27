@@ -85,7 +85,8 @@ class NextConversationRepository
     required int vadSilenceMs,
   }) async {
     final clientId = await _clientId;
-    final audioSessionId = await _createAudioSession();
+    final audioSession = await _createAudioSession();
+    final audioSessionId = audioSession.id;
     await _uploadAudio(audioSessionId: audioSessionId, capture: capture);
 
     return _finalizeAudioSession(
@@ -105,6 +106,7 @@ class NextConversationRepository
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    bool assemblePcmWav = false,
     Map<String, dynamic> batchTelemetry = const <String, dynamic>{},
   }) async {
     final benchmark = ConversationBenchmark(
@@ -122,6 +124,13 @@ class NextConversationRepository
       'childAge': childAge,
       'asrMode': 'batch_chunks',
       'mimeType': capture.mimeType,
+      if (assemblePcmWav)
+        'pcm16Wav': <String, dynamic>{
+          'sampleRate': capture.recordingSampleRate,
+          'channelCount': pcm16ChannelCount,
+          'bitsPerSample': pcm16BitsPerSample,
+          'pcmByteLength': capture.streamedAudioBytes,
+        },
       'benchmark': <String, dynamic>{...benchmark.toJson(), ...batchTelemetry},
     });
     Object? lastError;
@@ -173,12 +182,13 @@ class NextConversationRepository
   @override
   Future<BatchChunkUploadSession> startBatchChunkUpload() async {
     final stopwatch = Stopwatch()..start();
-    final audioSessionId = await _createAudioSession();
+    final audioSession = await _createAudioSession();
     stopwatch.stop();
     return _NextBatchChunkUploadSession(
       repository: this,
-      audioSessionId: audioSessionId,
+      audioSessionId: audioSession.id,
       sessionCreateMs: stopwatch.elapsedMilliseconds,
+      supportsPcm16WavFinalize: audioSession.supportsPcm16WavFinalize,
     );
   }
 
@@ -327,7 +337,7 @@ class NextConversationRepository
     );
   }
 
-  Future<String> _createAudioSession() async {
+  Future<_AudioSessionDescriptor> _createAudioSession() async {
     final response = await _client
         .post(_config.resolve('/api/audio-sessions'))
         .timeout(const Duration(seconds: 10));
@@ -339,7 +349,13 @@ class NextConversationRepository
         'Backend không trả về audioSessionId.',
       );
     }
-    return audioSessionId;
+    final capabilities = json['capabilities'];
+    return _AudioSessionDescriptor(
+      id: audioSessionId,
+      supportsPcm16WavFinalize:
+          capabilities is Map<String, dynamic> &&
+          capabilities['pcm16WavFinalize'] == true,
+    );
   }
 
   Future<void> _uploadAudio({
@@ -428,24 +444,43 @@ class NextConversationRepository
     required bool audioFromDeviceCache,
   }) async {
     final clientId = await _clientId;
-    final response = await _client
-        .patch(
-          _config.resolve('/api/history'),
-          headers: const <String, String>{'content-type': 'application/json'},
-          body: jsonEncode(<String, dynamic>{
-            'clientId': clientId,
-            'conversationId': conversationId,
-            'latency': <String, dynamic>{
-              'audioLoadMs': audioLoadMs,
-              'audioFromDeviceCache': audioFromDeviceCache,
-              'browserAudioStartedMs': timeToFirstAudioMs,
-              'timeToFirstAudioMs': timeToFirstAudioMs,
-              'audioStartedAfterStopMs': timeToFirstAudioMs,
-            },
-          }),
-        )
-        .timeout(const Duration(seconds: 10));
-    _decodeResponse(response);
+    final body = jsonEncode(<String, dynamic>{
+      'clientId': clientId,
+      'conversationId': conversationId,
+      'latency': <String, dynamic>{
+        'audioLoadMs': audioLoadMs,
+        'audioFromDeviceCache': audioFromDeviceCache,
+        'browserAudioStartedMs': timeToFirstAudioMs,
+        'timeToFirstAudioMs': timeToFirstAudioMs,
+        'audioStartedAfterStopMs': timeToFirstAudioMs,
+      },
+    });
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        final response = await _client
+            .patch(
+              _config.resolve('/api/history'),
+              headers: const <String, String>{
+                'content-type': 'application/json',
+              },
+              body: body,
+            )
+            .timeout(const Duration(seconds: 10));
+        _decodeResponse(response);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
+    }
+
+    throw ConversationApiException(
+      'Không gửi được telemetry phát audio: $lastError',
+    );
   }
 
   @override
@@ -843,18 +878,30 @@ class _OpenAiRealtimeTranscriptionSession
   }
 }
 
+class _AudioSessionDescriptor {
+  const _AudioSessionDescriptor({
+    required this.id,
+    required this.supportsPcm16WavFinalize,
+  });
+
+  final String id;
+  final bool supportsPcm16WavFinalize;
+}
+
 class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
   _NextBatchChunkUploadSession({
     required NextConversationRepository repository,
     required this.audioSessionId,
     required this.sessionCreateMs,
+    required this.supportsPcm16WavFinalize,
   }) : _repository = repository;
 
   final NextConversationRepository _repository;
   final String audioSessionId;
   final int sessionCreateMs;
+  final bool supportsPcm16WavFinalize;
   final List<Future<void>> _pendingUploads = <Future<void>>[];
-  var _nextSequence = 1;
+  late var _nextSequence = supportsPcm16WavFinalize ? 0 : 1;
   var _audioByteCount = 0;
   var _closed = false;
   var _discarded = false;
@@ -916,8 +963,20 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       );
     }
     _closed = true;
-    final headerBytes = capture.streamHeaderBytes;
-    if (headerBytes == null || headerBytes.isEmpty) {
+    final streamedAudioBytes = capture.streamedAudioBytes;
+    final recordingSampleRate = capture.recordingSampleRate;
+    if (supportsPcm16WavFinalize &&
+        (streamedAudioBytes == null ||
+            streamedAudioBytes <= 0 ||
+            recordingSampleRate == null ||
+            recordingSampleRate <= 0)) {
+      throw const ConversationApiException(
+        'Không tìm thấy metadata PCM của Batch Chunks.',
+      );
+    }
+    final streamHeaderBytes = capture.streamHeaderBytes;
+    if (!supportsPcm16WavFinalize &&
+        (streamHeaderBytes == null || streamHeaderBytes.isEmpty)) {
       throw const ConversationApiException(
         'Không tìm thấy WAV header của Batch Chunks.',
       );
@@ -926,7 +985,12 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     final uploadDrainStopwatch = Stopwatch()..start();
     await Future.wait<void>(<Future<void>>[
       ..._pendingUploads,
-      _uploadWithRetry(sequence: 0, bytes: headerBytes, filename: 'header.wav'),
+      if (!supportsPcm16WavFinalize)
+        _uploadWithRetry(
+          sequence: 0,
+          bytes: streamHeaderBytes!,
+          filename: 'header.wav',
+        ),
     ]);
     uploadDrainStopwatch.stop();
 
@@ -937,11 +1001,19 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       context: context,
       childAge: childAge,
       vadSilenceMs: vadSilenceMs,
+      assemblePcmWav: supportsPcm16WavFinalize,
       batchTelemetry: <String, dynamic>{
         'batchTransport': 'streamed_pcm16_chunks',
         'chunkIntervalMs': pcmChunkDurationMs,
-        'audioChunkCount': _nextSequence - 1,
+        'audioChunkCount': supportsPcm16WavFinalize
+            ? _nextSequence
+            : _nextSequence - 1,
         'uploadedAudioBytes': _audioByteCount,
+        if (capture.recordingSampleRate != null)
+          'recordingSampleRate': capture.recordingSampleRate,
+        'wavHeaderStrategy': supportsPcm16WavFinalize
+            ? 'finalize_metadata'
+            : 'uploaded_chunk',
         'sessionCreateMs': sessionCreateMs,
         'uploadDrainAfterStopMs': uploadDrainStopwatch.elapsedMilliseconds,
       },

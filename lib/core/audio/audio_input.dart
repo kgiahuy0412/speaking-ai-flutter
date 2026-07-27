@@ -10,6 +10,7 @@ class AudioCapture {
     required this.initialNoiseRms,
     this.streamHeaderBytes,
     this.streamedAudioBytes,
+    this.recordingSampleRate,
     this.dataBytes,
   });
 
@@ -21,6 +22,7 @@ class AudioCapture {
   final double? initialNoiseRms;
   final Uint8List? streamHeaderBytes;
   final int? streamedAudioBytes;
+  final int? recordingSampleRate;
 
   /// In-memory payload used by Flutter Web, where a native file path is not
   /// available. Native platforms may also provide it for a retry upload.
