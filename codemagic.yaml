@@ -1,0 +1,98 @@
+workflows:
+  ios-bootstrap:
+    name: iOS Bootstrap and Simulator Validation
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      flutter: 3.44.6
+      xcode: 26.0
+      vars:
+        BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
+        USE_DEMO_BACKEND: "false"
+        CHILD_AGE: "6"
+        PREFER_BLE_STREAMING: "false"
+        REALTIME_BATCH_FALLBACK: "true"
+        REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Verify build environment
+        script: |
+          set -euo pipefail
+          flutter --version
+          dart --version
+          xcodebuild -version
+
+      - name: Generate the iOS platform when missing
+        script: |
+          set -euo pipefail
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --org com.innotrik .
+          fi
+
+          # `flutter create` adds the starter MyApp test when this repository
+          # does not already track test/widget_test.dart. The production app
+          # uses AiSpeakingApp and has its own test suite, so remove only that
+          # untracked template instead of weakening `flutter analyze`.
+          if ! git ls-files --error-unmatch test/widget_test.dart >/dev/null 2>&1; then
+            rm -f test/widget_test.dart
+          fi
+
+          # Flutter derives this value from the project name. Keep the public
+          # iOS identifier aligned with the existing Android application ID.
+          sed -i '' \
+            's/com\.innotrik\.aiSpeakingFlutterApp/com.innotrik.aispeaking/g' \
+            ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Resolve Flutter dependencies
+        script: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Analyze Dart code
+        script: |
+          set -euo pipefail
+          flutter analyze
+
+      - name: Run platform-independent automated tests
+        script: |
+          set -euo pipefail
+          # Golden baselines are approved on Windows. macOS rasterizes fonts
+          # and anti-aliasing differently, so run all logic/widget tests here
+          # while keeping golden verification on its baseline platform.
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          if [ -z "$NON_GOLDEN_TESTS" ]; then
+            echo "No platform-independent Flutter tests were found."
+            exit 1
+          fi
+          flutter test $NON_GOLDEN_TESTS
+
+      - name: Build unsigned iOS Simulator app
+        script: |
+          set -euo pipefail
+          flutter build ios \
+            --simulator \
+            --debug \
+            --dart-define=BACKEND_BASE_URL="$BACKEND_BASE_URL" \
+            --dart-define=USE_DEMO_BACKEND="$USE_DEMO_BACKEND" \
+            --dart-define=CHILD_AGE="$CHILD_AGE" \
+            --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
+            --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES"
+
+      - name: Package generated iOS scaffold
+        script: |
+          set -euo pipefail
+          /usr/bin/zip -qry ios-scaffold.zip ios \
+            -x "ios/Flutter/ephemeral/*" \
+            -x "ios/.symlinks/*" \
+            -x "ios/Pods/*"
+
+    artifacts:
+      - ios-scaffold.zip
+      - build/ios/iphonesimulator/*.app

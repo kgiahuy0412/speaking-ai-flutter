@@ -168,7 +168,10 @@ void main() {
       client: MockClient((request) async {
         if (request.url.path == '/api/audio-sessions') {
           return http.Response(
-            jsonEncode(<String, dynamic>{'audioSessionId': 'audio_test'}),
+            jsonEncode(<String, dynamic>{
+              'audioSessionId': 'audio_test',
+              'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
+            }),
             200,
           );
         }
@@ -191,6 +194,13 @@ void main() {
           expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
           expect(benchmark['audioChunkCount'], 2);
           expect(benchmark['uploadedAudioBytes'], 16000);
+          expect(benchmark['wavHeaderStrategy'], 'finalize_metadata');
+          expect(body['pcm16Wav'], <String, dynamic>{
+            'sampleRate': 48000,
+            'channelCount': 1,
+            'bitsPerSample': 16,
+            'pcmByteLength': 16000,
+          });
           finalized = true;
           return http.Response(
             jsonEncode(<String, dynamic>{
@@ -235,17 +245,102 @@ void main() {
         initialNoiseRms: null,
         streamHeaderBytes: header,
         streamedAudioBytes: 16000,
+        recordingSampleRate: 48000,
       ),
       context: PracticeContext.home,
       childAge: 6,
       vadSilenceMs: 700,
     );
 
-    expect(uploadedSequences..sort(), <int>[0, 1, 2]);
+    expect(uploadedSequences..sort(), <int>[0, 1]);
     expect(finalized, isTrue);
     expect(result.asrMode, 'batch_chunks');
     await repository.dispose();
   });
+
+  test(
+    'keeps legacy header upload when backend lacks the capability',
+    () async {
+      final uploadedSequences = <int>[];
+      Map<String, dynamic>? finalizeBody;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{'audioSessionId': 'audio_legacy'}),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            final body = latin1.decode(request.bodyBytes);
+            final match = RegExp(
+              r'name="sequence"\r\n\r\n(\d+)',
+            ).firstMatch(body);
+            uploadedSequences.add(int.parse(match!.group(1)!));
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_legacy',
+                'sessionId': 'sess_legacy',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'I want to drink water.',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 1,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 1,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      upload.addAudioChunk(Uint8List(8000));
+      await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 500),
+          inputLabel: 'Mic điện thoại',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
+          streamedAudioBytes: 8000,
+          recordingSampleRate: 24000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+
+      expect(uploadedSequences..sort(), <int>[0, 1]);
+      expect(finalizeBody!.containsKey('pcm16Wav'), isFalse);
+      expect(
+        (finalizeBody!['benchmark']
+            as Map<String, dynamic>)['wavHeaderStrategy'],
+        'uploaded_chunk',
+      );
+      await repository.dispose();
+    },
+  );
 
   test('retries finalize with a stable idempotency key', () async {
     var finalizeAttempts = 0;
@@ -256,7 +351,10 @@ void main() {
       client: MockClient((request) async {
         if (request.url.path == '/api/audio-sessions') {
           return http.Response(
-            jsonEncode(<String, dynamic>{'audioSessionId': 'audio_retry'}),
+            jsonEncode(<String, dynamic>{
+              'audioSessionId': 'audio_retry',
+              'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
+            }),
             200,
           );
         }
@@ -321,6 +419,7 @@ void main() {
         initialNoiseRms: null,
         streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
         streamedAudioBytes: 8000,
+        recordingSampleRate: 24000,
       ),
       context: PracticeContext.home,
       childAge: 6,
@@ -391,6 +490,43 @@ void main() {
       audioLoadMs: 42,
       audioFromDeviceCache: true,
     );
+    await repository.dispose();
+  });
+
+  test('retries playback telemetry without blocking playback', () async {
+    var attempts = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        attempts += 1;
+        if (attempts == 1) {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'error': <String, dynamic>{
+                'code': 'TEMPORARY',
+                'message': 'Thử lại.',
+              },
+            }),
+            503,
+          );
+        }
+        return http.Response(
+          jsonEncode(<String, dynamic>{'conversation': <String, dynamic>{}}),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await repository.patchPlaybackLatency(
+      conversationId: 'conv_telemetry_retry',
+      timeToFirstAudioMs: 700,
+      audioLoadMs: 50,
+      audioFromDeviceCache: false,
+    );
+
+    expect(attempts, 2);
     await repository.dispose();
   });
 

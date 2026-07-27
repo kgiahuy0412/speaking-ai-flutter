@@ -28,11 +28,11 @@ class VoiceHero extends StatelessWidget {
       clipBehavior: Clip.none,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.only(top: 25),
+          padding: const EdgeInsets.only(top: 18),
           child: AnimatedContainer(
             duration: animationDuration,
             curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.fromLTRB(24, 38, 24, 20),
+            padding: const EdgeInsets.fromLTRB(22, 30, 22, 16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -66,10 +66,10 @@ class VoiceHero extends StatelessWidget {
                 Icon(
                   _statusIcon,
                   color: accent,
-                  size: 38,
+                  size: 34,
                   semanticLabel: _statusLabel(context),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Semantics(
                   liveRegion: true,
                   child: Text(
@@ -77,11 +77,11 @@ class VoiceHero extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: accent,
-                      fontSize: 27,
+                      fontSize: 25,
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   _supportingText(context),
                   textAlign: TextAlign.center,
@@ -91,7 +91,7 @@ class VoiceHero extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 82,
+                  height: 66,
                   child: Center(
                     child: phase == ConversationPhase.processing
                         ? const SizedBox.square(
@@ -107,13 +107,13 @@ class VoiceHero extends StatelessWidget {
                                 : const Duration(milliseconds: 90),
                             scale: isRecording ? 0.94 + (amplitude * 0.14) : 1,
                             child: Transform.scale(
-                              scaleX: 1.85,
+                              scaleX: 1.75,
                               child: Icon(
                                 Icons.graphic_eq_rounded,
                                 color: accent.withValues(
                                   alpha: isRecording ? 0.88 : 0.58,
                                 ),
-                                size: 70,
+                                size: 60,
                                 semanticLabel: context.tr('Mức âm thanh', '音量'),
                               ),
                             ),
@@ -138,7 +138,7 @@ class VoiceHero extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.muted,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                   ),
               ],
@@ -146,13 +146,13 @@ class VoiceHero extends StatelessWidget {
           ),
         ),
         Positioned(
-          left: -10,
+          left: -8,
           top: 0,
           child: IgnorePointer(
             child: Image.asset(
               'assets/images/mascot-robot.png',
-              width: 94,
-              height: 94,
+              width: 82,
+              height: 82,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
               semanticLabel: context.tr(

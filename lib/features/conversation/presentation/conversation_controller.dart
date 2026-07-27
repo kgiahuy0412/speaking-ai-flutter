@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -23,6 +24,7 @@ class ConversationController extends ChangeNotifier {
     bool preferBleStreaming = true,
     bool realtimeBatchFallback = true,
     int realtimeFallbackBufferBytes = 15 * 1024 * 1024,
+    AsrMode? initialAsrMode,
   }) : _audioInput = audioInput,
        _streamingSpeechInput = streamingSpeechInput,
        _playbackService = playbackService,
@@ -37,9 +39,11 @@ class ConversationController extends ChangeNotifier {
              ? realtimeFallbackBufferBytes
              : 15 * 1024 * 1024,
        ),
-       asrMode = streamingSpeechInput == null
-           ? AsrMode.openAiRealtime
-           : AsrMode.androidStreaming {
+       asrMode =
+           initialAsrMode ??
+           (streamingSpeechInput == null
+               ? AsrMode.openAiRealtime
+               : AsrMode.androidStreaming) {
     _streamingCompletionSubscription = streamingSpeechInput?.completed.listen((
       _,
     ) {
@@ -145,6 +149,7 @@ class ConversationController extends ChangeNotifier {
               asrMode == AsrMode.androidStreaming)
       ? _streamingSpeechInput?.label ?? _audioInput.label
       : _audioInput.label;
+  bool get supportsAndroidStreaming => _streamingSpeechInput != null;
   bool get isBluetoothInput => _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
@@ -170,6 +175,11 @@ class ConversationController extends ChangeNotifier {
     }
 
     try {
+      final userGesturePlayback = _playbackService;
+      if (userGesturePlayback is UserGestureAudioPlaybackService) {
+        await (userGesturePlayback as UserGestureAudioPlaybackService)
+            .unlockForUserGesture();
+      }
       await _playbackService.stop();
       errorMessage = null;
       transientMessage = null;
@@ -977,6 +987,15 @@ class ConversationController extends ChangeNotifier {
       final metrics = await _playbackService.play(audioUri);
       if (reportLatency && _stoppedAt != null) {
         final firstAudio = DateTime.now().difference(_stoppedAt!);
+        debugPrint(
+          jsonEncode(<String, dynamic>{
+            'event': 'playback_latency_client',
+            'conversationId': currentResult.conversationId,
+            'audioStartedAfterStopMs': firstAudio.inMilliseconds,
+            'audioLoadMs': metrics.audioLoadDuration.inMilliseconds,
+            'audioFromDeviceCache': metrics.fromDeviceCache,
+          }),
+        );
         unawaited(
           _reportPlaybackLatency(
             currentResult: currentResult,

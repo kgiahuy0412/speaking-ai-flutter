@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
+import '../../listening/presentation/topic_listening_screen.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../domain/conversation_models.dart';
@@ -47,6 +48,11 @@ class ConversationScreen extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(20, 5, 20, 18),
                       child: Column(
                         children: <Widget>[
+                          _TopicListeningShortcut(
+                            childAge: config.childAge,
+                            onPressed: () => _openTopicListening(context),
+                          ),
+                          const SizedBox(height: 12),
                           VoiceHero(
                             phase: controller.phase,
                             amplitude: controller.amplitude,
@@ -114,6 +120,230 @@ class ConversationScreen extends StatelessWidget {
       useSafeArea: true,
       showDragHandle: true,
       builder: (_) => HistorySheet(controller: controller),
+    );
+  }
+
+  void _openTopicListening(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TopicListeningScreen(
+          language: controller.displayLanguage,
+          childAge: config.childAge,
+          controller: controller,
+        ),
+      ),
+    );
+  }
+}
+
+class _TopicListeningShortcut extends StatelessWidget {
+  const _TopicListeningShortcut({
+    required this.childAge,
+    required this.onPressed,
+  });
+
+  final int childAge;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = context.tr('Luyện nghe theo chủ đề', '按主题练听力');
+    final subtitle = context.tr(
+      '50 chủ đề theo độ tuổi của con',
+      '50 个适合孩子年龄的主题',
+    );
+    final ageLabel = _ageLabel(context);
+
+    return Semantics(
+      button: true,
+      label: title,
+      hint: context.tr('Mở danh sách chủ đề luyện nghe', '打开听力主题列表'),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Color(0xFFD9DFFF),
+                Color(0xFFF0E7FF),
+                Color(0xFFDEDBFF),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD7D8FF)),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x160D1B4C),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: InkWell(
+            key: const Key('topic-listening-shortcut'),
+            onTap: onPressed,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 112),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 78,
+                      height: 90,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: const BoxDecoration(
+                              color: Color(0xB3FFFFFF),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: 1.28,
+                            child: Image.asset(
+                              'assets/images/mascot-robot.png',
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppColors.ink,
+                                  fontSize: 17,
+                                  height: 1.15,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                  height: 1.3,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 5,
+                            runSpacing: 4,
+                            children: <Widget>[
+                              _ShortcutBadge(
+                                icon: Icons.face_rounded,
+                                label: ageLabel,
+                              ),
+                              _ShortcutBadge(
+                                icon: Icons.menu_book_rounded,
+                                label: context.tr('10 bài/chủ đề', '每主题 10 课'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(
+                        color: AppColors.indigo,
+                        shape: BoxShape.circle,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: Color(0x403D4DD6),
+                            blurRadius: 10,
+                            offset: Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _ageLabel(BuildContext context) {
+    final range = switch (childAge) {
+      <= 5 => '3–5',
+      <= 7 => '6–7',
+      <= 10 => '8–10',
+      <= 12 => '11–12',
+      _ => '13–15',
+    };
+    return context.tr('$range tuổi', '$range 岁');
+  }
+}
+
+class _ShortcutBadge extends StatelessWidget {
+  const _ShortcutBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xD9FFFFFF),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: const Color(0xFFC9CAFF)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 13, color: AppColors.indigo),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                softWrap: true,
+                style: const TextStyle(
+                  color: AppColors.indigoDark,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

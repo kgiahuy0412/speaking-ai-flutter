@@ -27,7 +27,14 @@ abstract interface class AudioPlaybackService {
   Future<void> dispose();
 }
 
-class JustAudioPlaybackService implements AudioPlaybackService {
+/// Optional capability used by browsers that require audio playback to be
+/// started directly from a user gesture before later automatic playback.
+abstract interface class UserGestureAudioPlaybackService {
+  Future<void> unlockForUserGesture();
+}
+
+class JustAudioPlaybackService
+    implements AudioPlaybackService, UserGestureAudioPlaybackService {
   static const _silentWarmUpAudio =
       'data:audio/wav;base64,'
       'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
@@ -40,11 +47,11 @@ class JustAudioPlaybackService implements AudioPlaybackService {
           AudioPlayer(
             audioLoadConfiguration: const AudioLoadConfiguration(
               androidLoadControl: AndroidLoadControl(
-                minBufferDuration: Duration(seconds: 1),
+                minBufferDuration: Duration(milliseconds: 600),
                 maxBufferDuration: Duration(seconds: 8),
-                bufferForPlaybackDuration: Duration(milliseconds: 300),
+                bufferForPlaybackDuration: Duration(milliseconds: 180),
                 bufferForPlaybackAfterRebufferDuration: Duration(
-                  milliseconds: 750,
+                  milliseconds: 500,
                 ),
                 prioritizeTimeOverSizeThresholds: true,
               ),
@@ -64,10 +71,13 @@ class JustAudioPlaybackService implements AudioPlaybackService {
   Uri? _loadedOriginalUri;
   Uri? _loadedResolvedUri;
   int _preloadRevision = 0;
+  bool _playerWarmUpReady = false;
+  bool _webPlaybackUnlocked = false;
 
   Future<void> _warmUpPlayer() async {
     try {
       await _player.setUrl(_silentWarmUpAudio);
+      _playerWarmUpReady = true;
     } catch (error) {
       assert(() {
         debugPrint('Audio player warm-up was skipped: $error');
@@ -76,13 +86,44 @@ class JustAudioPlaybackService implements AudioPlaybackService {
     }
   }
 
+  @override
+  Future<void> unlockForUserGesture() async {
+    if (!kIsWeb || _webPlaybackUnlocked || !_playerWarmUpReady) {
+      return;
+    }
+
+    try {
+      // Keep play() before the first await. Safari only accepts it while the
+      // original tap is still considered an active user gesture.
+      final playback = _player.play();
+      await playback.timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {},
+      );
+      await _player.pause();
+      await _player.seek(Duration.zero);
+      _webPlaybackUnlocked = true;
+    } catch (error) {
+      debugPrint('Web audio unlock was skipped: $error');
+    }
+  }
+
   Future<void> _configurePlaybackAudioSession() async {
     final session = await _audioSession;
-    // Music mode intentionally routes generated speech through the Android
-    // media path, which is the path used by Bluetooth Classic/A2DP speakers.
-    // Recording reconfigures the shared session for speech, so playback must
-    // restore this mode after every captured utterance.
-    await session.configure(const AudioSessionConfiguration.music());
+    // iOS uses spoken-audio playback while Android keeps the media path used
+    // by Bluetooth Classic/A2DP speakers. Recording changes the shared audio
+    // session, so restore this configuration before every playback request.
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionMode: AVAudioSessionMode.spokenAudio,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      ),
+    );
   }
 
   @override
@@ -104,10 +145,52 @@ class JustAudioPlaybackService implements AudioPlaybackService {
   }
 
   Future<void> _startPlayback() async {
-    unawaited(_player.play());
-    await _player.positionStream
-        .firstWhere((position) => position > Duration.zero)
-        .timeout(const Duration(seconds: 2));
+    final started = Completer<void>();
+    late final StreamSubscription<Duration> positionSubscription;
+    late final StreamSubscription<PlayerState> playerStateSubscription;
+    positionSubscription = _player.positionStream.listen(
+      (position) {
+        if (position > Duration.zero && !started.isCompleted) {
+          started.complete();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!started.isCompleted) {
+          started.completeError(error, stackTrace);
+        }
+      },
+    );
+    playerStateSubscription = _player.playerStateStream.listen(
+      (state) {
+        if (state.playing &&
+            state.processingState == ProcessingState.ready &&
+            !started.isCompleted) {
+          started.complete();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!started.isCompleted) {
+          started.completeError(error, stackTrace);
+        }
+      },
+    );
+
+    final playback = _player.play();
+    unawaited(
+      playback.catchError((Object error, StackTrace stackTrace) {
+        if (!started.isCompleted) {
+          started.completeError(error, stackTrace);
+        }
+      }),
+    );
+    try {
+      await started.future.timeout(const Duration(seconds: 2));
+    } finally {
+      await Future.wait<void>(<Future<void>>[
+        positionSubscription.cancel(),
+        playerStateSubscription.cancel(),
+      ]);
+    }
   }
 
   @override
@@ -184,6 +267,13 @@ class JustAudioPlaybackService implements AudioPlaybackService {
       } on TimeoutException {
         throw const PlaybackException('Không thể bắt đầu phát câu tiếng Anh.');
       }
+    } catch (error) {
+      debugPrint('Audio playback failed: $error');
+      throw PlaybackException(
+        kIsWeb
+            ? 'Trình duyệt chưa cho phép phát âm thanh. Hãy chạm nút phát lại.'
+            : 'Không thể bắt đầu phát câu tiếng Anh.',
+      );
     }
 
     final startedAt = DateTime.now();
