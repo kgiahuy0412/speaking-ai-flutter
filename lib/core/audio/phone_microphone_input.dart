@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 
 import 'audio_input.dart';
@@ -25,13 +26,12 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   Completer<void>? _pcmStreamDone;
   Object? _streamError;
   bool _chunked = false;
+  bool _microphonePermissionGranted = false;
+  bool _recordConfigListenerRegistered = false;
+  int _effectiveSampleRate = pcm16SampleRate;
 
-  static const int _chunkByteLength =
-      pcm16SampleRate *
-      pcm16ChannelCount *
-      (pcm16BitsPerSample ~/ 8) *
-      pcmChunkDurationMs ~/
-      1000;
+  int get _chunkByteLength =>
+      pcm16ChunkByteLength(sampleRate: _effectiveSampleRate);
 
   @override
   String get label => 'Mic điện thoại';
@@ -54,10 +54,22 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   Stream<Uint8List> get audioChunks => _audioChunkController.stream;
 
   Future<void> _prepareRecording() async {
-    if (!await _recorder.hasPermission()) {
-      throw const AudioInputException(
-        'Ứng dụng cần quyền micro để nghe con nói.',
-      );
+    if (!_microphonePermissionGranted) {
+      if (!await _recorder.hasPermission()) {
+        throw const AudioInputException(
+          'Ứng dụng cần quyền micro để nghe con nói.',
+        );
+      }
+      _microphonePermissionGranted = true;
+    }
+
+    if (kIsWeb && !_recordConfigListenerRegistered) {
+      await _recorder.setOnConfigChanged((config) {
+        if (config.sampleRate > 0) {
+          _effectiveSampleRate = config.sampleRate;
+        }
+      });
+      _recordConfigListenerRegistered = true;
     }
 
     final audioSession = await AudioSession.instance;
@@ -106,6 +118,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   @override
   Future<void> startChunked() async {
     _chunked = true;
+    _effectiveSampleRate = pcm16SampleRate;
     _pcmBytes = BytesBuilder(copy: false);
     _pendingChunkBytes = BytesBuilder(copy: false);
     _pcmStreamDone = Completer<void>();
@@ -201,6 +214,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       streamedAudioBytes = pcmBytes.length;
       streamHeaderBytes = buildPcm16WavHeader(
         pcmByteLength: streamedAudioBytes,
+        sampleRate: _effectiveSampleRate,
       );
       final wavBytes = Uint8List.fromList(<int>[
         ...streamHeaderBytes,
@@ -220,6 +234,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       initialNoiseRms: _initialNoiseRms,
       streamHeaderBytes: streamHeaderBytes,
       streamedAudioBytes: streamedAudioBytes,
+      recordingSampleRate: _chunked ? _effectiveSampleRate : null,
       dataBytes: dataBytes,
     );
   }

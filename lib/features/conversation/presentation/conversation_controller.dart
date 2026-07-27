@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -174,6 +175,11 @@ class ConversationController extends ChangeNotifier {
     }
 
     try {
+      final userGesturePlayback = _playbackService;
+      if (userGesturePlayback is UserGestureAudioPlaybackService) {
+        await (userGesturePlayback as UserGestureAudioPlaybackService)
+            .unlockForUserGesture();
+      }
       await _playbackService.stop();
       errorMessage = null;
       transientMessage = null;
@@ -981,6 +987,15 @@ class ConversationController extends ChangeNotifier {
       final metrics = await _playbackService.play(audioUri);
       if (reportLatency && _stoppedAt != null) {
         final firstAudio = DateTime.now().difference(_stoppedAt!);
+        debugPrint(
+          jsonEncode(<String, dynamic>{
+            'event': 'playback_latency_client',
+            'conversationId': currentResult.conversationId,
+            'audioStartedAfterStopMs': firstAudio.inMilliseconds,
+            'audioLoadMs': metrics.audioLoadDuration.inMilliseconds,
+            'audioFromDeviceCache': metrics.fromDeviceCache,
+          }),
+        );
         unawaited(
           _reportPlaybackLatency(
             currentResult: currentResult,
