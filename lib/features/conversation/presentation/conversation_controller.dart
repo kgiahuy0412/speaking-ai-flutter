@@ -159,6 +159,11 @@ class ConversationController extends ChangeNotifier {
 
   Future<void> onPrimaryAction() async {
     if (phase == ConversationPhase.recording) {
+      final userGesturePlayback = _playbackService;
+      if (userGesturePlayback is UserGestureAudioPlaybackService) {
+        await (userGesturePlayback as UserGestureAudioPlaybackService)
+            .unlockForUserGesture();
+      }
       await stopRecording(manual: true);
       return;
     }
@@ -984,7 +989,15 @@ class ConversationController extends ChangeNotifier {
     }
 
     try {
-      final metrics = await _playbackService.play(audioUri);
+      PlaybackStartMetrics? gestureMetrics;
+      final gesturePlayback = _playbackService;
+      if (!reportLatency &&
+          gesturePlayback is DirectUserGestureAudioPlaybackService) {
+        gestureMetrics =
+            await (gesturePlayback as DirectUserGestureAudioPlaybackService)
+                .playLoadedForUserGesture(audioUri);
+      }
+      final metrics = gestureMetrics ?? await _playbackService.play(audioUri);
       if (reportLatency && _stoppedAt != null) {
         final firstAudio = DateTime.now().difference(_stoppedAt!);
         debugPrint(
