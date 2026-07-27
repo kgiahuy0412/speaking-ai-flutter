@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_session/audio_session.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import 'audio_input.dart';
+import 'recording_storage.dart';
 import 'wav_audio.dart';
 
 class PhoneMicrophoneInput implements ChunkedAudioInput {
@@ -79,11 +78,8 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       ),
     );
 
-    final temporaryDirectory = await getTemporaryDirectory();
     final extension = _chunked ? 'wav' : 'm4a';
-    final fileName =
-        'utterance_${DateTime.now().microsecondsSinceEpoch}.$extension';
-    _currentPath = '${temporaryDirectory.path}/$fileName';
+    _currentPath = await createTemporaryRecordingPath(extension);
     _startedAt = DateTime.now();
     _initialNoiseRms = null;
     _streamError = null;
@@ -195,6 +191,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
 
     Uint8List? streamHeaderBytes;
     int? streamedAudioBytes;
+    Uint8List? dataBytes;
     var mimeType = 'audio/mp4';
     if (_chunked) {
       final pcmBytes = _pcmBytes?.takeBytes() ?? Uint8List(0);
@@ -205,9 +202,12 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       streamHeaderBytes = buildPcm16WavHeader(
         pcmByteLength: streamedAudioBytes,
       );
-      await File(
-        path,
-      ).writeAsBytes(<int>[...streamHeaderBytes, ...pcmBytes], flush: true);
+      final wavBytes = Uint8List.fromList(<int>[
+        ...streamHeaderBytes,
+        ...pcmBytes,
+      ]);
+      dataBytes = wavBytes;
+      await persistRecordingBytes(path, wavBytes);
       mimeType = 'audio/wav';
     }
 
@@ -220,6 +220,7 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
       initialNoiseRms: _initialNoiseRms,
       streamHeaderBytes: streamHeaderBytes,
       streamedAudioBytes: streamedAudioBytes,
+      dataBytes: dataBytes,
     );
   }
 

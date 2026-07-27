@@ -23,6 +23,7 @@ class ConversationController extends ChangeNotifier {
     bool preferBleStreaming = true,
     bool realtimeBatchFallback = true,
     int realtimeFallbackBufferBytes = 15 * 1024 * 1024,
+    AsrMode? initialAsrMode,
   }) : _audioInput = audioInput,
        _streamingSpeechInput = streamingSpeechInput,
        _playbackService = playbackService,
@@ -37,9 +38,11 @@ class ConversationController extends ChangeNotifier {
              ? realtimeFallbackBufferBytes
              : 15 * 1024 * 1024,
        ),
-       asrMode = streamingSpeechInput == null
-           ? AsrMode.openAiRealtime
-           : AsrMode.androidStreaming {
+       asrMode =
+           initialAsrMode ??
+           (streamingSpeechInput == null
+               ? AsrMode.openAiRealtime
+               : AsrMode.androidStreaming) {
     _streamingCompletionSubscription = streamingSpeechInput?.completed.listen((
       _,
     ) {

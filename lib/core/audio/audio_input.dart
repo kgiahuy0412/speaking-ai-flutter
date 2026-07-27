@@ -10,6 +10,7 @@ class AudioCapture {
     required this.initialNoiseRms,
     this.streamHeaderBytes,
     this.streamedAudioBytes,
+    this.dataBytes,
   });
 
   final String filePath;
@@ -20,6 +21,10 @@ class AudioCapture {
   final double? initialNoiseRms;
   final Uint8List? streamHeaderBytes;
   final int? streamedAudioBytes;
+
+  /// In-memory payload used by Flutter Web, where a native file path is not
+  /// available. Native platforms may also provide it for a retry upload.
+  final Uint8List? dataBytes;
 }
 
 abstract interface class AudioInput {
