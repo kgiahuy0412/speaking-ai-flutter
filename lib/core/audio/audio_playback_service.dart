@@ -33,8 +33,17 @@ abstract interface class UserGestureAudioPlaybackService {
   Future<void> unlockForUserGesture();
 }
 
+/// Optional web capability that resumes an already loaded source directly
+/// inside the browser's tap callback.
+abstract interface class DirectUserGestureAudioPlaybackService {
+  Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri);
+}
+
 class JustAudioPlaybackService
-    implements AudioPlaybackService, UserGestureAudioPlaybackService {
+    implements
+        AudioPlaybackService,
+        UserGestureAudioPlaybackService,
+        DirectUserGestureAudioPlaybackService {
   static const _silentWarmUpAudio =
       'data:audio/wav;base64,'
       'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
@@ -190,6 +199,33 @@ class JustAudioPlaybackService
         positionSubscription.cancel(),
         playerStateSubscription.cancel(),
       ]);
+    }
+  }
+
+  @override
+  Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri) async {
+    final resolvedUri = _loadedResolvedUri;
+    if (!kIsWeb ||
+        _loadedOriginalUri != uri ||
+        resolvedUri == null ||
+        _player.processingState == ProcessingState.completed) {
+      return null;
+    }
+
+    final requestedAt = DateTime.now();
+    try {
+      // _startPlayback invokes AudioPlayer.play() before its first await. That
+      // keeps Safari's transient user activation alive for the Play button.
+      final playback = _startPlayback();
+      await playback;
+      return PlaybackStartMetrics(
+        audioLoadDuration: Duration.zero,
+        startedAfterRequest: DateTime.now().difference(requestedAt),
+        fromDeviceCache: resolvedUri.isScheme('file'),
+      );
+    } catch (error) {
+      debugPrint('Direct web playback retry was skipped: $error');
+      return null;
     }
   }
 

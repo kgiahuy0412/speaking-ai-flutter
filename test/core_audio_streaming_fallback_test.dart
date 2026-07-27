@@ -60,6 +60,47 @@ void main() {
     await controller.startRecording();
 
     expect(events.take(2), <String>['unlock', 'stop']);
+    await controller.onPrimaryAction();
+    expect(events.where((event) => event == 'unlock').length, 2);
+    controller.dispose();
+  });
+
+  test('manual Play uses the direct browser gesture path first', () async {
+    final playback = _DirectGesturePlaybackService();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      playbackService: playback,
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+    );
+    controller.result = ConversationResult(
+      conversationId: 'conversation',
+      sessionId: 'session',
+      context: PracticeContext.home,
+      vietnameseText: 'Đường đi xa lắm.',
+      englishText: "It's a long way.",
+      audioUri: Uri.parse('https://api.example.com/audio.mp3'),
+      processingMode: 'rule',
+      textSource: 'phrase_rule',
+      audioSource: 'cache',
+      asrMode: 'batch_chunks',
+      latency: const ConversationLatency(
+        asrMs: 1,
+        llmMs: 0,
+        ttsMs: 0,
+        timeToFirstAudioMs: 1,
+      ),
+    );
+
+    await controller.playResult();
+
+    expect(playback.directPlayCount, 1);
+    expect(playback.regularPlayCount, 0);
     controller.dispose();
   });
 
@@ -712,6 +753,47 @@ class _GesturePlaybackService
   Future<void> stop() async {
     events.add('stop');
   }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _DirectGesturePlaybackService
+    implements AudioPlaybackService, DirectUserGestureAudioPlaybackService {
+  int directPlayCount = 0;
+  int regularPlayCount = 0;
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri) async {
+    directPlayCount += 1;
+    return const PlaybackStartMetrics(
+      audioLoadDuration: Duration.zero,
+      startedAfterRequest: Duration.zero,
+      fromDeviceCache: false,
+    );
+  }
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) async {
+    regularPlayCount += 1;
+    return const PlaybackStartMetrics(
+      audioLoadDuration: Duration.zero,
+      startedAfterRequest: Duration.zero,
+      fromDeviceCache: false,
+    );
+  }
+
+  @override
+  Future<void> stop() async {}
 
   @override
   Future<void> dispose() async {}
