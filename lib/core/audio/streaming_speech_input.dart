@@ -123,6 +123,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   DateTime? _startedAt;
   DateTime? _firstResultAt;
   DateTime? _resultAt;
+  DateTime? _latestTextUpdatedAt;
   String _latestText = '';
   double? _confidence;
   bool _active = false;
@@ -165,6 +166,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     _confidence = null;
     _firstResultAt = null;
     _resultAt = null;
+    _latestTextUpdatedAt = null;
     final resultCompleter = Completer<String>();
     _resultCompleter = resultCompleter;
     unawaited(
@@ -203,10 +205,32 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
       await _methodChannel.invokeMethod<void>('speech.stop');
     }
 
-    final sourceText = await completer.future.timeout(
-      const Duration(milliseconds: 2500),
-      onTimeout: () => _latestText,
-    );
+    String sourceText;
+    try {
+      sourceText = await completer.future.timeout(
+        const Duration(milliseconds: 900),
+      );
+    } on TimeoutException {
+      final latestText = _latestText.trim();
+      final latestTextUpdatedAt = _latestTextUpdatedAt;
+      final stableFor = latestTextUpdatedAt == null
+          ? Duration.zero
+          : DateTime.now().difference(latestTextUpdatedAt);
+      final hasEnoughSpeech =
+          latestText.length >= 8 ||
+          latestText.split(RegExp(r'\s+')).length >= 2;
+      if (latestText.isNotEmpty &&
+          hasEnoughSpeech &&
+          stableFor >= const Duration(milliseconds: 350)) {
+        sourceText = latestText;
+        _resultAt = DateTime.now();
+      } else {
+        sourceText = await completer.future.timeout(
+          const Duration(milliseconds: 1600),
+          onTimeout: () => _latestText,
+        );
+      }
+    }
     _active = false;
 
     if (sourceText.trim().isEmpty) {
@@ -240,6 +264,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     _active = false;
     _startedAt = null;
     _latestText = '';
+    _latestTextUpdatedAt = null;
     final completer = _resultCompleter;
     if (completer != null && !completer.isCompleted) {
       completer.complete('');
@@ -271,6 +296,9 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
             : text.trim();
         final changed = nextText != _latestText;
         _latestText = nextText;
+        if (changed || type == 'speech.final') {
+          _latestTextUpdatedAt = DateTime.now();
+        }
         _firstResultAt ??= DateTime.now();
         if (changed && type == 'speech.partial') {
           _partialTextController.add(nextText);

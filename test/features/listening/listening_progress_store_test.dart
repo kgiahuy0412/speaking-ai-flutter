@@ -29,6 +29,27 @@ void main() {
 
     expect(await fixture.store.readCurrentSentence('legacy'), 3);
   });
+
+  test(
+    'skipped sentences persist without leaking into lesson totals',
+    () async {
+      final fixture = await _ProgressFixture.create();
+      addTearDown(fixture.dispose);
+
+      await fixture.store.saveLesson('lesson-1', 3);
+      await fixture.store.saveSkippedSentence('lesson-1', 1);
+      await fixture.store.saveSkippedSentence('lesson-1', 4);
+
+      expect(await fixture.store.readSkippedSentences('lesson-1'), <int>{1, 4});
+      expect(await fixture.store.readAll(), <String, int>{'lesson-1': 3});
+
+      await fixture.store.clearSkippedSentence('lesson-1', 1);
+      expect(await fixture.store.readSkippedSentences('lesson-1'), <int>{4});
+
+      await fixture.store.clearSkippedSentences('lesson-1');
+      expect(await fixture.store.readSkippedSentences('lesson-1'), isEmpty);
+    },
+  );
 }
 
 class _ProgressFixture {

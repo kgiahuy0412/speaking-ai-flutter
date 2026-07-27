@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
-import '../../settings/presentation/history_sheet.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'lesson_intro_screen.dart';
+import 'lesson_recording_history_sheet.dart';
 import 'listening_navigation_bar.dart';
 
 class TopicLessonListScreen extends StatefulWidget {
@@ -125,6 +125,57 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                       },
                     ),
                   ),
+                  if (widget.content.songs.isNotEmpty) ...<Widget>[
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                      sliver: SliverToBoxAdapter(
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(
+                              Icons.music_note_rounded,
+                              color: AppColors.coral,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                context.tr('Bài hát & chant', '歌曲与节奏歌'),
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                            Text(
+                              context.tr(
+                                '${widget.content.songs.length} bài',
+                                '${widget.content.songs.length} 首',
+                              ),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                      sliver: SliverList.separated(
+                        itemCount: widget.content.songs.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final song = widget.content.songs[index];
+                          final completed = (progress[song.id] ?? 0).clamp(
+                            0,
+                            song.sentences.length,
+                          );
+                          return _LessonPathCard(
+                            key: ValueKey('song-${song.id}'),
+                            lesson: song,
+                            completedSentences: completed,
+                            isLast: index == widget.content.songs.length - 1,
+                            onPressed: () => _startLesson(song),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               );
             },
@@ -133,7 +184,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         bottomNavigationBar: ListeningNavigationBar(
           onCommunication: () =>
               Navigator.of(context).popUntil((route) => route.isFirst),
-          onHistory: widget.controller == null ? null : _showHistory,
+          onHistory: _showHistory,
         ),
       ),
     );
@@ -168,7 +219,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => HistorySheet(controller: widget.controller!),
+      builder: (_) => LessonRecordingHistorySheet(mediaService: _mediaService),
     );
   }
 }
@@ -240,6 +291,29 @@ class _TopicHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        if (content.songs.isNotEmpty) ...<Widget>[
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1E8),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                context.tr(
+                  '♫ ${content.songs.length} bài hát/chant',
+                  '♫ ${content.songs.length} 首歌曲/节奏歌',
+                ),
+                style: const TextStyle(
+                  color: AppColors.coral,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
@@ -368,9 +442,15 @@ class _LessonPathCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFFFFD36A),
+                        child: Icon(
+                          lesson.type == ListeningLessonType.song
+                              ? Icons.music_note_rounded
+                              : lesson.type == ListeningLessonType.dialogue
+                              ? Icons.forum_rounded
+                              : Icons.star_rounded,
+                          color: lesson.type == ListeningLessonType.song
+                              ? Colors.white
+                              : const Color(0xFFFFD36A),
                           size: 28,
                         ),
                       ),
@@ -401,8 +481,21 @@ class _LessonPathCard extends StatelessWidget {
                         runSpacing: 5,
                         children: <Widget>[
                           _Metadata(
-                            icon: Icons.chat_bubble_outline_rounded,
-                            label: context.tr('$total câu', '$total 句'),
+                            icon: lesson.type == ListeningLessonType.song
+                                ? Icons.lyrics_rounded
+                                : lesson.type == ListeningLessonType.dialogue
+                                ? Icons.forum_rounded
+                                : Icons.chat_bubble_outline_rounded,
+                            label: context.tr(
+                              lesson.type == ListeningLessonType.song
+                                  ? '$total dòng'
+                                  : lesson.type == ListeningLessonType.dialogue
+                                  ? 'Hội thoại · $total câu'
+                                  : '$total câu',
+                              lesson.type == ListeningLessonType.dialogue
+                                  ? '对话 · $total 句'
+                                  : '$total 句',
+                            ),
                           ),
                           _Metadata(
                             icon: Icons.schedule_rounded,

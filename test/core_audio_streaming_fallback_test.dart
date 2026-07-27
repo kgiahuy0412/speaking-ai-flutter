@@ -65,8 +65,56 @@ void main() {
     controller.dispose();
   });
 
-  test('manual Play uses the direct browser gesture path first', () async {
-    final playback = _DirectGesturePlaybackService();
+  test(
+    'manual Play can use the direct browser gesture path repeatedly',
+    () async {
+      final playback = _DirectGesturePlaybackService();
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        playbackService: playback,
+        repository: _FallbackRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+      );
+      controller.result = ConversationResult(
+        conversationId: 'conversation',
+        sessionId: 'session',
+        context: PracticeContext.home,
+        vietnameseText: 'Đường đi xa lắm.',
+        englishText: "It's a long way.",
+        audioUri: Uri.parse('https://api.example.com/audio.mp3'),
+        processingMode: 'rule',
+        textSource: 'phrase_rule',
+        audioSource: 'cache',
+        asrMode: 'batch_chunks',
+        latency: const ConversationLatency(
+          asrMs: 1,
+          llmMs: 0,
+          ttsMs: 0,
+          timeToFirstAudioMs: 1,
+        ),
+      );
+
+      await controller.playResult();
+      await controller.playResult();
+      await controller.playResult();
+
+      expect(playback.directPlayCount, 3);
+      expect(playback.regularPlayCount, 0);
+      expect(
+        playback.playedUris,
+        everyElement(Uri.parse('https://api.example.com/audio.mp3')),
+      );
+      controller.dispose();
+    },
+  );
+
+  test('first manual Play recovers after Safari blocks autoplay', () async {
+    final playback = _DirectGesturePlaybackService(rejectRegularPlay: true);
     final controller = ConversationController(
       audioInput: _FakeChunkedInput(
         available: true,
@@ -78,29 +126,33 @@ void main() {
       childAge: 6,
       initialAsrMode: AsrMode.batchChunks,
     );
+    final audioUri = Uri.parse('https://api.example.com/exact-translation.mp3');
     controller.result = ConversationResult(
       conversationId: 'conversation',
       sessionId: 'session',
       context: PracticeContext.home,
       vietnameseText: 'Đường đi xa lắm.',
       englishText: "It's a long way.",
-      audioUri: Uri.parse('https://api.example.com/audio.mp3'),
-      processingMode: 'rule',
-      textSource: 'phrase_rule',
-      audioSource: 'cache',
+      audioUri: audioUri,
+      processingMode: 'ai',
+      textSource: 'faithful_translation',
+      audioSource: 'generated',
       asrMode: 'batch_chunks',
       latency: const ConversationLatency(
         asrMs: 1,
-        llmMs: 0,
-        ttsMs: 0,
-        timeToFirstAudioMs: 1,
+        llmMs: 1,
+        ttsMs: 1,
+        timeToFirstAudioMs: 3,
       ),
     );
 
-    await controller.playResult();
+    await controller.playResult(reportLatency: true);
+    expect(playback.regularPlayCount, 1);
+    expect(playback.directPlayCount, 0);
 
+    await controller.playResult();
     expect(playback.directPlayCount, 1);
-    expect(playback.regularPlayCount, 0);
+    expect(playback.playedUris, <Uri>[audioUri, audioUri]);
     controller.dispose();
   });
 
@@ -212,6 +264,41 @@ void main() {
       expect(repository.batchStarted, 0);
       expect(repository.fullFileUploads, 0);
       expect(controller.result?.conversationId, 'stream-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'Batch recording starts before a slow upload session is created',
+    () async {
+      final batchCompleter = Completer<BatchChunkUploadSession>();
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3],
+      );
+      final repository = _FallbackRepository(batchCompleter: batchCompleter);
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+      );
+
+      final starting = controller.startRecording();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(input.startCount, 1);
+      expect(controller.phase, ConversationPhase.idle);
+      batchCompleter.complete(repository.batchSession);
+      await starting;
+
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[1, 2, 3],
+      ]);
+      expect(controller.phase, ConversationPhase.recording);
       controller.dispose();
     },
   );
@@ -533,10 +620,12 @@ class _FallbackRepository
         OfflineIntentCatalogRepository {
   _FallbackRepository({
     this.realtimeCompleter,
+    this.batchCompleter,
     this.failRealtimeConnection = false,
   });
 
   final Completer<RealtimeTranscriptionSession>? realtimeCompleter;
+  final Completer<BatchChunkUploadSession>? batchCompleter;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
@@ -586,6 +675,10 @@ class _FallbackRepository
   @override
   Future<BatchChunkUploadSession> startBatchChunkUpload() async {
     batchStarted += 1;
+    final completer = batchCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     return batchSession;
   }
 
@@ -760,8 +853,12 @@ class _GesturePlaybackService
 
 class _DirectGesturePlaybackService
     implements AudioPlaybackService, DirectUserGestureAudioPlaybackService {
+  _DirectGesturePlaybackService({this.rejectRegularPlay = false});
+
+  final bool rejectRegularPlay;
   int directPlayCount = 0;
   int regularPlayCount = 0;
+  final List<Uri> playedUris = <Uri>[];
 
   @override
   Stream<bool> get playingStream => const Stream<bool>.empty();
@@ -769,6 +866,7 @@ class _DirectGesturePlaybackService
   @override
   Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri) async {
     directPlayCount += 1;
+    playedUris.add(uri);
     return const PlaybackStartMetrics(
       audioLoadDuration: Duration.zero,
       startedAfterRequest: Duration.zero,
@@ -785,6 +883,10 @@ class _DirectGesturePlaybackService
   @override
   Future<PlaybackStartMetrics> play(Uri uri) async {
     regularPlayCount += 1;
+    playedUris.add(uri);
+    if (rejectRegularPlay) {
+      throw const PlaybackException('Safari blocked autoplay.');
+    }
     return const PlaybackStartMetrics(
       audioLoadDuration: Duration.zero,
       startedAfterRequest: Duration.zero,

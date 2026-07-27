@@ -11,8 +11,9 @@ Future<String> createLessonRecordingPath(
     '${directory.path}${Platform.pathSeparator}lesson_recordings',
   );
   await recordings.create(recursive: true);
+  final timestamp = DateTime.now().microsecondsSinceEpoch;
   return '${recordings.path}${Platform.pathSeparator}'
-      '$lessonId-sentence-$sentenceNumber.m4a';
+      '$lessonId-sentence-$sentenceNumber-$timestamp.m4a';
 }
 
 Future<String?> findLessonRecording(String path) async =>

@@ -64,6 +64,7 @@ class ListeningTopicContent {
     required this.titleVi,
     required this.titleEn,
     required this.lessons,
+    this.songs = const <ListeningLessonContent>[],
   });
 
   factory ListeningTopicContent.fromJson(Map<String, Object?> json) {
@@ -76,6 +77,10 @@ class ListeningTopicContent {
           .whereType<Map<String, Object?>>()
           .map(ListeningLessonContent.fromJson)
           .toList(growable: false),
+      songs: (json['songs'] as List<Object?>? ?? const <Object?>[])
+          .whereType<Map<String, Object?>>()
+          .map(ListeningLessonContent.fromJson)
+          .toList(growable: false),
     );
   }
 
@@ -84,9 +89,27 @@ class ListeningTopicContent {
   final String titleVi;
   final String titleEn;
   final List<ListeningLessonContent> lessons;
+  final List<ListeningLessonContent> songs;
 
   int get sentenceCount =>
       lessons.fold<int>(0, (count, lesson) => count + lesson.sentences.length);
+
+  int get songLineCount =>
+      songs.fold<int>(0, (count, song) => count + song.sentences.length);
+}
+
+enum ListeningLessonType {
+  standard,
+  dialogue,
+  song;
+
+  static ListeningLessonType fromJson(Object? value) {
+    return switch (value) {
+      'dialogue' => ListeningLessonType.dialogue,
+      'song' => ListeningLessonType.song,
+      _ => ListeningLessonType.standard,
+    };
+  }
 }
 
 @immutable
@@ -100,8 +123,14 @@ class ListeningLessonContent {
     required this.outro,
     required this.estimatedMinutes,
     required this.sentences,
+    this.code = '',
+    this.type = ListeningLessonType.standard,
+    this.reviewPause = const Duration(seconds: 2),
+    this.autoAdvanceDelay = const Duration(seconds: 2),
     this.introAudioUri,
     this.outroAudioUri,
+    this.fullAudioId,
+    this.fullAudioUri,
   });
 
   factory ListeningLessonContent.fromJson(Map<String, Object?> json) {
@@ -113,12 +142,22 @@ class ListeningLessonContent {
       intro: json['intro'] as String? ?? '',
       outro: json['outro'] as String? ?? '',
       estimatedMinutes: json['estimatedMinutes'] as int? ?? 3,
+      code: json['code'] as String? ?? '',
+      type: ListeningLessonType.fromJson(json['lessonType']),
+      reviewPause: Duration(
+        milliseconds: json['reviewPauseMs'] as int? ?? 2000,
+      ),
+      autoAdvanceDelay: Duration(
+        milliseconds: json['autoAdvanceMs'] as int? ?? 2000,
+      ),
       sentences: (json['sentences'] as List<Object?>? ?? const <Object?>[])
           .whereType<Map<String, Object?>>()
           .map(ListeningSentenceContent.fromJson)
           .toList(growable: false),
       introAudioUri: _readUri(json['introAudioUrl']),
       outroAudioUri: _readUri(json['outroAudioUrl']),
+      fullAudioId: json['fullAudioId'] as String?,
+      fullAudioUri: _readUri(json['fullAudioUrl']),
     );
   }
 
@@ -129,9 +168,15 @@ class ListeningLessonContent {
   final String intro;
   final String outro;
   final int estimatedMinutes;
+  final String code;
+  final ListeningLessonType type;
+  final Duration reviewPause;
+  final Duration autoAdvanceDelay;
   final List<ListeningSentenceContent> sentences;
   final Uri? introAudioUri;
   final Uri? outroAudioUri;
+  final String? fullAudioId;
+  final Uri? fullAudioUri;
 }
 
 @immutable
@@ -140,6 +185,10 @@ class ListeningSentenceContent {
     required this.number,
     required this.english,
     required this.vietnamese,
+    this.id = '',
+    this.voice = '',
+    this.englishAudioId,
+    this.vietnameseAudioId,
     this.audioUri,
     this.vietnameseAudioUri,
   });
@@ -147,16 +196,24 @@ class ListeningSentenceContent {
   factory ListeningSentenceContent.fromJson(Map<String, Object?> json) {
     return ListeningSentenceContent(
       number: json['number'] as int? ?? 0,
+      id: json['id'] as String? ?? '',
+      voice: json['voice'] as String? ?? '',
       english: json['english'] as String? ?? '',
       vietnamese: json['vietnamese'] as String? ?? '',
+      englishAudioId: json['englishAudioId'] as String?,
+      vietnameseAudioId: json['vietnameseAudioId'] as String?,
       audioUri: _readUri(json['audioUrl']),
       vietnameseAudioUri: _readUri(json['vietnameseAudioUrl']),
     );
   }
 
   final int number;
+  final String id;
+  final String voice;
   final String english;
   final String vietnamese;
+  final String? englishAudioId;
+  final String? vietnameseAudioId;
   final Uri? audioUri;
   final Uri? vietnameseAudioUri;
 }

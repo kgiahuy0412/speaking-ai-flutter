@@ -1,82 +1,93 @@
-# Design QA — Luồng luyện nghe theo chủ đề
+# Design QA — Listening Content V2
 
 ## Comparison target
 
-- Mẫu danh sách bài và lời mở đầu: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-5db6e79d-c118-4910-9712-b611729ba379.png` — 863 × 860 px.
-- Mẫu luyện từng câu: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-3b40f415-bea1-492a-979e-656aa40f5172.png` — 421 × 836 px.
-- Màn hoàn thành trước khi cải thiện: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-e2481a72-d554-45fc-9783-2a49933bb4ce.png` — 508 × 511 px.
-- Flutter render: 390 × 844 logical px cho mỗi màn hình, tiếng Việt, nhóm 3–5 tuổi, chủ đề “Xin chào và tạm biệt”, bài “Chào hỏi cơ bản”, chưa có tiến độ.
-- Golden đầy đủ:
+- Sơ đồ nội dung mới: `C:\Users\Windows\Downloads\SO_DO_TONG_HOP_CHU_DE_BAI_HOC_BAI_HAT.png`.
+- Mẫu hành trình và lời mở đầu đã được chọn: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-5db6e79d-c118-4910-9712-b611729ba379.png`.
+- Mẫu luyện từng câu đã được chọn: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-3b40f415-bea1-492a-979e-656aa40f5172.png`.
+- Màn hoàn thành cũ dùng để so sánh cải thiện: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-e2481a72-d554-45fc-9783-2a49933bb4ce.png`.
+- Flutter render: 390 × 844 logical px, tiếng Việt, nhóm 3–5 tuổi, chủ đề “Xin chào và tạm biệt”.
+- Golden:
   - `test/features/listening/goldens/topic-lesson-journey-390x844.png`
   - `test/features/listening/goldens/lesson-intro-390x844.png`
   - `test/features/listening/goldens/lesson-practice-390x844.png`
+  - `test/features/listening/goldens/lesson-reminder-popup-390x844.png`
+  - `test/features/listening/goldens/lesson-praise-popup-390x844.png`
+  - `test/features/listening/goldens/lesson-review-390x844.png`
   - `test/features/listening/goldens/lesson-completion-390x844.png`
-- So sánh cùng khung, đã chuẩn hóa theo chiều rộng:
+- Composite cùng khung:
   - `artifacts/design-qa/lesson-flow/comparison-topic-journey-and-intro.png`
   - `artifacts/design-qa/lesson-flow/comparison-sentence-practice.png`
+  - `artifacts/design-qa/lesson-flow/comparison-content-structure-and-review.png`
   - `artifacts/design-qa/lesson-flow/comparison-completion-celebration.png`
+  - `artifacts/design-qa/lesson-flow/comparison-practice-popups.png`
+  - `artifacts/design-qa/lesson-flow/comparison-review-lock.png`
 
 ## Findings
 
 Không còn khác biệt P0, P1 hoặc P2 cần xử lý.
 
-- Bố cục và phân cấp: giữ đúng ba bước của mẫu đã chọn: hành trình bài nhỏ → lời mở đầu tự động → luyện từng câu. Nút hành động chính, số câu và tiến độ luôn ở vị trí dễ thấy.
-- Hình ảnh và nhận diện: dùng đúng ảnh chủ đề trẻ em, mascot robot và sân khấu tím. Mascot ở màn mở đầu đã được tăng tỷ lệ để gần mẫu hơn nhưng không che nội dung.
-- Nội dung: màn đầu hiển thị đúng 1 bài nhỏ/8 câu; màn luyện bắt đầu bằng “Hello!”/“Xin chào!”. Toàn bộ catalog Word đã được chuẩn hóa thành 5 nhóm tuổi, 50 chủ đề, 111 bài nhỏ và 836 câu.
-- Audio: cấu trúc dữ liệu đã có URL intro, outro, audio tiếng Anh và audio tiếng Việt để nối Cloudinary sau này. Khi chưa có URL, giao diện báo trạng thái rõ ràng. Bản ghi của trẻ được lưu cục bộ và có thể phát lại.
-- Tiến độ: tách riêng số câu đã hoàn thành và vị trí đang học. Vị trí hiện tại được ghi đè chính xác khi đi tới, quay lại, thoát hoặc chọn luyện lại; tiến độ hoàn thành cao nhất vẫn được giữ để tổng hợp chủ đề.
-- Điều hướng trong bài: nút back trên cùng chỉ thoát khỏi bài; hàng hành động dưới có nút “Câu trước” độc lập và nút “Tiếp tục/Hoàn thành”. “Câu trước” tự vô hiệu hóa ở câu 1.
-- Chúc mừng: màn hoàn thành dùng mascot lớn, chuyển động nảy nhẹ và các biểu tượng lễ hội chuyển động; hai hành động “Về chủ đề” và “Luyện lại từ đầu” rõ ràng hơn mẫu cũ.
-- Responsive/accessibility: hành trình học và bài luyện cuộn được; lời mở đầu chuyển sang bố cục cuộn khi màn hình thấp. Kiểm tra 320 × 568 ở text scale 130% không có overflow; vùng bấm chính tối thiểu 48 px.
-- Màu sắc/typography: giữ indigo–lavender của ứng dụng hiện tại, Roboto rõ nét, độ tương phản đủ mạnh cho tiêu đề, nút và nội dung song ngữ.
+- Phân cấp và nhận diện: giữ đúng indigo–lavender, Roboto, mascot robot và ảnh chủ đề đã được duyệt. Hành trình bài nhỏ, CTA, số câu và tiến độ có độ ưu tiên rõ.
+- Catalog: Word mới đã được chuẩn hóa thành 5 nhóm tuổi, 50 chủ đề, 101 bài thông thường, 634 câu, 11 bài hát với 69 dòng lời. Mỗi câu có ID cùng audio ID EN/VI riêng.
+- Ba luồng: bài thường dùng thẻ luyện câu; hội thoại thêm vai nói và phát bản đầy đủ ở ôn tập; bài hát có khu vực riêng, icon nhạc, luyện từng dòng và full-audio hook.
+- Luyện câu: hai nút “Nghe mẫu”/“Nghe tiếng Việt” cân bằng, không lẫn chức năng. Sau ghi thành công, robot và icon trang trí chuyển động trong popup chúc mừng 3 giây; bản ghi mới nhất cùng bốn hành động vẫn nằm trong luồng cuộn.
+- Chờ tương tác: sau 5 giây hiện popup robot nhắc lần một trong 3 giây; thêm 5 giây hiện popup lần hai và mới mở bỏ qua. Không tự bỏ qua và trạng thái “Chưa ghi âm” được giữ trong tiến độ.
+- Điều hướng câu: ghi âm xong giữ nguyên câu hiện tại ở mọi nhóm tuổi, không còn tự chuyển. Trẻ chủ động bấm “Câu tiếp theo” hoặc “Ôn tập”; nút “Câu trước” vẫn độc lập với nút back thoát bài.
+- Ôn tập: chỉ hiển thị tiếng Anh, đánh dấu nhẹ nhàng câu chưa ghi âm, có thử lại và tự phát tuần tự cách nhau 2 giây. Nút hoàn thành mờ và bị khóa đủ 6 giây; layout cuộn được trên màn hình thấp.
+- Hoàn thành: mascot lớn, chuyển động nhẹ, CTA “Về chủ đề” và “Luyện lại từ đầu” rõ, phù hợp trẻ nhỏ.
+- Lịch sử: UI chỉ hiện bản mới nhất trong bài; lịch sử gần đây cho phép nghe lại và giới hạn ba bản thành công/câu. Bản lỗi không thay thế bản cũ.
+- Responsive: các màn hình chính và ôn tập dùng vùng cuộn, vùng bấm chính tối thiểu 48 px; kiểm tra 320 × 568 ở text scale 130% không overflow.
 
 ## Comparison history
 
 ### Iteration 1
 
-- P2: ảnh trong golden ban đầu chưa kịp tải nên khung chủ đề và sân khấu bị trống.
-- Fix: preload ảnh chủ đề, mascot và sân khấu trước khi chụp; bằng chứng sau sửa có đủ tài sản thật.
+- P1: catalog cũ không còn khớp Word mới và chưa có lesson type/audio ID.
+- Fix: parser V2 đọc trực tiếp DOCX, xác thực tổng số, ID duy nhất và tách standard/dialogue/song.
 
 ### Iteration 2
 
-- P2: hàng “1 bài nhỏ / 8 câu” tràn ngang trên màn hình 390 px; metadata bài học tràn ở màn hình hẹp.
-- Fix: chia hai nhóm thông tin bằng `Expanded`, rút gọn “Khoảng 3 phút” thành “3 phút”, và dùng tỷ lệ thẻ thích ứng.
+- P1: bản ghi trước bị ghi đè ngay khi bắt đầu ghi lại.
+- Fix: tạo file timestamp riêng, chỉ thêm lịch sử sau khi ghi thành công, rồi mới xóa bản thứ tư.
 
 ### Iteration 3
 
-- P2: màn lời mở đầu dùng `Column` cố định nên có thể tràn trên điện thoại 320 × 568 khi tăng cỡ chữ.
-- Fix: dùng vùng cuộn có chiều cao tối thiểu và bố cục nội tại; kiểm tra compact flow đã qua.
+- P1: kết thúc bài đi thẳng tới chúc mừng, thiếu bước ôn tập.
+- Fix: câu cuối dùng “Ôn tập”, mở danh sách English-only và chỉ hoàn thành sau CTA cuối danh sách.
 
 ### Iteration 4
 
-- P2: nhãn “Tiếp tục” trong golden không lấy đúng font đậm và hiện ký tự khuyết.
-- Fix: chỉ định Roboto cho nút hành động; golden sau sửa hiển thị đầy đủ tiếng Việt.
+- P2: trang ôn tập dùng cột cố định gây overflow trên 320 × 568 và timer 2 giây còn chạy sau khi thoát.
+- Fix: chuyển toàn bộ trang sang vùng cuộn và dùng timer có thể hủy/complete khi dispose.
 
 ### Iteration 5
 
-- P1: vị trí tiếp tục trước đây dùng chung với tiến độ hoàn thành dạng chỉ tăng, nên “Luyện lại từ đầu” không thể lưu lại câu 1.
-- Fix: thêm khóa `current-sentence` riêng có thể tiến, lùi hoặc đặt lại 0; dữ liệu hoàn thành vẫn chỉ tăng và không bị mất.
+- P2: thông báo đếm ngược sau ghi bị tràn ngang.
+- Fix: cho nội dung co giãn, căn giữa và hỗ trợ tối đa hai dòng.
 
 ### Iteration 6
 
-- P2: bài luyện chỉ có nút tiến tới; nút back trên cùng vừa mang nghĩa thoát vừa dễ bị hiểu thành quay về câu trước.
-- Fix: thêm nút “Câu trước” cạnh “Tiếp tục”, còn back trên cùng chỉ lưu vị trí rồi thoát.
+- P2: Flutter Web không tìm lại URL bản ghi trong phiên.
+- Fix: giữ URL hợp lệ cho lịch sử trong phiên và thu hồi blob URL khi bản cũ bị loại.
 
 ### Iteration 7
 
-- P2: màn chúc mừng cũ nhỏ và tĩnh, chưa tạo cảm giác hoàn thành rõ rệt cho trẻ.
-- Fix: tăng đáng kể mascot và tiêu đề, thêm chuyển động pulse/bounce cùng icon lễ hội, đồng thời cho phép cuộn trên màn hình thấp. So sánh trước/sau đã được kiểm tra trong cùng một composite.
+- P2: tự chuyển sau ghi khiến trẻ chưa kịp nghe lại; banner động viên còn nhỏ và nút hoàn thành ôn tập có thể bấm ngay.
+- Fix: bỏ tự chuyển ở mọi nhóm tuổi, thay banner bằng popup robot chuyển động tự ẩn sau 3 giây, dùng popup tương tự cho hai lần nhắc và khóa CTA hoàn thành trong 6 giây đầu.
 
 ## Follow-up polish
 
-- P3: khi Cloudinary có audio thật, có thể thay biểu tượng waveform tĩnh bằng waveform lấy từ biên độ file và hiển thị thời lượng chính xác. Đây không phải lỗi chặn luồng hiện tại.
+- P3: audio Cloudinary chưa được cung cấp; các trường URL và nút đã sẵn sàng nhưng hiện hiển thị thông báo chờ audio.
+- P3: Flutter Web cần API upload/Cloudinary hoặc IndexedDB nếu muốn giữ file bản ghi qua lần tải lại trang và đồng bộ nhiều thiết bị. Android/iOS/desktop đã giữ file cục bộ.
+- P3: khi có audio thật, thay waveform tĩnh bằng biên độ thật và kiểm tra timing trên thiết bị trẻ em sử dụng.
+- P3: bản web JavaScript release hoạt động; chế độ WebAssembly còn cảnh báo từ `just_audio_web`, nên chưa bật Wasm cho V1.
 
 ## Verification
 
-- `flutter analyze --no-pub`: passed, không có issue.
-- Full Flutter test suite: 60 tests passed.
-- Bốn golden cho hành trình, intro, luyện từng câu và hoàn thành: passed.
-- Golden trang chủ đề tổng: passed với ảnh thật và số bài thật.
-- Compact flow và màn hoàn thành 320 × 568, text scale 130%: passed.
+- `flutter analyze --no-pub`: passed.
+- Full Flutter suite: 80 tests passed, gồm popup 3 giây, timer nhắc 5+5 giây, không tự chuyển câu, khóa ôn tập 6 giây, skip, ba bản ghi/câu, resume, compact layout và catalog V2.
+- Bảy golden của hành trình, intro, luyện câu, hai popup, ôn tập và hoàn thành: passed.
+- Flutter Web release build: passed.
+- Android debug APK build: passed.
 
 final result: passed

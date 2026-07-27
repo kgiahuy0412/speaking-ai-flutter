@@ -46,7 +46,7 @@ class NextConversationRepository
     try {
       final uri = _config
           .resolve('/api/offline-intents')
-          .replace(queryParameters: const <String, String>{'limit': '40'});
+          .replace(queryParameters: const <String, String>{'limit': '500'});
       final response = await _client
           .get(uri)
           .timeout(const Duration(seconds: 15));
@@ -894,14 +894,26 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     required this.audioSessionId,
     required this.sessionCreateMs,
     required this.supportsPcm16WavFinalize,
-  }) : _repository = repository;
+  }) : _repository = repository,
+       _uploadLanes = List<Future<void>>.generate(
+         _maxConcurrentUploads,
+         (_) => Future<void>.value(),
+       );
+
+  static const _sourceChunksPerTransportUpload = 5;
+  static const _maxConcurrentUploads = 2;
 
   final NextConversationRepository _repository;
   final String audioSessionId;
   final int sessionCreateMs;
   final bool supportsPcm16WavFinalize;
   final List<Future<void>> _pendingUploads = <Future<void>>[];
+  final List<Future<void>> _uploadLanes;
+  final BytesBuilder _transportBuffer = BytesBuilder(copy: false);
   late var _nextSequence = supportsPcm16WavFinalize ? 0 : 1;
+  var _nextUploadLane = 0;
+  var _sourceChunkCount = 0;
+  var _transportChunkCount = 0;
   var _audioByteCount = 0;
   var _closed = false;
   var _discarded = false;
@@ -911,14 +923,48 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     if (_closed || bytes.isEmpty) {
       return;
     }
-    final sequence = _nextSequence++;
     final immutableBytes = Uint8List.fromList(bytes);
     _audioByteCount += immutableBytes.length;
-    final upload = _uploadWithRetry(
+    _sourceChunkCount += 1;
+    _transportBuffer.add(immutableBytes);
+    if (_sourceChunkCount % _sourceChunksPerTransportUpload == 0) {
+      _flushTransportBuffer();
+    }
+  }
+
+  void _flushTransportBuffer() {
+    if (_transportBuffer.length == 0) {
+      return;
+    }
+    final sequence = _nextSequence++;
+    final bytes = _transportBuffer.takeBytes();
+    _transportChunkCount += 1;
+    _scheduleUpload(
       sequence: sequence,
-      bytes: immutableBytes,
+      bytes: bytes,
       filename: 'chunk-$sequence.pcm',
     );
+  }
+
+  void _scheduleUpload({
+    required int sequence,
+    required Uint8List bytes,
+    required String filename,
+  }) {
+    final laneIndex = _nextUploadLane;
+    _nextUploadLane = (_nextUploadLane + 1) % _uploadLanes.length;
+    final previousLane = _uploadLanes[laneIndex].then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    final upload = previousLane.then<void>(
+      (_) => _uploadWithRetry(
+        sequence: sequence,
+        bytes: bytes,
+        filename: filename,
+      ),
+    );
+    _uploadLanes[laneIndex] = upload;
     _pendingUploads.add(upload);
     unawaited(upload.catchError((Object _) {}));
   }
@@ -963,6 +1009,7 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       );
     }
     _closed = true;
+    _flushTransportBuffer();
     final streamedAudioBytes = capture.streamedAudioBytes;
     final recordingSampleRate = capture.recordingSampleRate;
     if (supportsPcm16WavFinalize &&
@@ -982,16 +1029,15 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       );
     }
 
+    if (!supportsPcm16WavFinalize) {
+      _scheduleUpload(
+        sequence: 0,
+        bytes: streamHeaderBytes!,
+        filename: 'header.wav',
+      );
+    }
     final uploadDrainStopwatch = Stopwatch()..start();
-    await Future.wait<void>(<Future<void>>[
-      ..._pendingUploads,
-      if (!supportsPcm16WavFinalize)
-        _uploadWithRetry(
-          sequence: 0,
-          bytes: streamHeaderBytes!,
-          filename: 'header.wav',
-        ),
-    ]);
+    await Future.wait<void>(_pendingUploads);
     uploadDrainStopwatch.stop();
 
     return _repository._finalizeAudioSession(
@@ -1004,10 +1050,11 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       assemblePcmWav: supportsPcm16WavFinalize,
       batchTelemetry: <String, dynamic>{
         'batchTransport': 'streamed_pcm16_chunks',
-        'chunkIntervalMs': pcmChunkDurationMs,
-        'audioChunkCount': supportsPcm16WavFinalize
-            ? _nextSequence
-            : _nextSequence - 1,
+        'chunkIntervalMs': pcmChunkDurationMs * _sourceChunksPerTransportUpload,
+        'sourceChunkIntervalMs': pcmChunkDurationMs,
+        'audioChunkCount': _sourceChunkCount,
+        'transportChunkCount': _transportChunkCount,
+        'maxConcurrentChunkUploads': _maxConcurrentUploads,
         'uploadedAudioBytes': _audioByteCount,
         if (capture.recordingSampleRate != null)
           'recordingSampleRate': capture.recordingSampleRate,
