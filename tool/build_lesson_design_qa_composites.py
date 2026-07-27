@@ -14,6 +14,9 @@ SOURCE_PRACTICE = Path(
 SOURCE_COMPLETION = Path(
     r"C:\Users\Windows\AppData\Local\Temp\codex-clipboard-e2481a72-d554-45fc-9783-2a49933bb4ce.png"
 )
+SOURCE_OVERVIEW = Path(
+    r"C:\Users\Windows\Downloads\SO_DO_TONG_HOP_CHU_DE_BAI_HOC_BAI_HAT.png"
+)
 GOLDENS = ROOT / "test" / "features" / "listening" / "goldens"
 
 
@@ -110,6 +113,34 @@ def main() -> None:
     )
     completion_comparison.save(
         OUTPUT / "comparison-completion-celebration.png",
+        optimize=True,
+    )
+
+    source_overview = Image.open(SOURCE_OVERVIEW).convert("RGB")
+    review = Image.open(GOLDENS / "lesson-review-390x844.png").convert("RGB")
+    content_implementation = combine_horizontal([journey, review])
+    source_panel = labeled_panel(
+        source_overview,
+        "Nguồn nội dung · 5 nhóm tuổi, bài học và bài hát",
+        920,
+    )
+    implementation_panel = labeled_panel(
+        content_implementation,
+        "Flutter · hành trình bài nhỏ và ôn tập English-only",
+        920,
+    )
+    content_comparison = Image.new(
+        "RGB",
+        (920, source_panel.height + implementation_panel.height + 18),
+        "#E9E7F8",
+    )
+    content_comparison.paste(source_panel, (0, 0))
+    content_comparison.paste(
+        implementation_panel,
+        (0, source_panel.height + 18),
+    )
+    content_comparison.save(
+        OUTPUT / "comparison-content-structure-and-review.png",
         optimize=True,
     )
 

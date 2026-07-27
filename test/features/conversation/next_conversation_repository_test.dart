@@ -159,7 +159,7 @@ void main() {
     },
   );
 
-  test('uploads PCM chunks while recording and finalizes one WAV', () async {
+  test('batches PCM transport chunks and finalizes one WAV', () async {
     final uploadedSequences = <int>[];
     var finalized = false;
     final repository = NextConversationRepository(
@@ -193,6 +193,10 @@ void main() {
           expect(body['mimeType'], 'audio/wav');
           expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
           expect(benchmark['audioChunkCount'], 2);
+          expect(benchmark['transportChunkCount'], 1);
+          expect(benchmark['chunkIntervalMs'], 1000);
+          expect(benchmark['sourceChunkIntervalMs'], 200);
+          expect(benchmark['maxConcurrentChunkUploads'], 2);
           expect(benchmark['uploadedAudioBytes'], 16000);
           expect(benchmark['wavHeaderStrategy'], 'finalize_metadata');
           expect(body['pcm16Wav'], <String, dynamic>{
@@ -252,7 +256,7 @@ void main() {
       vadSilenceMs: 700,
     );
 
-    expect(uploadedSequences..sort(), <int>[0, 1]);
+    expect(uploadedSequences, <int>[0]);
     expect(finalized, isTrue);
     expect(result.asrMode, 'batch_chunks');
     await repository.dispose();

@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
-import '../../settings/presentation/history_sheet.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import 'lesson_recording_history_sheet.dart';
+import 'lesson_review_screen.dart';
 import 'listening_navigation_bar.dart';
 
 class LessonPracticeScreen extends StatefulWidget {
@@ -41,6 +42,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   String? _recordingPath;
   Duration? _recordingDuration;
   String? _message;
+  bool _showSkip = false;
+  _LessonCoachPopupKind? _coachPopupKind;
+  final Set<int> _skippedSentenceIndexes = <int>{};
+  Timer? _idleReminderTimer;
+  Timer? _coachPopupTimer;
 
   ListeningSentenceContent get _sentence =>
       widget.lesson.sentences[_sentenceIndex];
@@ -53,6 +59,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
 
   @override
   void dispose() {
+    _cancelIdleReminder();
+    _coachPopupTimer?.cancel();
     if (_recording) {
       widget.mediaService.cancelRecording();
     }
@@ -64,6 +72,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     final currentSentence = await widget.progressStore.readCurrentSentence(
       widget.lesson.id,
     );
+    Set<int> skippedSentences = <int>{};
+    try {
+      skippedSentences = await widget.progressStore.readSkippedSentences(
+        widget.lesson.id,
+      );
+    } catch (_) {
+      // A fresh or restricted browser session starts without skip markers.
+    }
     final sentenceIndex = currentSentence.clamp(
       0,
       widget.lesson.sentences.length - 1,
@@ -71,14 +87,38 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (!mounted) {
       return;
     }
-    setState(() => _sentenceIndex = sentenceIndex);
+    setState(() {
+      _sentenceIndex = sentenceIndex;
+      _skippedSentenceIndexes
+        ..clear()
+        ..addAll(skippedSentences);
+    });
+    await _activateCurrentSentence(autoPlay: true);
+  }
+
+  Future<void> _activateCurrentSentence({required bool autoPlay}) async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
+    if (mounted) {
+      setState(() {
+        _showSkip = false;
+        _message = null;
+      });
+    }
     await _loadRecording();
+    if (autoPlay && _sentence.audioUri != null) {
+      await _runMediaAction(
+        () => widget.mediaService.play(_sentence.audioUri!),
+      );
+    }
+    _scheduleIdleReminder();
   }
 
   Future<void> _loadRecording() async {
     final path = await widget.mediaService.existingRecording(
       lessonId: widget.lesson.id,
       sentenceNumber: _sentence.number,
+      sentenceId: _sentence.id,
     );
     if (!mounted) {
       return;
@@ -96,145 +136,137 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       language: widget.language,
       child: Scaffold(
         key: const Key('lesson-practice-screen'),
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: <Widget>[
-              _LessonHeader(
-                current: _sentenceIndex + 1,
-                total: total,
-                onBack: _exitLesson,
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                  child: Column(
-                    children: <Widget>[
-                      _SentenceCard(
-                        sentence: _sentence,
-                        onPlaySample: _playSample,
-                      ),
-                      const SizedBox(height: 18),
-                      _RecordButton(
-                        recording: _recording,
-                        busy: _mediaBusy,
-                        onTap: _toggleRecording,
-                        onLongPressStart: _startRecording,
-                        onLongPressEnd: _stopRecording,
-                      ),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: _recordingPath == null
-                            ? const SizedBox(height: 14)
-                            : Padding(
-                                key: ValueKey(_recordingPath),
-                                padding: const EdgeInsets.only(top: 16),
-                                child: _RecordingCard(
-                                  duration: _recordingDuration,
-                                  onPlay: _playRecording,
-                                ),
-                              ),
-                      ),
-                      if (_message != null) ...<Widget>[
-                        const SizedBox(height: 12),
-                        Text(
-                          _message!,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.muted),
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      Row(
+        body: Stack(
+          children: <Widget>[
+            SafeArea(
+              bottom: false,
+              child: Column(
+                children: <Widget>[
+                  _LessonHeader(
+                    current: _sentenceIndex + 1,
+                    total: total,
+                    onBack: _exitLesson,
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      child: Column(
                         children: <Widget>[
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              key: const Key('previous-lesson-sentence'),
-                              onPressed:
-                                  _sentenceIndex == 0 ||
-                                      _recording ||
-                                      _mediaBusy
-                                  ? null
-                                  : _previous,
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(62),
-                                foregroundColor: AppColors.indigo,
-                                side: const BorderSide(
-                                  color: AppColors.lavenderBorder,
-                                ),
-                                textStyle: const TextStyle(
-                                  fontFamily: 'Roboto',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              icon: const Icon(Icons.arrow_back_rounded),
-                              label: Text(
-                                context.tr('Câu trước', '上一句'),
-                                maxLines: 1,
-                              ),
-                            ),
+                          _SentenceCard(
+                            sentence: _sentence,
+                            lessonType: widget.lesson.type,
+                            current: _sentenceIndex + 1,
+                            total: total,
+                            onPlaySample: _playSample,
+                            onPlayVietnamese: _playVietnamese,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton(
-                              key: const Key('continue-lesson-sentence'),
-                              onPressed: _recording || _mediaBusy
-                                  ? null
-                                  : _continue,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(62),
-                                textStyle: const TextStyle(
-                                  fontFamily: 'Roboto',
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  Flexible(
-                                    child: Text(
-                                      context.tr(
-                                        _sentenceIndex == total - 1
-                                            ? 'Hoàn thành'
-                                            : 'Tiếp tục',
-                                        _sentenceIndex == total - 1
-                                            ? '完成'
-                                            : '继续',
-                                      ),
-                                      maxLines: 1,
+                          const SizedBox(height: 18),
+                          _RecordButton(
+                            recording: _recording,
+                            busy: _mediaBusy,
+                            onTap: _toggleRecording,
+                            onLongPressStart: _startRecording,
+                            onLongPressEnd: _stopRecording,
+                          ),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: _recordingPath == null
+                                ? const SizedBox(height: 14)
+                                : Padding(
+                                    key: ValueKey(_recordingPath),
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: _RecordingCard(
+                                      duration: _recordingDuration,
+                                      onPlay: _playRecording,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    _sentenceIndex == total - 1
-                                        ? Icons.check_rounded
-                                        : Icons.arrow_forward_rounded,
-                                  ),
-                                ],
-                              ),
-                            ),
                           ),
+                          if (_message != null) ...<Widget>[
+                            const SizedBox(height: 12),
+                            Text(
+                              _message!,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.muted),
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          if (_recordingPath != null)
+                            _PostRecordingActions(
+                              busy: _recording || _mediaBusy,
+                              onPlaySample: _playSample,
+                              onPlayRecording: _playRecording,
+                              onRecordAgain: _startRecording,
+                              onContinue: _continue,
+                              onPrevious: _previous,
+                              canGoPrevious: _sentenceIndex > 0,
+                              finalSentence: _sentenceIndex == total - 1,
+                            )
+                          else
+                            _LessonNavigationActions(
+                              current: _sentenceIndex,
+                              total: total,
+                              busy: _recording || _mediaBusy,
+                              onPrevious: _previous,
+                              onContinue: _continue,
+                            ),
+                          if (_showSkip && _recordingPath == null) ...<Widget>[
+                            const SizedBox(height: 10),
+                            TextButton.icon(
+                              key: const Key('skip-lesson-sentence'),
+                              onPressed: _recording || _mediaBusy
+                                  ? null
+                                  : _skip,
+                              icon: const Icon(Icons.fast_forward_rounded),
+                              label: Text(context.tr('Bỏ qua câu này', '跳过本句')),
+                            ),
+                          ],
                         ],
                       ),
-                    ],
+                    ),
                   ),
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  reverseDuration: const Duration(milliseconds: 220),
+                  transitionBuilder: (child, animation) {
+                    final curved = CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutBack,
+                      reverseCurve: Curves.easeInCubic,
+                    );
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: curved, child: child),
+                    );
+                  },
+                  child: _coachPopupKind == null
+                      ? const SizedBox.shrink()
+                      : _LessonCoachPopup(
+                          key: ValueKey(_coachPopupKind),
+                          kind: _coachPopupKind!,
+                        ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         bottomNavigationBar: ListeningNavigationBar(
           onCommunication: () =>
               Navigator.of(context).popUntil((route) => route.isFirst),
-          onHistory: widget.controller == null ? null : _showHistory,
+          onHistory: _showHistory,
         ),
       ),
     );
   }
 
   Future<void> _playSample() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
     final uri = _sentence.audioUri;
     if (uri == null) {
       _setMessage(
@@ -243,12 +275,40 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
           'Cloudinary 音频库更新后即可播放示范音频。',
         ),
       );
+      _scheduleIdleReminder();
       return;
     }
     await _runMediaAction(() => widget.mediaService.play(uri));
+    if (_recordingPath == null) {
+      _scheduleIdleReminder();
+    }
+  }
+
+  Future<void> _playVietnamese() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
+    final uri = _sentence.vietnameseAudioUri;
+    if (uri == null) {
+      _setMessage(
+        context.tr(
+          'Audio tiếng Việt sẽ được gắn sau. Nút đã sẵn sàng.',
+          '越南语音频稍后接入，按钮已准备好。',
+        ),
+      );
+      if (_recordingPath == null) {
+        _scheduleIdleReminder();
+      }
+      return;
+    }
+    await _runMediaAction(() => widget.mediaService.play(uri));
+    if (_recordingPath == null) {
+      _scheduleIdleReminder();
+    }
   }
 
   Future<void> _playRecording() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
     final path = _recordingPath;
     if (path == null) {
       return;
@@ -289,6 +349,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (_recording || _mediaBusy) {
       return;
     }
+    _cancelIdleReminder();
+    _hideCoachPopup();
     setState(() {
       _mediaBusy = true;
       _message = null;
@@ -297,13 +359,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       await widget.mediaService.startRecording(
         lessonId: widget.lesson.id,
         sentenceNumber: _sentence.number,
+        lessonTitle: widget.lesson.titleVi,
+        sentenceId: _sentence.id,
+        english: _sentence.english,
+        vietnamese: _sentence.vietnamese,
       );
       if (mounted) {
         setState(() {
           _recording = true;
           _mediaBusy = false;
-          _recordingPath = null;
-          _recordingDuration = null;
         });
       }
     } catch (error) {
@@ -329,11 +393,18 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         _mediaBusy = false;
         _recordingPath = recording.filePath;
         _recordingDuration = recording.duration;
-        _message = context.tr(
-          'Đã lưu bản ghi của câu này trên điện thoại.',
-          '本句录音已保存在手机上。',
-        );
+        _message = null;
+        _skippedSentenceIndexes.remove(_sentenceIndex);
       });
+      try {
+        await widget.progressStore.clearSkippedSentence(
+          widget.lesson.id,
+          _sentenceIndex,
+        );
+      } catch (_) {
+        // The successful recording remains usable even if progress sync fails.
+      }
+      _showCoachPopup(_LessonCoachPopupKind.praise);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -342,10 +413,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         });
       }
       _setMessage(error.toString());
+      if (_recordingPath == null) {
+        _scheduleIdleReminder();
+      }
     }
   }
 
   Future<void> _continue() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
     await widget.progressStore.saveLesson(widget.lesson.id, _sentenceIndex + 1);
     if (!mounted) {
       return;
@@ -355,7 +431,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         widget.lesson.id,
         _sentenceIndex,
       );
-      await _showCompletion();
+      await _openReview();
       return;
     }
     final nextSentence = _sentenceIndex + 1;
@@ -372,13 +448,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _recordingDuration = null;
       _message = null;
     });
-    await _loadRecording();
+    await _activateCurrentSentence(autoPlay: true);
   }
 
   Future<void> _previous() async {
     if (_sentenceIndex == 0) {
       return;
     }
+    _cancelIdleReminder();
+    _hideCoachPopup();
     final previousSentence = _sentenceIndex - 1;
     await widget.progressStore.saveCurrentSentence(
       widget.lesson.id,
@@ -393,10 +471,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _recordingDuration = null;
       _message = null;
     });
-    await _loadRecording();
+    await _activateCurrentSentence(autoPlay: true);
   }
 
   Future<void> _exitLesson() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
     await widget.progressStore.saveCurrentSentence(
       widget.lesson.id,
       _sentenceIndex,
@@ -405,6 +485,121 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       return;
     }
     Navigator.of(context).pop();
+  }
+
+  Future<void> _skip() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
+    _skippedSentenceIndexes.add(_sentenceIndex);
+    try {
+      await widget.progressStore.saveSkippedSentence(
+        widget.lesson.id,
+        _sentenceIndex,
+      );
+    } catch (_) {
+      // Keep the current-session marker when local persistence is unavailable.
+    }
+    if (mounted) {
+      setState(() {
+        _showSkip = false;
+        _message = context.tr(
+          'Không sao, mình đánh dấu “Chưa ghi âm” và học tiếp nhé.',
+          '没关系，已标记为“尚未录音”，继续学习吧。',
+        );
+      });
+    }
+    await _continue();
+  }
+
+  Future<void> _openReview() async {
+    _cancelIdleReminder();
+    _hideCoachPopup();
+    final result = await Navigator.of(context).push<int>(
+      MaterialPageRoute<int>(
+        builder: (_) => LessonReviewScreen(
+          language: widget.language,
+          lesson: widget.lesson,
+          mediaService: widget.mediaService,
+          skippedSentenceIndexes: Set<int>.unmodifiable(
+            _skippedSentenceIndexes,
+          ),
+        ),
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    if (result < 0) {
+      await _showCompletion();
+      return;
+    }
+    final retryIndex = result.clamp(0, widget.lesson.sentences.length - 1);
+    await widget.progressStore.saveCurrentSentence(
+      widget.lesson.id,
+      retryIndex,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sentenceIndex = retryIndex;
+      _recordingPath = null;
+      _recordingDuration = null;
+      _message = null;
+    });
+    await _activateCurrentSentence(autoPlay: true);
+  }
+
+  void _scheduleIdleReminder() {
+    _cancelIdleReminder();
+    if (!mounted || _recording || _recordingPath != null) {
+      return;
+    }
+    _idleReminderTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted || _recording || _recordingPath != null) {
+        return;
+      }
+      setState(() => _message = null);
+      _showCoachPopup(_LessonCoachPopupKind.firstReminder);
+      _idleReminderTimer = Timer(const Duration(seconds: 5), () {
+        if (!mounted || _recording || _recordingPath != null) {
+          return;
+        }
+        setState(() {
+          _showSkip = true;
+          _message = null;
+        });
+        _showCoachPopup(_LessonCoachPopupKind.secondReminder);
+      });
+    });
+  }
+
+  void _cancelIdleReminder() {
+    _idleReminderTimer?.cancel();
+    _idleReminderTimer = null;
+  }
+
+  void _showCoachPopup(_LessonCoachPopupKind kind) {
+    _coachPopupTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _coachPopupKind = kind);
+    _coachPopupTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || _coachPopupKind != kind) {
+        return;
+      }
+      setState(() => _coachPopupKind = null);
+      _coachPopupTimer = null;
+    });
+  }
+
+  void _hideCoachPopup() {
+    _coachPopupTimer?.cancel();
+    _coachPopupTimer = null;
+    if (mounted && _coachPopupKind != null) {
+      setState(() => _coachPopupKind = null);
+    }
   }
 
   Future<void> _showCompletion() async {
@@ -431,17 +626,23 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (leaveLesson == true) {
       Navigator.of(context).pop();
     } else if (leaveLesson == false) {
+      try {
+        await widget.progressStore.clearSkippedSentences(widget.lesson.id);
+      } catch (_) {
+        // Restarting still works when local progress storage is unavailable.
+      }
       await widget.progressStore.saveCurrentSentence(widget.lesson.id, 0);
       if (!mounted) {
         return;
       }
       setState(() {
         _sentenceIndex = 0;
+        _skippedSentenceIndexes.clear();
         _recordingPath = null;
         _recordingDuration = null;
         _message = null;
       });
-      await _loadRecording();
+      await _activateCurrentSentence(autoPlay: true);
     }
   }
 
@@ -451,7 +652,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => HistorySheet(controller: widget.controller!),
+      builder: (_) =>
+          LessonRecordingHistorySheet(mediaService: widget.mediaService),
     );
   }
 
@@ -519,22 +721,33 @@ class _LessonHeader extends StatelessWidget {
 }
 
 class _SentenceCard extends StatelessWidget {
-  const _SentenceCard({required this.sentence, required this.onPlaySample});
+  const _SentenceCard({
+    required this.sentence,
+    required this.lessonType,
+    required this.current,
+    required this.total,
+    required this.onPlaySample,
+    required this.onPlayVietnamese,
+  });
 
   final ListeningSentenceContent sentence;
+  final ListeningLessonType lessonType;
+  final int current;
+  final int total;
   final VoidCallback onPlaySample;
+  final VoidCallback onPlayVietnamese;
 
   @override
   Widget build(BuildContext context) {
     final englishSize = sentence.english.length > 55
-        ? 29.0
+        ? 28.0
         : sentence.english.length > 30
-        ? 36.0
-        : 50.0;
+        ? 34.0
+        : 46.0;
     return Container(
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 360),
-      padding: const EdgeInsets.fromLTRB(22, 34, 22, 28),
+      constraints: const BoxConstraints(minHeight: 300),
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
@@ -549,6 +762,48 @@ class _SentenceCard extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
+          if (lessonType != ListeningLessonType.standard) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: lessonType == ListeningLessonType.song
+                    ? const Color(0xFFFFF1F5)
+                    : AppColors.lavenderSoft,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    lessonType == ListeningLessonType.song
+                        ? Icons.music_note_rounded
+                        : Icons.forum_rounded,
+                    size: 18,
+                    color: lessonType == ListeningLessonType.song
+                        ? AppColors.coral
+                        : AppColors.indigo,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    lessonType == ListeningLessonType.song
+                        ? context.tr(
+                            'Dòng $current/$total',
+                            '歌词 $current/$total',
+                          )
+                        : context.tr(
+                            '${sentence.voice.isEmpty ? 'Lượt thoại' : sentence.voice} · $current/$total',
+                            '${sentence.voice.isEmpty ? '对话角色' : sentence.voice} · $current/$total',
+                          ),
+                    style: const TextStyle(
+                      color: AppColors.indigoDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
           Text(
             sentence.english,
             textAlign: TextAlign.center,
@@ -560,32 +815,54 @@ class _SentenceCard extends StatelessWidget {
               letterSpacing: -0.8,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             sentence.vietnamese,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppColors.indigo,
-              fontSize: 24,
+              fontSize: 22,
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           const Icon(
             Icons.graphic_eq_rounded,
-            size: 64,
+            size: 52,
             color: AppColors.periwinkle,
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            key: const Key('play-lesson-sample'),
-            onPressed: onPlaySample,
-            icon: const Icon(Icons.volume_up_rounded),
-            label: Text(context.tr('Nghe mẫu', '听示范')),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: AppColors.lavenderSoft,
-              foregroundColor: AppColors.indigoDark,
-              side: const BorderSide(color: AppColors.lavenderBorder),
-            ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('play-lesson-sample'),
+                  onPressed: onPlaySample,
+                  icon: const Icon(Icons.volume_up_rounded),
+                  label: Text(context.tr('Nghe mẫu', '听示范')),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    backgroundColor: AppColors.lavenderSoft,
+                    foregroundColor: AppColors.indigoDark,
+                    side: const BorderSide(color: AppColors.lavenderBorder),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('play-vietnamese-meaning'),
+                  onPressed: onPlayVietnamese,
+                  icon: const Icon(Icons.translate_rounded),
+                  label: Text(context.tr('Nghe tiếng Việt', '听越南语')),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    backgroundColor: const Color(0xFFFFF6EE),
+                    foregroundColor: AppColors.indigoDark,
+                    side: const BorderSide(color: Color(0xFFFFD8C4)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -674,6 +951,380 @@ class _RecordButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+enum _LessonCoachPopupKind { praise, firstReminder, secondReminder }
+
+class _LessonCoachPopup extends StatefulWidget {
+  const _LessonCoachPopup({required this.kind, super.key});
+
+  final _LessonCoachPopupKind kind;
+
+  @override
+  State<_LessonCoachPopup> createState() => _LessonCoachPopupState();
+}
+
+class _LessonCoachPopupState extends State<_LessonCoachPopup>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 820),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final praise = widget.kind == _LessonCoachPopupKind.praise;
+    final secondReminder = widget.kind == _LessonCoachPopupKind.secondReminder;
+    final title = switch (widget.kind) {
+      _LessonCoachPopupKind.praise => context.tr(
+        'Con làm tuyệt lắm!',
+        '你做得太棒了！',
+      ),
+      _LessonCoachPopupKind.firstReminder => context.tr(
+        'Đến lượt con rồi!',
+        '轮到你啦！',
+      ),
+      _LessonCoachPopupKind.secondReminder => context.tr(
+        'Mình thử nhẹ nhàng nhé',
+        '我们轻松试一试吧',
+      ),
+    };
+    final message = switch (widget.kind) {
+      _LessonCoachPopupKind.praise => context.tr(
+        'Bản ghi đã được lưu. Con có thể nghe lại hoặc tự bấm sang câu tiếp theo.',
+        '录音已保存。你可以回听，或自己点击进入下一句。',
+      ),
+      _LessonCoachPopupKind.firstReminder => context.tr(
+        'Nhấn và giữ nút micro để đọc theo câu mẫu nhé.',
+        '请长按麦克风按钮，跟着示范句朗读。',
+      ),
+      _LessonCoachPopupKind.secondReminder => context.tr(
+        'Con có thể nghe mẫu lại, nói chậm hơn hoặc chọn bỏ qua câu này.',
+        '你可以重听示范、慢慢说，或选择跳过本句。',
+      ),
+    };
+    final surface = praise
+        ? const Color(0xFFF0FBF5)
+        : secondReminder
+        ? const Color(0xFFFFF7EA)
+        : const Color(0xFFF2F1FF);
+    final border = praise
+        ? const Color(0xFFAFE4C3)
+        : secondReminder
+        ? const Color(0xFFFFD89A)
+        : AppColors.lavenderBorder;
+    final accent = praise
+        ? AppColors.success
+        : secondReminder
+        ? const Color(0xFFE58A2B)
+        : AppColors.indigo;
+
+    return Semantics(
+      liveRegion: true,
+      label: '$title. $message',
+      child: ColoredBox(
+        color: const Color(0x24142451),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Material(
+                key: Key('lesson-coach-popup-${widget.kind.name}'),
+                color: surface,
+                elevation: 18,
+                shadowColor: const Color(0x553D4DD6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  side: BorderSide(color: border, width: 1.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      SizedBox(
+                        height: 132,
+                        width: 210,
+                        child: AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, child) {
+                            final progress = _controller.value;
+                            return Stack(
+                              alignment: Alignment.center,
+                              clipBehavior: Clip.none,
+                              children: <Widget>[
+                                Positioned(
+                                  left: 8,
+                                  top: 24 - (progress * 8),
+                                  child: Transform.rotate(
+                                    angle: -0.2 + (progress * 0.18),
+                                    child: Icon(
+                                      praise
+                                          ? Icons.celebration_rounded
+                                          : Icons.auto_awesome_rounded,
+                                      color: const Color(0xFFFFB84D),
+                                      size: 34,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 12,
+                                  top: 14 + (progress * 8),
+                                  child: Icon(
+                                    secondReminder
+                                        ? Icons.favorite_rounded
+                                        : Icons.star_rounded,
+                                    color: secondReminder
+                                        ? AppColors.coral
+                                        : AppColors.periwinkle,
+                                    size: 31,
+                                  ),
+                                ),
+                                Transform.translate(
+                                  offset: Offset(0, -5 * progress),
+                                  child: Transform.rotate(
+                                    angle: -0.025 + (progress * 0.05),
+                                    child: Transform.scale(
+                                      scale: 0.97 + (progress * 0.05),
+                                      child: child,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                          child: Image.asset(
+                            'assets/images/mascot-robot.png',
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: accent,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.ink,
+                          height: 1.45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostRecordingActions extends StatelessWidget {
+  const _PostRecordingActions({
+    required this.busy,
+    required this.onPlaySample,
+    required this.onPlayRecording,
+    required this.onRecordAgain,
+    required this.onContinue,
+    required this.onPrevious,
+    required this.canGoPrevious,
+    required this.finalSentence,
+  });
+
+  final bool busy;
+  final VoidCallback onPlaySample;
+  final VoidCallback onPlayRecording;
+  final VoidCallback onRecordAgain;
+  final VoidCallback onContinue;
+  final VoidCallback onPrevious;
+  final bool canGoPrevious;
+  final bool finalSentence;
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = <Widget>[
+      _CompactAction(
+        icon: Icons.volume_up_rounded,
+        label: context.tr('Nghe câu mẫu', '听示范'),
+        onPressed: busy ? null : onPlaySample,
+      ),
+      _CompactAction(
+        icon: Icons.play_circle_rounded,
+        label: context.tr('Nghe bản ghi', '听录音'),
+        onPressed: busy ? null : onPlayRecording,
+      ),
+      _CompactAction(
+        icon: Icons.mic_rounded,
+        label: context.tr('Ghi âm lại', '重新录音'),
+        onPressed: busy ? null : onRecordAgain,
+      ),
+      _CompactAction(
+        key: const Key('continue-lesson-sentence'),
+        icon: finalSentence
+            ? Icons.fact_check_rounded
+            : Icons.arrow_forward_rounded,
+        label: context.tr(
+          finalSentence ? 'Ôn tập' : 'Câu tiếp theo',
+          finalSentence ? '复习' : '下一句',
+        ),
+        filled: true,
+        onPressed: busy ? null : onContinue,
+      ),
+    ];
+    return Column(
+      children: <Widget>[
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          childAspectRatio: 2.45,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          children: actions,
+        ),
+        if (canGoPrevious) ...<Widget>[
+          const SizedBox(height: 4),
+          TextButton.icon(
+            key: const Key('previous-lesson-sentence'),
+            onPressed: busy ? null : onPrevious,
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: Text(context.tr('Câu trước', '上一句')),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompactAction extends StatelessWidget {
+  const _CompactAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.filled = false,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (filled) {
+      return FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(label, textAlign: TextAlign.center, maxLines: 2),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 20),
+      label: Text(label, textAlign: TextAlign.center, maxLines: 2),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.indigo,
+        side: const BorderSide(color: AppColors.lavenderBorder),
+      ),
+    );
+  }
+}
+
+class _LessonNavigationActions extends StatelessWidget {
+  const _LessonNavigationActions({
+    required this.current,
+    required this.total,
+    required this.busy,
+    required this.onPrevious,
+    required this.onContinue,
+  });
+
+  final int current;
+  final int total;
+  final bool busy;
+  final VoidCallback onPrevious;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const Key('previous-lesson-sentence'),
+            onPressed: current == 0 || busy ? null : onPrevious,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(62),
+              foregroundColor: AppColors.indigo,
+              side: const BorderSide(color: AppColors.lavenderBorder),
+              textStyle: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: Text(context.tr('Câu trước', '上一句'), maxLines: 1),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            key: const Key('continue-lesson-sentence'),
+            onPressed: busy ? null : onContinue,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(62),
+              textStyle: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            iconAlignment: IconAlignment.end,
+            icon: Icon(
+              current == total - 1
+                  ? Icons.fact_check_rounded
+                  : Icons.arrow_forward_rounded,
+            ),
+            label: Text(
+              context.tr(
+                current == total - 1 ? 'Ôn tập' : 'Tiếp tục',
+                current == total - 1 ? '复习' : '继续',
+              ),
+              maxLines: 1,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -51,6 +51,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    final completeReview = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(completeReview);
+    await tester.pump(const Duration(seconds: 6));
+    await tester.tap(completeReview);
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byKey(const Key('completion-celebration')), findsOneWidget);
@@ -82,6 +90,14 @@ void main() {
     await tester.ensureVisible(continueButton);
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(continueButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    final completeReview = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(completeReview);
+    await tester.pump(const Duration(seconds: 6));
+    await tester.tap(completeReview);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
@@ -151,6 +167,18 @@ class _MemoryProgressStore extends ListeningProgressStore {
   Future<int> readCurrentSentence(String lessonId) async => currentSentence;
 
   @override
+  Future<Set<int>> readSkippedSentences(String lessonId) async => <int>{};
+
+  @override
+  Future<void> saveSkippedSentence(String lessonId, int sentenceIndex) async {}
+
+  @override
+  Future<void> clearSkippedSentence(String lessonId, int sentenceIndex) async {}
+
+  @override
+  Future<void> clearSkippedSentences(String lessonId) async {}
+
+  @override
   Future<void> saveLesson(String lessonId, int completed) async {
     if (completed > completedSentences) {
       completedSentences = completed;
@@ -168,6 +196,7 @@ class _SilentMediaService extends LessonMediaService {
   Future<String?> existingRecording({
     required String lessonId,
     required int sentenceNumber,
+    String? sentenceId,
   }) async => null;
 
   @override

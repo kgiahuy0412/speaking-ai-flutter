@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
-import '../../settings/presentation/history_sheet.dart';
+import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import 'lesson_recording_history_sheet.dart';
 import 'listening_navigation_bar.dart';
 import 'topic_lesson_list_screen.dart';
 
@@ -35,6 +36,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   late final Future<ListeningContentCatalog> _contentFuture;
   ListeningContentCatalog? _contentCatalog;
   Map<String, int> _lessonProgress = const <String, int>{};
+  late final LessonMediaService _historyMediaService;
 
   ListeningAgeCatalog get _catalog => listeningCatalogs[_selectedCatalogIndex];
 
@@ -48,7 +50,14 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       _selectedCatalogIndex = 0;
     }
     _contentFuture = AssetListeningContentRepository().load();
+    _historyMediaService = LessonMediaService();
     unawaited(_loadContentAndProgress());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_historyMediaService.dispose());
+    super.dispose();
   }
 
   @override
@@ -145,7 +154,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         ),
         bottomNavigationBar: ListeningNavigationBar(
           onCommunication: () => Navigator.of(context).pop(),
-          onHistory: widget.controller == null ? null : _showHistory,
+          onHistory: _showHistory,
         ),
       ),
     );
@@ -226,7 +235,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => HistorySheet(controller: widget.controller!),
+      builder: (_) =>
+          LessonRecordingHistorySheet(mediaService: _historyMediaService),
     );
   }
 

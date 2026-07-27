@@ -4,6 +4,8 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'browser_audio_playback.dart';
+import 'browser_audio_playback_factory.dart';
 import 'device_audio_cache.dart';
 
 class PlaybackStartMetrics {
@@ -44,13 +46,10 @@ class JustAudioPlaybackService
         AudioPlaybackService,
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService {
-  static const _silentWarmUpAudio =
-      'data:audio/wav;base64,'
-      'UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
-
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
     : _cache = cache ?? DeviceAudioCache(),
       _ownsCache = cache == null,
+      _browserPlayback = createBrowserAudioPlayback(),
       _player =
           player ??
           AudioPlayer(
@@ -67,51 +66,28 @@ class JustAudioPlaybackService
             ),
           ) {
     _audioSession = AudioSession.instance;
-    _playerWarmUp = _warmUpPlayer();
   }
 
   final AudioPlayer _player;
+  final BrowserAudioPlayback? _browserPlayback;
   final DeviceAudioCache _cache;
   final bool _ownsCache;
   late final Future<AudioSession> _audioSession;
-  late final Future<void> _playerWarmUp;
   Future<void>? _playbackSessionPreparation;
   Future<void> _sourceOperation = Future<void>.value();
   Uri? _loadedOriginalUri;
   Uri? _loadedResolvedUri;
   int _preloadRevision = 0;
-  bool _playerWarmUpReady = false;
-  bool _webPlaybackUnlocked = false;
-
-  Future<void> _warmUpPlayer() async {
-    try {
-      await _player.setUrl(_silentWarmUpAudio);
-      _playerWarmUpReady = true;
-    } catch (error) {
-      assert(() {
-        debugPrint('Audio player warm-up was skipped: $error');
-        return true;
-      }());
-    }
-  }
 
   @override
   Future<void> unlockForUserGesture() async {
-    if (!kIsWeb || _webPlaybackUnlocked || !_playerWarmUpReady) {
+    final browserPlayback = _browserPlayback;
+    if (browserPlayback == null) {
       return;
     }
 
     try {
-      // Keep play() before the first await. Safari only accepts it while the
-      // original tap is still considered an active user gesture.
-      final playback = _player.play();
-      await playback.timeout(
-        const Duration(milliseconds: 500),
-        onTimeout: () {},
-      );
-      await _player.pause();
-      await _player.seek(Duration.zero);
-      _webPlaybackUnlocked = true;
+      await browserPlayback.unlockForUserGesture();
     } catch (error) {
       debugPrint('Web audio unlock was skipped: $error');
     }
@@ -137,6 +113,9 @@ class JustAudioPlaybackService
 
   @override
   Future<void> prepare() {
+    if (_browserPlayback != null) {
+      return Future<void>.value();
+    }
     final preparation = _configurePlaybackAudioSession();
     _playbackSessionPreparation = preparation;
     return preparation;
@@ -202,35 +181,48 @@ class JustAudioPlaybackService
     }
   }
 
+  Future<void> _rewindCompletedPlayback() async {
+    final duration = _player.duration;
+    final reachedEnd =
+        duration != null &&
+        duration > Duration.zero &&
+        _player.position >= duration - const Duration(milliseconds: 20);
+    if (_player.processingState == ProcessingState.completed || reachedEnd) {
+      await _player.seek(Duration.zero);
+    }
+  }
+
   @override
   Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri) async {
-    final resolvedUri = _loadedResolvedUri;
-    if (!kIsWeb ||
-        _loadedOriginalUri != uri ||
-        resolvedUri == null ||
-        _player.processingState == ProcessingState.completed) {
+    final browserPlayback = _browserPlayback;
+    if (browserPlayback == null) {
       return null;
     }
 
     final requestedAt = DateTime.now();
     try {
-      // _startPlayback invokes AudioPlayer.play() before its first await. That
-      // keeps Safari's transient user activation alive for the Play button.
-      final playback = _startPlayback();
+      // The browser implementation invokes HTMLMediaElement.play() before its
+      // first await, preserving Safari's transient activation for this tap.
+      final playback = browserPlayback.play(uri);
       await playback;
+      _loadedOriginalUri = uri;
+      _loadedResolvedUri = uri;
       return PlaybackStartMetrics(
         audioLoadDuration: Duration.zero,
         startedAfterRequest: DateTime.now().difference(requestedAt),
-        fromDeviceCache: resolvedUri.isScheme('file'),
+        fromDeviceCache: false,
       );
     } catch (error) {
-      debugPrint('Direct web playback retry was skipped: $error');
-      return null;
+      debugPrint('Direct web playback failed: $error');
+      throw const PlaybackException(
+        'Safari chưa thể phát âm thanh. Hãy chạm nút phát lại một lần nữa.',
+      );
     }
   }
 
   @override
-  Stream<bool> get playingStream => _player.playingStream;
+  Stream<bool> get playingStream =>
+      _browserPlayback?.playingStream ?? _player.playingStream;
 
   Future<void> _setSource(Uri uri) async {
     if (uri.isScheme('file')) {
@@ -250,8 +242,15 @@ class JustAudioPlaybackService
 
   @override
   Future<void> preload(Uri uri) async {
+    final browserPlayback = _browserPlayback;
+    if (browserPlayback != null) {
+      await browserPlayback.preload(uri);
+      _loadedOriginalUri = uri;
+      _loadedResolvedUri = uri;
+      return;
+    }
+
     final revision = ++_preloadRevision;
-    await _playerWarmUp;
     final cachedUri = await _cache.cache(uri);
     if (cachedUri == null || revision != _preloadRevision) {
       return;
@@ -269,9 +268,29 @@ class JustAudioPlaybackService
 
   @override
   Future<PlaybackStartMetrics> play(Uri uri) async {
-    ++_preloadRevision;
     final requestedAt = DateTime.now();
-    await _playerWarmUp;
+    final browserPlayback = _browserPlayback;
+    if (browserPlayback != null) {
+      final loadStartedAt = DateTime.now();
+      try {
+        await browserPlayback.play(uri);
+      } catch (error) {
+        debugPrint('Browser audio playback failed: $error');
+        throw const PlaybackException(
+          'Safari chưa cho phép tự phát. Hãy chạm nút phát câu tiếng Anh.',
+        );
+      }
+      final startedAt = DateTime.now();
+      _loadedOriginalUri = uri;
+      _loadedResolvedUri = uri;
+      return PlaybackStartMetrics(
+        audioLoadDuration: startedAt.difference(loadStartedAt),
+        startedAfterRequest: startedAt.difference(requestedAt),
+        fromDeviceCache: false,
+      );
+    }
+
+    ++_preloadRevision;
     await _consumePlaybackPreparation();
     final resolvedUri = await _cache.resolveAfterPreload(uri);
     final loadStartedAt = DateTime.now();
@@ -292,6 +311,7 @@ class JustAudioPlaybackService
       return true;
     }());
     try {
+      await _rewindCompletedPlayback();
       await _startPlayback();
     } on TimeoutException {
       // ExoPlayer can occasionally remain in a completed-but-playing state
@@ -324,10 +344,11 @@ class JustAudioPlaybackService
   }
 
   @override
-  Future<void> stop() => _player.pause();
+  Future<void> stop() => _browserPlayback?.pause() ?? _player.pause();
 
   @override
   Future<void> dispose() async {
+    await _browserPlayback?.dispose();
     await _player.dispose();
     if (_ownsCache) {
       _cache.dispose();

@@ -46,7 +46,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             clientIdProvider: _clientIdentity.getClientId,
           );
     _deviceAudioCache = DeviceAudioCache();
-    unawaited(_warmAudioCaches(repository, _deviceAudioCache));
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     _controller = ConversationController(
@@ -71,37 +70,31 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
       initialAsrMode: kIsWeb ? AsrMode.batchChunks : null,
     );
+    if (!kIsWeb) {
+      unawaited(_warmRecentAudioWhenIdle(repository, _deviceAudioCache));
+    }
   }
 
-  Future<void> _warmAudioCaches(
+  Future<void> _warmRecentAudioWhenIdle(
     ConversationRepository repository,
     DeviceAudioCache deviceCache,
   ) async {
+    await Future<void>.delayed(const Duration(seconds: 10));
+    while (mounted && _controller.isBusy) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+    if (!mounted) {
+      return;
+    }
     try {
-      await Future.wait<void>([
-        repository.warmAudioCache(),
-        _warmCommonRuleAudio(repository, deviceCache),
-        _warmOfflineIntentAudio(repository, deviceCache),
-      ]);
+      // Warm only audio that this child actually used. Global warmup and the
+      // full exact-rule catalog compete with the first recording and become
+      // increasingly expensive as the rule set grows.
+      await _warmCommonRuleAudio(repository, deviceCache);
     } catch (error, stackTrace) {
       debugPrint('Audio cache warm-up was skipped: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
-  }
-
-  Future<void> _warmOfflineIntentAudio(
-    ConversationRepository repository,
-    DeviceAudioCache deviceCache,
-  ) async {
-    if (repository is! OfflineIntentCatalogRepository) {
-      return;
-    }
-    final manifest = await (repository as OfflineIntentCatalogRepository)
-        .fetchOfflineIntentManifest();
-    await deviceCache.warm(
-      manifest.items.map((item) => item.audioUri),
-      limit: 50,
-    );
   }
 
   Future<void> _warmCommonRuleAudio(
@@ -132,7 +125,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     }
     final commonUris = ranked.values.toList()
       ..sort((a, b) => b.score.compareTo(a.score));
-    await deviceCache.warm(commonUris.map((item) => item.uri));
+    await deviceCache.warm(commonUris.map((item) => item.uri), limit: 12);
   }
 
   @override

@@ -59,6 +59,7 @@ class ConversationController extends ChangeNotifier {
     if (displayLanguageStore != null) {
       unawaited(_loadDisplayLanguage());
     }
+    unawaited(_primeExactIntentCatalog());
   }
 
   final AudioInput _audioInput;
@@ -125,6 +126,81 @@ class ConversationController extends ChangeNotifier {
     }
     displayLanguage = stored;
     notifyListeners();
+  }
+
+  Future<void> _primeExactIntentCatalog() async {
+    // Web Batch Chunks has no local transcript to match while recording. The
+    // backend performs the exact lookup after ASR, so downloading the catalog
+    // during PWA startup only delays the first microphone interaction.
+    if (kIsWeb) {
+      return;
+    }
+    final catalog = _repository is OfflineIntentCatalogRepository
+        ? _repository as OfflineIntentCatalogRepository
+        : null;
+    if (catalog == null) {
+      return;
+    }
+    try {
+      final manifest = await catalog.fetchOfflineIntentManifest();
+      if (!_disposed) {
+        _offlineIntentManifest = manifest;
+      }
+    } catch (error) {
+      debugPrint('Exact-rule catalog preload was skipped: $error');
+    }
+  }
+
+  String _normalizeExactText(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\.,!?;:"“”‘’…()\-_/]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  OfflineIntentDefinition? _findLocalExactIntent(
+    String sourceText,
+    PracticeContext targetContext,
+  ) {
+    final normalized = _normalizeExactText(sourceText);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final item in _offlineIntentManifest?.items ?? const []) {
+      if (!item.contexts.contains(targetContext.apiValue)) {
+        continue;
+      }
+      for (final sample in item.samples) {
+        if (_normalizeExactText(sample) == normalized) {
+          return item;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _applyLocalExactPreview(
+    String sourceText, {
+    required PracticeContext targetContext,
+  }) {
+    final exact = _findLocalExactIntent(sourceText, targetContext);
+    if (exact == null || exact.englishText.trim().isEmpty) {
+      return false;
+    }
+    _preview = ConversationPreview(
+      sourceText: sourceText.trim(),
+      englishText: exact.englishText.trim(),
+      textSource: 'device_exact_rule',
+      audioUri: exact.audioUri,
+    );
+    unawaited(
+      _playbackService.preload(exact.audioUri).catchError((Object error) {
+        debugPrint('Local exact-rule audio preload was skipped: $error');
+      }),
+    );
+    return true;
   }
 
   void setDisplayLanguage(DisplayLanguage language) {
@@ -582,23 +658,41 @@ class ConversationController extends ChangeNotifier {
     }
 
     BatchChunkUploadSession? upload;
+    final bufferedChunks = <Uint8List>[];
     try {
-      upload = await chunkedRepository.startBatchChunkUpload();
-      _batchChunkUpload = upload;
       _batchChunkSubscription = chunkedInput.audioChunks.listen(
-        upload.addAudioChunk,
+        (bytes) {
+          final activeUpload = upload;
+          if (activeUpload == null) {
+            bufferedChunks.add(Uint8List.fromList(bytes));
+            return;
+          }
+          activeUpload.addAudioChunk(bytes);
+        },
         onError: (Object error) {
           debugPrint('Batch audio stream failed: $error');
         },
       );
-      await chunkedInput.startChunked();
+      final inputStart = chunkedInput.startChunked();
+      final uploadStart = chunkedRepository.startBatchChunkUpload().then((
+        session,
+      ) {
+        upload = session;
+        _batchChunkUpload = session;
+        for (final bytes in bufferedChunks) {
+          session.addAudioChunk(bytes);
+        }
+        bufferedChunks.clear();
+      });
+      await Future.wait<void>(<Future<void>>[inputStart, uploadStart]);
     } catch (error) {
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
       _batchChunkUpload = null;
       await chunkedInput.cancel().catchError((Object _) {});
-      if (upload != null) {
-        await upload.discard().catchError((Object _) {});
+      final activeUpload = upload;
+      if (activeUpload != null) {
+        await activeUpload.discard().catchError((Object _) {});
       }
       transientMessage =
           'Batch Chunks chưa sẵn sàng; đang dùng upload file dự phòng.';
@@ -649,6 +743,10 @@ class ConversationController extends ChangeNotifier {
     _partialPreviewTimer?.cancel();
     final generation = _previewGeneration;
     final previewContext = context;
+    if (_applyLocalExactPreview(normalized, targetContext: previewContext)) {
+      _lastPreviewText = normalized;
+      return;
+    }
     _partialPreviewTimer = Timer(const Duration(milliseconds: 300), () {
       if (_lastPreviewText == normalized) {
         return;
@@ -855,6 +953,13 @@ class ConversationController extends ChangeNotifier {
       phase = ConversationPhase.processing;
       amplitude = 0;
       notifyListeners();
+
+      if (streamingCapture != null) {
+        _applyLocalExactPreview(
+          streamingCapture.sourceText,
+          targetContext: context,
+        );
+      }
 
       final resultFuture = streamingCapture != null
           ? _repository.processStreamingText(

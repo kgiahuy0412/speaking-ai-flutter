@@ -84,18 +84,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-    expect(find.textContaining('Chào hỏi cơ bản'), findsOneWidget);
-    expect(find.text('1 bài nhỏ'), findsOneWidget);
-    expect(find.text('8 câu'), findsWidgets);
+    expect(find.textContaining('Chào hỏi'), findsOneWidget);
+    expect(find.text('2 bài nhỏ'), findsOneWidget);
+    expect(find.text('10 câu'), findsWidgets);
 
-    await tester.tap(
-      find.byKey(const ValueKey('start-lesson-age-3-5-topic-1-lesson-1')),
-    );
+    await tester.tap(find.byKey(const ValueKey('start-lesson-a035_t01_l01')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byKey(const Key('lesson-intro-screen')), findsOneWidget);
-    expect(find.textContaining('Hôm nay cô và con'), findsOneWidget);
+    expect(find.textContaining('Chào con!'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
@@ -117,14 +115,56 @@ void main() {
 
     expect(content.groups, hasLength(5));
     expect(topics, hasLength(50));
-    expect(lessons, hasLength(111));
-    expect(sentences, hasLength(836));
+    final songs = topics.expand((topic) => topic.songs).toList();
+    final songLines = songs.expand((song) => song.sentences).toList();
+    final allLearningItems = <ListeningLessonContent>[...lessons, ...songs];
+    final allSentences = allLearningItems
+        .expand((lesson) => lesson.sentences)
+        .toList();
+
+    expect(lessons, hasLength(101));
+    expect(sentences, hasLength(634));
+    expect(songs, hasLength(11));
+    expect(songLines, hasLength(69));
+    expect(
+      allLearningItems.map((lesson) => lesson.id).toSet(),
+      hasLength(allLearningItems.length),
+    );
+    expect(
+      allSentences.map((sentence) => sentence.id).toSet(),
+      hasLength(allSentences.length),
+    );
+    expect(
+      allSentences.every(
+        (sentence) =>
+            sentence.englishAudioId != null &&
+            sentence.vietnameseAudioId != null &&
+            sentence.englishAudioId != sentence.vietnameseAudioId,
+      ),
+      isTrue,
+    );
+    expect(
+      songs.every((lesson) => lesson.type == ListeningLessonType.song),
+      isTrue,
+    );
+    expect(
+      content.groups[0].topics
+          .expand((topic) => topic.lessons)
+          .every((lesson) => lesson.autoAdvanceDelay.inMilliseconds == 2750),
+      isTrue,
+    );
+    expect(
+      content.groups[4].topics
+          .expand((topic) => topic.lessons)
+          .every((lesson) => lesson.autoAdvanceDelay.inMilliseconds == 1250),
+      isTrue,
+    );
 
     final greetings = content.topic(startAge: 3, endAge: 5, topicNumber: 1);
-    expect(greetings.lessons, hasLength(1));
-    expect(greetings.lessons.single.sentences, hasLength(8));
-    expect(greetings.lessons.single.sentences.first.english, 'Hello!');
-    expect(greetings.lessons.single.sentences.first.vietnamese, 'Xin chào!');
+    expect(greetings.lessons, hasLength(2));
+    expect(greetings.lessons.first.sentences, hasLength(5));
+    expect(greetings.lessons.first.sentences.first.english, 'Hello!');
+    expect(greetings.lessons.first.sentences.first.vietnamese, 'Xin chào!');
   });
 
   testWidgets('lesson flow remains usable on a compact phone', (tester) async {
@@ -146,9 +186,7 @@ void main() {
     );
     await tester.tap(compactTopic);
     await tester.pumpAndSettle();
-    final startLesson = find.byKey(
-      const ValueKey('start-lesson-age-3-5-topic-1-lesson-1'),
-    );
+    final startLesson = find.byKey(const ValueKey('start-lesson-a035_t01_l01'));
     await tester.scrollUntilVisible(startLesson, 180);
     await Scrollable.ensureVisible(
       tester.element(startLesson),
