@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:audio_session/audio_session.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../core/audio/audio_playback_service.dart';
+import 'lesson_recording_storage.dart';
 
 class LessonRecording {
   const LessonRecording({required this.filePath, required this.duration});
@@ -33,15 +31,7 @@ class LessonMediaService {
   Future<String> recordingPath({
     required String lessonId,
     required int sentenceNumber,
-  }) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final recordings = Directory(
-      '${directory.path}${Platform.pathSeparator}lesson_recordings',
-    );
-    await recordings.create(recursive: true);
-    return '${recordings.path}${Platform.pathSeparator}'
-        '$lessonId-sentence-$sentenceNumber.m4a';
-  }
+  }) => createLessonRecordingPath(lessonId, sentenceNumber);
 
   Future<String?> existingRecording({
     required String lessonId,
@@ -52,7 +42,7 @@ class LessonMediaService {
         lessonId: lessonId,
         sentenceNumber: sentenceNumber,
       );
-      return await File(path).exists() ? path : null;
+      return findLessonRecording(path);
     } catch (_) {
       return null;
     }
@@ -84,10 +74,7 @@ class LessonMediaService {
       lessonId: lessonId,
       sentenceNumber: sentenceNumber,
     );
-    final oldFile = File(path);
-    if (await oldFile.exists()) {
-      await oldFile.delete();
-    }
+    await deleteLessonRecording(path);
     await recorder.start(
       const RecordConfig(
         encoder: AudioEncoder.aacLc,
@@ -111,14 +98,18 @@ class LessonMediaService {
     if (recorder == null || startedAt == null || expectedPath == null) {
       throw const LessonMediaException('Chưa có bản ghi đang thực hiện.');
     }
-    final recordedPath = await recorder.stop() ?? expectedPath;
+    final recordedPath = await recorder.stop();
     _recordingStartedAt = null;
     _activePath = null;
-    if (!await File(recordedPath).exists()) {
+    final resolvedPath = await resolveLessonRecording(
+      recordedPath,
+      expectedPath,
+    );
+    if (resolvedPath == null) {
       throw const LessonMediaException('Không tìm thấy bản ghi vừa tạo.');
     }
     return LessonRecording(
-      filePath: recordedPath,
+      filePath: resolvedPath,
       duration: DateTime.now().difference(startedAt),
     );
   }

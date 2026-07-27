@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -12,6 +11,8 @@ import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/wav_audio.dart';
+import '../../../core/network/multipart_audio_file.dart';
+import '../../../core/network/realtime_socket.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 
@@ -65,9 +66,7 @@ class NextConversationRepository
     final response = await _client
         .post(
           _config.resolve('/api/cache/warmup'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'context': 'all',
@@ -133,7 +132,7 @@ class NextConversationRepository
             .post(
               uri,
               headers: <String, String>{
-                HttpHeaders.contentTypeHeader: 'application/json',
+                'content-type': 'application/json',
                 'Idempotency-Key': 'finalize:$audioSessionId',
               },
               body: body,
@@ -194,9 +193,7 @@ class NextConversationRepository
     final response = await _client
         .post(
           _config.resolve('/api/realtime/transcription-session'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'bluetoothAudioInput': bluetoothAudioInput,
@@ -220,11 +217,9 @@ class NextConversationRepository
 
     sessionStopwatch.stop();
     final websocketStopwatch = Stopwatch()..start();
-    final socket = await WebSocket.connect(
+    final socket = await connectRealtimeSocket(
       websocketUrl,
-      headers: <String, String>{
-        HttpHeaders.authorizationHeader: 'Bearer $clientSecret',
-      },
+      headers: <String, String>{'authorization': 'Bearer $clientSecret'},
     ).timeout(const Duration(seconds: 12));
     websocketStopwatch.stop();
 
@@ -262,9 +257,7 @@ class NextConversationRepository
     final response = await _client
         .post(
           _config.resolve('/api/conversation'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'context': context.apiValue,
@@ -310,9 +303,7 @@ class NextConversationRepository
     final response = await _client
         .post(
           _config.resolve('/api/conversation/preview'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'context': context.apiValue,
@@ -362,10 +353,11 @@ class NextConversationRepository
           )
           ..fields['sequence'] = '0'
           ..files.add(
-            await http.MultipartFile.fromPath(
-              'audio',
-              capture.filePath,
+            await createAudioMultipartFile(
+              field: 'audio',
+              path: capture.filePath,
               filename: _audioFilename(capture.mimeType),
+              bytes: capture.dataBytes,
             ),
           );
     final streamedResponse = await _client
@@ -413,9 +405,7 @@ class NextConversationRepository
     final response = await _client
         .patch(
           _config.resolve('/api/history'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'conversationId': conversationId,
@@ -441,9 +431,7 @@ class NextConversationRepository
     final response = await _client
         .patch(
           _config.resolve('/api/history'),
-          headers: const <String, String>{
-            HttpHeaders.contentTypeHeader: 'application/json',
-          },
+          headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
             'clientId': clientId,
             'conversationId': conversationId,
@@ -582,7 +570,7 @@ class NextConversationRepository
 class _OpenAiRealtimeTranscriptionSession
     implements RealtimeTranscriptionSession {
   _OpenAiRealtimeTranscriptionSession({
-    required WebSocket socket,
+    required RealtimeSocket socket,
     required this.audioInputLabel,
     required this.bluetoothAudioInput,
     required DateTime sessionStartedAt,
@@ -592,7 +580,7 @@ class _OpenAiRealtimeTranscriptionSession
   }) : _socket = socket,
        _sessionStartedAt = sessionStartedAt,
        _connectedAt = connectedAt {
-    _subscription = _socket.listen(
+    _subscription = _socket.messages.listen(
       _handleMessage,
       onError: _handleError,
       onDone: _handleDone,
@@ -600,7 +588,7 @@ class _OpenAiRealtimeTranscriptionSession
     );
   }
 
-  final WebSocket _socket;
+  final RealtimeSocket _socket;
   final String audioInputLabel;
   final bool bluetoothAudioInput;
   final DateTime _sessionStartedAt;
@@ -847,7 +835,7 @@ class _OpenAiRealtimeTranscriptionSession
     }
     _closed = true;
     try {
-      await _socket.close(WebSocketStatus.normalClosure);
+      await _socket.close(1000);
     } finally {
       await _subscription.cancel();
       await _partialController.close();

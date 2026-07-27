@@ -1,5 +1,5 @@
 name: ai_speaking_flutter_app
-description: Android-first speaking assistant for the INNOTRIK wearable workflow.
+description: INNOTRIK speaking assistant for Android and installable web.
 publish_to: none
 version: 0.1.0+1
 
@@ -14,6 +14,7 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   record: ^7.1.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
@@ -46,3 +47,8 @@ flutter_launcher_icons:
   ios: false
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    background_color: "#F8F7FF"
+    theme_color: "#3F51D9"
