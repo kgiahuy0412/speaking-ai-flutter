@@ -14,6 +14,8 @@ import 'lesson_practice_screen.dart';
 class LessonIntroScreen extends StatefulWidget {
   const LessonIntroScreen({
     required this.language,
+    required this.startAge,
+    required this.endAge,
     required this.topic,
     required this.lesson,
     required this.progressStore,
@@ -24,6 +26,8 @@ class LessonIntroScreen extends StatefulWidget {
   });
 
   final DisplayLanguage language;
+  final int startAge;
+  final int endAge;
   final ListeningTopic topic;
   final ListeningLessonContent lesson;
   final ConversationController? controller;
@@ -237,6 +241,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       MaterialPageRoute<void>(
         builder: (_) => LessonPracticeScreen(
           language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
           topic: widget.topic,
           lesson: widget.lesson,
           controller: widget.controller,

@@ -14,6 +14,8 @@ import 'listening_navigation_bar.dart';
 class TopicLessonListScreen extends StatefulWidget {
   const TopicLessonListScreen({
     required this.language,
+    required this.startAge,
+    required this.endAge,
     required this.topic,
     required this.content,
     this.controller,
@@ -23,6 +25,8 @@ class TopicLessonListScreen extends StatefulWidget {
   });
 
   final DisplayLanguage language;
+  final int startAge;
+  final int endAge;
   final ListeningTopic topic;
   final ListeningTopicContent content;
   final ConversationController? controller;
@@ -216,6 +220,8 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       MaterialPageRoute<void>(
         builder: (_) => LessonIntroScreen(
           language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
           topic: widget.topic,
           lesson: lesson,
           controller: widget.controller,
