@@ -466,6 +466,11 @@ class ConversationController extends ChangeNotifier {
         } else {
           await _startRealtimeRecordingWithBatchFallback();
         }
+      } else if (kIsWeb && _audioInput is ChunkedAudioInput) {
+        // Short browser utterances are faster as one multipart request after
+        // stop. The repository still falls back to audio sessions when the
+        // direct route is unavailable, so unreliable networks remain safe.
+        await _audioInput.startChunked();
       } else {
         await _startBatchRecording();
       }
