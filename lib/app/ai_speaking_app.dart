@@ -60,11 +60,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       _deviceRegistrationService = registrationService;
       unawaited(_registerDevice(registrationService));
     }
+    final innotrikInput = InnotrikBleAudioInput(
+      enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
+    );
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
-        preferred: _config.preferBleStreaming
-            ? const InnotrikBleAudioInput()
-            : null,
+        preferred: _config.preferBleStreaming ? innotrikInput : null,
         fallback: PhoneMicrophoneInput(),
       ),
       streamingSpeechInput: supportsAndroidNativeSpeech

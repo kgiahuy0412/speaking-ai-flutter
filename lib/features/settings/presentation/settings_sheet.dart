@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../core/audio/audio_input.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -119,15 +120,13 @@ class SettingsSheet extends StatelessWidget {
                       stateColor: AppColors.success,
                     ),
                     const SizedBox(height: 10),
-                    _StatusTile(
-                      icon: Icons.bluetooth_rounded,
-                      title: context.tr('Mic INNOTRIK', 'INNOTRIK 麦克风'),
-                      detail: context.tr(
-                        'Cần native Opus decoder + thiết bị thật',
-                        '需要原生 Opus 解码器和真实设备',
-                      ),
-                      trailing: context.tr('Chưa bật', '未启用'),
-                      stateColor: AppColors.muted,
+                    _InnotrikStatusCard(
+                      status: controller.bluetoothAudioStatus,
+                      disabled: controller.isBusy,
+                      diagnosticRunning: controller.bleDiagnosticRunning,
+                      onScan: () => _scanAndConnect(context),
+                      onTest: () => _testInnotrik(context),
+                      onDisconnect: controller.disconnectInnotrikDevice,
                     ),
                     const SizedBox(height: 24),
                     _SectionLabel(
@@ -156,7 +155,10 @@ class SettingsSheet extends StatelessWidget {
                               (mode) => RadioListTile<AsrMode>(
                                 contentPadding: EdgeInsets.zero,
                                 value: mode,
-                                enabled: mode.isBackendSupported,
+                                enabled:
+                                    mode.isBackendSupported &&
+                                    (mode != AsrMode.deviceStreaming ||
+                                        controller.canUseInnotrikBle),
                                 title: Text(
                                   kIsWeb && mode == AsrMode.batchChunks
                                       ? context.tr(
@@ -187,8 +189,12 @@ class SettingsSheet extends StatelessWidget {
                                         : '实时识别失败时自动启用；无需手动选择',
                                   ),
                                   AsrMode.deviceStreaming => context.tr(
-                                    'Bật sau khi hoàn thiện BLE + Opus decoder',
-                                    '完成 BLE 和 Opus 解码器后启用',
+                                    controller.canUseInnotrikBle
+                                        ? 'INNOTRIK Opus → PCM16 24 kHz → Realtime/Batch'
+                                        : 'Kết nối Mic INNOTRIK ở phía trên để bật',
+                                    controller.canUseInnotrikBle
+                                        ? 'INNOTRIK Opus → PCM16 24 kHz → 实时/分块识别'
+                                        : '请先在上方连接 INNOTRIK 麦克风',
                                   ),
                                 }),
                               ),
@@ -280,6 +286,139 @@ class SettingsSheet extends StatelessWidget {
       builder: (_) => HistorySheet(controller: controller),
     );
   }
+
+  Future<void> _scanAndConnect(BuildContext context) async {
+    try {
+      final devices = await controller.scanInnotrikDevices();
+      if (!context.mounted) {
+        return;
+      }
+      if (devices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Không tìm thấy thiết bị. Hãy bật INNOTRIK và thử lại.',
+                '未找到设备。请打开 INNOTRIK 后重试。',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+      final selected = await showModalBottomSheet<BluetoothAudioDevice>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  context.tr('Chọn thiết bị INNOTRIK', '选择 INNOTRIK 设备'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  context.tr(
+                    'Thiết bị đúng giao thức được ưu tiên ở đầu danh sách.',
+                    '符合协议的设备会优先显示在列表顶部。',
+                  ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: devices.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final device = devices[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: device.isLikelyInnotrik
+                              ? AppColors.lavender
+                              : const Color(0xFFF1F2F8),
+                          child: Icon(
+                            device.isLikelyInnotrik
+                                ? Icons.bluetooth_connected_rounded
+                                : Icons.bluetooth_rounded,
+                            color: device.isLikelyInnotrik
+                                ? AppColors.indigo
+                                : AppColors.muted,
+                          ),
+                        ),
+                        title: Text(device.displayName),
+                        subtitle: Text('${device.id} • ${device.rssi} dBm'),
+                        trailing: device.isLikelyInnotrik
+                            ? const Icon(
+                                Icons.verified_rounded,
+                                color: AppColors.success,
+                              )
+                            : null,
+                        onTap: () => Navigator.of(context).pop(device),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      await controller.connectInnotrikDevice(selected);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Đã kết nối. Hãy nói thử để kiểm tra Mic INNOTRIK.',
+                '已连接。请说话测试 INNOTRIK 麦克风。',
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  Future<void> _testInnotrik(BuildContext context) async {
+    try {
+      await controller.testInnotrikMicrophone();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Kiểm tra hoàn tất. Nếu nghe đúng giọng vừa nói, decoder hoạt động tốt.',
+                '测试完成。如果能听到刚才的声音，说明解码器工作正常。',
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -356,6 +495,189 @@ class _StatusTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _InnotrikStatusCard extends StatelessWidget {
+  const _InnotrikStatusCard({
+    required this.status,
+    required this.disabled,
+    required this.diagnosticRunning,
+    required this.onScan,
+    required this.onTest,
+    required this.onDisconnect,
+  });
+
+  final BluetoothAudioStatus status;
+  final bool disabled;
+  final bool diagnosticRunning;
+  final VoidCallback onScan;
+  final VoidCallback onTest;
+  final Future<void> Function() onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = status.isConnected;
+    final busy = status.isBusy;
+    final stateColor = connected
+        ? AppColors.success
+        : status.phase == BluetoothAudioConnectionPhase.error
+        ? AppColors.coral
+        : AppColors.muted;
+    final deviceName = status.deviceName?.trim();
+    final detail = _detail(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: connected ? AppColors.successSoft : const Color(0xFFF8F8FD),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: stateColor.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(
+                  connected
+                      ? Icons.bluetooth_connected_rounded
+                      : Icons.bluetooth_searching_rounded,
+                  color: stateColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      deviceName == null || deviceName.isEmpty
+                          ? context.tr('Mic INNOTRIK', 'INNOTRIK 麦克风')
+                          : deviceName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    ),
+                    if (status.packetCount > 0) ...<Widget>[
+                      const SizedBox(height: 5),
+                      Text(
+                        context.tr(
+                          '${status.packetCount} gói • ${status.decodedPcmBytes ~/ 1024} KB PCM • ${status.invalidPacketCount} lỗi',
+                          '${status.packetCount} 个数据包 • ${status.decodedPcmBytes ~/ 1024} KB PCM • ${status.invalidPacketCount} 个错误',
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.indigo,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (busy || diagnosticRunning)
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: EdgeInsets.all(10),
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+            )
+          else
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                alignment: WrapAlignment.end,
+                children: <Widget>[
+                  if (connected)
+                    TextButton.icon(
+                      onPressed: disabled ? null : onTest,
+                      icon: const Icon(Icons.graphic_eq_rounded),
+                      label: Text(context.tr('Test mic 4 giây', '测试麦克风 4 秒')),
+                    ),
+                  TextButton(
+                    onPressed:
+                        disabled ||
+                            status.phase ==
+                                BluetoothAudioConnectionPhase.unsupported ||
+                            status.phase ==
+                                BluetoothAudioConnectionPhase.disabled
+                        ? null
+                        : connected
+                        ? () => onDisconnect()
+                        : onScan,
+                    child: Text(
+                      connected
+                          ? context.tr('Ngắt', '断开')
+                          : context.tr('Quét & nối', '扫描连接'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _detail(BuildContext context) {
+    return switch (status.phase) {
+      BluetoothAudioConnectionPhase.disabled => context.tr(
+        'BLE INNOTRIK đang tắt trong cấu hình bản build.',
+        '此构建中已关闭 INNOTRIK BLE。',
+      ),
+      BluetoothAudioConnectionPhase.unsupported => context.tr(
+        'Điện thoại hoặc bản ứng dụng này không hỗ trợ BLE.',
+        '此手机或应用版本不支持 BLE。',
+      ),
+      BluetoothAudioConnectionPhase.permissionRequired => context.tr(
+        'Cần quyền Thiết bị ở gần/Bluetooth.',
+        '需要“附近设备/蓝牙”权限。',
+      ),
+      BluetoothAudioConnectionPhase.scanning => context.tr(
+        'Đang tìm thiết bị ở gần…',
+        '正在搜索附近设备…',
+      ),
+      BluetoothAudioConnectionPhase.connecting => context.tr(
+        'Đang kết nối GATT…',
+        '正在连接 GATT…',
+      ),
+      BluetoothAudioConnectionPhase.discovering => context.tr(
+        'Đang kiểm tra FF12/FF13/FF14…',
+        '正在检查 FF12/FF13/FF14…',
+      ),
+      BluetoothAudioConnectionPhase.ready => context.tr(
+        'Đã kết nối • Opus decoder sẵn sàng • 24 kHz PCM',
+        '已连接 • Opus 解码器就绪 • 24 kHz PCM',
+      ),
+      BluetoothAudioConnectionPhase.recording => context.tr(
+        'Đang nhận audio thật từ INNOTRIK',
+        '正在接收 INNOTRIK 的真实音频',
+      ),
+      BluetoothAudioConnectionPhase.error =>
+        status.message ?? context.tr('Kết nối gặp lỗi.', '连接发生错误。'),
+      BluetoothAudioConnectionPhase.idle => context.tr(
+        'Bật thiết bị rồi quét để kết nối.',
+        '打开设备后扫描连接。',
+      ),
+    };
   }
 }
 

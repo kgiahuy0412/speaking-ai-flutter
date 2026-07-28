@@ -38,3 +38,9 @@ dart_defines.local.json
 /outputs/aiv0-ai-precheck/
 /standalone/aiv0_batch_reviewer/.asr-models/
 /standalone/aiv0_batch_reviewer/.venv-asr/
+
+node_modules/
+.codex-spreadsheet/
+.codegraph/
+dist/
+flutter_*.log
