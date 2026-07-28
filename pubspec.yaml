@@ -27,6 +27,41 @@ flutter:
   uses-material-design: true
   assets:
     - assets/data/listening_lessons.json
+    - assets/audio/A-3-5/GUIDE_RECORD/
+    - assets/audio/A-3-5/GUIDE_PRAISE/
+    - assets/audio/A-3-5/GUIDE_NEXT/
+    - assets/audio/A-3-5/GUIDE_IDLE1/
+    - assets/audio/A-3-5/GUIDE_IDLE2/
+    - assets/audio/A-3-5/GUIDE_SKIP/
+    - assets/audio/A-3-5/GUIDE_ENDING/
+    - assets/audio/A-6-7/GUIDE_RECORD/
+    - assets/audio/A-6-7/GUIDE_PRAISE/
+    - assets/audio/A-6-7/GUIDE_NEXT/
+    - assets/audio/A-6-7/GUIDE_IDLE1/
+    - assets/audio/A-6-7/GUIDE_IDLE2/
+    - assets/audio/A-6-7/GUIDE_SKIP/
+    - assets/audio/A-6-7/GUIDE_ENDING/
+    - assets/audio/A-8-10/GUIDE_RECORD/
+    - assets/audio/A-8-10/GUIDE_PRAISE/
+    - assets/audio/A-8-10/GUIDE_NEXT/
+    - assets/audio/A-8-10/GUIDE_IDLE1/
+    - assets/audio/A-8-10/GUIDE_IDLE2/
+    - assets/audio/A-8-10/GUIDE_SKIP/
+    - assets/audio/A-8-10/GUIDE_ENDING/
+    - assets/audio/A-11-12/GUIDE_RECORD/
+    - assets/audio/A-11-12/GUIDE_PRAISE/
+    - assets/audio/A-11-12/GUIDE_NEXT/
+    - assets/audio/A-11-12/GUIDE_IDLE1/
+    - assets/audio/A-11-12/GUIDE_IDLE2/
+    - assets/audio/A-11-12/GUIDE_SKIP/
+    - assets/audio/A-11-12/GUIDE_ENDING/
+    - assets/audio/A-13-15/GUIDE_RECORD/
+    - assets/audio/A-13-15/GUIDE_PRAISE/
+    - assets/audio/A-13-15/GUIDE_NEXT/
+    - assets/audio/A-13-15/GUIDE_IDLE1/
+    - assets/audio/A-13-15/GUIDE_IDLE2/
+    - assets/audio/A-13-15/GUIDE_SKIP/
+    - assets/audio/A-13-15/GUIDE_ENDING/
     - assets/images/lesson-intro-stage.webp
     - assets/images/mascot-robot.png
     - assets/images/topics/

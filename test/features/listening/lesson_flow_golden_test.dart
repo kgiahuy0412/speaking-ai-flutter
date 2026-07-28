@@ -73,6 +73,8 @@ void main() {
       _GoldenApp(
         child: TopicLessonListScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           content: topicContent,
           progressStore: progressStore,
