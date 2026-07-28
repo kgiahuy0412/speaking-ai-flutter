@@ -5,7 +5,11 @@ import 'audio_input.dart';
 
 /// Selects the preferred chunked input when it is available and otherwise
 /// keeps the phone microphone as a safe fallback.
-class PreferredAudioInput implements ChunkedAudioInput {
+class PreferredAudioInput
+    implements
+        ChunkedAudioInput,
+        BluetoothAudioInputControl,
+        BluetoothCapturePolicy {
   PreferredAudioInput({
     required ChunkedAudioInput fallback,
     ChunkedAudioInput? preferred,
@@ -19,6 +23,7 @@ class PreferredAudioInput implements ChunkedAudioInput {
 
   ChunkedAudioInput? _active;
   StreamSubscription<Uint8List>? _chunkSubscription;
+  bool _requireBluetoothOnce = false;
 
   ChunkedAudioInput get _candidate {
     final preferred = _preferred;
@@ -26,6 +31,13 @@ class PreferredAudioInput implements ChunkedAudioInput {
   }
 
   ChunkedAudioInput get _current => _active ?? _candidate;
+
+  BluetoothAudioInputControl? get _bluetoothControl {
+    final preferred = _preferred;
+    return preferred is BluetoothAudioInputControl
+        ? preferred as BluetoothAudioInputControl
+        : null;
+  }
 
   @override
   String get label => _current.label;
@@ -43,12 +55,58 @@ class PreferredAudioInput implements ChunkedAudioInput {
   Stream<Uint8List> get audioChunks => _chunkController.stream;
 
   @override
+  void requireBluetoothCaptureOnce() {
+    _requireBluetoothOnce = true;
+  }
+
+  @override
+  BluetoothAudioStatus get bluetoothStatus =>
+      _bluetoothControl?.bluetoothStatus ??
+      const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.unsupported,
+      );
+
+  @override
+  Stream<BluetoothAudioStatus> get bluetoothStatusChanges =>
+      _bluetoothControl?.bluetoothStatusChanges ??
+      const Stream<BluetoothAudioStatus>.empty();
+
+  @override
+  Future<void> initializeBluetooth() async {
+    await _bluetoothControl?.initializeBluetooth();
+  }
+
+  @override
+  Future<List<BluetoothAudioDevice>> scanBluetoothDevices() async {
+    return await _bluetoothControl?.scanBluetoothDevices() ??
+        const <BluetoothAudioDevice>[];
+  }
+
+  @override
+  Future<void> connectBluetoothDevice(String deviceId) async {
+    final control = _bluetoothControl;
+    if (control == null) {
+      throw StateError('Bluetooth audio input is not configured.');
+    }
+    await control.connectBluetoothDevice(deviceId);
+  }
+
+  @override
+  Future<void> disconnectBluetoothDevice() async {
+    await _bluetoothControl?.disconnectBluetoothDevice();
+  }
+
+  @override
   Future<void> start() async {
-    _active = _candidate;
+    final requiresBluetooth = _requireBluetoothOnce;
+    _requireBluetoothOnce = false;
+    _active = requiresBluetooth ? _requiredPreferred() : _candidate;
     try {
       await _active!.start();
     } catch (_) {
-      if (!identical(_active, _preferred) || !_fallback.isAvailable) {
+      if (requiresBluetooth ||
+          !identical(_active, _preferred) ||
+          !_fallback.isAvailable) {
         _active = null;
         rethrow;
       }
@@ -59,14 +117,18 @@ class PreferredAudioInput implements ChunkedAudioInput {
 
   @override
   Future<void> startChunked() async {
-    _active = _candidate;
+    final requiresBluetooth = _requireBluetoothOnce;
+    _requireBluetoothOnce = false;
+    _active = requiresBluetooth ? _requiredPreferred() : _candidate;
     await _listenToActiveChunks();
     try {
       await _active!.startChunked();
     } catch (_) {
       await _chunkSubscription?.cancel();
       _chunkSubscription = null;
-      if (!identical(_active, _preferred) || !_fallback.isAvailable) {
+      if (requiresBluetooth ||
+          !identical(_active, _preferred) ||
+          !_fallback.isAvailable) {
         _active = null;
         rethrow;
       }
@@ -75,6 +137,14 @@ class PreferredAudioInput implements ChunkedAudioInput {
       await _listenToActiveChunks();
       await _fallback.startChunked();
     }
+  }
+
+  ChunkedAudioInput _requiredPreferred() {
+    final preferred = _preferred;
+    if (preferred == null || !preferred.isAvailable) {
+      throw StateError('Mic Bluetooth chưa kết nối hoặc chưa sẵn sàng.');
+    }
+    return preferred;
   }
 
   Future<void> _listenToActiveChunks() async {

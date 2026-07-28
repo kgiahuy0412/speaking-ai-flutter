@@ -170,6 +170,15 @@ const Map<String, String> _simplifiedChinese = <String, String>{
   'Không thể truyền luồng âm thanh.': '无法传输音频流。',
   'BLE streaming sẽ bật sau khi hoàn tất native Opus decoder.':
       '完成原生 Opus 解码器后即可启用 BLE 流式识别。',
+  'Đang quét thiết bị INNOTRIK ở gần…': '正在扫描附近的 INNOTRIK 设备…',
+  'Không tìm thấy INNOTRIK. Hãy bật thiết bị và đặt gần điện thoại.':
+      '未找到 INNOTRIK。请打开设备并放在手机附近。',
+  'Đã kết nối Mic INNOTRIK. BLE streaming đã sẵn sàng để thử.':
+      'INNOTRIK 麦克风已连接，BLE 流式识别可以测试。',
+  'Đã ngắt Mic INNOTRIK; ứng dụng sẽ dùng mic điện thoại.':
+      'INNOTRIK 麦克风已断开，应用将使用手机麦克风。',
+  'Hãy quét và kết nối Mic INNOTRIK trước khi chọn BLE streaming.':
+      '选择 BLE 流式识别前，请先扫描并连接 INNOTRIK 麦克风。',
   'Batch Chunks chỉ chạy tự động khi OpenAI Realtime gặp lỗi.':
       '仅当 OpenAI 实时识别失败时才会自动使用分块批处理。',
   'Android streaming không khả dụng trên nền tảng này.': '此平台不支持 Android 流式识别。',

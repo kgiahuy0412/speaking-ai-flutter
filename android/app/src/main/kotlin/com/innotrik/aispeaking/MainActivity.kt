@@ -16,6 +16,7 @@ class MainActivity : FlutterActivity() {
     private val eventChannelName = "ailingo_platform/events"
     private var speechRecognizerBridge: AndroidSpeechRecognizerBridge? = null
     private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
+    private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -26,6 +27,11 @@ class MainActivity : FlutterActivity() {
             )
         offlineIntentRecognizerBridge =
             OfflineIntentRecognizerBridge(
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        innotrikBleAudioBridge =
+            InnotrikBleAudioBridge(
+                this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
 
@@ -77,6 +83,8 @@ class MainActivity : FlutterActivity() {
         speechRecognizerBridge = null
         offlineIntentRecognizerBridge?.dispose()
         offlineIntentRecognizerBridge = null
+        innotrikBleAudioBridge?.dispose()
+        innotrikBleAudioBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -87,6 +95,14 @@ class MainActivity : FlutterActivity() {
     ) {
         if (
             speechRecognizerBridge?.onRequestPermissionsResult(
+                requestCode,
+                grantResults,
+            ) == true
+        ) {
+            return
+        }
+        if (
+            innotrikBleAudioBridge?.onRequestPermissionsResult(
                 requestCode,
                 grantResults,
             ) == true
