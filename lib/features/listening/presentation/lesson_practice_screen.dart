@@ -514,15 +514,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   Future<void> _openReview() async {
     _cancelIdleReminder();
     _hideCoachPopup();
+    final unrecordedSentenceIndexes = await _readUnrecordedSentenceIndexes();
+    if (!mounted) {
+      return;
+    }
     final result = await Navigator.of(context).push<int>(
       MaterialPageRoute<int>(
         builder: (_) => LessonReviewScreen(
           language: widget.language,
           lesson: widget.lesson,
           mediaService: widget.mediaService,
-          skippedSentenceIndexes: Set<int>.unmodifiable(
-            _skippedSentenceIndexes,
-          ),
+          unrecordedSentenceIndexes: unrecordedSentenceIndexes,
         ),
       ),
     );
@@ -548,6 +550,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _message = null;
     });
     await _activateCurrentSentence(autoPlay: true);
+  }
+
+  Future<Set<int>> _readUnrecordedSentenceIndexes() async {
+    final recordings = await Future.wait<String?>(
+      widget.lesson.sentences.map(
+        (sentence) => widget.mediaService.existingRecording(
+          lessonId: widget.lesson.id,
+          sentenceNumber: sentence.number,
+          sentenceId: sentence.id,
+        ),
+      ),
+    );
+    return <int>{
+      for (var index = 0; index < recordings.length; index++)
+        if (recordings[index] == null) index,
+    };
   }
 
   void _scheduleIdleReminder() {

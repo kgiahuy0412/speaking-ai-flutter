@@ -12,14 +12,14 @@ class LessonReviewScreen extends StatefulWidget {
     required this.language,
     required this.lesson,
     required this.mediaService,
-    this.skippedSentenceIndexes = const <int>{},
+    this.unrecordedSentenceIndexes = const <int>{},
     super.key,
   });
 
   final DisplayLanguage language;
   final ListeningLessonContent lesson;
   final LessonMediaService mediaService;
-  final Set<int> skippedSentenceIndexes;
+  final Set<int> unrecordedSentenceIndexes;
 
   @override
   State<LessonReviewScreen> createState() => _LessonReviewScreenState();
@@ -109,14 +109,14 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                     onStop: _stopAutoReview,
                   ),
                 ),
-                if (widget.skippedSentenceIndexes.isNotEmpty)
+                if (widget.unrecordedSentenceIndexes.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: _SkippedBanner(
-                      count: widget.skippedSentenceIndexes.length,
+                    child: _UnrecordedBanner(
+                      count: widget.unrecordedSentenceIndexes.length,
                       onRetry: () => Navigator.of(
                         context,
-                      ).pop(widget.skippedSentenceIndexes.first),
+                      ).pop(widget.unrecordedSentenceIndexes.first),
                     ),
                   ),
                 ListView.separated(
@@ -132,7 +132,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                       sentence: sentence,
                       lessonType: widget.lesson.type,
                       playing: _playingIndex == index,
-                      skipped: widget.skippedSentenceIndexes.contains(index),
+                      unrecorded: widget.unrecordedSentenceIndexes.contains(
+                        index,
+                      ),
                       onPlay: () => _playSentence(index),
                     );
                   },
@@ -421,8 +423,8 @@ class _ReviewHero extends StatelessWidget {
   }
 }
 
-class _SkippedBanner extends StatelessWidget {
-  const _SkippedBanner({required this.count, required this.onRetry});
+class _UnrecordedBanner extends StatelessWidget {
+  const _UnrecordedBanner({required this.count, required this.onRetry});
 
   final int count;
   final VoidCallback onRetry;
@@ -430,34 +432,58 @@ class _SkippedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const Key('unrecorded-sentences-banner'),
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF6E8),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFFFD89A)),
       ),
-      child: Row(
-        children: <Widget>[
-          const Icon(Icons.favorite_outline_rounded, color: Color(0xFFFF9C6C)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              context.tr(
-                '$count câu chưa ghi âm — không sao đâu!',
-                '$count 句尚未录音——没关系！',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final message = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Icons.favorite_outline_rounded,
+                color: Color(0xFFFF9C6C),
               ),
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontWeight: FontWeight.w600,
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  context.tr('$count câu chưa ghi âm', '$count 句尚未录音'),
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
-          ),
-          TextButton(
-            key: const Key('retry-skipped-sentences'),
+            ],
+          );
+          final retryButton = TextButton(
+            key: const Key('retry-unrecorded-sentences'),
             onPressed: onRetry,
-            child: Text(context.tr('Thử lại', '再试一次')),
-          ),
-        ],
+            child: Text(context.tr('Ghi âm ngay', '立即录音')),
+          );
+          final compact =
+              constraints.maxWidth < 310 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.2;
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                message,
+                Align(alignment: Alignment.centerRight, child: retryButton),
+              ],
+            );
+          }
+          return Row(
+            children: <Widget>[
+              Expanded(child: message),
+              retryButton,
+            ],
+          );
+        },
       ),
     );
   }
@@ -469,7 +495,7 @@ class _ReviewSentenceTile extends StatelessWidget {
     required this.sentence,
     required this.lessonType,
     required this.playing,
-    required this.skipped,
+    required this.unrecorded,
     required this.onPlay,
   });
 
@@ -477,7 +503,7 @@ class _ReviewSentenceTile extends StatelessWidget {
   final ListeningSentenceContent sentence;
   final ListeningLessonType lessonType;
   final bool playing;
-  final bool skipped;
+  final bool unrecorded;
   final VoidCallback onPlay;
 
   @override
@@ -486,20 +512,28 @@ class _ReviewSentenceTile extends StatelessWidget {
       duration: const Duration(milliseconds: 220),
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
       decoration: BoxDecoration(
-        color: playing ? const Color(0xFFE9E8FF) : Colors.white,
+        color: playing
+            ? const Color(0xFFE9E8FF)
+            : unrecorded
+            ? const Color(0xFFFFFBF7)
+            : Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: playing ? AppColors.indigo : AppColors.lavenderBorder,
-          width: playing ? 1.5 : 1,
+          color: playing
+              ? AppColors.indigo
+              : unrecorded
+              ? AppColors.peach
+              : AppColors.lavenderBorder,
+          width: playing || unrecorded ? 1.5 : 1,
         ),
       ),
       child: Row(
         children: <Widget>[
           CircleAvatar(
-            backgroundColor: skipped
+            backgroundColor: unrecorded
                 ? const Color(0xFFFFF1E8)
                 : AppColors.lavenderSoft,
-            foregroundColor: skipped ? AppColors.coral : AppColors.indigo,
+            foregroundColor: unrecorded ? AppColors.coral : AppColors.indigo,
             child: Text('${index + 1}'),
           ),
           const SizedBox(width: 12),
@@ -509,7 +543,10 @@ class _ReviewSentenceTile extends StatelessWidget {
               children: <Widget>[
                 Text(
                   sentence.english,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  key: ValueKey('review-sentence-${index + 1}'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: unrecorded ? FontWeight.w800 : FontWeight.w600,
+                  ),
                 ),
                 if (lessonType == ListeningLessonType.dialogue &&
                     sentence.voice.isNotEmpty) ...<Widget>[
@@ -521,7 +558,7 @@ class _ReviewSentenceTile extends StatelessWidget {
                     ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
                   ),
                 ],
-                if (skipped) ...<Widget>[
+                if (unrecorded) ...<Widget>[
                   const SizedBox(height: 3),
                   Text(
                     context.tr('Chưa ghi âm', '尚未录音'),

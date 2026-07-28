@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_session/audio_session.dart';
 import 'package:record/record.dart';
 
@@ -63,6 +65,35 @@ class LessonMediaService {
 
   Future<void> play(Uri uri) async {
     await _activePlayback.play(uri);
+  }
+
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    final playback = _activePlayback;
+    final completed = Completer<void>();
+    var started = false;
+    final subscription = playback.playingStream.listen(
+      (playing) {
+        if (playing) {
+          started = true;
+        } else if (started && !completed.isCompleted) {
+          completed.complete();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!completed.isCompleted) {
+          completed.completeError(error, stackTrace);
+        }
+      },
+    );
+    try {
+      await playback.play(uri);
+      await completed.future.timeout(timeout);
+    } finally {
+      await subscription.cancel();
+    }
   }
 
   Future<void> stopPlayback() async {
