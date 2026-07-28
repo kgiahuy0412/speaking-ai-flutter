@@ -316,6 +316,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         MaterialPageRoute<void>(
           builder: (_) => TopicLessonListScreen(
             language: widget.language,
+            startAge: _catalog.startAge,
+            endAge: _catalog.endAge,
             topic: topic,
             content: content,
             controller: widget.controller,
