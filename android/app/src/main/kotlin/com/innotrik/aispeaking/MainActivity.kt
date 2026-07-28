@@ -1,6 +1,10 @@
 package com.innotrik.aispeaking
 
+import android.app.ActivityManager
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.StatFs
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -31,6 +35,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "device.clientId" -> result.success(clientId())
+                "device.hardwareInfo" -> result.success(hardwareInfo())
                 "device.protocolInfo" -> result.success(protocolInfo())
                 "ble.isSupported" ->
                     result.success(
@@ -103,6 +108,35 @@ class MainActivity : FlutterActivity() {
                 Settings.Secure.ANDROID_ID,
             )
         return "android_$androidId"
+    }
+
+    private fun hardwareInfo(): Map<String, Any> {
+        val activityManager =
+            getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memoryInfo)
+
+        val storage = StatFs(filesDir.absolutePath)
+        val hardware =
+            mutableMapOf<String, Any>(
+                "manufacturer" to Build.MANUFACTURER,
+                "brand" to Build.BRAND,
+                "model" to Build.MODEL,
+                "androidVersion" to Build.VERSION.RELEASE,
+                "sdkInt" to Build.VERSION.SDK_INT,
+                "supportedAbis" to Build.SUPPORTED_ABIS.toList(),
+                "totalRamBytes" to memoryInfo.totalMem,
+                "availableRamBytes" to memoryInfo.availMem,
+                "totalStorageBytes" to storage.totalBytes,
+                "availableStorageBytes" to storage.availableBytes,
+            )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hardware["socManufacturer"] = Build.SOC_MANUFACTURER
+            hardware["socModel"] = Build.SOC_MODEL
+        }
+
+        return hardware
     }
 
     private fun protocolInfo(): Map<String, Any> =

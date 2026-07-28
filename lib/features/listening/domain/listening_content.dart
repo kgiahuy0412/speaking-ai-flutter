@@ -129,6 +129,8 @@ class ListeningLessonContent {
     this.autoAdvanceDelay = const Duration(seconds: 2),
     this.introAudioUri,
     this.outroAudioUri,
+    this.dialogueTransitionAudioId,
+    this.dialogueTransitionAudioUri,
     this.fullAudioId,
     this.fullAudioUri,
   });
@@ -156,6 +158,8 @@ class ListeningLessonContent {
           .toList(growable: false),
       introAudioUri: _readUri(json['introAudioUrl']),
       outroAudioUri: _readUri(json['outroAudioUrl']),
+      dialogueTransitionAudioId: json['dialogueTransitionAudioId'] as String?,
+      dialogueTransitionAudioUri: _readUri(json['dialogueTransitionAudioUrl']),
       fullAudioId: json['fullAudioId'] as String?,
       fullAudioUri: _readUri(json['fullAudioUrl']),
     );
@@ -175,6 +179,8 @@ class ListeningLessonContent {
   final List<ListeningSentenceContent> sentences;
   final Uri? introAudioUri;
   final Uri? outroAudioUri;
+  final String? dialogueTransitionAudioId;
+  final Uri? dialogueTransitionAudioUri;
   final String? fullAudioId;
   final Uri? fullAudioUri;
 }
