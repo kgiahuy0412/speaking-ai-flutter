@@ -206,29 +206,30 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     }
 
     String sourceText;
-    try {
-      sourceText = await completer.future.timeout(
-        const Duration(milliseconds: 900),
-      );
-    } on TimeoutException {
-      final latestText = _latestText.trim();
-      final latestTextUpdatedAt = _latestTextUpdatedAt;
-      final stableFor = latestTextUpdatedAt == null
-          ? Duration.zero
-          : DateTime.now().difference(latestTextUpdatedAt);
-      final hasEnoughSpeech =
-          latestText.length >= 8 ||
-          latestText.split(RegExp(r'\s+')).length >= 2;
-      if (latestText.isNotEmpty &&
-          hasEnoughSpeech &&
-          stableFor >= const Duration(milliseconds: 350)) {
-        sourceText = latestText;
-        _resultAt = DateTime.now();
-      } else {
+    final partialAtStop = _stablePartialTranscript(
+      minimumStableFor: const Duration(milliseconds: 350),
+    );
+    if (partialAtStop != null) {
+      sourceText = partialAtStop;
+      _resultAt = DateTime.now();
+    } else {
+      try {
         sourceText = await completer.future.timeout(
-          const Duration(milliseconds: 1600),
-          onTimeout: () => _latestText,
+          const Duration(milliseconds: 500),
         );
+      } on TimeoutException {
+        final usablePartial = _stablePartialTranscript(
+          minimumStableFor: const Duration(milliseconds: 200),
+        );
+        if (usablePartial != null) {
+          sourceText = usablePartial;
+          _resultAt = DateTime.now();
+        } else {
+          sourceText = await completer.future.timeout(
+            const Duration(milliseconds: 700),
+            onTimeout: () => _latestText,
+          );
+        }
       }
     }
     _active = false;
@@ -254,6 +255,21 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
           )
           .toInt(),
     );
+  }
+
+  String? _stablePartialTranscript({required Duration minimumStableFor}) {
+    final latestText = _latestText.trim();
+    final latestTextUpdatedAt = _latestTextUpdatedAt;
+    final stableFor = latestTextUpdatedAt == null
+        ? Duration.zero
+        : DateTime.now().difference(latestTextUpdatedAt);
+    final hasEnoughSpeech =
+        latestText.length >= 8 || latestText.split(RegExp(r'\s+')).length >= 2;
+    return latestText.isNotEmpty &&
+            hasEnoughSpeech &&
+            stableFor >= minimumStableFor
+        ? latestText
+        : null;
   }
 
   @override

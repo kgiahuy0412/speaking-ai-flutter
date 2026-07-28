@@ -9,6 +9,12 @@
     />
     <meta name="theme-color" content="#fff8ef" />
     <link rel="icon" type="image/png" href="./app_icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
     <title>Tải ứng dụng INNOTRIK</title>
 
     <style>
@@ -44,9 +50,7 @@
         display: grid;
         place-items: center;
         padding: 24px 16px;
-        font-family:
-          ui-rounded, "Arial Rounded MT Bold", system-ui, -apple-system,
-          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Roboto", Arial, sans-serif;
         color: var(--ink);
         background: var(--cream);
       }
@@ -69,35 +73,6 @@
         border: 2px solid #dfe4fa;
         border-radius: 32px;
         box-shadow: 0 18px 44px rgba(54, 73, 155, 0.13);
-      }
-
-      .welcome-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 14px;
-      }
-
-      .welcome-label,
-      .official-label {
-        display: inline-flex;
-        align-items: center;
-        min-height: 31px;
-        padding: 6px 11px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 800;
-      }
-
-      .welcome-label {
-        color: #a34431;
-        background: var(--peach);
-      }
-
-      .official-label {
-        color: var(--mint-ink);
-        background: var(--mint);
       }
 
       .hero {
@@ -178,7 +153,7 @@
         box-shadow: 0 12px 24px rgba(49, 67, 185, 0.25);
         text-decoration: none;
         font-size: 18px;
-        font-weight: 850;
+        font-weight: 900;
         transition:
           transform 180ms ease,
           background-color 180ms ease,
@@ -224,45 +199,6 @@
         display: block;
         margin-bottom: 3px;
         color: #5f4800;
-      }
-
-      .install-card {
-        margin-top: 16px;
-        padding: 17px;
-        background: #fbfbff;
-        border: 1px solid var(--line);
-        border-radius: 19px;
-      }
-
-      .install-card h2 {
-        margin: 0 0 13px;
-        font-size: 16px;
-      }
-
-      .step {
-        display: flex;
-        align-items: flex-start;
-        gap: 11px;
-        color: #626f8a;
-        font-size: 13px;
-        line-height: 1.48;
-      }
-
-      .step + .step {
-        margin-top: 10px;
-      }
-
-      .step-number {
-        flex: 0 0 27px;
-        width: 27px;
-        height: 27px;
-        display: grid;
-        place-items: center;
-        color: var(--blue-dark);
-        background: #e7ebff;
-        border-radius: 10px;
-        font-size: 12px;
-        font-weight: 900;
       }
 
       footer {
@@ -313,17 +249,6 @@
           border-radius: 26px;
         }
 
-        .welcome-row {
-          align-items: stretch;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .welcome-label,
-        .official-label {
-          justify-content: center;
-        }
-
         .app-icon-wrap {
           width: 140px;
           height: 140px;
@@ -353,11 +278,6 @@
   <body>
     <main class="page">
       <article class="download-card">
-        <div class="welcome-row">
-          <span class="welcome-label">Chào bé, mình cùng học nhé!</span>
-          <span class="official-label">Nguồn tải INNOTRIK</span>
-        </div>
-
         <section class="hero">
           <div class="app-icon-wrap">
             <img
@@ -407,22 +327,6 @@
           Chọn dấu ba chấm ở góc màn hình, chọn “Mở bằng Chrome”, rồi quay lại
           nhấn nút tải ứng dụng.
         </aside>
-
-        <section class="install-card" aria-labelledby="install-title">
-          <h2 id="install-title">Ba bước thật dễ</h2>
-          <div class="step">
-            <span class="step-number">1</span>
-            <span>Nhấn “Tải ứng dụng cho Android” và chờ tải xong.</span>
-          </div>
-          <div class="step">
-            <span class="step-number">2</span>
-            <span>Mở file <strong>innotrik-latest.apk</strong>.</span>
-          </div>
-          <div class="step">
-            <span class="step-number">3</span>
-            <span>Chọn cho phép cài đặt nếu điện thoại yêu cầu.</span>
-          </div>
-        </section>
 
         <footer>© 2026 INNOTRIK · Đồng hành cùng bé mỗi ngày</footer>
       </article>

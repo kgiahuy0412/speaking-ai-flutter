@@ -85,6 +85,26 @@ class NextConversationRepository
     required int vadSilenceMs,
   }) async {
     final clientId = await _clientId;
+    try {
+      return await _processAudioDirect(
+        clientId: clientId,
+        capture: capture,
+        context: context,
+        childAge: childAge,
+        vadSilenceMs: vadSilenceMs,
+      );
+    } catch (error, stackTrace) {
+      if (!_canFallBackFromDirectUpload(error)) {
+        rethrow;
+      }
+      developer.log(
+        'Direct audio upload failed; using resumable audio session.',
+        name: 'conversation.audio_upload',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
     final audioSession = await _createAudioSession();
     final audioSessionId = audioSession.id;
     await _uploadAudio(audioSessionId: audioSessionId, capture: capture);
@@ -97,6 +117,65 @@ class NextConversationRepository
       childAge: childAge,
       vadSilenceMs: vadSilenceMs,
     );
+  }
+
+  Future<ConversationResult> _processAudioDirect({
+    required String clientId,
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    final benchmark = ConversationBenchmark(
+      utteranceDurationMs: capture.duration.inMilliseconds,
+      vadSilenceMs: vadSilenceMs,
+      requestedAsrMode: AsrMode.batchChunks,
+      audioInputLabel: capture.inputLabel,
+      bluetoothAudioInput: capture.isBluetoothInput,
+      initialNoiseRms: capture.initialNoiseRms,
+    );
+    final request =
+        http.MultipartRequest('POST', _config.resolve('/api/conversation'))
+          ..fields['clientId'] = clientId
+          ..fields['context'] = context.apiValue
+          ..fields['childAge'] = childAge.toString()
+          ..fields['benchmark'] = jsonEncode(<String, dynamic>{
+            ...benchmark.toJson(),
+            'batchTransport': 'direct_multipart',
+          })
+          ..files.add(
+            await createAudioMultipartFile(
+              field: 'audio',
+              path: capture.filePath,
+              filename: _audioFilename(capture.mimeType),
+              bytes: capture.dataBytes,
+            ),
+          );
+    final streamedResponse = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 25));
+    final response = await http.Response.fromStream(streamedResponse);
+    final json = _decodeResponse(response);
+    return ConversationResult.fromJson(
+      json,
+      backendBaseUri: _config.backendBaseUri,
+    );
+  }
+
+  bool _canFallBackFromDirectUpload(Object error) {
+    if (error is TimeoutException || error is http.ClientException) {
+      return true;
+    }
+    if (error is! ConversationApiException) {
+      return false;
+    }
+    final statusCode = error.statusCode;
+    return statusCode == 404 ||
+        statusCode == 405 ||
+        statusCode == 408 ||
+        statusCode == 413 ||
+        statusCode == 425 ||
+        (statusCode != null && statusCode >= 500);
   }
 
   Future<ConversationResult> _finalizeAudioSession({
@@ -575,6 +654,7 @@ class NextConversationRepository
           : ' Mã hỗ trợ: $requestId.';
       throw ConversationApiException(
         '${message ?? 'Backend trả về lỗi ${response.statusCode}.'}$supportCode',
+        statusCode: response.statusCode,
       );
     }
 
@@ -1082,9 +1162,10 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
 }
 
 class ConversationApiException implements Exception {
-  const ConversationApiException(this.message);
+  const ConversationApiException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;

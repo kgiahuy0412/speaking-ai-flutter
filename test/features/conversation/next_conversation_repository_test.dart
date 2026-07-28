@@ -159,6 +159,65 @@ void main() {
     },
   );
 
+  test('uploads a short recorded utterance directly in one request', () async {
+    var requestCount = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        requestCount += 1;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/conversation');
+        final body = latin1.decode(request.bodyBytes);
+        expect(body, contains('name="clientId"'));
+        expect(body, contains('android_test_device'));
+        expect(body, contains('name="audio"; filename="utterance.wav"'));
+        expect(body, contains('direct_multipart'));
+        return http.Response(
+          jsonEncode(<String, dynamic>{
+            'conversationId': 'conv_direct',
+            'sessionId': 'sess_direct',
+            'context': 'home',
+            'vietnameseText': 'Con muốn uống nước.',
+            'englishText': 'I want to drink water.',
+            'audioUrl': '/api/audio/stream?text=water',
+            'processingMode': 'ai',
+            'textSource': 'cloudflare',
+            'audioSource': 'openai_tts',
+            'asrMode': 'batch_chunks',
+            'latency': <String, dynamic>{
+              'asrMs': 500,
+              'llmMs': 300,
+              'ttsMs': 10,
+              'timeToFirstAudioMs': 810,
+            },
+          }),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final result = await repository.processAudio(
+      capture: AudioCapture(
+        filePath: 'utterance.wav',
+        mimeType: 'audio/wav',
+        duration: const Duration(seconds: 2),
+        inputLabel: 'Mic điện thoại',
+        isBluetoothInput: false,
+        initialNoiseRms: null,
+        dataBytes: Uint8List.fromList(<int>[82, 73, 70, 70]),
+      ),
+      context: PracticeContext.home,
+      childAge: 6,
+      vadSilenceMs: 700,
+    );
+
+    expect(requestCount, 1);
+    expect(result.conversationId, 'conv_direct');
+    await repository.dispose();
+  });
+
   test('batches PCM transport chunks and finalizes one WAV', () async {
     final uploadedSequences = <int>[];
     var finalized = false;
