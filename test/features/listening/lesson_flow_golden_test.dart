@@ -1,4 +1,5 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
@@ -38,6 +39,8 @@ void main() {
       _GoldenApp(
         child: TopicLessonListScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           content: topicContent,
           progressStore: progressStore,
@@ -89,6 +92,8 @@ void main() {
       _GoldenApp(
         child: LessonIntroScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: topicContent.lessons.first,
           progressStore: progressStore,
@@ -119,10 +124,13 @@ void main() {
       _GoldenApp(
         child: LessonPracticeScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: topicContent.lessons.first,
           progressStore: progressStore,
           mediaService: mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
         ),
       ),
     );
@@ -142,10 +150,13 @@ void main() {
       _GoldenApp(
         child: LessonPracticeScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: topicContent.lessons.first,
           progressStore: progressStore,
           mediaService: mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
         ),
       ),
     );
@@ -155,7 +166,7 @@ void main() {
       const <AssetImage>[AssetImage('assets/images/mascot-robot.png')],
     );
     await tester.pump();
-    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(milliseconds: 300));
 
     await expectLater(
@@ -172,10 +183,13 @@ void main() {
       _GoldenApp(
         child: LessonPracticeScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: topicContent.lessons.first,
           progressStore: progressStore,
           mediaService: mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
         ),
       ),
     );
@@ -231,10 +245,13 @@ void main() {
       _GoldenApp(
         child: LessonPracticeScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: lesson,
           progressStore: progressStore,
           mediaService: mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
         ),
       ),
     );
@@ -275,6 +292,10 @@ class _GoldenApp extends StatelessWidget {
       home: child,
     );
   }
+}
+
+LessonGuideAudioLibrary _silentGuideAudioLibrary() {
+  return LessonGuideAudioLibrary(assetPaths: const <String>[]);
 }
 
 class _GoldenMediaService extends LessonMediaService {
