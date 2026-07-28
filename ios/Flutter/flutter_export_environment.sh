@@ -1,8 +1,8 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=C:\Users\Windows\AppData\Local\Temp\codex-flutter-sdk"
-export "FLUTTER_APPLICATION_PATH=C:\Users\Windows\Documents\ai-speaking-flutter-app"
-export "FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=C:\Users\Windows\Documents\ai-speaking-flutter-app\ios\Flutter\ephemeral\Packages\.packages\FlutterFramework"
+export "FLUTTER_ROOT=C:\flutter"
+export "FLUTTER_APPLICATION_PATH=D:\Code\HuaMei\App_noi\flutter\4_27th7\speaking-ai-flutter"
+export "FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=D:\Code\HuaMei\App_noi\flutter\4_27th7\speaking-ai-flutter\ios\Flutter\ephemeral\Packages\.packages\FlutterFramework"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_TARGET=lib\main.dart"
 export "FLUTTER_BUILD_DIR=build"

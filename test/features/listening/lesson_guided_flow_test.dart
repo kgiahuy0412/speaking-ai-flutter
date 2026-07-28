@@ -316,6 +316,8 @@ void main() {
         theme: buildAppTheme(),
         home: LessonIntroScreen(
           language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: _lesson(
             introAudioUri: Uri.parse('https://example.test/intro.mp3'),
