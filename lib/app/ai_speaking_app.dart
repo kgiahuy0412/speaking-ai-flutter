@@ -11,7 +11,9 @@ import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
 import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
+import '../core/device/android_device_hardware.dart';
 import '../core/device/client_identity.dart';
+import '../core/device/device_registration_service.dart';
 import '../core/pwa/pwa_install_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
@@ -34,6 +36,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   late final ConversationController _controller;
   late final DeviceAudioCache _deviceAudioCache;
   final ClientIdentity _clientIdentity = ClientIdentity();
+  DeviceRegistrationService? _deviceRegistrationService;
 
   @override
   void initState() {
@@ -48,6 +51,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     _deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    if (supportsAndroidNativeSpeech && !_config.useDemoBackend) {
+      final registrationService = DeviceRegistrationService(
+        config: _config,
+        clientIdProvider: _clientIdentity.getClientId,
+        hardwareProvider: const AndroidDeviceHardwareReader().read,
+      );
+      _deviceRegistrationService = registrationService;
+      unawaited(_registerDevice(registrationService));
+    }
     final innotrikInput = InnotrikBleAudioInput(
       enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
     );
@@ -73,6 +85,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     );
     if (!kIsWeb) {
       unawaited(_warmRecentAudioWhenIdle(repository, _deviceAudioCache));
+    }
+  }
+
+  Future<void> _registerDevice(
+    DeviceRegistrationService registrationService,
+  ) async {
+    try {
+      await registrationService.register();
+      debugPrint('Android device hardware registered.');
+    } catch (error, stackTrace) {
+      debugPrint('Android device registration was skipped: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -132,6 +156,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   @override
   void dispose() {
     _controller.dispose();
+    _deviceRegistrationService?.dispose();
     _deviceAudioCache.dispose();
     super.dispose();
   }

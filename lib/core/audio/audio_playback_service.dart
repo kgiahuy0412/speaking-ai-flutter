@@ -225,7 +225,12 @@ class JustAudioPlaybackService
       _browserPlayback?.playingStream ?? _player.playingStream;
 
   Future<void> _setSource(Uri uri) async {
-    if (uri.isScheme('file')) {
+    if (uri.isScheme('asset')) {
+      final assetPath = uri.path.startsWith('/')
+          ? uri.path.substring(1)
+          : uri.path;
+      await _player.setAsset(assetPath).timeout(const Duration(seconds: 8));
+    } else if (uri.isScheme('file')) {
       await _player
           .setFilePath(uri.toFilePath())
           .timeout(const Duration(seconds: 8));
