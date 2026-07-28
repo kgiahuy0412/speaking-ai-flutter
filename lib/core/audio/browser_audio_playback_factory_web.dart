@@ -67,7 +67,7 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     if (_sourceUri == uri) {
       return;
     }
-    _element.src = uri.toString();
+    _element.src = uri.isScheme('asset') ? 'assets${uri.path}' : uri.toString();
     _element.load();
     _sourceUri = uri;
   }
