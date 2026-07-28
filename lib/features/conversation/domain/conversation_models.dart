@@ -23,7 +23,7 @@ enum AsrMode {
   final String apiValue;
   final String label;
 
-  bool get isBackendSupported => this != AsrMode.deviceStreaming;
+  bool get isBackendSupported => true;
 
   bool get isUserSelectable =>
       this != AsrMode.batchChunks && this != AsrMode.bleOfflineIntent;

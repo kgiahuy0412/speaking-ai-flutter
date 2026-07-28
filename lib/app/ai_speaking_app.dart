@@ -48,11 +48,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     _deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final innotrikInput = InnotrikBleAudioInput(
+      enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
+    );
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
-        preferred: _config.preferBleStreaming
-            ? const InnotrikBleAudioInput()
-            : null,
+        preferred: _config.preferBleStreaming ? innotrikInput : null,
         fallback: PhoneMicrophoneInput(),
       ),
       streamingSpeechInput: supportsAndroidNativeSpeech

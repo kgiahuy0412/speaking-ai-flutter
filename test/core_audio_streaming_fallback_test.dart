@@ -431,6 +431,31 @@ void main() {
     },
   );
 
+  test(
+    'explicit BLE capture never silently uses the phone microphone',
+    () async {
+      final ble = _FakeChunkedInput(
+        available: true,
+        bluetooth: true,
+        label: 'BLE',
+        failOnStart: true,
+      );
+      final phone = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final input = PreferredAudioInput(preferred: ble, fallback: phone);
+
+      input.requireBluetoothCaptureOnce();
+      await expectLater(input.startChunked(), throwsStateError);
+
+      expect(ble.startCount, 1);
+      expect(phone.startCount, 0);
+      await input.dispose();
+    },
+  );
+
   test('high-confidence BLE intent skips paid Realtime ASR', () async {
     final input = _FakeChunkedInput(
       available: true,

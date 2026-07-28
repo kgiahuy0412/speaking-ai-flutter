@@ -26,6 +26,9 @@ class ConversationController extends ChangeNotifier {
     int realtimeFallbackBufferBytes = 15 * 1024 * 1024,
     AsrMode? initialAsrMode,
   }) : _audioInput = audioInput,
+       _bluetoothAudioControl = audioInput is BluetoothAudioInputControl
+           ? audioInput as BluetoothAudioInputControl
+           : null,
        _streamingSpeechInput = streamingSpeechInput,
        _playbackService = playbackService,
        _repository = repository,
@@ -56,6 +59,20 @@ class ConversationController extends ChangeNotifier {
     _partialTextSubscription = streamingSpeechInput?.partialText.listen(
       _onPartialText,
     );
+    final bluetoothControl = _bluetoothAudioControl;
+    if (bluetoothControl != null) {
+      _bluetoothStatusSubscription = bluetoothControl.bluetoothStatusChanges
+          .listen((_) {
+            if (!_disposed) {
+              notifyListeners();
+            }
+          });
+      unawaited(
+        bluetoothControl.initializeBluetooth().catchError((Object error) {
+          debugPrint('INNOTRIK BLE initialization failed: $error');
+        }),
+      );
+    }
     if (displayLanguageStore != null) {
       unawaited(_loadDisplayLanguage());
     }
@@ -63,6 +80,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   final AudioInput _audioInput;
+  final BluetoothAudioInputControl? _bluetoothAudioControl;
   final StreamingSpeechInput? _streamingSpeechInput;
   final AudioPlaybackService _playbackService;
   final ConversationRepository _repository;
@@ -74,6 +92,7 @@ class ConversationController extends ChangeNotifier {
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
 
   StreamSubscription<double>? _amplitudeSubscription;
+  StreamSubscription<BluetoothAudioStatus>? _bluetoothStatusSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
@@ -118,6 +137,7 @@ class ConversationController extends ChangeNotifier {
   String? errorMessage;
   String? transientMessage;
   DisplayLanguage displayLanguage = DisplayLanguage.vietnamese;
+  bool bleDiagnosticRunning = false;
 
   Future<void> _loadDisplayLanguage() async {
     final stored = await _displayLanguageStore!.read();
@@ -226,10 +246,18 @@ class ConversationController extends ChangeNotifier {
       ? _streamingSpeechInput?.label ?? _audioInput.label
       : _audioInput.label;
   bool get supportsAndroidStreaming => _streamingSpeechInput != null;
+  BluetoothAudioStatus get bluetoothAudioStatus =>
+      _bluetoothAudioControl?.bluetoothStatus ??
+      const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.unsupported,
+      );
+  bool get supportsInnotrikBle => bluetoothAudioStatus.isBridgeSupported;
+  bool get canUseInnotrikBle => bluetoothAudioStatus.isConnected;
   bool get isBluetoothInput => _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
   bool get isBusy =>
+      bleDiagnosticRunning ||
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
 
@@ -247,6 +275,101 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     await startRecording();
+  }
+
+  Future<List<BluetoothAudioDevice>> scanInnotrikDevices() async {
+    final control = _bluetoothAudioControl;
+    if (control == null || isBusy) {
+      return const <BluetoothAudioDevice>[];
+    }
+    transientMessage = 'Đang quét thiết bị INNOTRIK ở gần…';
+    notifyListeners();
+    try {
+      final devices = await control.scanBluetoothDevices();
+      transientMessage = devices.isEmpty
+          ? 'Không tìm thấy INNOTRIK. Hãy bật thiết bị và đặt gần điện thoại.'
+          : null;
+      notifyListeners();
+      return devices;
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> connectInnotrikDevice(BluetoothAudioDevice device) async {
+    final control = _bluetoothAudioControl;
+    if (control == null || isBusy) {
+      return;
+    }
+    transientMessage = 'Đang kết nối ${device.displayName}…';
+    notifyListeners();
+    try {
+      await control.connectBluetoothDevice(device.id);
+      asrMode = AsrMode.deviceStreaming;
+      transientMessage =
+          'Đã kết nối Mic INNOTRIK. BLE streaming đã sẵn sàng để thử.';
+      notifyListeners();
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> disconnectInnotrikDevice() async {
+    if (isBusy) {
+      return;
+    }
+    await _bluetoothAudioControl?.disconnectBluetoothDevice();
+    if (asrMode == AsrMode.deviceStreaming) {
+      asrMode = supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.openAiRealtime;
+    }
+    transientMessage = 'Đã ngắt Mic INNOTRIK; ứng dụng sẽ dùng mic điện thoại.';
+    notifyListeners();
+  }
+
+  Future<void> testInnotrikMicrophone() async {
+    if (!canUseInnotrikBle || isBusy || _audioInput is! ChunkedAudioInput) {
+      return;
+    }
+    bleDiagnosticRunning = true;
+    transientMessage =
+        'Kiểm tra Mic INNOTRIK trong 4 giây: hãy nói một câu rõ ràng…';
+    notifyListeners();
+    try {
+      await _playbackService.stop();
+      if (_audioInput is BluetoothCapturePolicy) {
+        (_audioInput as BluetoothCapturePolicy).requireBluetoothCaptureOnce();
+      }
+      await _audioInput.startChunked();
+      await Future<void>.delayed(const Duration(seconds: 4));
+      final capture = await _audioInput.stop();
+      final status = bluetoothAudioStatus;
+      if ((capture.streamedAudioBytes ?? 0) < 8000) {
+        throw StateError('Audio giải mã quá ngắn để xác nhận mic hoạt động.');
+      }
+      transientMessage =
+          'Mic INNOTRIK đạt kiểm tra: ${status.packetCount} gói, '
+          '${(capture.streamedAudioBytes ?? 0) ~/ 1024} KB PCM. '
+          'Đang phát lại bản ghi.';
+      notifyListeners();
+      await _playbackService.play(Uri.file(capture.filePath));
+    } catch (error) {
+      await _audioInput.cancel().catchError((Object _) {});
+      transientMessage =
+          'Kiểm tra Mic INNOTRIK thất bại: ${_friendlyError(error)}';
+      notifyListeners();
+      rethrow;
+    } finally {
+      bleDiagnosticRunning = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> startRecording() async {
@@ -335,6 +458,10 @@ class ConversationController extends ChangeNotifier {
       } else if (asrMode == AsrMode.openAiRealtime ||
           asrMode == AsrMode.deviceStreaming) {
         if (asrMode == AsrMode.deviceStreaming) {
+          if (_audioInput is BluetoothCapturePolicy) {
+            (_audioInput as BluetoothCapturePolicy)
+                .requireBluetoothCaptureOnce();
+          }
           await _startBleHybridRecording();
         } else {
           await _startRealtimeRecordingWithBatchFallback();
@@ -1216,10 +1343,12 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     if (nextMode == AsrMode.deviceStreaming) {
-      transientMessage =
-          'BLE streaming sẽ bật sau khi hoàn tất native Opus decoder.';
-      notifyListeners();
-      return;
+      if (!canUseInnotrikBle) {
+        transientMessage =
+            'Hãy quét và kết nối Mic INNOTRIK trước khi chọn BLE streaming.';
+        notifyListeners();
+        return;
+      }
     }
     if (nextMode == AsrMode.batchChunks) {
       transientMessage =
@@ -1293,6 +1422,7 @@ class ConversationController extends ChangeNotifier {
     }
     unawaited(_streamingCompletionSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_bluetoothStatusSubscription?.cancel());
     unawaited(_audioInput.dispose());
     unawaited(_streamingSpeechInput?.dispose());
     unawaited(_offlineIntentRecognizer?.dispose());
