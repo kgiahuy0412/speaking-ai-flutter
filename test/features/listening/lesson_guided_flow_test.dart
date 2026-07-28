@@ -1,4 +1,5 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
@@ -15,14 +16,22 @@ void main() {
     (tester) async {
       await _usePhoneSurface(tester);
       final lesson = _lesson(sentenceCount: 2);
-      await tester.pumpWidget(_subject(lesson, _GuidedMediaService()));
+      final mediaService = _GuidedMediaService();
+      await tester.pumpWidget(
+        _subject(lesson, mediaService, guideAudioLibrary: _guideAudioLibrary()),
+      );
       await _finishInitialLoad(tester);
 
       expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
-      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump();
       expect(
         find.byKey(const Key('lesson-coach-popup-firstReminder')),
         findsOneWidget,
+      );
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_IDLE1/idle-first.mp3',
       );
       expect(find.text('Đến lượt con rồi!'), findsOneWidget);
       expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
@@ -33,11 +42,16 @@ void main() {
         find.byKey(const Key('lesson-coach-popup-firstReminder')),
         findsNothing,
       );
-      await tester.pump(const Duration(milliseconds: 1700));
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump();
       expect(find.byKey(const Key('skip-lesson-sentence')), findsOneWidget);
       expect(
         find.byKey(const Key('lesson-coach-popup-secondReminder')),
         findsOneWidget,
+      );
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_IDLE2/idle-second.mp3',
       );
       expect(find.text('Sentence 1'), findsOneWidget);
 
@@ -53,6 +67,10 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('Sentence 2'), findsOneWidget);
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_SKIP/skip.mp3',
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -65,7 +83,11 @@ void main() {
       await _usePhoneSurface(tester);
       final mediaService = _GuidedMediaService();
       await tester.pumpWidget(
-        _subject(_lesson(sentenceCount: 2), mediaService),
+        _subject(
+          _lesson(sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _guideAudioLibrary(),
+        ),
       );
       await _finishInitialLoad(tester);
 
@@ -74,6 +96,10 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(mediaService.recording, isTrue);
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_RECORD/record.mp3',
+      );
 
       await tester.tap(recordButton);
       await tester.pump();
@@ -82,6 +108,10 @@ void main() {
       expect(
         find.byKey(const Key('lesson-coach-popup-praise')),
         findsOneWidget,
+      );
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_PRAISE/praise.mp3',
       );
       expect(find.text('Con làm tuyệt lắm!'), findsOneWidget);
       expect(find.text('Bản ghi của con'), findsOneWidget);
@@ -97,10 +127,59 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       expect(find.text('Sentence 1'), findsOneWidget);
 
+      await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Sentence 2'), findsOneWidget);
+      expect(
+        mediaService.playedUris.last.path,
+        '/assets/audio/A-3-5/GUIDE_NEXT/next.mp3',
+      );
+
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     },
   );
+
+  testWidgets('completion plays the ending guide', (tester) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    await tester.pumpWidget(
+      _subject(
+        _lesson(),
+        mediaService,
+        guideAudioLibrary: _guideAudioLibrary(),
+      ),
+    );
+    await _finishInitialLoad(tester);
+
+    final recordButton = find.byKey(const Key('record-lesson-sentence'));
+    await tester.tap(recordButton);
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(recordButton);
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+    await tester.tap(find.byKey(const Key('complete-lesson-review')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(
+      mediaService.playedUris.last.path,
+      '/assets/audio/A-3-5/GUIDE_ENDING/ending.mp3',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets(
     'dialogue and song lessons expose age-appropriate practice cues',
@@ -187,7 +266,7 @@ void main() {
     });
     await tester.pumpWidget(_subject(_lesson(), _GuidedMediaService()));
     await _finishInitialLoad(tester);
-    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 4));
 
     final popup = find.byKey(const Key('lesson-coach-popup-firstReminder'));
     expect(popup, findsOneWidget);
@@ -205,18 +284,37 @@ void main() {
 
 Widget _subject(
   ListeningLessonContent lesson,
-  LessonMediaService mediaService,
-) {
+  LessonMediaService mediaService, {
+  LessonGuideAudioLibrary? guideAudioLibrary,
+}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
     home: LessonPracticeScreen(
       language: DisplayLanguage.vietnamese,
+      startAge: 3,
+      endAge: 5,
       topic: listeningCatalogs.first.topics.first,
       lesson: lesson,
       progressStore: _MemoryProgressStore(),
       mediaService: mediaService,
+      guideAudioLibrary: guideAudioLibrary,
     ),
+  );
+}
+
+LessonGuideAudioLibrary _guideAudioLibrary() {
+  return LessonGuideAudioLibrary(
+    assetPaths: const <String>[
+      'assets/audio/A-3-5/GUIDE_RECORD/record.mp3',
+      'assets/audio/A-3-5/GUIDE_PRAISE/praise.mp3',
+      'assets/audio/A-3-5/GUIDE_NEXT/next.mp3',
+      'assets/audio/A-3-5/GUIDE_IDLE1/idle-first.mp3',
+      'assets/audio/A-3-5/GUIDE_IDLE2/idle-second.mp3',
+      'assets/audio/A-3-5/GUIDE_SKIP/skip.mp3',
+      'assets/audio/A-3-5/GUIDE_ENDING/ending.mp3',
+      'assets/audio/A-6-7/GUIDE_RECORD/wrong-age.mp3',
+    ],
   );
 }
 
@@ -251,6 +349,7 @@ ListeningLessonContent _lesson({
 
 class _GuidedMediaService extends LessonMediaService {
   bool recording = false;
+  final List<Uri> playedUris = <Uri>[];
 
   @override
   Future<String?> existingRecording({
@@ -281,7 +380,17 @@ class _GuidedMediaService extends LessonMediaService {
   }
 
   @override
-  Future<void> play(Uri uri) async {}
+  Future<void> play(Uri uri) async {
+    playedUris.add(uri);
+  }
+
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    playedUris.add(uri);
+  }
 
   @override
   Future<void> stopPlayback() async {}
