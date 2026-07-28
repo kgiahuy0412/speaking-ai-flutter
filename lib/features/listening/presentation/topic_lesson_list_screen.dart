@@ -120,7 +120,12 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                           lesson: lesson,
                           completedSentences: completed,
                           isLast: index == widget.content.lessons.length - 1,
-                          onPressed: () => _startLesson(lesson),
+                          onPressed: () => _startLesson(
+                            lesson,
+                            reviewFromBeginning:
+                                lesson.sentences.isNotEmpty &&
+                                completed >= lesson.sentences.length,
+                          ),
                         );
                       },
                     ),
@@ -170,7 +175,12 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                             lesson: song,
                             completedSentences: completed,
                             isLast: index == widget.content.songs.length - 1,
-                            onPressed: () => _startLesson(song),
+                            onPressed: () => _startLesson(
+                              song,
+                              reviewFromBeginning:
+                                  song.sentences.isNotEmpty &&
+                                  completed >= song.sentences.length,
+                            ),
                           );
                         },
                       ),
@@ -192,7 +202,16 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
 
   void _goBack() => Navigator.of(context).pop();
 
-  Future<void> _startLesson(ListeningLessonContent lesson) async {
+  Future<void> _startLesson(
+    ListeningLessonContent lesson, {
+    required bool reviewFromBeginning,
+  }) async {
+    if (reviewFromBeginning) {
+      await widget.progressStore.saveCurrentSentence(lesson.id, 0);
+    }
+    if (!mounted) {
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => LessonIntroScreen(
@@ -406,6 +425,7 @@ class _LessonPathCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = lesson.sentences.length;
     final progress = total == 0 ? 0.0 : completedSentences / total;
+    final completed = total > 0 && completedSentences >= total;
     return Semantics(
       button: true,
       label: 'Bài ${lesson.number}, ${lesson.titleVi}',
@@ -538,8 +558,16 @@ class _LessonPathCard extends StatelessWidget {
                           onPressed: onPressed,
                           child: Text(
                             context.tr(
-                              completedSentences == 0 ? 'Học ngay' : 'Học tiếp',
-                              completedSentences == 0 ? '立即学习' : '继续学习',
+                              completedSentences == 0
+                                  ? 'Học ngay'
+                                  : completed
+                                  ? 'Ôn lại'
+                                  : 'Học tiếp',
+                              completedSentences == 0
+                                  ? '立即学习'
+                                  : completed
+                                  ? '复习'
+                                  : '继续学习',
                             ),
                           ),
                         ),

@@ -58,6 +58,31 @@ void main() {
     );
   });
 
+  testWidgets('completed lessons offer review instead of continue', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final lesson = topicContent.lessons.first;
+    progressStore = _GoldenProgressStore(
+      progress: <String, int>{lesson.id: lesson.sentences.length},
+    );
+    await tester.pumpWidget(
+      _GoldenApp(
+        child: TopicLessonListScreen(
+          language: DisplayLanguage.vietnamese,
+          topic: listeningCatalogs.first.topics.first,
+          content: topicContent,
+          progressStore: progressStore,
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ôn lại'), findsOneWidget);
+    expect(find.text('Học tiếp'), findsNothing);
+  });
+
   testWidgets('lesson intro matches the approved direction', (tester) async {
     await _usePhoneSurface(tester);
     await tester.pumpWidget(
@@ -183,7 +208,7 @@ void main() {
           language: DisplayLanguage.vietnamese,
           lesson: topicContent.lessons.first,
           mediaService: mediaService,
-          skippedSentenceIndexes: const <int>{2},
+          unrecordedSentenceIndexes: const <int>{2},
         ),
       ),
     );
@@ -290,6 +315,12 @@ class _GoldenMediaService extends LessonMediaService {
   Future<void> play(Uri uri) async {}
 
   @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {}
+
+  @override
   Future<void> stopPlayback() async {}
 
   @override
@@ -297,15 +328,19 @@ class _GoldenMediaService extends LessonMediaService {
 }
 
 class _GoldenProgressStore extends ListeningProgressStore {
-  const _GoldenProgressStore({this.currentSentence = 0});
+  const _GoldenProgressStore({
+    this.currentSentence = 0,
+    this.progress = const <String, int>{},
+  });
 
   final int currentSentence;
+  final Map<String, int> progress;
 
   @override
-  Future<Map<String, int>> readAll() async => const <String, int>{};
+  Future<Map<String, int>> readAll() async => progress;
 
   @override
-  Future<int> readLesson(String lessonId) async => 0;
+  Future<int> readLesson(String lessonId) async => progress[lessonId] ?? 0;
 
   @override
   Future<int> readCurrentSentence(String lessonId) async => currentSentence;

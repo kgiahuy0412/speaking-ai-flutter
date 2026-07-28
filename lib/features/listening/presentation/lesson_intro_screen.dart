@@ -56,7 +56,20 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   Future<void> _beginIntro() async {
     final uri = widget.lesson.introAudioUri;
     if (uri != null) {
-      unawaited(widget.mediaService.play(uri).catchError((_) {}));
+      try {
+        await widget.mediaService.playToCompletion(uri);
+        if (!widget.autoAdvance || !mounted || _movingForward) {
+          return;
+        }
+        _advanceTimer = Timer(
+          const Duration(milliseconds: 350),
+          _continueToLesson,
+        );
+        return;
+      } catch (_) {
+        // If remote audio cannot start or finish, use the bounded text-based
+        // fallback below so a weak network never traps the child here.
+      }
     }
     if (!widget.autoAdvance || !mounted) {
       return;

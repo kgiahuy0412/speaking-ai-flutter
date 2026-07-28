@@ -222,7 +222,14 @@ class JustAudioPlaybackService
 
   @override
   Stream<bool> get playingStream =>
-      _browserPlayback?.playingStream ?? _player.playingStream;
+      _browserPlayback?.playingStream ??
+      _player.playerStateStream
+          .map(
+            (state) =>
+                state.playing &&
+                state.processingState != ProcessingState.completed,
+          )
+          .distinct();
 
   Future<void> _setSource(Uri uri) async {
     if (uri.isScheme('asset')) {

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_practice_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_review_screen.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
@@ -140,7 +143,7 @@ void main() {
           language: DisplayLanguage.vietnamese,
           lesson: _lesson(sentenceCount: 2),
           mediaService: _GuidedMediaService(),
-          skippedSentenceIndexes: const <int>{1},
+          unrecordedSentenceIndexes: const <int>{1},
         ),
       ),
     );
@@ -171,6 +174,88 @@ void main() {
     );
     expect(completeButton.onPressed, isNotNull);
     expect(find.text('Hoàn thành bài'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets(
+    'review derives every unrecorded sentence from saved recordings',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService(
+        recordedSentenceNumbers: const <int>{2},
+      );
+      await tester.pumpWidget(
+        _subject(_lesson(sentenceCount: 3), mediaService),
+      );
+      await _finishInitialLoad(tester);
+
+      for (var index = 0; index < 3; index++) {
+        await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      expect(find.byType(LessonReviewScreen), findsOneWidget);
+      expect(find.text('2 câu chưa ghi âm'), findsOneWidget);
+      expect(find.textContaining('không sao đâu'), findsNothing);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('review-sentence-1')))
+            .style
+            ?.fontWeight,
+        FontWeight.w800,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('review-sentence-2')))
+            .style
+            ?.fontWeight,
+        FontWeight.w600,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('review-sentence-3')))
+            .style
+            ?.fontWeight,
+        FontWeight.w800,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets('lesson intro waits until its audio really finishes', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _ControlledIntroMediaService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          topic: listeningCatalogs.first.topics.first,
+          lesson: _lesson(
+            introAudioUri: Uri.parse('https://example.test/intro.mp3'),
+          ),
+          progressStore: _MemoryProgressStore(),
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 20));
+    expect(find.byType(LessonIntroScreen), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+
+    mediaService.finishIntro();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.byType(LessonPracticeScreen), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -224,6 +309,7 @@ ListeningLessonContent _lesson({
   int sentenceCount = 1,
   ListeningLessonType type = ListeningLessonType.standard,
   String voice = '',
+  Uri? introAudioUri,
 }) {
   return ListeningLessonContent(
     id: 'guided-flow',
@@ -232,6 +318,7 @@ ListeningLessonContent _lesson({
     titleVi: 'Bài hướng dẫn',
     titleEn: 'Guided lesson',
     intro: 'Bắt đầu.',
+    introAudioUri: introAudioUri,
     outro: 'Hoàn thành.',
     estimatedMinutes: 1,
     type: type,
@@ -250,6 +337,9 @@ ListeningLessonContent _lesson({
 }
 
 class _GuidedMediaService extends LessonMediaService {
+  _GuidedMediaService({this.recordedSentenceNumbers = const <int>{}});
+
+  final Set<int> recordedSentenceNumbers;
   bool recording = false;
 
   @override
@@ -257,7 +347,9 @@ class _GuidedMediaService extends LessonMediaService {
     required String lessonId,
     required int sentenceNumber,
     String? sentenceId,
-  }) async => null;
+  }) async => recordedSentenceNumbers.contains(sentenceNumber)
+      ? 'C:\\recordings\\sentence-$sentenceNumber.m4a'
+      : null;
 
   @override
   Future<void> startRecording({
@@ -285,6 +377,28 @@ class _GuidedMediaService extends LessonMediaService {
 
   @override
   Future<void> stopPlayback() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _ControlledIntroMediaService extends LessonMediaService {
+  final Completer<void> _completion = Completer<void>();
+
+  void finishIntro() => _completion.complete();
+
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) => _completion.future;
+
+  @override
+  Future<void> stopPlayback() async {
+    if (!_completion.isCompleted) {
+      _completion.complete();
+    }
+  }
 
   @override
   Future<void> dispose() async {}
