@@ -5,6 +5,7 @@ class AppConfig {
     required this.backendBaseUri,
     required this.useDemoBackend,
     required this.childAge,
+    this.enableInnotrikBle = true,
     this.preferBleStreaming = true,
     this.realtimeBatchFallback = true,
     this.realtimeFallbackBufferBytes = 15 * 1024 * 1024,
@@ -32,6 +33,10 @@ class AppConfig {
         defaultValue: false,
       ),
       childAge: const int.fromEnvironment('CHILD_AGE', defaultValue: 6),
+      enableInnotrikBle: const bool.fromEnvironment(
+        'ENABLE_INNOTRIK_BLE',
+        defaultValue: true,
+      ),
       preferBleStreaming: const bool.fromEnvironment(
         'PREFER_BLE_STREAMING',
         defaultValue: true,
@@ -50,6 +55,7 @@ class AppConfig {
   final Uri backendBaseUri;
   final bool useDemoBackend;
   final int childAge;
+  final bool enableInnotrikBle;
   final bool preferBleStreaming;
   final bool realtimeBatchFallback;
   final int realtimeFallbackBufferBytes;

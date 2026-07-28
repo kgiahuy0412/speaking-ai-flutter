@@ -1,5 +1,11 @@
 # Kế hoạch tích hợp INNOTRIK
 
+> Cập nhật 28-07-2026: cầu nối Android thử nghiệm đã có quét/chọn thiết bị,
+> quyền Bluetooth, GATT FF12/FF13/FF14, lệnh 59/58, bộ ghép packet 84 byte,
+> MediaCodec Opus → PCM16 24 kHz, thống kê chẩn đoán, reconnect giới hạn và
+> bài test mic 4 giây có phát lại. Trạng thái vẫn là **cần nghiệm thu thiết bị
+> thật** vì APK tĩnh không xác nhận được tham số Opus/khâu auth của từng firmware.
+
 Nguồn: báo cáo phân tích APK INNOTRIK, đặc biệt trang 9, 10, 18–21.
 
 ## Contract đã xác nhận

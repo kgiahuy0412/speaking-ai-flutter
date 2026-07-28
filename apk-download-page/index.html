@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Tải ứng dụng INNOTRIK chính thức dành cho điện thoại Android."
+    />
+    <meta name="theme-color" content="#fff8ef" />
+    <link rel="icon" type="image/png" href="./app_icon.png" />
+    <title>Tải ứng dụng INNOTRIK</title>
+
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #13295b;
+        --muted: #67738e;
+        --blue: #4055dc;
+        --blue-dark: #293dae;
+        --blue-soft: #eef1ff;
+        --cream: #fff8ef;
+        --peach: #fff0e7;
+        --coral: #ff8e78;
+        --mint: #e7f9f4;
+        --mint-ink: #137c5a;
+        --yellow: #fff8da;
+        --yellow-line: #efd47a;
+        --line: #e3e7f7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-height: 100%;
+        background: var(--cream);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        font-family:
+          ui-rounded, "Arial Rounded MT Bold", system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--cream);
+      }
+
+      a,
+      button {
+        font: inherit;
+      }
+
+      .page {
+        width: min(100%, 480px);
+        animation: page-arrive 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+
+      .download-card {
+        position: relative;
+        overflow: hidden;
+        padding: 24px 22px 22px;
+        background: #fff;
+        border: 2px solid #dfe4fa;
+        border-radius: 32px;
+        box-shadow: 0 18px 44px rgba(54, 73, 155, 0.13);
+      }
+
+      .welcome-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .welcome-label,
+      .official-label {
+        display: inline-flex;
+        align-items: center;
+        min-height: 31px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .welcome-label {
+        color: #a34431;
+        background: var(--peach);
+      }
+
+      .official-label {
+        color: var(--mint-ink);
+        background: var(--mint);
+      }
+
+      .hero {
+        text-align: center;
+      }
+
+      .app-icon-wrap {
+        width: 156px;
+        height: 156px;
+        margin: 6px auto 18px;
+        padding: 7px;
+        background: #fff;
+        border: 2px solid #ece7e1;
+        border-radius: 40px;
+        box-shadow: 0 13px 27px rgba(44, 66, 158, 0.14);
+        animation: icon-float 3.8s ease-in-out infinite;
+      }
+
+      .app-icon {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 33px;
+      }
+
+      h1 {
+        max-width: 400px;
+        margin: 0 auto 10px;
+        font-size: clamp(28px, 8vw, 36px);
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+      }
+
+      .subtitle {
+        max-width: 390px;
+        margin: 0 auto;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      .quick-info {
+        display: flex;
+        justify-content: center;
+        gap: 9px;
+        margin: 20px 0 17px;
+      }
+
+      .info-pill {
+        flex: 1 1 0;
+        padding: 10px 7px;
+        color: #53617d;
+        background: var(--blue-soft);
+        border: 1px solid #dbe0fb;
+        border-radius: 15px;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .info-pill strong {
+        display: block;
+        margin-bottom: 2px;
+        color: var(--ink);
+        font-size: 14px;
+      }
+
+      .download-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 60px;
+        padding: 15px 22px;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 18px;
+        box-shadow: 0 12px 24px rgba(49, 67, 185, 0.25);
+        text-decoration: none;
+        font-size: 18px;
+        font-weight: 850;
+        transition:
+          transform 180ms ease,
+          background-color 180ms ease,
+          box-shadow 180ms ease;
+        animation: button-breathe 2.8s ease-in-out infinite;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .download-button:hover {
+        background: var(--blue-dark);
+        transform: translateY(-2px);
+        box-shadow: 0 16px 28px rgba(49, 67, 185, 0.3);
+      }
+
+      .download-button:active {
+        transform: scale(0.98);
+      }
+
+      .download-button:focus-visible {
+        outline: 4px solid rgba(64, 85, 220, 0.22);
+        outline-offset: 3px;
+      }
+
+      .parent-note {
+        margin: 11px 0 0;
+        color: #7a859d;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .friendly-note {
+        margin-top: 18px;
+        padding: 15px;
+        color: #6b5200;
+        background: var(--yellow);
+        border: 1px solid var(--yellow-line);
+        border-radius: 17px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .friendly-note strong {
+        display: block;
+        margin-bottom: 3px;
+        color: #5f4800;
+      }
+
+      .install-card {
+        margin-top: 16px;
+        padding: 17px;
+        background: #fbfbff;
+        border: 1px solid var(--line);
+        border-radius: 19px;
+      }
+
+      .install-card h2 {
+        margin: 0 0 13px;
+        font-size: 16px;
+      }
+
+      .step {
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+        color: #626f8a;
+        font-size: 13px;
+        line-height: 1.48;
+      }
+
+      .step + .step {
+        margin-top: 10px;
+      }
+
+      .step-number {
+        flex: 0 0 27px;
+        width: 27px;
+        height: 27px;
+        display: grid;
+        place-items: center;
+        color: var(--blue-dark);
+        background: #e7ebff;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      footer {
+        margin-top: 17px;
+        color: #8b94a8;
+        text-align: center;
+        font-size: 11px;
+      }
+
+      @keyframes page-arrive {
+        from {
+          opacity: 0;
+          transform: translateY(22px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes icon-float {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-1deg);
+        }
+        50% {
+          transform: translateY(-7px) rotate(1deg);
+        }
+      }
+
+      @keyframes button-breathe {
+        0%,
+        100% {
+          box-shadow: 0 12px 24px rgba(49, 67, 185, 0.22);
+        }
+        50% {
+          box-shadow: 0 15px 29px rgba(49, 67, 185, 0.34);
+        }
+      }
+
+      @media (max-width: 390px) {
+        body {
+          padding: 12px;
+        }
+
+        .download-card {
+          padding: 19px 16px;
+          border-radius: 26px;
+        }
+
+        .welcome-row {
+          align-items: stretch;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .welcome-label,
+        .official-label {
+          justify-content: center;
+        }
+
+        .app-icon-wrap {
+          width: 140px;
+          height: 140px;
+        }
+
+        .quick-info {
+          flex-wrap: wrap;
+        }
+
+        .info-pill {
+          flex-basis: 46%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="page">
+      <article class="download-card">
+        <div class="welcome-row">
+          <span class="welcome-label">Chào bé, mình cùng học nhé!</span>
+          <span class="official-label">Nguồn tải INNOTRIK</span>
+        </div>
+
+        <section class="hero">
+          <div class="app-icon-wrap">
+            <img
+              class="app-icon"
+              src="./app_icon.png"
+              alt="Robot INNOTRIK vui vẻ cầm thiết bị âm thanh"
+            />
+          </div>
+
+          <h1>Cùng INNOTRIK học tiếng Anh nhé!</h1>
+          <p class="subtitle">
+            Tải ứng dụng về điện thoại Android để bé luyện nghe, luyện nói và
+            giao tiếp tiếng Anh mỗi ngày.
+          </p>
+
+          <div class="quick-info" aria-label="Thông tin ứng dụng">
+            <div class="info-pill">
+              <strong>V1.0</strong>
+              Phiên bản
+            </div>
+            <div class="info-pill">
+              <strong>60,61 MB</strong>
+              Dung lượng
+            </div>
+            <div class="info-pill">
+              <strong>Android</strong>
+              Điện thoại
+            </div>
+          </div>
+
+          <a
+            id="download-button"
+            class="download-button"
+            href="https://pub-02b666df05b149cc8fcc08aaa45e40d2.r2.dev/innotrik-latest.apk"
+          >
+            <span id="download-label">Tải ứng dụng cho Android</span>
+          </a>
+
+          <p class="parent-note">
+            Dành cho phụ huynh: trang tải không yêu cầu đăng nhập hay cung cấp
+            thông tin cá nhân.
+          </p>
+        </section>
+
+        <aside class="friendly-note">
+          <strong>Nếu đang mở trong Zalo</strong>
+          Chọn dấu ba chấm ở góc màn hình, chọn “Mở bằng Chrome”, rồi quay lại
+          nhấn nút tải ứng dụng.
+        </aside>
+
+        <section class="install-card" aria-labelledby="install-title">
+          <h2 id="install-title">Ba bước thật dễ</h2>
+          <div class="step">
+            <span class="step-number">1</span>
+            <span>Nhấn “Tải ứng dụng cho Android” và chờ tải xong.</span>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <span>Mở file <strong>innotrik-latest.apk</strong>.</span>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <span>Chọn cho phép cài đặt nếu điện thoại yêu cầu.</span>
+          </div>
+        </section>
+
+        <footer>© 2026 INNOTRIK · Đồng hành cùng bé mỗi ngày</footer>
+      </article>
+    </main>
+
+    <script>
+      const downloadButton = document.getElementById("download-button");
+      const downloadLabel = document.getElementById("download-label");
+
+      downloadButton.addEventListener("click", () => {
+        downloadLabel.textContent = "Đang mở file tải…";
+        window.setTimeout(() => {
+          downloadLabel.textContent = "Tải lại ứng dụng Android";
+        }, 2200);
+      });
+    </script>
+  </body>
+</html>
