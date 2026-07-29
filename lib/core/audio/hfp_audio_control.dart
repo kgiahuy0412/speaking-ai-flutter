@@ -27,6 +27,7 @@ class HfpAudioDevice {
 }
 
 abstract interface class HfpAudioControl {
+  bool get usesBrowserAudioInput;
   BluetoothAudioStatus get status;
   Stream<BluetoothAudioStatus> get statusChanges;
 
@@ -65,6 +66,9 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     sampleRate: 16000,
   );
   bool _disposed = false;
+
+  @override
+  bool get usesBrowserAudioInput => false;
 
   @override
   BluetoothAudioStatus get status => _status;

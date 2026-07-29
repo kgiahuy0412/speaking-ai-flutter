@@ -517,6 +517,38 @@ void main() {
     expect(repository.streamingCapture?.inputLabel, contains('Tai nghe HFP'));
     controller.dispose();
   });
+
+  test('browser HFP records with the selected Bluetooth web input', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: true,
+      label: 'Mic HFP Web • AirPods',
+    );
+    final hfp = _FakeHfpAudioControl(usesBrowserAudioInput: true);
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.hfpStreaming,
+    );
+
+    await controller.startRecording();
+    expect(hfp.startRouteCount, 1);
+    expect(input.startCount, 1);
+    expect(controller.phase, ConversationPhase.recording);
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(hfp.stopRouteCount, 1);
+    expect(repository.audioCapture?.isBluetoothInput, isTrue);
+    expect(repository.audioCapture?.inputLabel, contains('AirPods'));
+    expect(controller.result?.conversationId, 'file-result');
+    controller.dispose();
+  });
 }
 
 class _FakeStreamingSpeechInput implements StreamingSpeechInput {
@@ -556,8 +588,13 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {
+  _FakeHfpAudioControl({this.usesBrowserAudioInput = false});
+
   int startRouteCount = 0;
   int stopRouteCount = 0;
+
+  @override
+  final bool usesBrowserAudioInput;
 
   @override
   BluetoothAudioStatus get status => const BluetoothAudioStatus(
@@ -768,6 +805,7 @@ class _FallbackRepository
   int batchStarted = 0;
   int fullFileUploads = 0;
   StreamingSpeechCapture? streamingCapture;
+  AudioCapture? audioCapture;
 
   @override
   Future<OfflineIntentManifest> fetchOfflineIntentManifest() async {
@@ -826,6 +864,7 @@ class _FallbackRepository
     required int vadSilenceMs,
   }) async {
     fullFileUploads += 1;
+    audioCapture = capture;
     return _result('file-result');
   }
 
