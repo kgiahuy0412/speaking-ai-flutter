@@ -79,6 +79,9 @@ void main() {
 }
 
 class _ControlledPlaybackService implements AudioPlaybackService {
+  _ControlledPlaybackService({this.finishInsidePlay = false});
+
+  final bool finishInsidePlay;
   final StreamController<bool> _playing = StreamController<bool>.broadcast();
   int playCalls = 0;
 
@@ -89,6 +92,10 @@ class _ControlledPlaybackService implements AudioPlaybackService {
   Future<PlaybackStartMetrics> play(Uri uri) async {
     playCalls += 1;
     _playing.add(true);
+    if (finishInsidePlay) {
+      _playing.add(false);
+      await Future<void>.delayed(Duration.zero);
+    }
     return const PlaybackStartMetrics(
       audioLoadDuration: Duration.zero,
       startedAfterRequest: Duration.zero,

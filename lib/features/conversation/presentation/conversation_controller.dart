@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
+import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
@@ -16,6 +17,7 @@ class ConversationController extends ChangeNotifier {
   ConversationController({
     required AudioInput audioInput,
     StreamingSpeechInput? streamingSpeechInput,
+    HfpAudioControl? hfpAudioControl,
     required AudioPlaybackService playbackService,
     required ConversationRepository repository,
     OfflineIntentRecognizer? offlineIntentRecognizer,
@@ -30,6 +32,7 @@ class ConversationController extends ChangeNotifier {
            ? audioInput as BluetoothAudioInputControl
            : null,
        _streamingSpeechInput = streamingSpeechInput,
+       _hfpAudioControl = hfpAudioControl,
        _playbackService = playbackService,
        _repository = repository,
        _offlineIntentRecognizer = offlineIntentRecognizer,
@@ -73,6 +76,19 @@ class ConversationController extends ChangeNotifier {
         }),
       );
     }
+    final hfpControl = _hfpAudioControl;
+    if (hfpControl != null) {
+      _hfpStatusSubscription = hfpControl.statusChanges.listen((_) {
+        if (!_disposed) {
+          notifyListeners();
+        }
+      });
+      unawaited(
+        hfpControl.initialize().catchError((Object error) {
+          debugPrint('HFP initialization failed: $error');
+        }),
+      );
+    }
     if (displayLanguageStore != null) {
       unawaited(_loadDisplayLanguage());
     }
@@ -82,6 +98,7 @@ class ConversationController extends ChangeNotifier {
   final AudioInput _audioInput;
   final BluetoothAudioInputControl? _bluetoothAudioControl;
   final StreamingSpeechInput? _streamingSpeechInput;
+  final HfpAudioControl? _hfpAudioControl;
   final AudioPlaybackService _playbackService;
   final ConversationRepository _repository;
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
@@ -93,6 +110,7 @@ class ConversationController extends ChangeNotifier {
 
   StreamSubscription<double>? _amplitudeSubscription;
   StreamSubscription<BluetoothAudioStatus>? _bluetoothStatusSubscription;
+  StreamSubscription<BluetoothAudioStatus>? _hfpStatusSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
@@ -110,6 +128,7 @@ class ConversationController extends ChangeNotifier {
   bool _stopInProgress = false;
   bool _speechDetected = false;
   bool _usingStreamingSpeech = false;
+  bool _usingHfpRoute = false;
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
   BatchChunkUploadSession? _batchChunkUpload;
@@ -239,12 +258,25 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  String get inputLabel =>
-      _usingStreamingSpeech ||
-          (phase == ConversationPhase.idle &&
-              asrMode == AsrMode.androidStreaming)
-      ? _streamingSpeechInput?.label ?? _audioInput.label
-      : _audioInput.label;
+  String get inputLabel {
+    if (asrMode == AsrMode.hfpStreaming) {
+      final name = hfpAudioStatus.deviceName?.trim();
+      if (supportsBrowserHfp) {
+        return name == null || name.isEmpty
+            ? 'Mic HFP Web'
+            : 'Mic HFP Web • $name';
+      }
+      return name == null || name.isEmpty
+          ? 'ASR HFP trực tiếp'
+          : 'ASR HFP trực tiếp • $name';
+    }
+    return _usingStreamingSpeech ||
+            (phase == ConversationPhase.idle &&
+                asrMode == AsrMode.androidStreaming)
+        ? _streamingSpeechInput?.label ?? _audioInput.label
+        : _audioInput.label;
+  }
+
   bool get supportsAndroidStreaming => _streamingSpeechInput != null;
   BluetoothAudioStatus get bluetoothAudioStatus =>
       _bluetoothAudioControl?.bluetoothStatus ??
@@ -253,11 +285,26 @@ class ConversationController extends ChangeNotifier {
       );
   bool get supportsInnotrikBle => bluetoothAudioStatus.isBridgeSupported;
   bool get canUseInnotrikBle => bluetoothAudioStatus.isConnected;
-  bool get isBluetoothInput => _audioInput.isBluetooth;
+  BluetoothAudioStatus get hfpAudioStatus =>
+      _hfpAudioControl?.status ??
+      const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.unsupported,
+        sampleRate: 16000,
+      );
+  bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
+  bool get canUseHfp => hfpAudioStatus.isConnected;
+  bool get supportsBrowserHfp =>
+      (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
+      _audioInput is ChunkedAudioInput;
+  bool get isBrowserHfpMode =>
+      asrMode == AsrMode.hfpStreaming && supportsBrowserHfp;
+  bool get isBluetoothInput =>
+      asrMode == AsrMode.hfpStreaming || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
   bool get isBusy =>
       bleDiagnosticRunning ||
+      hfpAudioStatus.isBusy ||
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
 
@@ -332,6 +379,72 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<List<HfpAudioDevice>> findHfpDevices() async {
+    final control = _hfpAudioControl;
+    if (control == null || isBusy) {
+      return const <HfpAudioDevice>[];
+    }
+    transientMessage = supportsBrowserHfp
+        ? 'Đang kiểm tra mic Bluetooth mà trình duyệt cung cấp…'
+        : 'Đang tìm thiết bị HFP đã ghép đôi…';
+    notifyListeners();
+    try {
+      final devices = await control.findDevices();
+      transientMessage = devices.isEmpty
+          ? supportsBrowserHfp
+                ? 'Trình duyệt chưa hiển thị mic Bluetooth. Hãy kết nối tai nghe trong Cài đặt hệ thống rồi thử lại.'
+                : 'Không tìm thấy thiết bị HFP đã ghép đôi.'
+          : null;
+      notifyListeners();
+      return devices;
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> connectHfpDevice(HfpAudioDevice device) async {
+    final control = _hfpAudioControl;
+    if (control == null || isBusy) {
+      return;
+    }
+    transientMessage = supportsBrowserHfp
+        ? 'Đang chọn mic Bluetooth ${device.displayName}…'
+        : 'Đang kiểm tra HFP của ${device.displayName}…';
+    notifyListeners();
+    try {
+      await control.connect(device);
+      asrMode = AsrMode.hfpStreaming;
+      transientMessage = supportsBrowserHfp
+          ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
+          : 'Đã chọn mic HFP. Android streaming sẽ nghe từ thiết bị Bluetooth.';
+      notifyListeners();
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> disconnectHfpDevice() async {
+    if (isBusy) {
+      return;
+    }
+    await _hfpAudioControl?.disconnect();
+    if (asrMode == AsrMode.hfpStreaming) {
+      asrMode = supportsBrowserHfp
+          ? AsrMode.batchChunks
+          : supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.openAiRealtime;
+    }
+    transientMessage = supportsBrowserHfp
+        ? 'Đã bỏ chọn mic HFP Web; trình duyệt sẽ dùng mic mặc định.'
+        : 'Đã bỏ chọn mic HFP; ứng dụng sẽ dùng mic điện thoại.';
+    notifyListeners();
+  }
+
   Future<void> testInnotrikMicrophone() async {
     if (!canUseInnotrikBle || isBusy || _audioInput is! ChunkedAudioInput) {
       return;
@@ -377,6 +490,10 @@ class ConversationController extends ChangeNotifier {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
     }
+    if (asrMode == AsrMode.hfpStreaming && !canUseHfp) {
+      _setError('Hãy tìm và kết nối thiết bị HFP trước khi bắt đầu nói.');
+      return;
+    }
 
     try {
       final userGesturePlayback = _playbackService;
@@ -404,8 +521,12 @@ class ConversationController extends ChangeNotifier {
             ? AsrMode.openAiRealtime
             : AsrMode.androidStreaming;
       }
+      _usingHfpRoute = false;
       _usingStreamingSpeech =
-          asrMode == AsrMode.androidStreaming && _streamingSpeechInput != null;
+          (asrMode == AsrMode.androidStreaming ||
+              asrMode == AsrMode.hfpStreaming) &&
+          _streamingSpeechInput != null &&
+          !isBrowserHfpMode;
       _usingRealtimeTranscription = false;
       _usingOfflineIntent = false;
       _offlineIntentDecision = null;
@@ -442,8 +563,15 @@ class ConversationController extends ChangeNotifier {
 
       if (_usingStreamingSpeech) {
         try {
+          if (asrMode == AsrMode.hfpStreaming) {
+            await _hfpAudioControl!.startAudioRoute();
+            _usingHfpRoute = true;
+          }
           await _streamingSpeechInput!.start();
         } catch (error) {
+          if (_usingHfpRoute) {
+            await _stopHfpRoute();
+          }
           if (error is StreamingSpeechInputException &&
               (error.code == 'MICROPHONE_PERMISSION_DENIED' ||
                   error.code == 'MICROPHONE_PERMISSION_PENDING')) {
@@ -452,8 +580,17 @@ class ConversationController extends ChangeNotifier {
           _usingStreamingSpeech = false;
           asrMode = AsrMode.openAiRealtime;
           transientMessage =
-              'Android streaming chưa sẵn sàng; đã chuyển sang OpenAI Realtime.';
+              'Nhận diện trực tiếp chưa sẵn sàng; đã chuyển sang OpenAI Realtime.';
           await _startRealtimeRecordingWithBatchFallback();
+        }
+      } else if (isBrowserHfpMode && _audioInput is ChunkedAudioInput) {
+        try {
+          await _hfpAudioControl!.startAudioRoute();
+          _usingHfpRoute = true;
+          await _audioInput.startChunked();
+        } catch (_) {
+          await _stopHfpRoute();
+          rethrow;
         }
       } else if (asrMode == AsrMode.openAiRealtime ||
           asrMode == AsrMode.deviceStreaming) {
@@ -1013,6 +1150,19 @@ class ConversationController extends ChangeNotifier {
       BatchChunkUploadSession? realtimeFallbackUpload;
       if (_usingStreamingSpeech) {
         streamingCapture = await _streamingSpeechInput!.stop();
+        if (_usingHfpRoute) {
+          streamingCapture = StreamingSpeechCapture(
+            sourceText: streamingCapture.sourceText,
+            duration: streamingCapture.duration,
+            inputLabel: inputLabel,
+            confidence: streamingCapture.confidence,
+            firstResultMs: streamingCapture.firstResultMs,
+            finalAfterStopMs: streamingCapture.finalAfterStopMs,
+            asrMode: AsrMode.hfpStreaming.apiValue,
+            isBluetoothInput: true,
+            initialNoiseRms: streamingCapture.initialNoiseRms,
+          );
+        }
       } else {
         audioCapture = await _audioInput.stop();
       }
@@ -1132,11 +1282,22 @@ class ConversationController extends ChangeNotifier {
     } catch (error) {
       _setError(_friendlyError(error));
     } finally {
+      await _stopHfpRoute();
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
       _stopInProgress = false;
     }
+  }
+
+  Future<void> _stopHfpRoute() async {
+    if (!_usingHfpRoute) {
+      return;
+    }
+    _usingHfpRoute = false;
+    await _hfpAudioControl?.stopAudioRoute().catchError((Object error) {
+      debugPrint('Cannot stop HFP audio route: $error');
+    });
   }
 
   Future<void> _waitForRealtimeConnectionAtStop() async {
@@ -1355,6 +1516,19 @@ class ConversationController extends ChangeNotifier {
         return;
       }
     }
+    if (nextMode == AsrMode.hfpStreaming) {
+      if (!canUseHfp) {
+        transientMessage =
+            'Hãy tìm và kết nối thiết bị HFP trước khi chọn HFP streaming.';
+        notifyListeners();
+        return;
+      }
+      if (_streamingSpeechInput == null && !supportsBrowserHfp) {
+        transientMessage = 'HFP streaming chỉ khả dụng trên Android.';
+        notifyListeners();
+        return;
+      }
+    }
     if (nextMode == AsrMode.batchChunks) {
       transientMessage =
           'Batch Chunks chỉ chạy tự động khi OpenAI Realtime gặp lỗi.';
@@ -1428,9 +1602,12 @@ class ConversationController extends ChangeNotifier {
     unawaited(_streamingCompletionSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
     unawaited(_bluetoothStatusSubscription?.cancel());
+    unawaited(_hfpStatusSubscription?.cancel());
+    unawaited(_stopHfpRoute());
     unawaited(_audioInput.dispose());
     unawaited(_streamingSpeechInput?.dispose());
     unawaited(_offlineIntentRecognizer?.dispose());
+    unawaited(_hfpAudioControl?.dispose());
     unawaited(_playbackService.dispose());
     unawaited(_repository.dispose());
     super.dispose();

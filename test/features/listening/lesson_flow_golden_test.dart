@@ -168,7 +168,7 @@ void main() {
       const <AssetImage>[AssetImage('assets/images/mascot-robot.png')],
     );
     await tester.pump();
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 300));
 
     await expectLater(

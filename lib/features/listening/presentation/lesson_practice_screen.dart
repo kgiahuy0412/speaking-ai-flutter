@@ -730,24 +730,33 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (!mounted || _recording || _recordingPath != null) {
       return;
     }
-    _idleReminderTimer = Timer(const Duration(seconds: 4), () {
+    _idleReminderTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted || _recording || _recordingPath != null) {
         return;
       }
       setState(() => _message = null);
-      _showCoachPopup(_LessonCoachPopupKind.firstReminder);
+      _showCoachPopup(
+        _LessonCoachPopupKind.firstReminder,
+        onDismissed: _scheduleSecondIdleReminder,
+      );
       unawaited(_playGuideCue(LessonGuideCue.idleFirst));
-      _idleReminderTimer = Timer(const Duration(seconds: 4), () {
-        if (!mounted || _recording || _recordingPath != null) {
-          return;
-        }
-        setState(() {
-          _showSkip = true;
-          _message = null;
-        });
-        _showCoachPopup(_LessonCoachPopupKind.secondReminder);
-        unawaited(_playGuideCue(LessonGuideCue.idleSecond));
+    });
+  }
+
+  void _scheduleSecondIdleReminder() {
+    if (!mounted || _recording || _recordingPath != null) {
+      return;
+    }
+    _idleReminderTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted || _recording || _recordingPath != null) {
+        return;
+      }
+      setState(() {
+        _showSkip = true;
+        _message = null;
       });
+      _showCoachPopup(_LessonCoachPopupKind.secondReminder);
+      unawaited(_playGuideCue(LessonGuideCue.idleSecond));
     });
   }
 
@@ -774,7 +783,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       return false;
     }
     try {
-      await widget.mediaService.playToCompletion(uri);
+      await widget.mediaService.playToCompletion(
+        uri,
+        timeout: const Duration(seconds: 10),
+      );
       return true;
     } catch (_) {
       return false;
@@ -803,7 +815,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     }
   }
 
-  void _showCoachPopup(_LessonCoachPopupKind kind) {
+  void _showCoachPopup(
+    _LessonCoachPopupKind kind, {
+    VoidCallback? onDismissed,
+  }) {
     _coachPopupTimer?.cancel();
     if (!mounted) {
       return;
@@ -816,6 +831,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       }
       setState(() => _coachPopupKind = null);
       _coachPopupTimer = null;
+      onDismissed?.call();
     });
   }
 

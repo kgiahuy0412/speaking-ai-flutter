@@ -10,7 +10,8 @@ import 'audio_input.dart';
 import 'recording_storage.dart';
 import 'wav_audio.dart';
 
-class PhoneMicrophoneInput implements ChunkedAudioInput {
+class PhoneMicrophoneInput
+    implements ChunkedAudioInput, SelectableAudioInputControl {
   PhoneMicrophoneInput({AudioRecorder? recorder})
     : _recorder = recorder ?? AudioRecorder();
 
@@ -29,15 +30,21 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
   bool _microphonePermissionGranted = false;
   bool _recordConfigListenerRegistered = false;
   int _effectiveSampleRate = pcm16SampleRate;
+  InputDevice? _selectedInputDevice;
 
   int get _chunkByteLength =>
       pcm16ChunkByteLength(sampleRate: _effectiveSampleRate);
 
   @override
-  String get label => 'Mic điện thoại';
+  String get label {
+    final selected = _selectedInputDevice;
+    return selected == null
+        ? 'Mic điện thoại'
+        : 'Mic HFP Web • ${selected.label.trim().isEmpty ? selected.id : selected.label.trim()}';
+  }
 
   @override
-  bool get isBluetooth => false;
+  bool get isBluetooth => _selectedInputDevice != null;
 
   @override
   bool get isAvailable => true;
@@ -52,6 +59,50 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
 
   @override
   Stream<Uint8List> get audioChunks => _audioChunkController.stream;
+
+  @override
+  SelectableAudioInputDevice? get selectedAudioInputDevice {
+    final selected = _selectedInputDevice;
+    return selected == null
+        ? null
+        : SelectableAudioInputDevice(id: selected.id, label: selected.label);
+  }
+
+  @override
+  Future<List<SelectableAudioInputDevice>> listAudioInputDevices() async {
+    final devices = await _recorder.listInputDevices();
+    return devices
+        .where((device) => device.id.trim().isNotEmpty)
+        .map(
+          (device) =>
+              SelectableAudioInputDevice(id: device.id, label: device.label),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> selectAudioInputDevice(
+    SelectableAudioInputDevice? device,
+  ) async {
+    if (device == null) {
+      _selectedInputDevice = null;
+      return;
+    }
+    final available = await _recorder.listInputDevices();
+    InputDevice? selected;
+    for (final item in available) {
+      if (item.id == device.id) {
+        selected = item;
+        break;
+      }
+    }
+    if (selected == null) {
+      throw const AudioInputException(
+        'Mic Bluetooth không còn khả dụng. Hãy kết nối lại tai nghe và thử lại.',
+      );
+    }
+    _selectedInputDevice = selected;
+  }
 
   Future<void> _prepareRecording() async {
     if (!_microphonePermissionGranted) {
@@ -103,13 +154,14 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
     await _prepareRecording();
 
     await _recorder.start(
-      const RecordConfig(
+      RecordConfig(
         encoder: AudioEncoder.aacLc,
         sampleRate: 16000,
         numChannels: 1,
         autoGain: true,
         echoCancel: true,
         noiseSuppress: true,
+        device: _selectedInputDevice,
       ),
       path: _currentPath!,
     );
@@ -125,13 +177,14 @@ class PhoneMicrophoneInput implements ChunkedAudioInput {
     await _prepareRecording();
 
     final pcmStream = await _recorder.startStream(
-      const RecordConfig(
+      RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: pcm16SampleRate,
         numChannels: pcm16ChannelCount,
         autoGain: true,
         echoCancel: true,
         noiseSuppress: true,
+        device: _selectedInputDevice,
       ),
     );
     _pcmSubscription = pcmStream.listen(

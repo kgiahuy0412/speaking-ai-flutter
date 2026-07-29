@@ -271,3 +271,52 @@
 - [x] Verify DPR 3 rendering, 320 px compact layout, analyzer, and full test suite.
 
 final result: passed
+
+---
+
+# Design QA — HFP Recognition Mode
+
+## Comparison target
+
+- Source visual truth: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-b70a2346-3659-440a-8b69-8295bc0fa000.png`.
+- Rendered implementation: `C:\Users\Windows\Documents\ai-speaking-flutter-app\artifacts\hfp-settings.png`.
+- Recognition-mode state: `C:\Users\Windows\Documents\ai-speaking-flutter-app\artifacts\hfp-settings-modes.png`.
+- Empty HFP state: `C:\Users\Windows\Documents\ai-speaking-flutter-app\artifacts\hfp-empty-dialog.png`.
+- Full-view comparison: `C:\Users\Windows\Documents\ai-speaking-flutter-app\artifacts\hfp-design-comparison.png`.
+- Focused mode comparison: `C:\Users\Windows\Documents\ai-speaking-flutter-app\artifacts\hfp-modes-comparison.png`.
+- Source pixels: 505 × 1020, including device bezel and Android chrome; density metadata unavailable.
+- Implementation pixels: 1080 × 2400 at Android emulator density 420 dpi, approximately 411 × 914 logical px, including Android chrome.
+- Normalization: both full-view images were scaled to 1200 px high without changing aspect ratio for the side-by-side structural comparison. Exact pixel matching was not used because the source includes a different device frame and viewport.
+- State: Vietnamese, Android 16 emulator, no paired HFP device, BLE and HFP modes disabled until their respective devices are connected.
+
+## Findings
+
+Không còn khác biệt P0, P1 hoặc P2 cần xử lý.
+
+- Fonts and typography: Roboto, weights, hierarchy, line wrapping and muted secondary copy remain consistent with the source. The new HFP labels use the same title/subtitle treatment as the INNOTRIK card and the existing radio modes.
+- Spacing and layout rhythm: the 20 px sheet gutters, card radius, border weight, section gaps and radio-row rhythm are preserved. The extra HFP card extends the existing scroll region and does not hide persistent controls.
+- Colors and visual tokens: indigo actions, green active state, lavender sheet background, muted disabled mode and neutral card borders reuse the existing app tokens.
+- Image and icon fidelity: no new raster asset was needed. Material `headset_mic` and `manage_search` icons match the weight and visual language of the existing microphone/Bluetooth icons.
+- Copy and content: “Mic Bluetooth HFP”, “Tìm HFP” and “HFP streaming” clearly distinguish Bluetooth Classic HFP/SCO from BLE streaming. The empty-state dialog explains the Android pairing prerequisite in Vietnamese and Simplified Chinese.
+- Interaction and accessibility: opening Settings, scrolling, pressing “Tìm HFP”, reading the empty state and dismissing it were exercised on the emulator. Semantics exposed the HFP action and disabled HFP radio state correctly. Android logcat showed no Flutter or runtime exception.
+
+## Comparison history
+
+### Iteration 1
+
+- P2: the first empty-device response used the root `ScaffoldMessenger`, which was visually hidden behind the full-height settings sheet.
+- Fix: replaced the hidden snackbar with an in-sheet alert dialog containing pairing guidance and a clear dismiss action.
+- Post-fix evidence: `artifacts/hfp-empty-dialog.png` shows the message above the settings sheet with readable copy and an accessible action.
+
+## Follow-up polish
+
+- P3: the emulator has no physical HFP headset, so the real-device SCO microphone path still needs a short hardware smoke test. The controller route lifecycle is covered by an automated test and the Android bridge compiles into the APK.
+
+## Verification
+
+- `flutter analyze --no-pub`: passed.
+- Full Flutter test suite: 105 passed, including the HFP route lifecycle test.
+- Android debug APK build: passed.
+- Emulator interaction: settings open, scroll, HFP empty state and dismiss affordance passed.
+
+final result: passed

@@ -40,3 +40,14 @@ PwaRuntimeState readPwaRuntimeState() {
     inAppBrowser: inAppBrowser,
   );
 }
+
+void reloadPwaForUpdate() {
+  final current = Uri.parse(web.window.location.href);
+  final query = <String, String>{
+    ...current.queryParameters,
+    '_appUpdate': DateTime.now().millisecondsSinceEpoch.toString(),
+  };
+  web.window.location.replace(
+    current.replace(queryParameters: query).toString(),
+  );
+}

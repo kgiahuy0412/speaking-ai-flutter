@@ -10,3 +10,5 @@ class PwaRuntimeState {
 
 PwaRuntimeState readPwaRuntimeState() =>
     const PwaRuntimeState(installRequired: false, inAppBrowser: false);
+
+void reloadPwaForUpdate() {}
