@@ -16,8 +16,10 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.crossOrigin = 'anonymous';
     _element.preload = 'auto';
     _endedListener = ((web.Event _) => _emitPlaying(false)).toJS;
+    _timeUpdateListener = ((web.Event _) => _finishAtMediaEnd()).toJS;
     _errorListener = ((web.Event _) => _emitPlaying(false)).toJS;
     _element.addEventListener('ended', _endedListener);
+    _element.addEventListener('timeupdate', _timeUpdateListener);
     _element.addEventListener('error', _errorListener);
     _setSource(Uri.parse(_silentWarmUpAudio));
   }
@@ -30,6 +32,7 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   final StreamController<bool> _playingController =
       StreamController<bool>.broadcast();
   late final JSFunction _endedListener;
+  late final JSFunction _timeUpdateListener;
   late final JSFunction _errorListener;
   Uri? _sourceUri;
   bool _unlocked = false;
@@ -60,6 +63,17 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _playing = value;
     if (!_playingController.isClosed) {
       _playingController.add(value);
+    }
+  }
+
+  void _finishAtMediaEnd() {
+    final duration = _element.duration;
+    final reachedEnd =
+        duration.isFinite &&
+        duration > 0 &&
+        _element.currentTime >= duration - 0.05;
+    if (_element.ended || reachedEnd) {
+      _emitPlaying(false);
     }
   }
 
@@ -130,12 +144,16 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
 
     _setSource(uri);
     _rewindIfCompleted();
+    // Mark the attempt before calling play(). Very short guide clips can reach
+    // `ended` on iOS Safari before the play promise resumes in Dart. Emitting
+    // here makes that end event observable instead of leaving callers waiting
+    // for their safety timeout.
+    _emitPlaying(true);
     try {
       // Keep this as the first asynchronous browser media operation. For the
       // Play button it runs in the same tap callback; for autoplay it reuses
       // the exact element unlocked when recording began.
       await _element.play().toDart.timeout(const Duration(seconds: 4));
-      _emitPlaying(true);
     } catch (error) {
       _resetAfterFailure();
       throw StateError('Browser audio playback failed: $error');
@@ -159,6 +177,7 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _disposed = true;
     _element.pause();
     _element.removeEventListener('ended', _endedListener);
+    _element.removeEventListener('timeupdate', _timeUpdateListener);
     _element.removeEventListener('error', _errorListener);
     _element.removeAttribute('src');
     _element.load();

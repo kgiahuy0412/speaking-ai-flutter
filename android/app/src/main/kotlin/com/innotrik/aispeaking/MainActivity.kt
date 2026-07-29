@@ -17,6 +17,7 @@ class MainActivity : FlutterActivity() {
     private var speechRecognizerBridge: AndroidSpeechRecognizerBridge? = null
     private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
     private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
+    private var hfpAudioBridge: HfpAudioBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -31,6 +32,11 @@ class MainActivity : FlutterActivity() {
             )
         innotrikBleAudioBridge =
             InnotrikBleAudioBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        hfpAudioBridge =
+            HfpAudioBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -85,6 +91,8 @@ class MainActivity : FlutterActivity() {
         offlineIntentRecognizerBridge = null
         innotrikBleAudioBridge?.dispose()
         innotrikBleAudioBridge = null
+        hfpAudioBridge?.dispose()
+        hfpAudioBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -103,6 +111,14 @@ class MainActivity : FlutterActivity() {
         }
         if (
             innotrikBleAudioBridge?.onRequestPermissionsResult(
+                requestCode,
+                grantResults,
+            ) == true
+        ) {
+            return
+        }
+        if (
+            hfpAudioBridge?.onRequestPermissionsResult(
                 requestCode,
                 grantResults,
             ) == true

@@ -6,6 +6,7 @@ class AppConfig {
     required this.useDemoBackend,
     required this.childAge,
     this.enableInnotrikBle = true,
+    this.enableHfpAudio = true,
     this.preferBleStreaming = true,
     this.realtimeBatchFallback = true,
     this.realtimeFallbackBufferBytes = 15 * 1024 * 1024,
@@ -37,6 +38,10 @@ class AppConfig {
         'ENABLE_INNOTRIK_BLE',
         defaultValue: true,
       ),
+      enableHfpAudio: const bool.fromEnvironment(
+        'ENABLE_HFP_AUDIO',
+        defaultValue: true,
+      ),
       preferBleStreaming: const bool.fromEnvironment(
         'PREFER_BLE_STREAMING',
         defaultValue: true,
@@ -56,6 +61,7 @@ class AppConfig {
   final bool useDemoBackend;
   final int childAge;
   final bool enableInnotrikBle;
+  final bool enableHfpAudio;
   final bool preferBleStreaming;
   final bool realtimeBatchFallback;
   final int realtimeFallbackBufferBytes;

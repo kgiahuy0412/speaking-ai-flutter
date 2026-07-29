@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/core/audio/offline_intent_recognizer.dart';
 import 'package:ai_speaking_flutter_app/core/audio/preferred_audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/realtime_fallback_buffer.dart';
@@ -484,6 +485,153 @@ void main() {
     expect(controller.result?.conversationId, 'stream-result');
     controller.dispose();
   });
+
+  test('HFP streaming opens SCO route and reports Bluetooth input', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+    );
+    final hfp = _FakeHfpAudioControl();
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: _FakeStreamingSpeechInput(),
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.hfpStreaming,
+    );
+
+    await controller.startRecording();
+    expect(hfp.startRouteCount, 1);
+    expect(controller.phase, ConversationPhase.recording);
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(hfp.stopRouteCount, 1);
+    expect(repository.streamingCapture?.asrMode, 'hfp_streaming');
+    expect(repository.streamingCapture?.isBluetoothInput, isTrue);
+    expect(repository.streamingCapture?.inputLabel, contains('Tai nghe HFP'));
+    controller.dispose();
+  });
+
+  test('browser HFP records with the selected Bluetooth web input', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: true,
+      label: 'Mic HFP Web • AirPods',
+    );
+    final hfp = _FakeHfpAudioControl(usesBrowserAudioInput: true);
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.hfpStreaming,
+    );
+
+    await controller.startRecording();
+    expect(hfp.startRouteCount, 1);
+    expect(input.startCount, 1);
+    expect(controller.phase, ConversationPhase.recording);
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(hfp.stopRouteCount, 1);
+    expect(repository.audioCapture?.isBluetoothInput, isTrue);
+    expect(repository.audioCapture?.inputLabel, contains('AirPods'));
+    expect(controller.result?.conversationId, 'file-result');
+    controller.dispose();
+  });
+}
+
+class _FakeStreamingSpeechInput implements StreamingSpeechInput {
+  @override
+  String get label => 'ASR Android trực tiếp';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
+    sourceText: 'Con muốn uống nước',
+    duration: Duration(seconds: 1),
+    inputLabel: 'ASR Android trực tiếp',
+    confidence: 0.9,
+    firstResultMs: 120,
+    finalAfterStopMs: 30,
+  );
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FakeHfpAudioControl implements HfpAudioControl {
+  _FakeHfpAudioControl({this.usesBrowserAudioInput = false});
+
+  int startRouteCount = 0;
+  int stopRouteCount = 0;
+
+  @override
+  final bool usesBrowserAudioInput;
+
+  @override
+  BluetoothAudioStatus get status => const BluetoothAudioStatus(
+    phase: BluetoothAudioConnectionPhase.ready,
+    deviceId: '00:11:22:33:44:55',
+    deviceName: 'Tai nghe HFP',
+    sampleRate: 16000,
+  );
+
+  @override
+  Stream<BluetoothAudioStatus> get statusChanges =>
+      const Stream<BluetoothAudioStatus>.empty();
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<HfpAudioDevice>> findDevices() async => const <HfpAudioDevice>[];
+
+  @override
+  Future<void> connect(HfpAudioDevice device) async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> startAudioRoute() async {
+    startRouteCount += 1;
+  }
+
+  @override
+  Future<void> stopAudioRoute() async {
+    stopRouteCount += 1;
+  }
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class _FakeChunkedInput implements ChunkedAudioInput {
@@ -657,6 +805,7 @@ class _FallbackRepository
   int batchStarted = 0;
   int fullFileUploads = 0;
   StreamingSpeechCapture? streamingCapture;
+  AudioCapture? audioCapture;
 
   @override
   Future<OfflineIntentManifest> fetchOfflineIntentManifest() async {
@@ -715,6 +864,7 @@ class _FallbackRepository
     required int vadSilenceMs,
   }) async {
     fullFileUploads += 1;
+    audioCapture = capture;
     return _result('file-result');
   }
 

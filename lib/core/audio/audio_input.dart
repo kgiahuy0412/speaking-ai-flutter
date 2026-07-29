@@ -47,6 +47,27 @@ abstract interface class ChunkedAudioInput implements AudioInput {
   Future<void> startChunked();
 }
 
+class SelectableAudioInputDevice {
+  const SelectableAudioInputDevice({required this.id, required this.label});
+
+  final String id;
+  final String label;
+
+  String get displayName => label.trim().isEmpty ? id : label.trim();
+}
+
+/// Optional control surface for browser microphone selection.
+///
+/// Browsers expose HFP headsets as audio inputs through MediaDevices rather
+/// than through the Bluetooth profile APIs. Device IDs may change between
+/// sessions, so callers should select a device for the current session only.
+abstract interface class SelectableAudioInputControl {
+  SelectableAudioInputDevice? get selectedAudioInputDevice;
+
+  Future<List<SelectableAudioInputDevice>> listAudioInputDevices();
+  Future<void> selectAudioInputDevice(SelectableAudioInputDevice? device);
+}
+
 enum BluetoothAudioConnectionPhase {
   disabled,
   unsupported,

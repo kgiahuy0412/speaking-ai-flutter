@@ -2,6 +2,7 @@
   "BACKEND_BASE_URL": "https://api.example.com",
   "USE_DEMO_BACKEND": "false",
   "CHILD_AGE": "6",
+  "ENABLE_HFP_AUDIO": "true",
   "PREFER_BLE_STREAMING": "true",
   "REALTIME_BATCH_FALLBACK": "true",
   "REALTIME_FALLBACK_BUFFER_BYTES": "15728640"
