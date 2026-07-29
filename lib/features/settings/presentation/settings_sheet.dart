@@ -99,8 +99,12 @@ class SettingsSheet extends StatelessWidget {
                           '直接识别文字 • 快速路径',
                         ),
                         AsrMode.hfpStreaming => context.tr(
-                          'Mic Bluetooth HFP/SCO • Android ASR',
-                          '蓝牙 HFP/SCO 麦克风 • Android 识别',
+                          controller.supportsBrowserHfp
+                              ? 'Mic Bluetooth HFP • trình duyệt quản lý'
+                              : 'Mic Bluetooth HFP/SCO • Android ASR',
+                          controller.supportsBrowserHfp
+                              ? '蓝牙 HFP 麦克风 • 浏览器管理'
+                              : '蓝牙 HFP/SCO 麦克风 • Android 识别',
                         ),
                         AsrMode.openAiRealtime => context.tr(
                           'PCM16 24 kHz • ASR trực tiếp • Batch dự phòng',
@@ -136,6 +140,7 @@ class SettingsSheet extends StatelessWidget {
                     const SizedBox(height: 10),
                     _HfpStatusCard(
                       status: controller.hfpAudioStatus,
+                      browserManaged: controller.supportsBrowserHfp,
                       disabled: controller.isBusy,
                       onFind: () => _findAndConnectHfp(context),
                       onDisconnect: controller.disconnectHfpDevice,
@@ -159,11 +164,14 @@ class SettingsSheet extends StatelessWidget {
                                   (mode.isUserSelectable ||
                                       (kIsWeb &&
                                           mode == AsrMode.batchChunks)) &&
-                                  (!kIsWeb || mode == AsrMode.batchChunks) &&
+                                  (!kIsWeb ||
+                                      mode == AsrMode.batchChunks ||
+                                      mode == AsrMode.hfpStreaming) &&
                                   (mode != AsrMode.androidStreaming ||
                                       controller.supportsAndroidStreaming) &&
                                   (mode != AsrMode.hfpStreaming ||
-                                      (controller.supportsAndroidStreaming &&
+                                      ((controller.supportsAndroidStreaming ||
+                                              controller.supportsBrowserHfp) &&
                                           controller.supportsHfp)),
                             )
                             .map(
@@ -182,6 +190,8 @@ class SettingsSheet extends StatelessWidget {
                                           'Nhận giọng nói trực tuyến',
                                           '在线语音识别',
                                         )
+                                      : kIsWeb && mode == AsrMode.hfpStreaming
+                                      ? context.tr('HFP Web', 'HFP 网页版')
                                       : context.trKnown(mode.label),
                                 ),
                                 subtitle: Text(switch (mode) {
@@ -190,10 +200,18 @@ class SettingsSheet extends StatelessWidget {
                                     '与网页流式识别一样快；自动使用 Android 服务',
                                   ),
                                   AsrMode.hfpStreaming => context.tr(
-                                    controller.canUseHfp
+                                    controller.supportsBrowserHfp
+                                        ? controller.canUseHfp
+                                              ? 'Ghi âm từ mic Bluetooth do trình duyệt cung cấp'
+                                              : 'Kết nối tai nghe trong hệ thống rồi chọn mic ở phía trên'
+                                        : controller.canUseHfp
                                         ? 'Nghe từ mic tai nghe qua HFP/SCO'
                                         : 'Kết nối thiết bị HFP ở phía trên để bật',
-                                    controller.canUseHfp
+                                    controller.supportsBrowserHfp
+                                        ? controller.canUseHfp
+                                              ? '使用浏览器提供的蓝牙麦克风录音'
+                                              : '先在系统中连接耳机，再在上方选择麦克风'
+                                        : controller.canUseHfp
                                         ? '通过 HFP/SCO 使用耳机麦克风'
                                         : '请先在上方连接 HFP 设备',
                                   ),
@@ -454,10 +472,16 @@ class SettingsSheet extends StatelessWidget {
       if (devices.isEmpty) {
         await _showHfpMessage(
           context,
-          title: context.tr('Chưa có thiết bị HFP', '暂无 HFP 设备'),
+          title: controller.supportsBrowserHfp
+              ? context.tr('Chưa thấy mic Bluetooth trên Web', '网页中未发现蓝牙麦克风')
+              : context.tr('Chưa có thiết bị HFP', '暂无 HFP 设备'),
           message: context.tr(
-            'Hãy ghép đôi tai nghe hoặc thiết bị HFP trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.',
-            '请先在蓝牙设置中配对耳机或 HFP 设备，然后返回并点击“查找 HFP”。',
+            controller.supportsBrowserHfp
+                ? 'Web không thể tự kết nối HFP. Hãy kết nối tai nghe trong Cài đặt Bluetooth, cho phép quyền micro, tải lại trang rồi bấm Chọn mic HFP. Safari trên iPhone có thể chỉ cung cấp mic iPhone.'
+                : 'Hãy ghép đôi tai nghe hoặc thiết bị HFP trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.',
+            controller.supportsBrowserHfp
+                ? '网页无法自行连接 HFP。请先在蓝牙设置中连接耳机、允许麦克风权限、刷新页面，再点击选择 HFP 麦克风。iPhone Safari 可能只提供 iPhone 麦克风。'
+                : '请先在蓝牙设置中配对耳机或 HFP 设备，然后返回并点击“查找 HFP”。',
           ),
         );
         return;
@@ -473,14 +497,20 @@ class SettingsSheet extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  context.tr('Chọn thiết bị HFP', '选择 HFP 设备'),
+                  controller.supportsBrowserHfp
+                      ? context.tr('Chọn mic Bluetooth', '选择蓝牙麦克风')
+                      : context.tr('Chọn thiết bị HFP', '选择 HFP 设备'),
                   style: Theme.of(sheetContext).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   context.tr(
-                    'Android chỉ cho ứng dụng dùng HFP đã ghép đôi. Thiết bị đang kết nối được ưu tiên.',
-                    'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
+                    controller.supportsBrowserHfp
+                        ? 'Chỉ các mic Bluetooth mà trình duyệt công bố mới xuất hiện. Thiết bị đã chọn được ưu tiên.'
+                        : 'Android chỉ cho ứng dụng dùng HFP đã ghép đôi. Thiết bị đang kết nối được ưu tiên.',
+                    controller.supportsBrowserHfp
+                        ? '这里只显示浏览器公开的蓝牙麦克风；已选择的设备优先。'
+                        : 'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
                   ),
                   style: Theme.of(
                     sheetContext,
@@ -510,10 +540,19 @@ class SettingsSheet extends StatelessWidget {
                         title: Text(device.displayName),
                         subtitle: Text(
                           device.isConnected
-                              ? context.tr('HFP đang kết nối', 'HFP 已连接')
+                              ? controller.supportsBrowserHfp
+                                    ? context.tr(
+                                        'Mic đang được chọn cho Web',
+                                        '已选为网页麦克风',
+                                      )
+                                    : context.tr('HFP đang kết nối', 'HFP 已连接')
                               : context.tr(
-                                  'Đã ghép đôi • chạm để mở kết nối',
-                                  '已配对 • 点击连接',
+                                  controller.supportsBrowserHfp
+                                      ? 'Chạm để dùng mic này'
+                                      : 'Đã ghép đôi • chạm để mở kết nối',
+                                  controller.supportsBrowserHfp
+                                      ? '点击使用此麦克风'
+                                      : '已配对 • 点击连接',
                                 ),
                         ),
                         trailing: device.isConnected
@@ -831,12 +870,14 @@ class _InnotrikStatusCard extends StatelessWidget {
 class _HfpStatusCard extends StatelessWidget {
   const _HfpStatusCard({
     required this.status,
+    required this.browserManaged,
     required this.disabled,
     required this.onFind,
     required this.onDisconnect,
   });
 
   final BluetoothAudioStatus status;
+  final bool browserManaged;
   final bool disabled;
   final VoidCallback onFind;
   final Future<void> Function() onDisconnect;
@@ -925,6 +966,8 @@ class _HfpStatusCard extends StatelessWidget {
                 label: Text(
                   connected
                       ? context.tr('Bỏ chọn', '取消选择')
+                      : browserManaged
+                      ? context.tr('Chọn mic HFP', '选择 HFP 麦克风')
                       : context.tr('Tìm HFP', '查找 HFP'),
                 ),
               ),
@@ -935,6 +978,49 @@ class _HfpStatusCard extends StatelessWidget {
   }
 
   String _detail(BuildContext context) {
+    if (browserManaged) {
+      return switch (status.phase) {
+        BluetoothAudioConnectionPhase.disabled => context.tr(
+          'HFP Web đang tắt trong cấu hình bản build.',
+          '此构建中已关闭网页 HFP。',
+        ),
+        BluetoothAudioConnectionPhase.unsupported => context.tr(
+          'Trình duyệt này không hỗ trợ chọn mic Bluetooth.',
+          '此浏览器不支持选择蓝牙麦克风。',
+        ),
+        BluetoothAudioConnectionPhase.permissionRequired => context.tr(
+          'Cần cho phép quyền micro của trình duyệt.',
+          '需要允许浏览器使用麦克风。',
+        ),
+        BluetoothAudioConnectionPhase.scanning => context.tr(
+          'Đang kiểm tra các mic mà trình duyệt cung cấp…',
+          '正在检查浏览器提供的麦克风…',
+        ),
+        BluetoothAudioConnectionPhase.connecting => context.tr(
+          'Đang chọn mic Bluetooth…',
+          '正在选择蓝牙麦克风…',
+        ),
+        BluetoothAudioConnectionPhase.discovering => context.tr(
+          'Đang kiểm tra đường âm thanh của trình duyệt…',
+          '正在检查浏览器音频通道…',
+        ),
+        BluetoothAudioConnectionPhase.ready => context.tr(
+          'Đã chọn • sẵn sàng ghi âm qua Web',
+          '已选择 • 可通过网页录音',
+        ),
+        BluetoothAudioConnectionPhase.recording => context.tr(
+          'Đang ghi âm từ mic Bluetooth trên Web',
+          '正在通过网页蓝牙麦克风录音',
+        ),
+        BluetoothAudioConnectionPhase.error =>
+          status.message ??
+              context.tr('Không thể dùng mic Bluetooth.', '无法使用蓝牙麦克风。'),
+        BluetoothAudioConnectionPhase.idle => context.tr(
+          'Kết nối tai nghe trong hệ thống rồi chọn mic tại đây.',
+          '请先在系统中连接耳机，再在此选择麦克风。',
+        ),
+      };
+    }
     return switch (status.phase) {
       BluetoothAudioConnectionPhase.disabled => context.tr(
         'HFP đang tắt trong cấu hình bản build.',

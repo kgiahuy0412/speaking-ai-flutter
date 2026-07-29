@@ -91,6 +91,7 @@ const Map<String, String> _simplifiedChinese = <String, String>{
   'BLE streaming': 'BLE 流式识别',
   'ASR Android trực tiếp': 'Android 实时识别',
   'ASR HFP trực tiếp': 'HFP 实时识别',
+  'Mic HFP Web': '网页 HFP 麦克风',
   'Mic điện thoại': '手机麦克风',
   'Mic INNOTRIK': 'INNOTRIK 麦克风',
   'Tất cả': '全部',

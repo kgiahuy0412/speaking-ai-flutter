@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../core/audio/audio_playback_service.dart';
+import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
 import '../core/audio/hfp_audio_control.dart';
 import '../core/audio/innotrik_ble_audio_input.dart';
@@ -65,13 +66,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     final innotrikInput = InnotrikBleAudioInput(
       enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
     );
-    final hfpAudioControl = MethodChannelHfpAudioControl(
-      enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
-    );
+    final phoneMicrophoneInput = PhoneMicrophoneInput();
+    final HfpAudioControl hfpAudioControl = kIsWeb
+        ? BrowserHfpAudioControl(
+            enabled: _config.enableHfpAudio,
+            audioInput: phoneMicrophoneInput,
+          )
+        : MethodChannelHfpAudioControl(
+            enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
+          );
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
-        fallback: PhoneMicrophoneInput(),
+        fallback: phoneMicrophoneInput,
       ),
       streamingSpeechInput: supportsAndroidNativeSpeech
           ? AndroidStreamingSpeechInput()
