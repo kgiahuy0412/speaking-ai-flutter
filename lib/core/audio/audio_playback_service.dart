@@ -35,6 +35,17 @@ abstract interface class CompletionAwareAudioPlaybackService {
   Stream<void> get completionStream;
 }
 
+/// Optional playback telemetry used by long-form media such as songs.
+///
+/// Short lesson prompts do not need to implement this capability, which keeps
+/// existing test doubles and lightweight playback implementations compatible.
+abstract interface class ProgressAwareAudioPlaybackService {
+  Stream<Duration> get positionStream;
+  Stream<Duration?> get durationStream;
+  Duration get position;
+  Duration? get duration;
+}
+
 /// Optional capability used by browsers that require audio playback to be
 /// started directly from a user gesture before later automatic playback.
 abstract interface class UserGestureAudioPlaybackService {
@@ -51,6 +62,7 @@ class JustAudioPlaybackService
     implements
         AudioPlaybackService,
         CompletionAwareAudioPlaybackService,
+        ProgressAwareAudioPlaybackService,
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService {
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
@@ -237,6 +249,20 @@ class JustAudioPlaybackService
                 state.processingState != ProcessingState.completed,
           )
           .distinct();
+
+  @override
+  Stream<Duration> get positionStream =>
+      _browserPlayback?.positionStream ?? _player.positionStream;
+
+  @override
+  Stream<Duration?> get durationStream =>
+      _browserPlayback?.durationStream ?? _player.durationStream;
+
+  @override
+  Duration get position => _browserPlayback?.position ?? _player.position;
+
+  @override
+  Duration? get duration => _browserPlayback?.duration ?? _player.duration;
 
   @override
   Stream<void> get completionStream {

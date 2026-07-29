@@ -10,6 +10,7 @@ import '../domain/listening_content.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'listening_navigation_bar.dart';
+import 'song_karaoke_screen.dart';
 
 class TopicLessonListScreen extends StatefulWidget {
   const TopicLessonListScreen({
@@ -210,9 +211,14 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     ListeningLessonContent lesson, {
     required bool reviewFromBeginning,
   }) async {
+    final unlockFuture =
+        shouldUseSongKaraoke(startAge: widget.startAge, lesson: lesson)
+        ? _mediaService.unlockPlaybackForUserGesture()
+        : null;
     if (reviewFromBeginning) {
       await widget.progressStore.saveCurrentSentence(lesson.id, 0);
     }
+    await unlockFuture;
     if (!mounted) {
       return;
     }

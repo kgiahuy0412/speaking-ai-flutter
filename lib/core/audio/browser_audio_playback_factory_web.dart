@@ -16,10 +16,13 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.crossOrigin = 'anonymous';
     _element.preload = 'auto';
     _endedListener = ((web.Event _) => _emitPlaying(false)).toJS;
-    _timeUpdateListener = ((web.Event _) => _finishAtMediaEnd()).toJS;
+    _timeUpdateListener = ((web.Event _) => _onTimeUpdate()).toJS;
+    _durationChangeListener = ((web.Event _) => _emitDuration()).toJS;
     _errorListener = ((web.Event _) => _emitPlaying(false)).toJS;
     _element.addEventListener('ended', _endedListener);
     _element.addEventListener('timeupdate', _timeUpdateListener);
+    _element.addEventListener('durationchange', _durationChangeListener);
+    _element.addEventListener('loadedmetadata', _durationChangeListener);
     _element.addEventListener('error', _errorListener);
     _setSource(Uri.parse(_silentWarmUpAudio));
   }
@@ -31,8 +34,13 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
       web.document.createElement('audio') as web.HTMLAudioElement;
   final StreamController<bool> _playingController =
       StreamController<bool>.broadcast();
+  final StreamController<Duration> _positionController =
+      StreamController<Duration>.broadcast();
+  final StreamController<Duration?> _durationController =
+      StreamController<Duration?>.broadcast();
   late final JSFunction _endedListener;
   late final JSFunction _timeUpdateListener;
+  late final JSFunction _durationChangeListener;
   late final JSFunction _errorListener;
   Uri? _sourceUri;
   bool _unlocked = false;
@@ -56,6 +64,21 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   @override
   Stream<bool> get playingStream => _playingController.stream;
 
+  @override
+  Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  Stream<Duration?> get durationStream => _durationController.stream;
+
+  @override
+  Duration get position => _secondsToDuration(_element.currentTime);
+
+  @override
+  Duration? get duration {
+    final seconds = _element.duration;
+    return seconds.isFinite && seconds > 0 ? _secondsToDuration(seconds) : null;
+  }
+
   void _emitPlaying(bool value) {
     if (_playing == value) {
       return;
@@ -77,6 +100,25 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     }
   }
 
+  void _onTimeUpdate() {
+    if (!_positionController.isClosed) {
+      _positionController.add(position);
+    }
+    _emitDuration();
+    _finishAtMediaEnd();
+  }
+
+  void _emitDuration() {
+    if (!_durationController.isClosed) {
+      _durationController.add(duration);
+    }
+  }
+
+  static Duration _secondsToDuration(double seconds) => Duration(
+    microseconds:
+        (seconds.isFinite ? seconds : 0) * Duration.microsecondsPerSecond ~/ 1,
+  );
+
   void _setSource(Uri uri) {
     if (_sourceUri == uri) {
       return;
@@ -84,6 +126,12 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.src = uri.isScheme('asset') ? 'assets${uri.path}' : uri.toString();
     _element.load();
     _sourceUri = uri;
+    if (!_positionController.isClosed) {
+      _positionController.add(Duration.zero);
+    }
+    if (!_durationController.isClosed) {
+      _durationController.add(null);
+    }
   }
 
   void _rewindIfCompleted() {
@@ -178,9 +226,15 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.pause();
     _element.removeEventListener('ended', _endedListener);
     _element.removeEventListener('timeupdate', _timeUpdateListener);
+    _element.removeEventListener('durationchange', _durationChangeListener);
+    _element.removeEventListener('loadedmetadata', _durationChangeListener);
     _element.removeEventListener('error', _errorListener);
     _element.removeAttribute('src');
     _element.load();
-    await _playingController.close();
+    await Future.wait<void>(<Future<void>>[
+      _playingController.close(),
+      _positionController.close(),
+      _durationController.close(),
+    ]);
   }
 }
