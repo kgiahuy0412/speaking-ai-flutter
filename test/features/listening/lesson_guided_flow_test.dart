@@ -9,6 +9,7 @@ import 'package:ai_speaking_flutter_app/features/listening/domain/listening_cont
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_practice_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_review_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/listening_route_names.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,13 +40,24 @@ void main() {
       expect(find.text('Đến lượt con rồi!'), findsOneWidget);
       expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
 
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(
-        find.byKey(const Key('lesson-coach-popup-firstReminder')),
-        findsNothing,
+      final firstReminder = find.byKey(
+        const Key('lesson-coach-popup-firstReminder'),
       );
-      await tester.pump(const Duration(milliseconds: 700));
+      final firstReminderBlocker = find.byKey(
+        const Key('lesson-coach-popup-interaction-blocker'),
+      );
+      expect(firstReminderBlocker, findsOneWidget);
+      expect(
+        tester.widget<AbsorbPointer>(firstReminderBlocker).absorbing,
+        isTrue,
+      );
+
+      await tester.pump(const Duration(milliseconds: 2499));
+      expect(firstReminder, findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(firstReminder, findsNothing);
+      await tester.pump(const Duration(milliseconds: 1500));
       await tester.pump();
       expect(find.byKey(const Key('skip-lesson-sentence')), findsOneWidget);
       expect(
@@ -58,8 +70,24 @@ void main() {
       );
       expect(find.text('Sentence 1'), findsOneWidget);
 
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(
+        find.byKey(const Key('skip-lesson-sentence')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(
+        find.byKey(const Key('lesson-coach-popup-secondReminder')),
+        findsOneWidget,
+      );
+
+      await tester.pump(const Duration(milliseconds: 2499));
+      expect(
+        find.byKey(const Key('lesson-coach-popup-secondReminder')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
       expect(
         find.byKey(const Key('lesson-coach-popup-secondReminder')),
         findsNothing,
@@ -81,7 +109,7 @@ void main() {
   );
 
   testWidgets(
-    'successful recording shows praise, latest recording and four actions',
+    'successful recording shows non-blocking fireworks and four actions',
     (tester) async {
       await _usePhoneSurface(tester);
       final mediaService = _GuidedMediaService();
@@ -95,49 +123,161 @@ void main() {
       await _finishInitialLoad(tester);
 
       final recordButton = find.byKey(const Key('record-lesson-sentence'));
+      final playedBeforeRecording = List<Uri>.of(mediaService.playedUris);
       await tester.tap(recordButton);
       await tester.pump();
       await tester.pump();
       expect(mediaService.recording, isTrue);
-      expect(
-        mediaService.playedUris.last.path,
-        '/assets/audio/A-3-5/GUIDE_RECORD/record.mp3',
-      );
+      expect(mediaService.playedUris, playedBeforeRecording);
 
       await tester.tap(recordButton);
       await tester.pump();
       await tester.pump();
 
+      expect(find.byKey(const Key('lesson-praise-fireworks')), findsOneWidget);
       expect(
-        find.byKey(const Key('lesson-coach-popup-praise')),
+        find.byKey(const Key('lesson-praise-fireworks-left')),
         findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('lesson-praise-fireworks-right')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<IgnorePointer>(
+              find.byKey(const Key('lesson-praise-fireworks-interaction')),
+            )
+            .ignoring,
+        isTrue,
       );
       expect(
         mediaService.playedUris.last.path,
         '/assets/audio/A-3-5/GUIDE_PRAISE/praise.mp3',
       );
-      expect(find.text('Con làm tuyệt lắm!'), findsOneWidget);
+      expect(find.byKey(const Key('lesson-coach-popup-praise')), findsNothing);
+      expect(find.text('Con làm tuyệt lắm!'), findsNothing);
+      expect(find.textContaining('Bản ghi đã được lưu'), findsNothing);
       expect(find.text('Bản ghi của con'), findsOneWidget);
       expect(find.text('Nghe câu mẫu'), findsOneWidget);
       expect(find.text('Nghe bản ghi'), findsOneWidget);
       expect(find.text('Ghi âm lại'), findsOneWidget);
       expect(find.text('Câu tiếp theo'), findsOneWidget);
 
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byKey(const Key('lesson-coach-popup-praise')), findsNothing);
-      expect(find.text('Sentence 1'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
-      expect(find.text('Sentence 1'), findsOneWidget);
-
+      final playedBeforeContinue = List<Uri>.of(mediaService.playedUris);
       await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
       await tester.pump();
       await tester.pump();
       await tester.pump();
       expect(find.text('Sentence 2'), findsOneWidget);
+      expect(find.byKey(const Key('lesson-praise-fireworks')), findsNothing);
+      expect(mediaService.playedUris, playedBeforeContinue);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'sample and Vietnamese audio finish before the record guide plays',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final sampleUri = Uri.parse('https://example.test/english.mp3');
+      final vietnameseUri = Uri.parse('https://example.test/vietnamese.mp3');
+      final recordGuideUri = Uri(
+        scheme: 'asset',
+        path: '/assets/audio/A-3-5/GUIDE_RECORD/record.mp3',
+      );
+      final mediaService = _ControlledLessonAudioMediaService();
+      await tester.pumpWidget(
+        _subject(
+          _lesson(
+            sentenceAudioUri: sampleUri,
+            vietnameseAudioUri: vietnameseUri,
+          ),
+          mediaService,
+          guideAudioLibrary: _guideAudioLibrary(),
+        ),
+      );
+      await _finishInitialLoad(tester);
+      mediaService.playedUris.clear();
+
+      await tester.tap(find.byKey(const Key('play-lesson-sample')));
+      await tester.pump();
+      expect(mediaService.playedUris, <Uri>[sampleUri]);
+
+      mediaService.finishNextLessonAudio();
+      await tester.pump();
+      await tester.pump();
+      expect(mediaService.playedUris, <Uri>[sampleUri, recordGuideUri]);
+
+      await tester.tap(find.byKey(const Key('play-vietnamese-meaning')));
+      await tester.pump();
+      expect(mediaService.playedUris, <Uri>[
+        sampleUri,
+        recordGuideUri,
+        vietnameseUri,
+      ]);
+
+      mediaService.finishNextLessonAudio();
+      await tester.pump();
+      await tester.pump();
+      expect(mediaService.playedUris, <Uri>[
+        sampleUri,
+        recordGuideUri,
+        vietnameseUri,
+        recordGuideUri,
+      ]);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'completion opens the learned review without playing the ending guide',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService();
+      await tester.pumpWidget(
+        _subject(
+          _lesson(),
+          mediaService,
+          guideAudioLibrary: _guideAudioLibrary(),
+        ),
+      );
+      await _finishInitialLoad(tester);
+
+      final recordButton = find.byKey(const Key('record-lesson-sentence'));
+      await tester.tap(recordButton);
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(recordButton);
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+      expect(find.text('Đã học'), findsOneWidget);
       expect(
-        mediaService.playedUris.last.path,
-        '/assets/audio/A-3-5/GUIDE_NEXT/next.mp3',
+        find.descendant(
+          of: find.byKey(const Key('post-lesson-primary-action')),
+          matching: find.text('Luyện nghe'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Luyện lại từ đầu'), findsOneWidget);
+      expect(find.text('Nghe tổng quan'), findsNothing);
+      expect(find.byKey(const Key('auto-play-lesson-review')), findsNothing);
+      expect(find.byKey(const Key('complete-lesson-review')), findsNothing);
+
+      expect(
+        mediaService.playedUris.where(
+          (uri) => uri.path.contains('/GUIDE_ENDING/'),
+        ),
+        isEmpty,
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -145,43 +285,223 @@ void main() {
     },
   );
 
-  testWidgets('completion plays the ending guide', (tester) async {
+  testWidgets('learned review opens the next lesson in the same topic', (
+    tester,
+  ) async {
     await _usePhoneSurface(tester);
-    final mediaService = _GuidedMediaService();
+    final nextIntroUri = Uri.parse('https://example.test/next-intro.mp3');
+    final firstLesson = _lesson(id: 'first-lesson', intro: 'Mở đầu bài một.');
+    final nextLesson = _lesson(
+      id: 'next-lesson',
+      number: 2,
+      intro: 'Mở đầu bài tiếp theo.',
+      introAudioUri: nextIntroUri,
+    );
+    final topicContent = _topicContent(<ListeningLessonContent>[
+      firstLesson,
+      nextLesson,
+    ]);
+
+    final mediaService = _ControlledNextIntroMediaService(nextIntroUri);
     await tester.pumpWidget(
       _subject(
-        _lesson(),
+        firstLesson,
         mediaService,
-        guideAudioLibrary: _guideAudioLibrary(),
+        guideAudioLibrary: LessonGuideAudioLibrary(
+          assetPaths: const <String>[],
+        ),
+        topicContent: topicContent,
       ),
     );
     await _finishInitialLoad(tester);
+    await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+    await tester.pump();
+    await tester.pump();
 
-    final recordButton = find.byKey(const Key('record-lesson-sentence'));
-    await tester.tap(recordButton);
+    expect(find.text('Đã học'), findsOneWidget);
+    expect(find.text('Bài tiếp theo'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('post-lesson-primary-action')));
     await tester.pump();
     await tester.pump();
-    await tester.tap(recordButton);
+
+    expect(find.byType(LessonIntroScreen), findsOneWidget);
+    expect(find.text('Mở đầu bài tiếp theo.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 20));
+    expect(find.byType(LessonIntroScreen), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+
+    mediaService.finishNextIntro();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.byType(LessonPracticeScreen), findsOneWidget);
+    expect(find.text('Sentence 1'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('learned review restarts the current lesson from sentence one', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final progressStore = _MemoryProgressStore();
+    await tester.pumpWidget(
+      _subject(
+        _lesson(sentenceCount: 2),
+        _GuidedMediaService(),
+        progressStore: progressStore,
+      ),
+    );
+    await _finishInitialLoad(tester);
+    for (var index = 0; index < 2; index++) {
+      await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    expect(find.text('Đã học'), findsOneWidget);
+    expect(progressStore.currentSentence, 1);
+    await tester.tap(find.byKey(const Key('restart-lesson-review')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(LessonPracticeScreen), findsOneWidget);
+    expect(find.text('Sentence 1'), findsOneWidget);
+    expect(progressStore.currentSentence, 0);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('last learned lesson returns to the selected listening topic', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final lesson = _lesson(id: 'last-lesson');
+    final topicContent = _topicContent(<ListeningLessonContent>[lesson]);
+    final mediaService = _GuidedMediaService();
+    final progressStore = _MemoryProgressStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            key: const Key('selected-listening-topic'),
+            body: FilledButton(
+              key: const Key('open-last-lesson'),
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LessonPracticeScreen(
+                      language: DisplayLanguage.vietnamese,
+                      startAge: 3,
+                      endAge: 5,
+                      topic: listeningCatalogs.first.topics.first,
+                      lesson: lesson,
+                      topicContent: topicContent,
+                      progressStore: progressStore,
+                      mediaService: mediaService,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Mở bài cuối'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('open-last-lesson')));
     await tester.pump();
     await tester.pump();
     await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
-
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    await tester.pump(const Duration(seconds: 6));
-    await tester.tap(find.byKey(const Key('complete-lesson-review')));
     await tester.pump();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
 
     expect(
-      mediaService.playedUris.last.path,
-      '/assets/audio/A-3-5/GUIDE_ENDING/ending.mp3',
+      find.descendant(
+        of: find.byKey(const Key('post-lesson-primary-action')),
+        matching: find.text('Luyện nghe'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('post-lesson-primary-action')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('selected-listening-topic')), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+    expect(find.byType(LessonReviewScreen), findsNothing);
+  });
+
+  testWidgets('listening action pops the topic detail to the age catalog', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final lesson = _lesson(id: 'catalog-return-lesson');
+    final topicContent = _topicContent(<ListeningLessonContent>[lesson]);
+    final mediaService = _GuidedMediaService();
+    final progressStore = _MemoryProgressStore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        initialRoute: ListeningRouteNames.topicCatalog,
+        routes: <String, WidgetBuilder>{
+          ListeningRouteNames.topicCatalog: (context) => Scaffold(
+            key: const Key('selected-age-topic-catalog'),
+            body: FilledButton(
+              key: const Key('open-topic-detail'),
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (context) => Scaffold(
+                    key: const Key('topic-detail'),
+                    body: FilledButton(
+                      key: const Key('open-catalog-return-lesson'),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => LessonPracticeScreen(
+                            language: DisplayLanguage.vietnamese,
+                            startAge: 6,
+                            endAge: 7,
+                            topic: listeningCatalogs[1].topics.first,
+                            lesson: lesson,
+                            topicContent: topicContent,
+                            progressStore: progressStore,
+                            mediaService: mediaService,
+                          ),
+                        ),
+                      ),
+                      child: const Text('Open lesson'),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('Open topic detail'),
+            ),
+          ),
+        },
+      ),
     );
 
-    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.tap(find.byKey(const Key('open-topic-detail')));
     await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('open-catalog-return-lesson')));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('post-lesson-primary-action')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('selected-age-topic-catalog')), findsOneWidget);
+    expect(find.byKey(const Key('topic-detail')), findsNothing);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+    expect(find.byType(LessonReviewScreen), findsNothing);
   });
 
   testWidgets(
@@ -211,17 +531,18 @@ void main() {
     },
   );
 
-  testWidgets('review lists English only and marks skipped sentences gently', (
+  testWidgets('review uses overview copy and neutral English sentence cards', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
         home: LessonReviewScreen(
           language: DisplayLanguage.vietnamese,
           lesson: _lesson(sentenceCount: 2),
-          mediaService: _GuidedMediaService(),
+          mediaService: mediaService,
           unrecordedSentenceIndexes: const <int>{1},
         ),
       ),
@@ -233,13 +554,22 @@ void main() {
     expect(find.text('Sentence 2'), findsOneWidget);
     expect(find.text('Câu 1'), findsNothing);
     expect(find.text('Câu 2'), findsNothing);
-    expect(find.text('Chưa ghi âm'), findsOneWidget);
+    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    expect(find.textContaining('câu tiếng Anh đã học'), findsNothing);
+    expect(find.text('Chưa ghi âm'), findsNothing);
+    expect(find.text('Sẵn sàng nghe lại'), findsNothing);
+    expect(find.text('Đang tự động phát'), findsNothing);
+    expect(find.byKey(const Key('unrecorded-sentences-banner')), findsNothing);
+    expect(find.byKey(const Key('auto-play-lesson-review')), findsOneWidget);
+    expect(find.text('Tự động phát'), findsOneWidget);
+    expect(find.byIcon(Icons.play_circle_outline_rounded), findsOneWidget);
+    expect(mediaService.playedUris, isEmpty);
     expect(find.byKey(const Key('complete-lesson-review')), findsOneWidget);
     var completeButton = tester.widget<FilledButton>(
       find.byKey(const Key('complete-lesson-review')),
     );
     expect(completeButton.onPressed, isNull);
-    expect(find.text('Hoàn thành sau 6 giây'), findsOneWidget);
+    expect(find.text('Học ngay sau 6 giây'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     completeButton = tester.widget<FilledButton>(
@@ -252,59 +582,138 @@ void main() {
       find.byKey(const Key('complete-lesson-review')),
     );
     expect(completeButton.onPressed, isNotNull);
-    expect(find.text('Hoàn thành bài'), findsOneWidget);
+    expect(find.text('Học ngay'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
 
-  testWidgets(
-    'review derives every unrecorded sentence from saved recordings',
-    (tester) async {
-      await _usePhoneSurface(tester);
-      final mediaService = _GuidedMediaService(
-        recordedSentenceNumbers: const <int>{2},
-      );
-      await tester.pumpWidget(
-        _subject(_lesson(sentenceCount: 3), mediaService),
-      );
-      await _finishInitialLoad(tester);
+  testWidgets('review only auto-plays after the toggle is activated', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final audioUri = Uri.parse('https://example.test/overview.mp3');
+    final mediaService = _ControlledLessonAudioMediaService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonReviewScreen(
+          language: DisplayLanguage.vietnamese,
+          lesson: _lesson(sentenceCount: 2, sentenceAudioUri: audioUri),
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
 
-      for (var index = 0; index < 3; index++) {
-        await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
-        await tester.pump();
-        await tester.pump();
-      }
+    expect(_reviewTileBorder(tester, 1).top.color, AppColors.lavenderBorder);
+    expect(_reviewTileBorder(tester, 2).top.color, AppColors.lavenderBorder);
+    expect(mediaService.playedUris, isEmpty);
+    expect(find.byIcon(Icons.play_circle_outline_rounded), findsOneWidget);
 
-      expect(find.byType(LessonReviewScreen), findsOneWidget);
-      expect(find.text('2 câu chưa ghi âm'), findsOneWidget);
-      expect(find.textContaining('không sao đâu'), findsNothing);
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('review-sentence-1')))
-            .style
-            ?.fontWeight,
-        FontWeight.w800,
-      );
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('review-sentence-2')))
-            .style
-            ?.fontWeight,
-        FontWeight.w600,
-      );
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('review-sentence-3')))
-            .style
-            ?.fontWeight,
-        FontWeight.w800,
-      );
+    await tester.tap(find.byKey(const Key('auto-play-lesson-review')));
+    await tester.pump();
+    await tester.pump();
 
-      await tester.pumpWidget(const SizedBox.shrink());
+    expect(_reviewTileBorder(tester, 1).top.color, AppColors.indigo);
+    expect(_reviewTileBorder(tester, 1).top.width, 1.5);
+    expect(_reviewTileBorder(tester, 2).top.color, AppColors.lavenderBorder);
+    expect(mediaService.playedUris, <Uri>[audioUri]);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('auto-play-lesson-review')),
+        matching: find.byIcon(Icons.graphic_eq_rounded),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(seconds: 10));
+    expect(_reviewTileBorder(tester, 1).top.color, AppColors.indigo);
+
+    mediaService.finishNextLessonAudio();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    expect(_reviewTileBorder(tester, 1).top.color, AppColors.lavenderBorder);
+    expect(_reviewTileBorder(tester, 2).top.color, AppColors.indigo);
+    expect(_reviewTileBorder(tester, 2).top.width, 1.5);
+
+    await tester.tap(find.byKey(const Key('auto-play-lesson-review')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(_reviewTileBorder(tester, 2).top.color, AppColors.lavenderBorder);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('auto-play-lesson-review')),
+        matching: find.byIcon(Icons.play_circle_outline_rounded),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('learned review highlights recorded and unrecorded sentences', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService(
+      recordedSentenceNumbers: const <int>{2},
+    );
+    await tester.pumpWidget(_subject(_lesson(sentenceCount: 3), mediaService));
+    await _finishInitialLoad(tester);
+
+    for (var index = 0; index < 3; index++) {
+      await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
       await tester.pump();
-    },
-  );
+      await tester.pump();
+    }
+
+    expect(find.byType(LessonReviewScreen), findsOneWidget);
+    expect(find.text('2 câu chưa ghi âm'), findsNothing);
+    expect(find.textContaining('không sao đâu'), findsNothing);
+    expect(find.text('Đã ghi âm'), findsOneWidget);
+    expect(find.text('Chưa ghi âm'), findsNWidgets(2));
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.mic_off_rounded), findsNWidgets(2));
+    expect(
+      (tester
+                  .widget<AnimatedContainer>(
+                    find.byKey(const ValueKey('review-sentence-tile-1')),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
+      AppColors.coralSoft,
+    );
+    expect(
+      (tester
+                  .widget<AnimatedContainer>(
+                    find.byKey(const ValueKey('review-sentence-tile-2')),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
+      AppColors.successSoft,
+    );
+    expect(
+      (tester
+                  .widget<AnimatedContainer>(
+                    find.byKey(const ValueKey('review-sentence-tile-3')),
+                  )
+                  .decoration
+              as BoxDecoration)
+          .color,
+      AppColors.coralSoft,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets('lesson intro waits until its audio really finishes', (
     tester,
@@ -373,6 +782,8 @@ Widget _subject(
   ListeningLessonContent lesson,
   LessonMediaService mediaService, {
   LessonGuideAudioLibrary? guideAudioLibrary,
+  ListeningTopicContent? topicContent,
+  ListeningProgressStore? progressStore,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -383,11 +794,19 @@ Widget _subject(
       endAge: 5,
       topic: listeningCatalogs.first.topics.first,
       lesson: lesson,
-      progressStore: _MemoryProgressStore(),
+      topicContent: topicContent,
+      progressStore: progressStore ?? _MemoryProgressStore(),
       mediaService: mediaService,
       guideAudioLibrary: guideAudioLibrary,
     ),
   );
+}
+
+Border _reviewTileBorder(WidgetTester tester, int sentenceNumber) {
+  final tile = tester.widget<AnimatedContainer>(
+    find.byKey(ValueKey('review-sentence-tile-$sentenceNumber')),
+  );
+  return (tile.decoration! as BoxDecoration).border! as Border;
 }
 
 LessonGuideAudioLibrary _guideAudioLibrary() {
@@ -406,18 +825,23 @@ LessonGuideAudioLibrary _guideAudioLibrary() {
 }
 
 ListeningLessonContent _lesson({
+  String id = 'guided-flow',
+  int number = 1,
+  String intro = 'Bắt đầu.',
   int sentenceCount = 1,
   ListeningLessonType type = ListeningLessonType.standard,
   String voice = '',
   Uri? introAudioUri,
+  Uri? sentenceAudioUri,
+  Uri? vietnameseAudioUri,
 }) {
   return ListeningLessonContent(
-    id: 'guided-flow',
+    id: id,
     code: 'GUIDED_FLOW',
-    number: 1,
+    number: number,
     titleVi: 'Bài hướng dẫn',
     titleEn: 'Guided lesson',
-    intro: 'Bắt đầu.',
+    intro: intro,
     introAudioUri: introAudioUri,
     outro: 'Hoàn thành.',
     estimatedMinutes: 1,
@@ -426,13 +850,25 @@ ListeningLessonContent _lesson({
     sentences: List<ListeningSentenceContent>.generate(
       sentenceCount,
       (index) => ListeningSentenceContent(
-        id: 'GUIDED_FLOW_S${index + 1}',
+        id: '${id.toUpperCase()}_S${index + 1}',
         number: index + 1,
         voice: voice,
         english: 'Sentence ${index + 1}',
+        audioUri: sentenceAudioUri,
+        vietnameseAudioUri: vietnameseAudioUri,
         vietnamese: 'Câu ${index + 1}',
       ),
     ),
+  );
+}
+
+ListeningTopicContent _topicContent(List<ListeningLessonContent> lessons) {
+  return ListeningTopicContent(
+    id: 'guided-topic',
+    number: 1,
+    titleVi: 'Chủ đề hướng dẫn',
+    titleEn: 'Guided topic',
+    lessons: lessons,
   );
 }
 
@@ -493,6 +929,39 @@ class _GuidedMediaService extends LessonMediaService {
   Future<void> dispose() async {}
 }
 
+class _ControlledLessonAudioMediaService extends _GuidedMediaService {
+  final List<Completer<void>> _pendingLessonAudio = <Completer<void>>[];
+
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    playedUris.add(uri);
+    if (uri.scheme == 'asset') {
+      return;
+    }
+    final completion = Completer<void>();
+    _pendingLessonAudio.add(completion);
+    await completion.future;
+  }
+
+  void finishNextLessonAudio() {
+    _pendingLessonAudio.removeAt(0).complete();
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    final pending = List<Completer<void>>.of(_pendingLessonAudio);
+    _pendingLessonAudio.clear();
+    for (final completion in pending) {
+      if (!completion.isCompleted) {
+        completion.complete();
+      }
+    }
+  }
+}
+
 class _ControlledIntroMediaService extends LessonMediaService {
   final Completer<void> _completion = Completer<void>();
 
@@ -513,6 +982,40 @@ class _ControlledIntroMediaService extends LessonMediaService {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _ControlledNextIntroMediaService extends _GuidedMediaService {
+  _ControlledNextIntroMediaService(this.nextIntroUri);
+
+  final Uri nextIntroUri;
+  final Completer<void> _nextIntroCompletion = Completer<void>();
+  bool _nextIntroStarted = false;
+
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    playedUris.add(uri);
+    if (uri != nextIntroUri) {
+      return;
+    }
+    _nextIntroStarted = true;
+    await _nextIntroCompletion.future;
+  }
+
+  void finishNextIntro() {
+    if (!_nextIntroCompletion.isCompleted) {
+      _nextIntroCompletion.complete();
+    }
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    if (_nextIntroStarted && !_nextIntroCompletion.isCompleted) {
+      _nextIntroCompletion.complete();
+    }
+  }
 }
 
 class _MemoryProgressStore extends ListeningProgressStore {
