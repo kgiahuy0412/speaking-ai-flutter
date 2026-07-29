@@ -177,7 +177,7 @@ void main() {
     );
   });
 
-  testWidgets('recording praise popup matches the approved direction', (
+  testWidgets('recording praise fireworks match the approved direction', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -210,7 +210,7 @@ void main() {
 
     await expectLater(
       find.byType(LessonPracticeScreen),
-      matchesGoldenFile('goldens/lesson-praise-popup-390x844.png'),
+      matchesGoldenFile('goldens/lesson-praise-fireworks-390x844.png'),
     );
   });
 
@@ -228,8 +228,16 @@ void main() {
         ),
       ),
     );
+    await _precache(tester, find.byType(LessonReviewScreen), const <AssetImage>[
+      AssetImage('assets/images/mascot-robot-pointing.png'),
+    ]);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const Key('review-first-sentence-mascot')),
+      findsOneWidget,
+    );
 
     await expectLater(
       find.byType(LessonReviewScreen),
@@ -237,9 +245,45 @@ void main() {
     );
   });
 
-  testWidgets('lesson completion celebrates the child', (tester) async {
+  testWidgets('overview play controls fit a compact phone', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 568));
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+
+    await tester.pumpWidget(
+      _GoldenApp(
+        child: LessonReviewScreen(
+          language: DisplayLanguage.vietnamese,
+          lesson: topicContent.lessons.first,
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await _precache(tester, find.byType(LessonReviewScreen), const <AssetImage>[
+      AssetImage('assets/images/mascot-robot-pointing.png'),
+    ]);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.byKey(const Key('review-first-sentence-mascot')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('review-sentence-play-5')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('lesson learned review matches the approved direction', (
+    tester,
+  ) async {
     await _usePhoneSurface(tester);
     final lesson = topicContent.lessons.first;
+    mediaService.recordedSentenceNumbers = const <int>{1, 3, 5};
     progressStore = _GoldenProgressStore(
       currentSentence: lesson.sentences.length - 1,
     );
@@ -251,6 +295,7 @@ void main() {
           endAge: 5,
           topic: listeningCatalogs.first.topics.first,
           lesson: lesson,
+          topicContent: topicContent,
           progressStore: progressStore,
           mediaService: mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
@@ -267,12 +312,12 @@ void main() {
     await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    final completeReview = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(completeReview);
-    await tester.pump(const Duration(seconds: 6));
-    await tester.tap(completeReview);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 650));
+    expect(find.text('Đã học'), findsOneWidget);
+    expect(find.text('Bài tiếp theo'), findsOneWidget);
+    expect(find.text('Luyện lại từ đầu'), findsOneWidget);
+    expect(find.text('Đã ghi âm'), findsNWidgets(3));
+    expect(find.text('Chưa ghi âm'), findsNWidgets(2));
+    expect(find.byKey(const Key('review-first-sentence-mascot')), findsNothing);
 
     await expectLater(
       find.byType(MaterialApp),
@@ -303,6 +348,7 @@ LessonGuideAudioLibrary _silentGuideAudioLibrary() {
 class _GoldenMediaService extends LessonMediaService {
   bool showExistingRecording = false;
   bool recording = false;
+  Set<int> recordedSentenceNumbers = const <int>{};
 
   @override
   Future<String?> existingRecording({
@@ -310,7 +356,10 @@ class _GoldenMediaService extends LessonMediaService {
     required int sentenceNumber,
     String? sentenceId,
   }) async {
-    return showExistingRecording ? 'C:\\preview\\recording.m4a' : null;
+    return showExistingRecording ||
+            recordedSentenceNumbers.contains(sentenceNumber)
+        ? 'C:\\preview\\recording.m4a'
+        : null;
   }
 
   @override

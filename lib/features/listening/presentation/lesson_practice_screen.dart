@@ -10,9 +10,11 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'lesson_review_screen.dart';
 import 'listening_navigation_bar.dart';
+import 'listening_route_names.dart';
 
 class LessonPracticeScreen extends StatefulWidget {
   const LessonPracticeScreen({
@@ -25,6 +27,7 @@ class LessonPracticeScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.guideAudioLibrary,
+    this.topicContent,
     super.key,
   });
 
@@ -37,6 +40,7 @@ class LessonPracticeScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
+  final ListeningTopicContent? topicContent;
 
   @override
   State<LessonPracticeScreen> createState() => _LessonPracticeScreenState();
@@ -54,9 +58,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   final Set<int> _skippedSentenceIndexes = <int>{};
   Timer? _idleReminderTimer;
   Timer? _coachPopupTimer;
+  Timer? _praiseFireworksTimer;
   late final LessonGuideAudioLibrary _guideAudioLibrary;
   bool _recordingStartPending = false;
   int _recordingStartRequest = 0;
+  int _praiseFireworksSequence = 0;
+  bool _praiseFireworksVisible = false;
+  bool _handingOffMediaPlayback = false;
 
   ListeningSentenceContent get _sentence =>
       widget.lesson.sentences[_sentenceIndex];
@@ -73,10 +81,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     _recordingStartRequest += 1;
     _cancelIdleReminder();
     _coachPopupTimer?.cancel();
+    _praiseFireworksTimer?.cancel();
     if (_recording) {
       widget.mediaService.cancelRecording();
     }
-    widget.mediaService.stopPlayback();
+    if (!_handingOffMediaPlayback) {
+      widget.mediaService.stopPlayback();
+    }
     super.dispose();
   }
 
@@ -242,26 +253,49 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
             ),
             Positioned.fill(
               child: IgnorePointer(
+                key: const Key('lesson-praise-fireworks-interaction'),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  reverseDuration: const Duration(milliseconds: 220),
-                  transitionBuilder: (child, animation) {
-                    final curved = CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutBack,
-                      reverseCurve: Curves.easeInCubic,
-                    );
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(scale: curved, child: child),
-                    );
-                  },
-                  child: _coachPopupKind == null
-                      ? const SizedBox.shrink()
-                      : _LessonCoachPopup(
-                          key: ValueKey(_coachPopupKind),
-                          kind: _coachPopupKind!,
-                        ),
+                  duration: const Duration(milliseconds: 180),
+                  reverseDuration: const Duration(milliseconds: 180),
+                  child: _praiseFireworksVisible
+                      ? _LessonPraiseFireworks(
+                          key: ValueKey(_praiseFireworksSequence),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: AbsorbPointer(
+                key: const Key('lesson-coach-popup-interaction-blocker'),
+                absorbing:
+                    _coachPopupKind == _LessonCoachPopupKind.firstReminder ||
+                    _coachPopupKind == _LessonCoachPopupKind.secondReminder,
+                child: IgnorePointer(
+                  ignoring:
+                      _coachPopupKind != _LessonCoachPopupKind.firstReminder &&
+                      _coachPopupKind != _LessonCoachPopupKind.secondReminder,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    reverseDuration: Duration.zero,
+                    transitionBuilder: (child, animation) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutBack,
+                        reverseCurve: Curves.easeInCubic,
+                      );
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(scale: curved, child: child),
+                      );
+                    },
+                    child: _coachPopupKind == null
+                        ? const SizedBox.shrink()
+                        : _LessonCoachPopup(
+                            key: ValueKey(_coachPopupKind),
+                            kind: _coachPopupKind!,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -290,7 +324,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _scheduleIdleReminder();
       return;
     }
-    await _runMediaAction(() => widget.mediaService.play(uri));
+    await _runMediaAction(() => _playLessonAudioThenRecordGuide(uri));
     if (_recordingPath == null) {
       _scheduleIdleReminder();
     }
@@ -312,7 +346,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       }
       return;
     }
-    await _runMediaAction(() => widget.mediaService.play(uri));
+    await _runMediaAction(() => _playLessonAudioThenRecordGuide(uri));
     if (_recordingPath == null) {
       _scheduleIdleReminder();
     }
@@ -370,10 +404,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _message = null;
     });
     try {
-      await _playGuideCue(LessonGuideCue.record);
-      if (!mounted || request != _recordingStartRequest) {
-        return;
-      }
       await widget.mediaService.startRecording(
         lessonId: widget.lesson.id,
         sentenceNumber: _sentence.number,
@@ -443,7 +473,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       } catch (_) {
         // The successful recording remains usable even if progress sync fails.
       }
-      _showCoachPopup(_LessonCoachPopupKind.praise);
+      _showPraiseFireworks();
       unawaited(_playGuideCue(LessonGuideCue.praise));
     } catch (error) {
       if (mounted) {
@@ -459,13 +489,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     }
   }
 
-  Future<void> _continue() =>
-      _advanceToNext(playNextGuide: true, autoPlaySentence: false);
+  Future<void> _continue() => _advanceToNext(autoPlaySentence: false);
 
-  Future<void> _advanceToNext({
-    required bool playNextGuide,
-    required bool autoPlaySentence,
-  }) async {
+  Future<void> _advanceToNext({required bool autoPlaySentence}) async {
     if (_recording || _mediaBusy) {
       return;
     }
@@ -490,12 +516,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     );
     if (!mounted) {
       return;
-    }
-    if (playNextGuide) {
-      await _playGuideCueWithBusyState(LessonGuideCue.next);
-      if (!mounted) {
-        return;
-      }
     }
     setState(() {
       _sentenceIndex = nextSentence;
@@ -568,7 +588,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       });
     }
     await _playGuideCueWithBusyState(LessonGuideCue.skip);
-    await _advanceToNext(playNextGuide: false, autoPlaySentence: true);
+    await _advanceToNext(autoPlaySentence: true);
   }
 
   Future<void> _openReview() async {
@@ -578,38 +598,115 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     if (!mounted) {
       return;
     }
-    final result = await Navigator.of(context).push<int>(
-      MaterialPageRoute<int>(
+    final nextLesson = _nextLessonInTopic;
+    final result = await Navigator.of(context).push<LessonReviewAction>(
+      MaterialPageRoute<LessonReviewAction>(
         builder: (_) => LessonReviewScreen(
           language: widget.language,
           lesson: widget.lesson,
           mediaService: widget.mediaService,
           unrecordedSentenceIndexes: unrecordedSentenceIndexes,
+          mode: LessonReviewMode.learned,
+          hasNextLesson: nextLesson != null,
         ),
       ),
     );
     if (!mounted || result == null) {
       return;
     }
-    if (result < 0) {
-      await _showCompletion();
+    switch (result) {
+      case LessonReviewAction.nextLesson:
+        if (nextLesson != null) {
+          await _openNextLesson(nextLesson);
+        } else {
+          _returnToListening();
+        }
+        return;
+      case LessonReviewAction.restartLesson:
+        await _restartCurrentLesson();
+        return;
+      case LessonReviewAction.returnToListening:
+        _returnToListening();
+        return;
+    }
+  }
+
+  ListeningLessonContent? get _nextLessonInTopic {
+    final content = widget.topicContent;
+    if (content == null) {
+      return null;
+    }
+    final lessons =
+        content.lessons.any((lesson) => lesson.id == widget.lesson.id)
+        ? content.lessons
+        : content.songs.any((lesson) => lesson.id == widget.lesson.id)
+        ? content.songs
+        : const <ListeningLessonContent>[];
+    final currentIndex = lessons.indexWhere(
+      (lesson) => lesson.id == widget.lesson.id,
+    );
+    if (currentIndex < 0 || currentIndex >= lessons.length - 1) {
+      return null;
+    }
+    return lessons[currentIndex + 1];
+  }
+
+  Future<void> _openNextLesson(ListeningLessonContent lesson) async {
+    await widget.mediaService.stopPlayback();
+    await widget.progressStore.saveCurrentSentence(lesson.id, 0);
+    if (!mounted) {
       return;
     }
-    final retryIndex = result.clamp(0, widget.lesson.sentences.length - 1);
-    await widget.progressStore.saveCurrentSentence(
-      widget.lesson.id,
-      retryIndex,
+    // The next intro reuses this media service and may start before Flutter
+    // disposes the replaced practice route. Do not let the old route's
+    // dispose() stop the new route's intro audio.
+    _handingOffMediaPlayback = true;
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => LessonIntroScreen(
+          language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
+          topic: widget.topic,
+          lesson: lesson,
+          controller: widget.controller,
+          topicContent: widget.topicContent,
+          progressStore: widget.progressStore,
+          mediaService: widget.mediaService,
+        ),
+      ),
     );
+  }
+
+  Future<void> _restartCurrentLesson() async {
+    try {
+      await widget.progressStore.clearSkippedSentences(widget.lesson.id);
+    } catch (_) {
+      // Restarting still works when local progress storage is unavailable.
+    }
+    await widget.progressStore.saveCurrentSentence(widget.lesson.id, 0);
     if (!mounted) {
       return;
     }
     setState(() {
-      _sentenceIndex = retryIndex;
+      _sentenceIndex = 0;
+      _skippedSentenceIndexes.clear();
       _recordingPath = null;
       _recordingDuration = null;
       _message = null;
     });
     await _activateCurrentSentence(autoPlay: true);
+  }
+
+  void _returnToListening() {
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).popUntil(
+      (route) =>
+          route.settings.name == ListeningRouteNames.topicCatalog ||
+          route.isFirst,
+    );
   }
 
   Future<Set<int>> _readUnrecordedSentenceIndexes() async {
@@ -684,6 +781,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     }
   }
 
+  Future<void> _playLessonAudioThenRecordGuide(Uri uri) async {
+    await widget.mediaService.playToCompletion(uri);
+    if (!mounted) {
+      return;
+    }
+    await _playGuideCue(LessonGuideCue.record);
+  }
+
   Future<void> _playGuideCueWithBusyState(LessonGuideCue cue) async {
     if (!mounted) {
       return;
@@ -704,7 +809,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       return;
     }
     setState(() => _coachPopupKind = kind);
-    _coachPopupTimer = Timer(const Duration(seconds: 3), () {
+    const displayDuration = Duration(milliseconds: 2500);
+    _coachPopupTimer = Timer(displayDuration, () {
       if (!mounted || _coachPopupKind != kind) {
         return;
       }
@@ -713,59 +819,34 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     });
   }
 
+  void _showPraiseFireworks() {
+    _praiseFireworksTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _praiseFireworksSequence += 1;
+      _praiseFireworksVisible = true;
+    });
+    _praiseFireworksTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (!mounted || !_praiseFireworksVisible) {
+        return;
+      }
+      setState(() => _praiseFireworksVisible = false);
+      _praiseFireworksTimer = null;
+    });
+  }
+
   void _hideCoachPopup() {
     _coachPopupTimer?.cancel();
     _coachPopupTimer = null;
-    if (mounted && _coachPopupKind != null) {
-      setState(() => _coachPopupKind = null);
-    }
-  }
-
-  Future<void> _showCompletion() async {
-    final guideUri = await _randomGuideUri(LessonGuideCue.ending);
-    if (!mounted) {
-      return;
-    }
-    final uri = guideUri ?? widget.lesson.outroAudioUri;
-    if (uri != null) {
-      unawaited(widget.mediaService.play(uri).catchError((_) {}));
-    }
-    final leaveLesson = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: AppColors.lavenderSoft,
-      builder: (sheetContext) => _CompletionSheet(
-        message: widget.lesson.outro,
-        onClose: () => Navigator.of(sheetContext).pop(true),
-        onReview: () => Navigator.of(sheetContext).pop(false),
-      ),
-    );
-    await widget.mediaService.stopPlayback();
-    if (!mounted) {
-      return;
-    }
-    if (leaveLesson == true) {
-      Navigator.of(context).pop();
-    } else if (leaveLesson == false) {
-      try {
-        await widget.progressStore.clearSkippedSentences(widget.lesson.id);
-      } catch (_) {
-        // Restarting still works when local progress storage is unavailable.
-      }
-      await widget.progressStore.saveCurrentSentence(widget.lesson.id, 0);
-      if (!mounted) {
-        return;
-      }
+    _praiseFireworksTimer?.cancel();
+    _praiseFireworksTimer = null;
+    if (mounted && (_coachPopupKind != null || _praiseFireworksVisible)) {
       setState(() {
-        _sentenceIndex = 0;
-        _skippedSentenceIndexes.clear();
-        _recordingPath = null;
-        _recordingDuration = null;
-        _message = null;
+        _coachPopupKind = null;
+        _praiseFireworksVisible = false;
       });
-      await _activateCurrentSentence(autoPlay: true);
     }
   }
 
@@ -1078,7 +1159,160 @@ class _RecordButton extends StatelessWidget {
   }
 }
 
-enum _LessonCoachPopupKind { praise, firstReminder, secondReminder }
+class _LessonPraiseFireworks extends StatefulWidget {
+  const _LessonPraiseFireworks({super.key});
+
+  @override
+  State<_LessonPraiseFireworks> createState() => _LessonPraiseFireworksState();
+}
+
+class _LessonPraiseFireworksState extends State<_LessonPraiseFireworks>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: const Key('lesson-praise-fireworks'),
+      liveRegion: true,
+      label: context.tr('Con làm tuyệt lắm!', '你做得太棒了！'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final leftProgress = _controller.value;
+              final rightProgress = (_controller.value + 0.18) % 1.0;
+              final top = constraints.maxHeight * 0.28;
+              return Stack(
+                children: <Widget>[
+                  Positioned(
+                    key: const Key('lesson-praise-fireworks-left'),
+                    left: 6,
+                    top: top,
+                    child: _PraiseFireworkBurst(
+                      progress: leftProgress,
+                      flipHorizontally: false,
+                    ),
+                  ),
+                  Positioned(
+                    key: const Key('lesson-praise-fireworks-right'),
+                    right: 6,
+                    top: top,
+                    child: _PraiseFireworkBurst(
+                      progress: rightProgress,
+                      flipHorizontally: true,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PraiseFireworkBurst extends StatelessWidget {
+  const _PraiseFireworkBurst({
+    required this.progress,
+    required this.flipHorizontally,
+  });
+
+  final double progress;
+  final bool flipHorizontally;
+
+  @override
+  Widget build(BuildContext context) {
+    final rise = Curves.easeOutCubic.transform(progress);
+    final fade = (1 - ((progress - 0.7) / 0.3)).clamp(0.0, 1.0).toDouble();
+    final scale = 0.72 + (Curves.easeOutBack.transform(progress) * 0.34);
+    return Transform.translate(
+      offset: Offset(0, 70 - (rise * 132)),
+      child: Opacity(
+        opacity: fade,
+        child: Transform.scale(
+          scale: scale,
+          child: Transform.flip(
+            flipX: flipHorizontally,
+            child: const SizedBox(
+              width: 104,
+              height: 168,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Positioned(
+                    left: 28,
+                    bottom: 8,
+                    child: Icon(
+                      Icons.celebration_rounded,
+                      color: Color(0xFFFFB84D),
+                      size: 48,
+                    ),
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 54,
+                    child: Icon(
+                      Icons.star_rounded,
+                      color: AppColors.periwinkle,
+                      size: 30,
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 34,
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      color: AppColors.coral,
+                      size: 28,
+                    ),
+                  ),
+                  Positioned(
+                    left: 39,
+                    top: 2,
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFFFFC75B),
+                      size: 25,
+                    ),
+                  ),
+                  Positioned(
+                    right: 17,
+                    top: 82,
+                    child: Icon(
+                      Icons.star_rounded,
+                      color: AppColors.indigo,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _LessonCoachPopupKind { firstReminder, secondReminder }
 
 class _LessonCoachPopup extends StatefulWidget {
   const _LessonCoachPopup({required this.kind, super.key});
@@ -1110,13 +1344,8 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
 
   @override
   Widget build(BuildContext context) {
-    final praise = widget.kind == _LessonCoachPopupKind.praise;
     final secondReminder = widget.kind == _LessonCoachPopupKind.secondReminder;
     final title = switch (widget.kind) {
-      _LessonCoachPopupKind.praise => context.tr(
-        'Con làm tuyệt lắm!',
-        '你做得太棒了！',
-      ),
       _LessonCoachPopupKind.firstReminder => context.tr(
         'Đến lượt con rồi!',
         '轮到你啦！',
@@ -1127,10 +1356,6 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
       ),
     };
     final message = switch (widget.kind) {
-      _LessonCoachPopupKind.praise => context.tr(
-        'Bản ghi đã được lưu. Con có thể nghe lại hoặc tự bấm sang câu tiếp theo.',
-        '录音已保存。你可以回听，或自己点击进入下一句。',
-      ),
       _LessonCoachPopupKind.firstReminder => context.tr(
         'Nhấn và giữ nút micro để đọc theo câu mẫu nhé.',
         '请长按麦克风按钮，跟着示范句朗读。',
@@ -1140,21 +1365,13 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
         '你可以重听示范、慢慢说，或选择跳过本句。',
       ),
     };
-    final surface = praise
-        ? const Color(0xFFF0FBF5)
-        : secondReminder
+    final surface = secondReminder
         ? const Color(0xFFFFF7EA)
         : const Color(0xFFF2F1FF);
-    final border = praise
-        ? const Color(0xFFAFE4C3)
-        : secondReminder
+    final border = secondReminder
         ? const Color(0xFFFFD89A)
         : AppColors.lavenderBorder;
-    final accent = praise
-        ? AppColors.success
-        : secondReminder
-        ? const Color(0xFFE58A2B)
-        : AppColors.indigo;
+    final accent = secondReminder ? const Color(0xFFE58A2B) : AppColors.indigo;
 
     return Semantics(
       liveRegion: true,
@@ -1197,9 +1414,7 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
                                   child: Transform.rotate(
                                     angle: -0.2 + (progress * 0.18),
                                     child: Icon(
-                                      praise
-                                          ? Icons.celebration_rounded
-                                          : Icons.auto_awesome_rounded,
+                                      Icons.auto_awesome_rounded,
                                       color: const Color(0xFFFFB84D),
                                       size: 34,
                                     ),

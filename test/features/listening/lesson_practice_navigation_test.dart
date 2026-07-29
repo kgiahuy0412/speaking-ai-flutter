@@ -97,21 +97,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    final completeReview = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(completeReview);
-    await tester.pump(const Duration(seconds: 6));
-    await tester.tap(completeReview);
+    final restartReview = find.byKey(const Key('restart-lesson-review'));
+    await tester.ensureVisible(restartReview);
+    await tester.tap(restartReview);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.byKey(const Key('completion-celebration')), findsOneWidget);
     expect(store.completedSentences, 1);
-
-    await tester.tap(find.byKey(const Key('review-listening-lesson')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.byKey(const Key('completion-celebration')), findsNothing);
+    expect(find.byKey(const Key('lesson-review-screen')), findsNothing);
     expect(find.text('Sentence 1'), findsOneWidget);
     expect(store.currentSentence, 0);
     expect(store.completedSentences, 1);
@@ -137,17 +130,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    final completeReview = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(completeReview);
-    await tester.pump(const Duration(seconds: 6));
-    await tester.tap(completeReview);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Con đã hoàn thành!'), findsOneWidget);
-    final review = find.byKey(const Key('review-listening-lesson'));
-    await tester.ensureVisible(review);
+    expect(find.text('Đã học'), findsOneWidget);
+    final restartReview = find.byKey(const Key('restart-lesson-review'));
+    final primaryAction = find.byKey(const Key('post-lesson-primary-action'));
+    await tester.ensureVisible(primaryAction);
     await tester.pump(const Duration(milliseconds: 200));
+    expect(restartReview, findsOneWidget);
+    expect(primaryAction, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

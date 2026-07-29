@@ -64,6 +64,7 @@ flutter:
     - assets/audio/A-13-15/GUIDE_ENDING/
     - assets/images/lesson-intro-stage.webp
     - assets/images/mascot-robot.png
+    - assets/images/mascot-robot-pointing.png
     - assets/images/topics/
   fonts:
     - family: Roboto

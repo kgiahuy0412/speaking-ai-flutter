@@ -225,6 +225,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
           topic: widget.topic,
           lesson: lesson,
           controller: widget.controller,
+          topicContent: widget.content,
           progressStore: widget.progressStore,
           mediaService: _mediaService,
         ),

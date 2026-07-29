@@ -10,6 +10,7 @@ import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'lesson_practice_screen.dart';
+import 'lesson_review_screen.dart';
 
 class LessonIntroScreen extends StatefulWidget {
   const LessonIntroScreen({
@@ -21,6 +22,7 @@ class LessonIntroScreen extends StatefulWidget {
     required this.progressStore,
     required this.mediaService,
     this.controller,
+    this.topicContent,
     this.autoAdvance = true,
     super.key,
   });
@@ -31,6 +33,7 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningTopic topic;
   final ListeningLessonContent lesson;
   final ConversationController? controller;
+  final ListeningTopicContent? topicContent;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final bool autoAdvance;
@@ -127,7 +130,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 const Spacer(),
                                 TextButton(
                                   key: const Key('skip-lesson-intro'),
-                                  onPressed: _continueToLesson,
+                                  onPressed: _openOverview,
                                   style: TextButton.styleFrom(
                                     backgroundColor: Colors.white.withValues(
                                       alpha: 0.9,
@@ -246,8 +249,41 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           topic: widget.topic,
           lesson: widget.lesson,
           controller: widget.controller,
+          topicContent: widget.topicContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openOverview() async {
+    if (_movingForward || !mounted) {
+      return;
+    }
+    _movingForward = true;
+    _advanceTimer?.cancel();
+    await widget.mediaService.stopPlayback();
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => LessonReviewScreen(
+          language: widget.language,
+          lesson: widget.lesson,
+          mediaService: widget.mediaService,
+          learnNowBuilder: (_) => LessonPracticeScreen(
+            language: widget.language,
+            startAge: widget.startAge,
+            endAge: widget.endAge,
+            topic: widget.topic,
+            lesson: widget.lesson,
+            controller: widget.controller,
+            topicContent: widget.topicContent,
+            progressStore: widget.progressStore,
+            mediaService: widget.mediaService,
+          ),
         ),
       ),
     );

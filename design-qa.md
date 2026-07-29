@@ -1,93 +1,273 @@
-# Design QA — Listening Content V2
+# Design QA — Nghe tổng quan
 
-## Comparison target
+## Subtitle-removal update
 
-- Sơ đồ nội dung mới: `C:\Users\Windows\Downloads\SO_DO_TONG_HOP_CHU_DE_BAI_HOC_BAI_HAT.png`.
-- Mẫu hành trình và lời mở đầu đã được chọn: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-5db6e79d-c118-4910-9712-b611729ba379.png`.
-- Mẫu luyện từng câu đã được chọn: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-3b40f415-bea1-492a-979e-656aa40f5172.png`.
-- Màn hoàn thành cũ dùng để so sánh cải thiện: `C:\Users\Windows\AppData\Local\Temp\codex-clipboard-e2481a72-d554-45fc-9783-2a49933bb4ce.png`.
-- Flutter render: 390 × 844 logical px, tiếng Việt, nhóm 3–5 tuổi, chủ đề “Xin chào và tạm biệt”.
-- Golden:
-  - `test/features/listening/goldens/topic-lesson-journey-390x844.png`
-  - `test/features/listening/goldens/lesson-intro-390x844.png`
-  - `test/features/listening/goldens/lesson-practice-390x844.png`
-  - `test/features/listening/goldens/lesson-reminder-popup-390x844.png`
-  - `test/features/listening/goldens/lesson-praise-popup-390x844.png`
-  - `test/features/listening/goldens/lesson-review-390x844.png`
-  - `test/features/listening/goldens/lesson-completion-390x844.png`
-- Composite cùng khung:
-  - `artifacts/design-qa/lesson-flow/comparison-topic-journey-and-intro.png`
-  - `artifacts/design-qa/lesson-flow/comparison-sentence-practice.png`
-  - `artifacts/design-qa/lesson-flow/comparison-content-structure-and-review.png`
-  - `artifacts/design-qa/lesson-flow/comparison-completion-celebration.png`
-  - `artifacts/design-qa/lesson-flow/comparison-practice-popups.png`
-  - `artifacts/design-qa/lesson-flow/comparison-review-lock.png`
+- Current source visual truth: `design-qa-assets/source-header-with-subtitle.png` — 217 × 75 px, with the user explicitly requesting removal of its second line.
+- Current rendered implementation: `design-qa-assets/implementation-overview-no-subtitle.png` — 1080 × 2400 physical px (360 × 800 logical px, DPR 3, including Android system bars).
+- Focused implementation crop: `design-qa-assets/implementation-header-no-subtitle-crop.png` — 950 × 190 px.
+- Combined comparison input: `design-qa-assets/header-subtitle-removal-comparison.png` — 1040 × 220 px.
+- State: the “Nghe tổng quan” overview is open during automatic playback; the header contains only its title between the existing back and replay controls.
+- Density normalization: the small source crop was enlarged to 434 × 150 and the emulator header crop reduced to 500 × 100 on one comparison board. The comparison targets content removal and header alignment, not exact font raster density.
+- Full-view evidence: the emulator screenshot shows the subtitle absent without affecting the sentence list, active border, replay action, or “Học ngay” CTA.
+- Focused evidence: the side-by-side board confirms the second line is removed and the remaining title is vertically balanced with the two header controls.
+- Required fidelity surfaces: title typography and indigo token remain unchanged; header spacing is balanced; Material icons stay sharp; no image asset is involved; the obsolete copy is absent.
+- Findings: no actionable P0, P1, P2, or P3 issue remains for this change.
+
+## Active-border update
+
+- Current source visual truth: `design-qa-assets/source-active-card.png` — 435 × 103 px.
+- Current rendered implementation: `design-qa-assets/implementation-active-overview-emulator-final.png` — 1080 × 2400 physical px (360 × 800 logical px, DPR 3, including Android system bars).
+- Focused implementation crop: `design-qa-assets/implementation-active-card-crop-final.png` — 990 × 220 px.
+- Combined comparison input: `design-qa-assets/active-card-comparison-final.png` — 980 × 150 px.
+- State: sentence 3 is being spoken during automatic overview playback; its equalizer icon and indigo outline are active while every other sentence retains the pale lavender outline.
+- Density normalization: the 435 × 103 source card was scaled to 465 × 110 and the emulator crop to 450 × 100 on one comparison board. The small size difference preserves each crop's aspect ratio and does not affect border-color evaluation.
+- Full-view evidence: the emulator screenshot shows only sentence 3 outlined in indigo, with no layout, spacing, typography, or CTA regression elsewhere on the screen.
+- Focused evidence: the side-by-side board confirms that the active card retains the white surface, blue number, English sentence weight, and equalizer control while adding the requested stronger indigo border.
+- Required fidelity surfaces: Roboto typography, card spacing/radius, indigo/lavender tokens, Material icon sharpness, and dynamic sentence copy remain consistent with the reference. No photographic or custom image asset is involved.
+- Interaction verification: a widget test confirms the active border moves from sentence 1 to sentence 2 after the playback gap; the emulator capture independently confirms sentence 3 active during real automatic playback.
+
+## Evidence
+
+- Source visual truth:
+  - `design-qa-assets/source-review-original.png` — 440 × 890 px.
+  - `design-qa-assets/source-neutral-card.png` — 435 × 103 px.
+- Rendered implementation:
+  - `design-qa-assets/implementation-overview-390x844.png` — Flutter widget render at 390 × 844 logical px, DPR 1.
+  - `design-qa-assets/implementation-overview-emulator.png` — Android emulator capture at 1080 × 2400 physical px (360 × 800 logical px, DPR 3, including system bars).
+- Combined comparison input: `design-qa-assets/overview-comparison-board.png`.
+- State: “Nghe tổng quan” opened by tapping “Bỏ qua” on the lesson introduction; automatic sentence playback active; “Học ngay” in its timed locked state.
+- Density normalization: the full source and 390 × 844 Flutter render were aligned to the same visual height on the comparison board. The reference card and implementation card crop were both normalized to 440 × 105 px for the focused comparison.
+
+## Full-view comparison
+
+- The title is now “Nghe tổng quan”; the sentence count subtitle and replay action retain the source hierarchy.
+- The automatic-play hero and unrecorded-sentence banner are absent, as required.
+- The list moves directly under the header and keeps the same page margins and vertical rhythm.
+- Every sentence uses the requested neutral white surface, pale lavender border, blue number, and blue play control.
+- The primary CTA uses “Học ngay” and preserves the existing timed locked state as “Học ngay sau N giây”.
+- The emulator capture contains six sentences because the selected real lesson has six items; the reference contains five. This is expected dynamic content, not layout drift.
+
+## Focused card comparison
+
+- The normalized card comparison confirms the same neutral surface, pale lavender outline, rounded corners, blue circular number badge, bold English sentence, and circular play affordance.
+- No additional focused region was needed: the header and CTA are clearly readable in the full-view comparison, and the removed regions are unambiguous.
+
+## Required fidelity surfaces
+
+- Fonts and typography: Roboto hierarchy, weights, line height, and single-line sentence treatment are consistent with the reference direction; no clipping or unintended wrapping is visible.
+- Spacing and layout rhythm: 20 px page margins, consistent card gaps, rounded corners, and generous tap areas remain balanced at both 390 × 844 and 360 × 800 logical viewports.
+- Colors and visual tokens: indigo text/actions, lavender borders and button disabled state, white cards, and warm page background match the supplied visual language.
+- Image quality and assets: this screen contains no photographic or illustrative assets; Material icons remain sharp and visually consistent at emulator density.
+- Copy and content: “Nghe tổng quan” and “Học ngay” are present; removed status copy does not appear.
+- Accessibility and responsiveness: widget tests cover the compact-phone route and large text scale; controls retain practical mobile tap targets and the page scrolls when needed.
+
+## Interaction verification
+
+- Tapping “Bỏ qua” on the introduction opens “Nghe tổng quan”.
+- The screen automatically plays sentence audio and still supports replaying individual sentences.
+- After the six-second lock expires, tapping “Học ngay” opens the sentence-practice screen.
+- Android logcat contained no Flutter exception, fatal exception, or framework exception entry during the verified flow.
 
 ## Findings
 
-Không còn khác biệt P0, P1 hoặc P2 cần xử lý.
-
-- Phân cấp và nhận diện: giữ đúng indigo–lavender, Roboto, mascot robot và ảnh chủ đề đã được duyệt. Hành trình bài nhỏ, CTA, số câu và tiến độ có độ ưu tiên rõ.
-- Catalog: Word mới đã được chuẩn hóa thành 5 nhóm tuổi, 50 chủ đề, 101 bài thông thường, 634 câu, 11 bài hát với 69 dòng lời. Mỗi câu có ID cùng audio ID EN/VI riêng.
-- Ba luồng: bài thường dùng thẻ luyện câu; hội thoại thêm vai nói và phát bản đầy đủ ở ôn tập; bài hát có khu vực riêng, icon nhạc, luyện từng dòng và full-audio hook.
-- Luyện câu: hai nút “Nghe mẫu”/“Nghe tiếng Việt” cân bằng, không lẫn chức năng. Sau ghi thành công, robot và icon trang trí chuyển động trong popup chúc mừng 3 giây; bản ghi mới nhất cùng bốn hành động vẫn nằm trong luồng cuộn.
-- Chờ tương tác: sau 5 giây hiện popup robot nhắc lần một trong 3 giây; thêm 5 giây hiện popup lần hai và mới mở bỏ qua. Không tự bỏ qua và trạng thái “Chưa ghi âm” được giữ trong tiến độ.
-- Điều hướng câu: ghi âm xong giữ nguyên câu hiện tại ở mọi nhóm tuổi, không còn tự chuyển. Trẻ chủ động bấm “Câu tiếp theo” hoặc “Ôn tập”; nút “Câu trước” vẫn độc lập với nút back thoát bài.
-- Ôn tập: chỉ hiển thị tiếng Anh, đánh dấu nhẹ nhàng câu chưa ghi âm, có thử lại và tự phát tuần tự cách nhau 2 giây. Nút hoàn thành mờ và bị khóa đủ 6 giây; layout cuộn được trên màn hình thấp.
-- Hoàn thành: mascot lớn, chuyển động nhẹ, CTA “Về chủ đề” và “Luyện lại từ đầu” rõ, phù hợp trẻ nhỏ.
-- Lịch sử: UI chỉ hiện bản mới nhất trong bài; lịch sử gần đây cho phép nghe lại và giới hạn ba bản thành công/câu. Bản lỗi không thay thế bản cũ.
-- Responsive: các màn hình chính và ôn tập dùng vùng cuộn, vùng bấm chính tối thiểu 48 px; kiểm tra 320 × 568 ở text scale 130% không overflow.
+- No actionable P0, P1, or P2 differences remain.
+- No P3 follow-up is required for the requested scope.
 
 ## Comparison history
 
-### Iteration 1
+- Pass 1: no actionable P0/P1/P2 mismatch was found. The large regions visible only in the original screenshot were intentionally removed by the user's specification, and the focused sentence-card treatment matches the supplied third image. No visual correction loop was required.
+- Pass 2: the user requested a clearer active state. The previously neutral active border was changed to a 1.5 px indigo outline; the post-fix widget test and emulator comparison show that the outline follows the currently spoken sentence. No actionable P0/P1/P2 mismatch remains.
+- Pass 3: the user requested removal of the learned-sentence subtitle. The second header line was removed, the title was vertically rebalanced, and the post-fix golden/emulator comparison shows no layout regression. No actionable P0/P1/P2 mismatch remains.
 
-- P1: catalog cũ không còn khớp Word mới và chưa có lesson type/audio ID.
-- Fix: parser V2 đọc trực tiếp DOCX, xác thực tổng số, ID duy nhất và tách standard/dialogue/song.
+## Implementation checklist
 
-### Iteration 2
+- [x] Rename the screen.
+- [x] Remove both obsolete boxes.
+- [x] Normalize sentence-card colors and state styling.
+- [x] Move the indigo active border with the currently spoken sentence.
+- [x] Remove the learned-sentence subtitle and rebalance the header.
+- [x] Rename and wire the primary CTA.
+- [x] Verify the skip-to-overview-to-practice journey.
+- [x] Verify compact layout, tests, analyzer, emulator render, and runtime logs.
 
-- P1: bản ghi trước bị ghi đè ngay khi bắt đầu ghi lại.
-- Fix: tạo file timestamp riêng, chỉ thêm lịch sử sau khi ghi thành công, rồi mới xóa bản thứ tư.
+## Reminder-popup timeout and input-blocking update
 
-### Iteration 3
+- Source visual truth:
+  - `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-a68e556d-414b-495a-b259-a151206b6349.png` - 426 x 335 px.
+  - `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-23d4db92-dbec-4b35-a9e0-bd62b9a6e0b9.png` - 410 x 313 px.
+- Rendered implementation:
+  - `design-qa-assets/popup-reminder-implementation.png` - 1080 x 2400 physical px (360 x 800 logical px, DPR 3, including Android system bars).
+  - `design-qa-assets/popup-second-reminder-implementation.png` - 1080 x 2400 physical px (360 x 800 logical px, DPR 3, including Android system bars).
+  - `design-qa-assets/popup-reminder-after-timeout.png` - the same Android viewport after automatic dismissal.
+- Combined comparison input: `design-qa-assets/popup-reminders-comparison.png` - 900 x 760 px.
+- State: the first reminder is visible four seconds after sentence activation; the second reminder is visible four seconds later. Both enter with the existing animation and close immediately when their 2.5-second display timer expires.
+- Density normalization: focused Android popup regions were cropped from the 1080 x 2400 captures and scaled to 426 x 335 and 410 x 313 so each could be compared beside its corresponding source crop.
+- Full-view evidence: both Android captures preserve the modal dimming, centered card, mascot, decorative icons, title, message, rounded border, and underlying lesson context. The after-timeout capture confirms the popup is removed without altering the sentence state.
+- Focused evidence: the combined board confirms the supplied colors, typography hierarchy, card proportions, mascot asset, and copy remain intact. Small mascot-scale differences are expected frames of the existing continuous mascot animation, not design drift.
+- Required fidelity surfaces: Roboto hierarchy and wrapping remain legible; modal spacing and radii match the reference direction; indigo, lavender, amber, and coral tokens are unchanged; the original high-quality mascot image remains in use; Vietnamese copy is unchanged.
+- Interaction verification: the widget test holds the first popup through 2,499 ms and verifies removal at 2,500 ms. While the second popup is visible, tapping the covered `Bo qua cau nay` control is absorbed and the active sentence remains unchanged. All 98 tests pass, `flutter analyze` reports no issues, and the Android log check contains no Flutter/framework/fatal exception.
+- Findings: no actionable P0, P1, P2, or P3 issue remains for this update.
+- Comparison history: pass 1 found no visual regression because this change intentionally affects only timeout and hit testing. No visual correction loop was required.
+- [x] Auto-dismiss the first reminder after 2.5 seconds.
+- [x] Auto-dismiss the second reminder after 2.5 seconds.
+- [x] Prevent popup taps and click-through to covered controls.
+- [x] Verify timing, behavior, full test suite, analyzer, Android rendering, and runtime logs.
 
-- P1: kết thúc bài đi thẳng tới chúc mừng, thiếu bước ôn tập.
-- Fix: câu cuối dùng “Ôn tập”, mở danh sách English-only và chỉ hoàn thành sau CTA cuối danh sách.
+## Opt-in automatic-play control update
 
-### Iteration 4
+- Source visual truth: `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-3033f0f9-f8f9-478e-ba79-9244e04e9bc1.png` - 455 x 1000 px.
+- Rendered implementation:
+  - `design-qa-assets/auto-overview-default.png` - 1080 x 2400 physical px (360 x 800 logical px, DPR 3, including Android system bars).
+  - `design-qa-assets/auto-overview-active.png` - the same Android viewport with automatic play active and sentence 1 playing.
+  - `design-qa-assets/auto-overview-stopped.png` - the same Android viewport after the control is toggled off.
+- Combined comparison input: `design-qa-assets/auto-overview-comparison.png` - 1425 x 1050 px.
+- State: the page initially shows no active sentence and performs no playback. The new `Tu dong phat` control is on the left of `Hoc ngay`; activating it fills the control with indigo, changes its icon to an equalizer, and starts sequential playback from sentence 1. Tapping it again stops playback and clears the active sentence.
+- Density normalization: the 455 x 1000 source was kept at native size; both 1080 x 2400 Android captures were downsampled to 450 x 1000 on one comparison board. Android status/navigation bars are runtime-owned and were treated as expected chrome.
+- Full-view evidence: the header, six neutral sentence cards, number badges, play controls, spacing, and warm page background remain consistent with the supplied reference. The requested second action fits beside `Hoc ngay` without clipping or changing the list layout.
+- Focused evidence: no separate crop was needed because both action labels, active button fill, sentence-1 active border, and equalizer icons are clearly readable in the full-view comparison.
+- Required fidelity surfaces: Roboto hierarchy and weights remain consistent; the two 60 px action buttons align to the existing 20 px page margins and 10 px gap; indigo/lavender/white tokens match the existing screen; only standard Material icons are used and no image asset is involved; Vietnamese action copy matches the request.
+- Primary interactions tested: default idle state, enable automatic playback, sentence active-state progression, disable automatic playback, individual sentence playback compatibility, and unchanged `Hoc ngay` navigation behavior.
+- Runtime verification: all 98 Flutter tests pass, `flutter analyze` reports no issues, the refreshed review golden passes, and Android logcat contains no Flutter/framework/fatal exception for the verified flow.
+- Findings: no actionable P0, P1, P2, or P3 issue remains for this update.
+- Comparison history: pass 1 found no P0/P1/P2 visual mismatch. The only structural difference from the source - splitting the original full-width action into two equal actions - is the explicit user-requested change, so no visual correction loop was required.
+- [x] Keep the overview idle by default.
+- [x] Add `Tu dong phat` to the left of `Hoc ngay`.
+- [x] Show clear inactive and active button states.
+- [x] Play sentences sequentially and move the active border.
+- [x] Stop playback when the active control is tapped again.
+- [x] Verify golden, behavior tests, analyzer, Android render, and runtime logs.
 
-- P2: trang ôn tập dùng cột cố định gây overflow trên 320 × 568 và timer 2 giây còn chạy sau khi thoát.
-- Fix: chuyển toàn bộ trang sang vùng cuộn và dùng timer có thể hủy/complete khi dispose.
+## Learned-review navigation update
 
-### Iteration 5
+- Source visual truth: `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-04cbc09a-e7b0-48c9-8029-dff9790b14aa.png` - 468 x 781 px.
+- Rendered implementation: `design-qa-assets/emulator-learned.png` - Android emulator capture at 1080 x 2400 physical px, including system bars.
+- Combined comparison input: `design-qa-assets/comparison-learned-review.png` - the source and running emulator state aligned to the same visual height.
+- State: lesson 1 of a two-lesson topic is complete. The title is `Đã học`; the left action is `Bài tiếp theo`; the right action is `Luyện lại từ đầu`.
+- Full-view evidence: all six dynamic lesson sentences fit without clipping; card margins, lavender borders, number badges, play controls, header actions, and bottom action alignment remain consistent with the supplied direction.
+- Interaction verification: the emulator opens lesson 2's introduction after `Bài tiếp theo`. Widget tests also verify restarting at sentence 1 and returning to the selected topic through `Luyện nghe` when the completed lesson is the topic's last lesson.
+- Responsive and regression verification: the 320 x 568 compact-phone test keeps both learned-review actions reachable. `flutter analyze` reports no issues and all 101 Flutter tests pass.
+- Findings: no actionable P0, P1, P2, or P3 issue remains for this update.
+- [x] Separate pre-lesson overview and post-lesson learned states.
+- [x] Rename the post-lesson title to `Đã học`.
+- [x] Wire `Bài tiếp theo`, `Luyện lại từ đầu`, and final-lesson `Luyện nghe` behavior.
+- [x] Verify source comparison, emulator navigation, compact layout, analyzer, and full test suite.
 
-- P2: thông báo đếm ngược sau ghi bị tràn ngang.
-- Fix: cho nội dung co giãn, căn giữa và hỗ trợ tối đa hai dòng.
+## Post-recording fireworks update
 
-### Iteration 6
+- Source visual truth: `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-f3fdd1ba-b9af-441d-be03-36096ad9d1b3.png` - 439 x 350 px, showing the response box that the user requested to remove.
+- Rendered implementation: `test/features/listening/goldens/lesson-praise-fireworks-390x844.png` - Flutter component render at 390 x 844 logical px, DPR 1.
+- Focused implementation crop: `design-qa-assets/fireworks-implementation-crop.png` - 390 x 670 px.
+- Combined comparison input: `design-qa-assets/fireworks-comparison.png` - 1079 x 672 px, with both source and implementation normalized to 520 px visual height.
+- State: recording has just finished successfully; the recording card and four post-recording actions are visible while two animated celebration bursts rise from the left and right sides.
+- Full-view evidence: the green modal surface, dim backdrop, mascot, title, and message are absent. The sentence, recording result, and actions remain fully readable and usable beneath the transient effect.
+- Focused evidence: the comparison board confirms the requested structural replacement. Standard Material celebration, star, and sparkle icons preserve the existing indigo, periwinkle, coral, and amber palette without introducing a new raster asset.
+- Fonts and typography: no new visible copy is introduced; the underlying lesson hierarchy and Roboto weights remain unchanged.
+- Spacing and layout rhythm: the effect uses a full-screen, non-layout overlay, so no card, button, or scroll position moves when it appears or disappears.
+- Colors and visual tokens: the celebration uses existing app tokens and the established warm accent colors; contrast of lesson content is unchanged because there is no dim layer.
+- Image quality and assets: the removed mascot is not replaced by a fake illustration; all visible celebration marks use sharp standard Material icons appropriate for a transient interface effect.
+- Copy and content: `Con làm tuyệt lắm!` and the saved-recording message no longer appear visually. The GUIDE_PRAISE audio remains active as the spoken success feedback.
+- Interaction verification: the overlay is wrapped in `IgnorePointer`; a widget test confirms `Câu tiếp theo` works while the fireworks are visible and immediately clears the effect. The animation automatically expires after 2.5 seconds.
+- Runtime and regression verification: the refreshed debug APK is installed and running on the Android emulator; logcat contains no Flutter/framework/fatal exception. `flutter analyze` reports no issues and all 101 Flutter tests pass.
+- Findings: no actionable P0, P1, P2, or P3 issue remains for this update.
+- Comparison history: pass 1 found no P0/P1/P2 mismatch. The large visual difference is the explicit requested removal of the old modal response; the replacement preserves the two-sided celebratory intent without blocking content or controls.
+- [x] Remove the post-recording response box, dim layer, mascot, and visible copy.
+- [x] Add rising celebration bursts on both the left and right sides.
+- [x] Preserve GUIDE_PRAISE playback.
+- [x] Keep all lesson actions interactive during the effect.
+- [x] Verify visual comparison, golden, behavior, analyzer, full tests, emulator build, and runtime logs.
 
-- P2: Flutter Web không tìm lại URL bản ghi trong phiên.
-- Fix: giữ URL hợp lệ cho lịch sử trong phiên và thu hồi blob URL khi bản cũ bị loại.
+## Overview play-button redesign
 
-### Iteration 7
+- Source visual truth:
+  - `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-0cc8d49c-5ad4-48f7-97ba-963f14772cfe.png` — 74 × 74 px, the previous control.
+  - `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-262e1e60-54e0-4c38-9390-529d898ea599.png` — 1256 × 1256 px, the selected cream play-button and pointing-robot direction.
+- Rendered implementation: `test/features/listening/goldens/lesson-review-390x844.png` — Flutter widget render at 390 × 844 logical px, DPR 1.
+- Generated production asset: `assets/images/mascot-robot-pointing.png` — 627 × 760 px transparent PNG.
+- Combined full-view and focused comparison: `design-qa-assets/lesson-review-play-control-comparison.png` — 1100 × 950 px.
+- State: “Nghe tổng quan” idle state, before automatic or individual sentence playback; the six-second “Học ngay” lock is active.
+- Density normalization: the full source and implementation were contained in equal 540 × 540 regions. The focused source and implementation control crops were separately contained in equal 540 × 390 regions so the component silhouette, pointing gesture, palette, and layering could be judged at comparable visual scale.
 
-- P2: tự chuyển sau ghi khiến trẻ chưa kịp nghe lại; banner động viên còn nhỏ và nút hoàn thành ôn tập có thể bấm ngay.
-- Fix: bỏ tự chuyển ở mọi nhóm tuổi, thay banner bằng popup robot chuyển động tự ẩn sau 3 giây, dùng popup tương tự cho hai lần nhắc và khóa CTA hoàn thành trong 6 giây đầu.
+### Full-view and focused evidence
 
-## Follow-up polish
+- The full Flutter view confirms that all overview rows use the new cream rounded-square control with a white circular center and indigo play icon, while the first row alone contains the pointing mascot.
+- Sentence rows 2–5 contain no mascot, and the post-lesson “Đã học” review retains its previous control style so the redesign stays scoped to “Nghe tổng quan”.
+- The focused comparison confirms the mascot hand overlaps the white play circle and points directly at the icon, matching the source composition. The component is scaled down appropriately for a list-row affordance rather than copying the source banner or oversized square.
+- The supplied reference defines the play-control component rather than the full page. Unspecified header, sentence content, and bottom actions were therefore checked for regression, not redesigned.
 
-- P3: audio Cloudinary chưa được cung cấp; các trường URL và nút đã sẵn sàng nhưng hiện hiển thị thông báo chờ audio.
-- P3: Flutter Web cần API upload/Cloudinary hoặc IndexedDB nếu muốn giữ file bản ghi qua lần tải lại trang và đồng bộ nhiều thiết bị. Android/iOS/desktop đã giữ file cục bộ.
-- P3: khi có audio thật, thay waveform tĩnh bằng biên độ thật và kiểm tra timing trên thiết bị trẻ em sử dụng.
-- P3: bản web JavaScript release hoạt động; chế độ WebAssembly còn cảnh báo từ `just_audio_web`, nên chưa bật Wasm cho V1.
+### Required fidelity surfaces
 
-## Verification
+- Fonts and typography: existing Roboto title, sentence, number, and action hierarchy is unchanged; no source-banner copy was incorrectly added to the list row.
+- Spacing and layout rhythm: the featured first tile expands only enough to hold the mascot and 64 px control; later tiles use consistent 64 px controls, 9 px gaps, 20 px page margins, and preserve scrolling on compact phones.
+- Colors and visual tokens: the control uses a warm cream/peach surface, white circular center, indigo icon, lavender border, and restrained peach/indigo shadows consistent with the selected source and existing app palette.
+- Image quality and asset fidelity: the pointing mascot is a real generated raster asset grounded in both supplied references, rendered from a 627 × 760 transparent source with high-quality filtering. No emoji, custom SVG, or code-drawn mascot is used, and no visible background halo appears at the 390 × 844 render size.
+- Copy and content: “Nghe tổng quan”, every English sentence, and both bottom actions remain unchanged. The source ribbon text is intentionally excluded because the user requested a button redesign, not an additional banner.
 
-- `flutter analyze --no-pub`: passed.
-- Full Flutter suite: 80 tests passed, gồm popup 3 giây, timer nhắc 5+5 giây, không tự chuyển câu, khóa ôn tập 6 giây, skip, ba bản ghi/câu, resume, compact layout và catalog V2.
-- Bảy golden của hành trình, intro, luyện câu, hai popup, ôn tập và hoàn thành: passed.
-- Flutter Web release build: passed.
-- Android debug APK build: passed.
+### Findings and comparison history
+
+- Pass 1 found one P2 scale mismatch: the full-body mascot was visibly smaller than the character emphasis in the source. The implementation was changed to an upper-body crop at 100 × 92 px while preserving the complete pointing hand.
+- Pass 2 evidence in `design-qa-assets/lesson-review-play-control-comparison.png` shows the larger mascot, direct pointing gesture, cream control, white inner circle, and indigo icon without overlap or clipping that affects use. No actionable P0, P1, or P2 issue remains.
+- No P3 follow-up is required for the requested scope.
+
+### Interaction and responsive verification
+
+- Individual sentence controls retain the existing playback callback and playing equalizer state.
+- The golden suite verifies exactly one overview mascot and no mascot on the learned-review screen.
+- A 320 × 568 logical-pixel test at 1.3× text scale confirms the fifth control remains built and no Flutter layout exception occurs.
+- The full analyzer reports no issue, and all 107 Flutter tests pass, including the nine lesson-flow golden tests and the 17 guided-flow/navigation tests.
+
+### Implementation checklist
+
+- [x] Restyle every “Nghe tổng quan” sentence play control.
+- [x] Add a pointing mascot only to sentence 1.
+- [x] Keep sentences 2 onward free of mascot imagery.
+- [x] Preserve playback behavior and active state.
+- [x] Keep the “Đã học” screen outside the redesign scope.
+- [x] Verify 390 × 844 fidelity and compact-phone responsiveness.
+
+## Learned-review recording-status highlights
+
+- Source visual truth: `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-93859412-8c7c-4f5d-aa58-730c3d2e03ec.png` — 447 × 783 px, showing the previous neutral “Đã học” list.
+- Rendered implementation: `test/features/listening/goldens/lesson-completion-390x844.png` — 1170 × 2532 physical px, representing a 390 × 844 logical Flutter viewport at DPR 3.
+- Combined full-view and focused comparison: `design-qa-assets/learned-recording-status-comparison.png` — 920 × 1464 px.
+- State: learned review with sentences 1, 3, and 5 recorded; sentences 2 and 4 unrecorded; the fixture has another lesson available.
+- Density normalization: the implementation was downsampled from DPR 3 to 390 × 844 logical pixels. Both full views were contained in equal 440 × 844 regions, and both sentence-list crops were contained in equal 440 × 580 regions.
+- State difference noted before comparison: the supplied screenshot contains six sentences and the final-lesson “Luyện nghe” action, while the implementation fixture contains five dynamic sentences and a next lesson. Those content/action differences are existing lesson data and navigation behavior, not visual drift in the requested recording-status treatment.
+
+### Full-view and focused evidence
+
+- Recorded rows use a pale success-green surface, green outline, green number badge, check-circle icon, and the label “Đã ghi âm”.
+- Unrecorded rows use a pale coral surface, coral outline, coral number badge, muted-microphone icon, and the label “Chưa ghi âm”.
+- The focused comparison confirms that the two states remain immediately distinguishable without obscuring sentence text or changing the play-button affordance.
+- The overview screen remains neutral because status styling is applied only when `LessonReviewMode.learned` is active.
+
+### Required fidelity surfaces
+
+- Fonts and typography: Roboto sentence hierarchy remains unchanged; the 12 px bold status labels support one line with ellipsis on constrained devices and remain readable at the standard viewport.
+- Spacing and layout rhythm: status sits three pixels below the sentence inside the existing card structure. Card radius, page margins, row gaps, number badge, play target, and bottom-action alignment remain consistent with the supplied screen.
+- Colors and visual tokens: recorded state maps to `AppColors.success` / `successSoft`; unrecorded state maps to `AppColors.coral` / `coralSoft`. Both retain strong foreground contrast and a 1.5 px semantic outline.
+- Image quality and assets: no custom raster illustration is required for this change. Standard Material check-circle and muted-microphone icons remain sharp at DPR 3; no emoji, inline SVG, or placeholder asset is used.
+- Copy and content: Vietnamese labels are exactly “Đã ghi âm” and “Chưa ghi âm”; Chinese display mode uses “已录音” and “尚未录音”. Lesson sentences and navigation copy remain data-driven.
+
+### Findings and comparison history
+
+- Pass 1 found one P2 responsive issue: at a 320 × 568 logical viewport with 1.3× text scale, the unrecorded label could overflow its row by 39 px.
+- Fix: the status label now consumes only the remaining width and uses single-line ellipsis when necessary.
+- Pass 2: the compact-phone regression test passes with both bottom actions still reachable. No actionable P0, P1, or P2 issue remains in the post-fix implementation.
+- No P3 follow-up is required for the requested scope.
+
+### Interaction and data verification
+
+- Learned-review status is calculated from `existingRecording(...)` for every lesson sentence immediately before the review opens, so highlights reflect stored recording files rather than hard-coded lesson indexes.
+- Individual play controls, replay, next lesson, restart, and return-to-listening behavior remain unchanged.
+- The full Flutter analyzer reports no issue, and all 107 Flutter tests pass, including mixed recorded/unrecorded state assertions, golden comparison, and compact-phone accessibility coverage.
+
+### Implementation checklist
+
+- [x] Show a status label on every learned sentence.
+- [x] Highlight recorded and unrecorded rows with distinct semantic colors and icons.
+- [x] Read status from actual stored recording availability.
+- [x] Keep overview rows neutral.
+- [x] Preserve playback and learned-review navigation.
+- [x] Verify DPR 3 rendering, 320 px compact layout, analyzer, and full test suite.
 
 final result: passed

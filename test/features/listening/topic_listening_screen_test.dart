@@ -98,6 +98,18 @@ void main() {
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    expect(find.byKey(const Key('unrecorded-sentences-banner')), findsNothing);
+    expect(find.text('Sẵn sàng nghe lại'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 6));
+    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(learnNowButton);
+    await tester.pump();
+    await tester.tap(learnNowButton);
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.text('Hello!'), findsOneWidget);
     expect(find.text('Xin chào!'), findsOneWidget);
@@ -202,6 +214,14 @@ void main() {
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(learnNowButton);
+    await tester.pump();
+    await tester.tap(learnNowButton);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);

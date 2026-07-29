@@ -30,6 +30,7 @@ class LessonMediaService {
   DateTime? _recordingStartedAt;
   String? _activePath;
   _ActiveLessonRecording? _activeContext;
+  Completer<void>? _activePlaybackCompletion;
 
   AudioRecorder get _activeRecorder => _recorder ??= AudioRecorder();
 
@@ -73,12 +74,23 @@ class LessonMediaService {
   }) async {
     final playback = _activePlayback;
     final completed = Completer<void>();
+    final previousCompletion = _activePlaybackCompletion;
+    if (previousCompletion != null && !previousCompletion.isCompleted) {
+      previousCompletion.complete();
+    }
+    _activePlaybackCompletion = completed;
     var started = false;
+    final CompletionAwareAudioPlaybackService? completionPlayback =
+        playback is CompletionAwareAudioPlaybackService
+        ? playback as CompletionAwareAudioPlaybackService
+        : null;
     final subscription = playback.playingStream.listen(
       (playing) {
         if (playing) {
           started = true;
-        } else if (started && !completed.isCompleted) {
+        } else if (completionPlayback == null &&
+            started &&
+            !completed.isCompleted) {
           completed.complete();
         }
       },
@@ -88,15 +100,43 @@ class LessonMediaService {
         }
       },
     );
+    StreamSubscription<void>? completionSubscription;
     try {
       await playback.play(uri);
+      started = true;
+      // Subscribe only after this source has actually started. just_audio's
+      // state stream can replay ProcessingState.completed from the previous
+      // source when a listener is attached, which must not finish the new
+      // lesson intro early.
+      completionSubscription = completionPlayback?.completionStream.listen(
+        (_) {
+          if (!completed.isCompleted) {
+            completed.complete();
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!completed.isCompleted) {
+            completed.completeError(error, stackTrace);
+          }
+        },
+      );
       await completed.future.timeout(timeout);
     } finally {
-      await subscription.cancel();
+      await Future.wait<void>(<Future<void>>[
+        subscription.cancel(),
+        if (completionSubscription != null) completionSubscription.cancel(),
+      ]);
+      if (identical(_activePlaybackCompletion, completed)) {
+        _activePlaybackCompletion = null;
+      }
     }
   }
 
   Future<void> stopPlayback() async {
+    final completion = _activePlaybackCompletion;
+    if (completion != null && !completion.isCompleted) {
+      completion.complete();
+    }
     await _playbackService?.stop();
   }
 

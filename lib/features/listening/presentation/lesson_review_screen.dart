@@ -7,12 +7,19 @@ import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
 
+enum LessonReviewMode { overview, learned }
+
+enum LessonReviewAction { nextLesson, restartLesson, returnToListening }
+
 class LessonReviewScreen extends StatefulWidget {
   const LessonReviewScreen({
     required this.language,
     required this.lesson,
     required this.mediaService,
     this.unrecordedSentenceIndexes = const <int>{},
+    this.learnNowBuilder,
+    this.mode = LessonReviewMode.overview,
+    this.hasNextLesson = false,
     super.key,
   });
 
@@ -20,6 +27,9 @@ class LessonReviewScreen extends StatefulWidget {
   final ListeningLessonContent lesson;
   final LessonMediaService mediaService;
   final Set<int> unrecordedSentenceIndexes;
+  final WidgetBuilder? learnNowBuilder;
+  final LessonReviewMode mode;
+  final bool hasNextLesson;
 
   @override
   State<LessonReviewScreen> createState() => _LessonReviewScreenState();
@@ -29,27 +39,33 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   static const int _completionDelaySeconds = 6;
 
   int? _playingIndex;
-  bool _autoPlaying = true;
-  bool _stopped = false;
+  bool _autoPlayActive = false;
+  int _playbackRequest = 0;
   int _completionUnlockSeconds = _completionDelaySeconds;
   String? _message;
   Timer? _reviewGapTimer;
   Timer? _completionUnlockTimer;
   Completer<bool>? _reviewGapCompleter;
+  bool _handingOffMediaPlayback = false;
 
   @override
   void initState() {
     super.initState();
-    _startCompletionUnlockTimer();
-    unawaited(_playReview());
+    if (widget.mode == LessonReviewMode.overview) {
+      _startCompletionUnlockTimer();
+    } else {
+      _completionUnlockSeconds = 0;
+    }
   }
 
   @override
   void dispose() {
-    _stopped = true;
+    _playbackRequest += 1;
     _cancelReviewGap();
     _completionUnlockTimer?.cancel();
-    widget.mediaService.stopPlayback();
+    if (!_handingOffMediaPlayback) {
+      widget.mediaService.stopPlayback();
+    }
     super.dispose();
   }
 
@@ -74,22 +90,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              _title(context),
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            Text(
-                              context.tr(
-                                '${widget.lesson.sentences.length} câu tiếng Anh đã học',
-                                '已学习 ${widget.lesson.sentences.length} 句英语',
-                              ),
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.muted),
-                            ),
-                          ],
+                        child: Text(
+                          _title(context),
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
                       IconButton(
@@ -101,28 +104,10 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
-                  child: _ReviewHero(
-                    lesson: widget.lesson,
-                    autoPlaying: _autoPlaying,
-                    onStop: _stopAutoReview,
-                  ),
-                ),
-                if (widget.unrecordedSentenceIndexes.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: _UnrecordedBanner(
-                      count: widget.unrecordedSentenceIndexes.length,
-                      onRetry: () => Navigator.of(
-                        context,
-                      ).pop(widget.unrecordedSentenceIndexes.first),
-                    ),
-                  ),
                 ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
                   itemCount: widget.lesson.sentences.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 9),
                   itemBuilder: (context, index) {
@@ -132,9 +117,15 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                       sentence: sentence,
                       lessonType: widget.lesson.type,
                       playing: _playingIndex == index,
-                      unrecorded: widget.unrecordedSentenceIndexes.contains(
-                        index,
-                      ),
+                      recordingStatus: widget.mode == LessonReviewMode.learned
+                          ? widget.unrecordedSentenceIndexes.contains(index)
+                                ? _ReviewRecordingStatus.unrecorded
+                                : _ReviewRecordingStatus.recorded
+                          : null,
+                      redesigned: widget.mode == LessonReviewMode.overview,
+                      featured:
+                          widget.mode == LessonReviewMode.overview &&
+                          index == 0,
                       onPlay: () => _playSentence(index),
                     );
                   },
@@ -152,42 +143,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                   ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 260),
-                    opacity: _completionUnlockSeconds == 0 ? 1 : 0.48,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        key: const Key('complete-lesson-review'),
-                        onPressed: _completionUnlockSeconds == 0
-                            ? () => Navigator.of(context).pop(-1)
-                            : null,
-                        icon: Icon(
-                          _completionUnlockSeconds == 0
-                              ? Icons.celebration_rounded
-                              : Icons.lock_clock_rounded,
-                        ),
-                        label: Text(
-                          _completionUnlockSeconds == 0
-                              ? context.tr('Hoàn thành bài', '完成课程')
-                              : context.tr(
-                                  'Hoàn thành sau $_completionUnlockSeconds giây',
-                                  '$_completionUnlockSeconds 秒后可完成',
-                                ),
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(60),
-                          disabledBackgroundColor: AppColors.periwinkle,
-                          disabledForegroundColor: Colors.white,
-                          textStyle: const TextStyle(
-                            fontFamily: 'Roboto',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: widget.mode == LessonReviewMode.learned
+                      ? _buildLearnedActions(context)
+                      : _buildOverviewActions(context),
                 ),
               ],
             ),
@@ -197,14 +155,197 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     );
   }
 
-  String _title(BuildContext context) => switch (widget.lesson.type) {
-    ListeningLessonType.dialogue => context.tr(
-      'Nghe hội thoại hoàn chỉnh',
-      '完整对话',
-    ),
-    ListeningLessonType.song => context.tr('Cùng nghe bài hát', '一起听歌曲'),
-    ListeningLessonType.standard => context.tr('Ôn tập cuối bài', '课后复习'),
-  };
+  String _title(BuildContext context) => widget.mode == LessonReviewMode.learned
+      ? context.tr('Đã học', '已学习')
+      : context.tr('Nghe tổng quan', '整体听一遍');
+
+  Widget _buildOverviewActions(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const Key('auto-play-lesson-review'),
+            onPressed: _toggleAutoReview,
+            icon: Icon(
+              _autoPlayActive
+                  ? Icons.graphic_eq_rounded
+                  : Icons.play_circle_outline_rounded,
+              size: 20,
+            ),
+            label: Text(
+              context.tr('Tự động phát', '自动播放'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(60),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              backgroundColor: _autoPlayActive
+                  ? AppColors.indigo
+                  : Colors.white,
+              foregroundColor: _autoPlayActive
+                  ? Colors.white
+                  : AppColors.indigo,
+              side: BorderSide(
+                color: _autoPlayActive
+                    ? AppColors.indigo
+                    : AppColors.lavenderBorder,
+                width: 1.5,
+              ),
+              textStyle: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 260),
+            opacity: _completionUnlockSeconds == 0 ? 1 : 0.48,
+            child: FilledButton.icon(
+              key: const Key('complete-lesson-review'),
+              onPressed: _completionUnlockSeconds == 0 ? _startLearning : null,
+              icon: Icon(
+                _completionUnlockSeconds == 0
+                    ? Icons.play_arrow_rounded
+                    : Icons.lock_clock_rounded,
+                size: 20,
+              ),
+              label: Text(
+                _completionUnlockSeconds == 0
+                    ? context.tr('Học ngay', '立即学习')
+                    : context.tr(
+                        'Học ngay sau $_completionUnlockSeconds giây',
+                        '$_completionUnlockSeconds 秒后开始学习',
+                      ),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(60),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                disabledBackgroundColor: AppColors.periwinkle,
+                disabledForegroundColor: Colors.white,
+                textStyle: const TextStyle(
+                  fontFamily: 'Roboto',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLearnedActions(BuildContext context) {
+    final primaryAction = widget.hasNextLesson
+        ? LessonReviewAction.nextLesson
+        : LessonReviewAction.returnToListening;
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const Key('post-lesson-primary-action'),
+            onPressed: () => _finishLearnedReview(primaryAction),
+            icon: Icon(
+              widget.hasNextLesson
+                  ? Icons.skip_next_rounded
+                  : Icons.headphones_rounded,
+              size: 20,
+            ),
+            label: Text(
+              widget.hasNextLesson
+                  ? context.tr('Bài tiếp theo', '下一课')
+                  : context.tr('Luyện nghe', '听力练习'),
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(60),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              foregroundColor: AppColors.indigo,
+              side: const BorderSide(
+                color: AppColors.lavenderBorder,
+                width: 1.5,
+              ),
+              textStyle: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton.icon(
+            key: const Key('restart-lesson-review'),
+            onPressed: () =>
+                _finishLearnedReview(LessonReviewAction.restartLesson),
+            icon: const Icon(Icons.replay_rounded, size: 20),
+            label: Text(
+              context.tr('Luyện lại từ đầu', '从头练习'),
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(60),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              textStyle: const TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _finishLearnedReview(LessonReviewAction action) async {
+    await _stopAutoReview();
+    if (!mounted) {
+      return;
+    }
+    // The route receiving this result may start another lesson before the
+    // pop animation disposes this review route. Playback is already stopped,
+    // so dispose must not stop the newly started audio on the shared service.
+    _handingOffMediaPlayback = true;
+    Navigator.of(context).pop(action);
+  }
+
+  Future<void> _startLearning() async {
+    await _stopAutoReview();
+    if (!mounted) {
+      return;
+    }
+    _handingOffMediaPlayback = true;
+    final builder = widget.learnNowBuilder;
+    if (builder == null) {
+      Navigator.of(context).pop(-1);
+      return;
+    }
+    Navigator.of(
+      context,
+    ).pushReplacement<void, void>(MaterialPageRoute<void>(builder: builder));
+  }
+
+  Future<void> _toggleAutoReview() async {
+    if (_autoPlayActive) {
+      await _stopAutoReview();
+      return;
+    }
+    await _playReview();
+  }
 
   void _startCompletionUnlockTimer() {
     _completionUnlockTimer?.cancel();
@@ -226,14 +367,14 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Future<void> _playReview() async {
-    _stopped = false;
+    final request = ++_playbackRequest;
     _cancelReviewGap();
     await widget.mediaService.stopPlayback();
-    if (!mounted) {
+    if (!mounted || request != _playbackRequest) {
       return;
     }
     setState(() {
-      _autoPlaying = true;
+      _autoPlayActive = true;
       _message = null;
       _playingIndex = null;
     });
@@ -242,35 +383,44 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     if (fullAudio != null &&
         widget.lesson.type != ListeningLessonType.standard) {
       try {
-        await widget.mediaService.play(fullAudio);
+        await widget.mediaService.playToCompletion(fullAudio);
       } catch (error) {
-        _setMessage(error.toString());
-      }
-      if (mounted) {
-        setState(() => _autoPlaying = false);
+        if (request == _playbackRequest) {
+          _setMessage(error.toString());
+        }
+      } finally {
+        if (mounted && request == _playbackRequest) {
+          setState(() {
+            _autoPlayActive = false;
+            _playingIndex = null;
+          });
+        }
       }
       return;
     }
 
     for (var index = 0; index < widget.lesson.sentences.length; index++) {
-      if (_stopped || !mounted) {
+      if (!mounted || request != _playbackRequest) {
         return;
       }
       setState(() => _playingIndex = index);
       final uri = widget.lesson.sentences[index].audioUri;
       if (uri != null) {
         try {
-          await widget.mediaService.play(uri);
+          await widget.mediaService.playToCompletion(uri);
         } catch (_) {}
+      }
+      if (!mounted || request != _playbackRequest) {
+        return;
       }
       if (!await _waitReviewGap()) {
         return;
       }
     }
-    if (mounted && !_stopped) {
+    if (mounted && request == _playbackRequest) {
       setState(() {
+        _autoPlayActive = false;
         _playingIndex = null;
-        _autoPlaying = false;
         if (widget.lesson.sentences.every(
           (sentence) => sentence.audioUri == null,
         )) {
@@ -288,6 +438,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     if (!mounted) {
       return;
     }
+    final request = ++_playbackRequest;
     final sentence = widget.lesson.sentences[index];
     if (sentence.audioUri == null) {
       _setMessage(context.tr('Audio câu này sẽ được gắn sau.', '本句音频稍后接入。'));
@@ -297,23 +448,23 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
       setState(() => _playingIndex = index);
     }
     try {
-      await widget.mediaService.play(sentence.audioUri!);
+      await widget.mediaService.playToCompletion(sentence.audioUri!);
     } catch (error) {
       _setMessage(error.toString());
     } finally {
-      if (mounted) {
+      if (mounted && request == _playbackRequest) {
         setState(() => _playingIndex = null);
       }
     }
   }
 
   Future<void> _stopAutoReview() async {
-    _stopped = true;
+    _playbackRequest += 1;
     _cancelReviewGap();
     await widget.mediaService.stopPlayback();
     if (mounted) {
       setState(() {
-        _autoPlaying = false;
+        _autoPlayActive = false;
         _playingIndex = null;
       });
     }
@@ -350,152 +501,15 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 }
 
-class _ReviewHero extends StatelessWidget {
-  const _ReviewHero({
-    required this.lesson,
-    required this.autoPlaying,
-    required this.onStop,
-  });
-
-  final ListeningLessonContent lesson;
-  final bool autoPlaying;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = switch (lesson.type) {
-      ListeningLessonType.dialogue => Icons.forum_rounded,
-      ListeningLessonType.song => Icons.music_note_rounded,
-      ListeningLessonType.standard => Icons.headphones_rounded,
-    };
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: autoPlaying ? const Color(0xFFE9E8FF) : AppColors.lavenderSoft,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.lavenderBorder),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 50,
-            height: 50,
-            decoration: const BoxDecoration(
-              color: AppColors.indigo,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  autoPlaying
-                      ? context.tr('Đang tự động phát', '正在自动播放')
-                      : context.tr('Sẵn sàng nghe lại', '可以重新收听'),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  context.tr(
-                    'Chỉ phát tiếng Anh · mỗi câu cách nhau 2 giây',
-                    '仅播放英语 · 每句间隔 2 秒',
-                  ),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-          if (autoPlaying)
-            IconButton(
-              onPressed: onStop,
-              icon: const Icon(Icons.stop_circle_outlined),
-              tooltip: context.tr('Dừng phát', '停止播放'),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UnrecordedBanner extends StatelessWidget {
-  const _UnrecordedBanner({required this.count, required this.onRetry});
-
-  final int count;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: const Key('unrecorded-sentences-banner'),
-      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF6E8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFFFD89A)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final message = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.favorite_outline_rounded,
-                color: Color(0xFFFF9C6C),
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  context.tr('$count câu chưa ghi âm', '$count 句尚未录音'),
-                  style: const TextStyle(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          );
-          final retryButton = TextButton(
-            key: const Key('retry-unrecorded-sentences'),
-            onPressed: onRetry,
-            child: Text(context.tr('Ghi âm ngay', '立即录音')),
-          );
-          final compact =
-              constraints.maxWidth < 310 ||
-              MediaQuery.textScalerOf(context).scale(1) > 1.2;
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                message,
-                Align(alignment: Alignment.centerRight, child: retryButton),
-              ],
-            );
-          }
-          return Row(
-            children: <Widget>[
-              Expanded(child: message),
-              retryButton,
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _ReviewSentenceTile extends StatelessWidget {
   const _ReviewSentenceTile({
     required this.index,
     required this.sentence,
     required this.lessonType,
     required this.playing,
-    required this.unrecorded,
+    required this.recordingStatus,
+    required this.redesigned,
+    required this.featured,
     required this.onPlay,
   });
 
@@ -503,37 +517,54 @@ class _ReviewSentenceTile extends StatelessWidget {
   final ListeningSentenceContent sentence;
   final ListeningLessonType lessonType;
   final bool playing;
-  final bool unrecorded;
+  final _ReviewRecordingStatus? recordingStatus;
+  final bool redesigned;
+  final bool featured;
   final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
+    final statusAccent = switch (recordingStatus) {
+      _ReviewRecordingStatus.recorded => AppColors.success,
+      _ReviewRecordingStatus.unrecorded => AppColors.coral,
+      null => AppColors.indigo,
+    };
+    final tileColor = switch (recordingStatus) {
+      _ReviewRecordingStatus.recorded => AppColors.successSoft,
+      _ReviewRecordingStatus.unrecorded => AppColors.coralSoft,
+      null => Colors.white,
+    };
+    final statusBorder = switch (recordingStatus) {
+      _ReviewRecordingStatus.recorded => AppColors.success.withValues(
+        alpha: 0.48,
+      ),
+      _ReviewRecordingStatus.unrecorded => AppColors.coral.withValues(
+        alpha: 0.48,
+      ),
+      null => AppColors.lavenderBorder,
+    };
+
     return AnimatedContainer(
+      key: ValueKey('review-sentence-tile-${index + 1}'),
       duration: const Duration(milliseconds: 220),
-      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      padding: redesigned
+          ? EdgeInsets.fromLTRB(14, featured ? 8 : 10, 8, featured ? 8 : 10)
+          : const EdgeInsets.fromLTRB(14, 12, 10, 12),
       decoration: BoxDecoration(
-        color: playing
-            ? const Color(0xFFE9E8FF)
-            : unrecorded
-            ? const Color(0xFFFFFBF7)
-            : Colors.white,
+        color: tileColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: playing
-              ? AppColors.indigo
-              : unrecorded
-              ? AppColors.peach
-              : AppColors.lavenderBorder,
-          width: playing || unrecorded ? 1.5 : 1,
+          color: playing ? AppColors.indigo : statusBorder,
+          width: playing || recordingStatus != null ? 1.5 : 1,
         ),
       ),
       child: Row(
         children: <Widget>[
           CircleAvatar(
-            backgroundColor: unrecorded
-                ? const Color(0xFFFFF1E8)
-                : AppColors.lavenderSoft,
-            foregroundColor: unrecorded ? AppColors.coral : AppColors.indigo,
+            backgroundColor: recordingStatus == null
+                ? AppColors.lavenderSoft
+                : statusAccent.withValues(alpha: 0.1),
+            foregroundColor: statusAccent,
             child: Text('${index + 1}'),
           ),
           const SizedBox(width: 12),
@@ -545,7 +576,7 @@ class _ReviewSentenceTile extends StatelessWidget {
                   sentence.english,
                   key: ValueKey('review-sentence-${index + 1}'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: unrecorded ? FontWeight.w800 : FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (lessonType == ListeningLessonType.dialogue &&
@@ -558,28 +589,207 @@ class _ReviewSentenceTile extends StatelessWidget {
                     ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
                   ),
                 ],
-                if (unrecorded) ...<Widget>[
+                if (recordingStatus != null) ...<Widget>[
                   const SizedBox(height: 3),
-                  Text(
-                    context.tr('Chưa ghi âm', '尚未录音'),
-                    style: const TextStyle(
-                      color: AppColors.coral,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  _ReviewRecordingBadge(index: index, status: recordingStatus!),
                 ],
               ],
             ),
           ),
-          IconButton(
-            onPressed: onPlay,
-            icon: Icon(
-              playing ? Icons.graphic_eq_rounded : Icons.play_arrow_rounded,
+          if (redesigned)
+            _ReviewPlayControl(
+              index: index,
+              playing: playing,
+              showMascot: featured,
+              onPressed: onPlay,
+              tooltip: context.tr('Nghe câu này', '播放本句'),
+            )
+          else
+            IconButton(
+              onPressed: onPlay,
+              icon: Icon(
+                playing ? Icons.graphic_eq_rounded : Icons.play_arrow_rounded,
+              ),
+              tooltip: context.tr('Nghe câu này', '播放本句'),
             ),
-            tooltip: context.tr('Nghe câu này', '播放本句'),
+        ],
+      ),
+    );
+  }
+}
+
+enum _ReviewRecordingStatus { recorded, unrecorded }
+
+class _ReviewRecordingBadge extends StatelessWidget {
+  const _ReviewRecordingBadge({required this.index, required this.status});
+
+  final int index;
+  final _ReviewRecordingStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final recorded = status == _ReviewRecordingStatus.recorded;
+    final accent = recorded ? AppColors.success : AppColors.coral;
+    return Row(
+      children: <Widget>[
+        Icon(
+          recorded ? Icons.check_circle_rounded : Icons.mic_off_rounded,
+          size: 14,
+          color: accent,
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            recorded
+                ? context.tr('Đã ghi âm', '已录音')
+                : context.tr('Chưa ghi âm', '尚未录音'),
+            key: ValueKey('review-recording-status-${index + 1}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              height: 1.15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewPlayControl extends StatelessWidget {
+  const _ReviewPlayControl({
+    required this.index,
+    required this.playing,
+    required this.showMascot,
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  static const _mascotAsset = 'assets/images/mascot-robot-pointing.png';
+
+  final int index;
+  final bool playing;
+  final bool showMascot;
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = _ReviewPlayButton(
+      key: ValueKey('review-sentence-play-${index + 1}'),
+      playing: playing,
+      onPressed: onPressed,
+      tooltip: tooltip,
+    );
+    if (!showMascot) {
+      return button;
+    }
+
+    return SizedBox(
+      width: 132,
+      height: 88,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Align(alignment: Alignment.centerRight, child: button),
+          Positioned(
+            left: 0,
+            top: -2,
+            width: 100,
+            height: 92,
+            child: IgnorePointer(
+              child: Image.asset(
+                _mascotAsset,
+                key: const Key('review-first-sentence-mascot'),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewPlayButton extends StatelessWidget {
+  const _ReviewPlayButton({
+    required this.playing,
+    required this.onPressed,
+    required this.tooltip,
+    super.key,
+  });
+
+  final bool playing;
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE7C2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: playing
+                      ? AppColors.periwinkle
+                      : const Color(0xFFFFD49A),
+                  width: playing ? 1.5 : 1,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFFFFA86C).withValues(alpha: 0.22),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: AppColors.indigo.withValues(
+                          alpha: playing ? 0.36 : 0.22,
+                        ),
+                        blurRadius: playing ? 13 : 9,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    playing
+                        ? Icons.graphic_eq_rounded
+                        : Icons.play_arrow_rounded,
+                    color: AppColors.indigoDark,
+                    size: 29,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

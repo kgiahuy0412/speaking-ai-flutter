@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
+import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
@@ -126,6 +127,7 @@ class ConversationScreen extends StatelessWidget {
   void _openTopicListening(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: ListeningRouteNames.topicCatalog),
         builder: (_) => TopicListeningScreen(
           language: controller.displayLanguage,
           childAge: config.childAge,

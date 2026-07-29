@@ -29,6 +29,12 @@ abstract interface class AudioPlaybackService {
   Future<void> dispose();
 }
 
+/// Optional capability for callers that must distinguish a temporary pause
+/// from the source actually reaching its end.
+abstract interface class CompletionAwareAudioPlaybackService {
+  Stream<void> get completionStream;
+}
+
 /// Optional capability used by browsers that require audio playback to be
 /// started directly from a user gesture before later automatic playback.
 abstract interface class UserGestureAudioPlaybackService {
@@ -44,6 +50,7 @@ abstract interface class DirectUserGestureAudioPlaybackService {
 class JustAudioPlaybackService
     implements
         AudioPlaybackService,
+        CompletionAwareAudioPlaybackService,
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService {
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
@@ -231,6 +238,28 @@ class JustAudioPlaybackService
           )
           .distinct();
 
+  @override
+  Stream<void> get completionStream {
+    final browserPlayback = _browserPlayback;
+    if (browserPlayback != null) {
+      return browserPlayback.playingStream
+          .where((playing) => !playing)
+          .map((_) {});
+    }
+    final expectedDuration = _player.duration;
+    final subscribedAt = DateTime.now();
+    return _player.processingStateStream
+        .where(
+          (state) => isPlaybackAtSourceEnd(
+            processingState: state,
+            position: _player.position,
+            duration: expectedDuration ?? _player.duration,
+            elapsedSinceStart: DateTime.now().difference(subscribedAt),
+          ),
+        )
+        .map((_) {});
+  }
+
   Future<void> _setSource(Uri uri) async {
     if (uri.isScheme('asset')) {
       final assetPath = uri.path.startsWith('/')
@@ -317,8 +346,9 @@ class JustAudioPlaybackService
     final loadedAt = DateTime.now();
     assert(() {
       debugPrint(
-        'Audio source ready after '
-        '${loadedAt.difference(requestedAt).inMilliseconds} ms.',
+        'Audio source ready for $uri after '
+        '${loadedAt.difference(requestedAt).inMilliseconds} ms '
+        '(duration: ${_player.duration}, position: ${_player.position}).',
       );
       return true;
     }());
@@ -366,6 +396,23 @@ class JustAudioPlaybackService
       _cache.dispose();
     }
   }
+}
+
+@visibleForTesting
+bool isPlaybackAtSourceEnd({
+  required ProcessingState processingState,
+  required Duration position,
+  required Duration? duration,
+  required Duration elapsedSinceStart,
+}) {
+  if (processingState != ProcessingState.completed ||
+      duration == null ||
+      duration <= Duration.zero) {
+    return false;
+  }
+  const tolerance = Duration(milliseconds: 200);
+  return position >= duration - tolerance &&
+      elapsedSinceStart >= duration - tolerance;
 }
 
 class PlaybackException implements Exception {
