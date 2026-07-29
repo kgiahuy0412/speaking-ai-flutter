@@ -27,6 +27,11 @@ void main() {
 
       expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
       await tester.pump(const Duration(seconds: 4));
+      expect(
+        find.byKey(const Key('lesson-coach-popup-firstReminder')),
+        findsNothing,
+      );
+      await tester.pump(const Duration(seconds: 1));
       await tester.pump();
       expect(
         find.byKey(const Key('lesson-coach-popup-firstReminder')),
@@ -45,7 +50,17 @@ void main() {
         find.byKey(const Key('lesson-coach-popup-firstReminder')),
         findsNothing,
       );
-      await tester.pump(const Duration(milliseconds: 700));
+      expect(
+        find.byKey(const Key('lesson-coach-popup-secondReminder')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 4600));
+      expect(
+        find.byKey(const Key('lesson-coach-popup-secondReminder')),
+        findsNothing,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pump();
       expect(find.byKey(const Key('skip-lesson-sentence')), findsOneWidget);
       expect(
@@ -353,7 +368,7 @@ void main() {
     });
     await tester.pumpWidget(_subject(_lesson(), _GuidedMediaService()));
     await _finishInitialLoad(tester);
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 5));
 
     final popup = find.byKey(const Key('lesson-coach-popup-firstReminder'));
     expect(popup, findsOneWidget);

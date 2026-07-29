@@ -13,6 +13,7 @@ enum PracticeContext {
 
 enum AsrMode {
   androidStreaming('android_streaming', 'Android streaming'),
+  hfpStreaming('hfp_streaming', 'HFP streaming'),
   openAiRealtime('openai_realtime', 'OpenAI Realtime'),
   bleOfflineIntent('ble_offline_intent', 'BLE offline intent'),
   batchChunks('batch_chunks', 'Batch Chunks dự phòng'),

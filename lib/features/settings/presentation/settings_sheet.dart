@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../core/audio/audio_input.dart';
+import '../../../core/audio/hfp_audio_control.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -97,6 +98,10 @@ class SettingsSheet extends StatelessWidget {
                           'Nhận chữ trực tiếp • fast path',
                           '直接识别文字 • 快速路径',
                         ),
+                        AsrMode.hfpStreaming => context.tr(
+                          'Mic Bluetooth HFP/SCO • Android ASR',
+                          '蓝牙 HFP/SCO 麦克风 • Android 识别',
+                        ),
                         AsrMode.openAiRealtime => context.tr(
                           'PCM16 24 kHz • ASR trực tiếp • Batch dự phòng',
                           'PCM16 24 kHz • 实时识别 • 分块备用',
@@ -128,6 +133,13 @@ class SettingsSheet extends StatelessWidget {
                       onTest: () => _testInnotrik(context),
                       onDisconnect: controller.disconnectInnotrikDevice,
                     ),
+                    const SizedBox(height: 10),
+                    _HfpStatusCard(
+                      status: controller.hfpAudioStatus,
+                      disabled: controller.isBusy,
+                      onFind: () => _findAndConnectHfp(context),
+                      onDisconnect: controller.disconnectHfpDevice,
+                    ),
                     const SizedBox(height: 24),
                     _SectionLabel(
                       label: context.tr('Chế độ nhận diện', '识别模式'),
@@ -149,7 +161,10 @@ class SettingsSheet extends StatelessWidget {
                                           mode == AsrMode.batchChunks)) &&
                                   (!kIsWeb || mode == AsrMode.batchChunks) &&
                                   (mode != AsrMode.androidStreaming ||
-                                      controller.supportsAndroidStreaming),
+                                      controller.supportsAndroidStreaming) &&
+                                  (mode != AsrMode.hfpStreaming ||
+                                      (controller.supportsAndroidStreaming &&
+                                          controller.supportsHfp)),
                             )
                             .map(
                               (mode) => RadioListTile<AsrMode>(
@@ -158,7 +173,9 @@ class SettingsSheet extends StatelessWidget {
                                 enabled:
                                     mode.isBackendSupported &&
                                     (mode != AsrMode.deviceStreaming ||
-                                        controller.canUseInnotrikBle),
+                                        controller.canUseInnotrikBle) &&
+                                    (mode != AsrMode.hfpStreaming ||
+                                        controller.canUseHfp),
                                 title: Text(
                                   kIsWeb && mode == AsrMode.batchChunks
                                       ? context.tr(
@@ -171,6 +188,14 @@ class SettingsSheet extends StatelessWidget {
                                   AsrMode.androidStreaming => context.tr(
                                     'Nhanh như web streaming; tự dùng dịch vụ Android',
                                     '与网页流式识别一样快；自动使用 Android 服务',
+                                  ),
+                                  AsrMode.hfpStreaming => context.tr(
+                                    controller.canUseHfp
+                                        ? 'Nghe từ mic tai nghe qua HFP/SCO'
+                                        : 'Kết nối thiết bị HFP ở phía trên để bật',
+                                    controller.canUseHfp
+                                        ? '通过 HFP/SCO 使用耳机麦克风'
+                                        : '请先在上方连接 HFP 设备',
                                   ),
                                   AsrMode.openAiRealtime => context.tr(
                                     'Nhận chữ khi đang nói; chỉ xử lý AI một lần sau khi dừng',
@@ -418,6 +443,128 @@ class SettingsSheet extends StatelessWidget {
         ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
+  }
+
+  Future<void> _findAndConnectHfp(BuildContext context) async {
+    try {
+      final devices = await controller.findHfpDevices();
+      if (!context.mounted) {
+        return;
+      }
+      if (devices.isEmpty) {
+        await _showHfpMessage(
+          context,
+          title: context.tr('Chưa có thiết bị HFP', '暂无 HFP 设备'),
+          message: context.tr(
+            'Hãy ghép đôi tai nghe hoặc thiết bị HFP trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.',
+            '请先在蓝牙设置中配对耳机或 HFP 设备，然后返回并点击“查找 HFP”。',
+          ),
+        );
+        return;
+      }
+      final selected = await showModalBottomSheet<HfpAudioDevice>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  context.tr('Chọn thiết bị HFP', '选择 HFP 设备'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  context.tr(
+                    'Android chỉ cho ứng dụng dùng HFP đã ghép đôi. Thiết bị đang kết nối được ưu tiên.',
+                    'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
+                  ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: devices.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final device = devices[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: device.isConnected
+                              ? AppColors.successSoft
+                              : const Color(0xFFF1F2F8),
+                          child: Icon(
+                            Icons.headset_mic_rounded,
+                            color: device.isConnected
+                                ? AppColors.success
+                                : AppColors.muted,
+                          ),
+                        ),
+                        title: Text(device.displayName),
+                        subtitle: Text(
+                          device.isConnected
+                              ? context.tr('HFP đang kết nối', 'HFP 已连接')
+                              : context.tr(
+                                  'Đã ghép đôi • chạm để mở kết nối',
+                                  '已配对 • 点击连接',
+                                ),
+                        ),
+                        trailing: device.isConnected
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.success,
+                              )
+                            : const Icon(Icons.chevron_right_rounded),
+                        onTap: () => Navigator.of(context).pop(device),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      await controller.connectHfpDevice(selected);
+    } catch (error) {
+      if (context.mounted) {
+        await _showHfpMessage(
+          context,
+          title: context.tr('Chưa thể dùng HFP', '暂时无法使用 HFP'),
+          message: error.toString(),
+        );
+      }
+    }
+  }
+
+  Future<void> _showHfpMessage(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(context.tr('Đã hiểu', '知道了')),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -676,6 +823,156 @@ class _InnotrikStatusCard extends StatelessWidget {
       BluetoothAudioConnectionPhase.idle => context.tr(
         'Bật thiết bị rồi quét để kết nối.',
         '打开设备后扫描连接。',
+      ),
+    };
+  }
+}
+
+class _HfpStatusCard extends StatelessWidget {
+  const _HfpStatusCard({
+    required this.status,
+    required this.disabled,
+    required this.onFind,
+    required this.onDisconnect,
+  });
+
+  final BluetoothAudioStatus status;
+  final bool disabled;
+  final VoidCallback onFind;
+  final Future<void> Function() onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = status.isConnected;
+    final busy = status.isBusy;
+    final stateColor = connected
+        ? AppColors.success
+        : status.phase == BluetoothAudioConnectionPhase.error
+        ? AppColors.coral
+        : AppColors.muted;
+    final deviceName = status.deviceName?.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: connected ? AppColors.successSoft : const Color(0xFFF8F8FD),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: stateColor.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(Icons.headset_mic_rounded, color: stateColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      deviceName == null || deviceName.isEmpty
+                          ? context.tr('Mic Bluetooth HFP', '蓝牙 HFP 麦克风')
+                          : deviceName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _detail(context),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (busy)
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: EdgeInsets.all(10),
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+            )
+          else
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed:
+                    disabled ||
+                        status.phase ==
+                            BluetoothAudioConnectionPhase.unsupported ||
+                        status.phase == BluetoothAudioConnectionPhase.disabled
+                    ? null
+                    : connected
+                    ? () => onDisconnect()
+                    : onFind,
+                icon: Icon(
+                  connected
+                      ? Icons.link_off_rounded
+                      : Icons.manage_search_rounded,
+                ),
+                label: Text(
+                  connected
+                      ? context.tr('Bỏ chọn', '取消选择')
+                      : context.tr('Tìm HFP', '查找 HFP'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _detail(BuildContext context) {
+    return switch (status.phase) {
+      BluetoothAudioConnectionPhase.disabled => context.tr(
+        'HFP đang tắt trong cấu hình bản build.',
+        '此构建中已关闭 HFP。',
+      ),
+      BluetoothAudioConnectionPhase.unsupported => context.tr(
+        'Điện thoại hoặc bản ứng dụng này không hỗ trợ HFP.',
+        '此手机或应用版本不支持 HFP。',
+      ),
+      BluetoothAudioConnectionPhase.permissionRequired => context.tr(
+        'Cần quyền Thiết bị ở gần/Bluetooth.',
+        '需要“附近设备/蓝牙”权限。',
+      ),
+      BluetoothAudioConnectionPhase.scanning => context.tr(
+        'Đang tìm thiết bị HFP đã ghép đôi…',
+        '正在查找已配对的 HFP 设备…',
+      ),
+      BluetoothAudioConnectionPhase.connecting => context.tr(
+        'Đang kiểm tra kết nối HFP…',
+        '正在检查 HFP 连接…',
+      ),
+      BluetoothAudioConnectionPhase.discovering => context.tr(
+        'Đang kiểm tra đường âm thanh SCO…',
+        '正在检查 SCO 音频通道…',
+      ),
+      BluetoothAudioConnectionPhase.ready => context.tr(
+        'Đã kết nối • mic HFP/SCO sẵn sàng',
+        '已连接 • HFP/SCO 麦克风就绪',
+      ),
+      BluetoothAudioConnectionPhase.recording => context.tr(
+        'Đang nhận diện từ mic HFP/SCO',
+        '正在通过 HFP/SCO 麦克风识别',
+      ),
+      BluetoothAudioConnectionPhase.error =>
+        status.message ?? context.tr('Kết nối HFP gặp lỗi.', 'HFP 连接发生错误。'),
+      BluetoothAudioConnectionPhase.idle => context.tr(
+        'Dùng thiết bị HFP đã ghép đôi trong Android.',
+        '使用 Android 中已配对的 HFP 设备。',
       ),
     };
   }
