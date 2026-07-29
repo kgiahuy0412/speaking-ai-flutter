@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../core/audio/audio_playback_service.dart';
 import '../core/audio/device_audio_cache.dart';
+import '../core/audio/hfp_audio_control.dart';
 import '../core/audio/innotrik_ble_audio_input.dart';
 import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
@@ -15,6 +16,7 @@ import '../core/device/android_device_hardware.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/pwa/pwa_install_gate.dart';
+import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
 import '../features/conversation/domain/conversation_models.dart';
@@ -63,6 +65,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     final innotrikInput = InnotrikBleAudioInput(
       enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
     );
+    final hfpAudioControl = MethodChannelHfpAudioControl(
+      enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
+    );
     _controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
@@ -71,6 +76,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       streamingSpeechInput: supportsAndroidNativeSpeech
           ? AndroidStreamingSpeechInput()
           : null,
+      hfpAudioControl: hfpAudioControl,
       playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
       repository: repository,
       offlineIntentRecognizer: supportsAndroidNativeSpeech
@@ -167,8 +173,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       title: 'Trợ lý giao tiếp',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: PwaInstallGate(
-        child: ConversationScreen(controller: _controller, config: _config),
+      home: AndroidUpdateGate(
+        config: _config,
+        child: PwaInstallGate(
+          child: ConversationScreen(controller: _controller, config: _config),
+        ),
       ),
     );
   }
