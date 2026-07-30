@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -45,7 +43,7 @@ class LessonIntroScreen extends StatefulWidget {
 class _LessonIntroScreenState extends State<LessonIntroScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _animationController;
-  Timer? _advanceTimer;
+  bool _introPlaybackFailed = false;
   bool _movingForward = false;
 
   @override
@@ -62,33 +60,30 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
 
   Future<void> _beginIntro() async {
     final uri = widget.lesson.introAudioUri;
-    if (uri != null) {
-      try {
-        await widget.mediaService.playToCompletion(uri);
-        if (!widget.autoAdvance || !mounted || _movingForward) {
-          return;
-        }
-        _advanceTimer = Timer(
-          const Duration(milliseconds: 350),
-          _continueToLesson,
-        );
-        return;
-      } catch (_) {
-        // If remote audio cannot start or finish, use the bounded text-based
-        // fallback below so a weak network never traps the child here.
-      }
-    }
-    if (!widget.autoAdvance || !mounted) {
+    if (uri == null) {
+      _showIntroPlaybackFailure();
       return;
     }
-    final words = widget.lesson.intro.trim().split(RegExp(r'\s+')).length;
-    final seconds = (words / 3).ceil().clamp(5, 14);
-    _advanceTimer = Timer(Duration(seconds: seconds), _continueToLesson);
+    try {
+      await widget.mediaService.playToCompletion(uri);
+      if (!widget.autoAdvance || !mounted || _movingForward) {
+        return;
+      }
+      await _openOverview();
+    } catch (_) {
+      _showIntroPlaybackFailure();
+    }
+  }
+
+  void _showIntroPlaybackFailure() {
+    if (!mounted || _movingForward) {
+      return;
+    }
+    setState(() => _introPlaybackFailed = true);
   }
 
   @override
   void dispose() {
-    _advanceTimer?.cancel();
     _animationController.dispose();
     widget.mediaService.stopPlayback();
     super.dispose();
@@ -201,7 +196,16 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              context.tr('Đang phát lời mở đầu…', '正在播放开场介绍…'),
+                              _introPlaybackFailed
+                                  ? context.tr(
+                                      'Không thể phát lời mở đầu. Con hãy bấm Bỏ qua để tiếp tục.',
+                                      '无法播放开场介绍，请点击跳过继续。',
+                                    )
+                                  : context.tr(
+                                      'Đang phát lời mở đầu…',
+                                      '正在播放开场介绍…',
+                                    ),
+                              textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(color: AppColors.indigoDark),
                             ),
@@ -209,6 +213,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                             ClipRRect(
                               borderRadius: BorderRadius.circular(99),
                               child: LinearProgressIndicator(
+                                value: _introPlaybackFailed ? 0 : null,
                                 minHeight: 7,
                                 backgroundColor: Colors.white.withValues(
                                   alpha: 0.55,
@@ -230,39 +235,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     );
   }
 
-  Future<void> _continueToLesson() async {
-    if (_movingForward || !mounted) {
-      return;
-    }
-    _movingForward = true;
-    _advanceTimer?.cancel();
-    await widget.mediaService.stopPlayback();
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonPracticeScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: widget.lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-        ),
-      ),
-    );
-  }
-
   Future<void> _openOverview() async {
     if (_movingForward || !mounted) {
       return;
     }
     _movingForward = true;
-    _advanceTimer?.cancel();
     await widget.mediaService.stopPlayback();
     if (!mounted) {
       return;

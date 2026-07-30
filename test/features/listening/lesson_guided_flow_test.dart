@@ -337,8 +337,16 @@ void main() {
 
     mediaService.finishNextIntro();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
+    expect(find.byType(LessonReviewScreen), findsOneWidget);
+    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+
+    await tester.pump(const Duration(seconds: 6));
+    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(learnNowButton);
+    await tester.tap(learnNowButton);
+    await tester.pumpAndSettle();
     expect(find.byType(LessonPracticeScreen), findsOneWidget);
     expect(find.text('Sentence 1'), findsOneWidget);
 
@@ -720,7 +728,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('lesson intro waits until its audio really finishes', (
+  testWidgets('lesson intro opens the overview only after audio finishes', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -748,9 +756,45 @@ void main() {
 
     mediaService.finishIntro();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    expect(find.byType(LessonPracticeScreen), findsOneWidget);
+    expect(find.byType(LessonReviewScreen), findsOneWidget);
+    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('lesson intro does not auto advance when playback fails', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
+          topic: listeningCatalogs.first.topics.first,
+          lesson: _lesson(
+            introAudioUri: Uri.parse('https://example.test/broken-intro.mp3'),
+          ),
+          progressStore: _MemoryProgressStore(),
+          mediaService: _FailingIntroMediaService(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 20));
+
+    expect(find.byType(LessonIntroScreen), findsOneWidget);
+    expect(find.byType(LessonReviewScreen), findsNothing);
+    expect(find.textContaining('Không thể phát lời mở đầu'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('skip-lesson-intro')));
+    await tester.pumpAndSettle();
+    expect(find.byType(LessonReviewScreen), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -984,6 +1028,22 @@ class _ControlledIntroMediaService extends LessonMediaService {
       _completion.complete();
     }
   }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FailingIntroMediaService extends LessonMediaService {
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    throw StateError('Playback failed.');
+  }
+
+  @override
+  Future<void> stopPlayback() async {}
 
   @override
   Future<void> dispose() async {}
