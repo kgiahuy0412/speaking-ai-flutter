@@ -62,7 +62,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
       expect(firstReminder, findsNothing);
-      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pump(const Duration(milliseconds: 4999));
+      expect(find.byKey(const Key('skip-lesson-sentence')), findsNothing);
+      await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
       expect(find.byKey(const Key('skip-lesson-sentence')), findsOneWidget);
       expect(
