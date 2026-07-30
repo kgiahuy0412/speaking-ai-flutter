@@ -27,65 +27,72 @@ class SpeakActionBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 13, 20, 12),
-      decoration: const BoxDecoration(
-        color: AppColors.lavenderSoft,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
-      ),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: SafeArea(
         top: false,
-        child: Semantics(
-          button: true,
-          enabled: !isProcessing,
-          label: _label(context),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: isProcessing
-                    ? <Color>[
-                        AppColors.indigo.withValues(alpha: 0.38),
-                        AppColors.indigoDark.withValues(alpha: 0.38),
-                      ]
-                    : <Color>[primary, secondary],
-              ),
-              borderRadius: BorderRadius.circular(34),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: primary.withValues(alpha: 0.25),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Semantics(
+              button: true,
+              enabled: !isProcessing,
+              label: _label(context),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: isProcessing
+                        ? <Color>[
+                            AppColors.indigo.withValues(alpha: 0.38),
+                            AppColors.indigoDark.withValues(alpha: 0.38),
+                          ]
+                        : <Color>[primary, secondary],
+                  ),
+                  borderRadius: BorderRadius.circular(34),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: primary.withValues(alpha: 0.25),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: isProcessing ? null : onPressed,
-                borderRadius: BorderRadius.circular(34),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 66),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Icon(
-                        isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                        color: Colors.white,
-                        size: 31,
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Text(
-                            _label(context),
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(color: Colors.white, fontSize: 20),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: isProcessing ? null : onPressed,
+                    borderRadius: BorderRadius.circular(34),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 66),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          Icon(
+                            isRecording
+                                ? Icons.stop_rounded
+                                : Icons.mic_rounded,
+                            color: Colors.white,
+                            size: 31,
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Text(
+                                _label(context),
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

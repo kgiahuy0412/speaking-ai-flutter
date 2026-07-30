@@ -43,12 +43,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => precacheImage(
-        const AssetImage('assets/images/mascot-robot.png'),
-        tester.element(find.byType(ConversationScreen)),
-      ),
-    );
+    await _precacheConversationAssets(tester);
     await tester.pumpAndSettle();
 
     await expectLater(
@@ -90,6 +85,7 @@ void main() {
         ),
       ),
     );
+    await _precacheConversationAssets(tester);
     await tester.pumpAndSettle();
 
     await expectLater(
@@ -130,6 +126,7 @@ void main() {
         ),
       ),
     );
+    await _precacheConversationAssets(tester);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-listening-shortcut')), findsOneWidget);
@@ -164,6 +161,7 @@ void main() {
       final context = tester.element(find.byType(TopicListeningScreen));
       await Future.wait<void>(
         const <AssetImage>[
+          AssetImage('assets/images/learning-train-field-background.webp'),
           AssetImage('assets/images/mascot-robot.png'),
           AssetImage('assets/images/topics/name-age.jpg'),
           AssetImage('assets/images/topics/family-home.jpg'),
@@ -179,6 +177,18 @@ void main() {
     await expectLater(
       find.byType(TopicListeningScreen),
       matchesGoldenFile('goldens/topic-listening-426x923.png'),
+    );
+  });
+}
+
+Future<void> _precacheConversationAssets(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    final context = tester.element(find.byType(ConversationScreen));
+    await Future.wait<void>(
+      const <AssetImage>[
+        AssetImage('assets/images/learning-train-field-background.webp'),
+        AssetImage('assets/images/mascot-robot.png'),
+      ].map((provider) => precacheImage(provider, context)),
     );
   });
 }

@@ -182,10 +182,13 @@ void main() {
 
     expect(find.byType(SongKaraokeScreen), findsOneWidget);
     expect(find.byType(LessonReviewScreen), findsNothing);
+    expect(mediaService.playCalls, 0);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
     expect(mediaService.playCalls, 1);
   });
 
-  testWidgets('full song starts immediately after intro audio completes', (
+  testWidgets('full song waits three seconds after intro audio completes', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -206,10 +209,15 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(mediaService.playToCompletionCalls, 1);
     expect(find.byType(SongKaraokeScreen), findsOneWidget);
+    expect(mediaService.playCalls, 0);
+    await tester.pump(const Duration(milliseconds: 2999));
+    expect(mediaService.playCalls, 0);
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
     expect(mediaService.playCalls, 1);
     expect(mediaService.stopCalls, 1);
   });

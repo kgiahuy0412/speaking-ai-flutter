@@ -94,7 +94,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
-      initialAsrMode: kIsWeb ? AsrMode.batchChunks : null,
+      initialAsrMode: supportsAndroidNativeSpeech
+          ? AsrMode.androidStreaming
+          : AsrMode.batchChunks,
     );
     if (!kIsWeb) {
       unawaited(_warmRecentAudioWhenIdle(repository, _deviceAudioCache));

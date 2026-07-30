@@ -41,18 +41,18 @@ class VoiceHero extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: isRecording
                     ? const <Color>[Color(0xFFFFF7F5), AppColors.coralSoft]
-                    : const <Color>[Color(0xFFFAF9FF), Color(0xFFF0EFFF)],
+                    : const <Color>[Color(0xFAFFFDF8), Color(0xF5FFFDF7)],
               ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(58),
-                topRight: Radius.circular(58),
-                bottomLeft: Radius.circular(42),
-                bottomRight: Radius.circular(58),
+                topLeft: Radius.circular(46),
+                topRight: Radius.circular(46),
+                bottomLeft: Radius.circular(38),
+                bottomRight: Radius.circular(46),
               ),
               border: Border.all(
                 color: isRecording
                     ? AppColors.coral.withValues(alpha: 0.45)
-                    : Colors.white,
+                    : Colors.white.withValues(alpha: 0.82),
                 width: 2,
               ),
               boxShadow: <BoxShadow>[
@@ -153,8 +153,8 @@ class VoiceHero extends StatelessWidget {
           child: IgnorePointer(
             child: Image.asset(
               'assets/images/mascot-robot.png',
-              width: 82,
-              height: 82,
+              width: 94,
+              height: 94,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
               semanticLabel: context.tr(

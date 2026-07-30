@@ -22,9 +22,9 @@ class ResultPanel extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 218),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE8E7FA)),
+        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.4),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x120D1B4C),

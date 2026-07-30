@@ -62,7 +62,9 @@ void main() {
 
       final topicShortcut = find.byKey(const Key('topic-listening-shortcut'));
       await tester.ensureVisible(topicShortcut);
-      await tester.tapAt(tester.getTopLeft(topicShortcut) + const Offset(20, 20));
+      await tester.tapAt(
+        tester.getTopLeft(topicShortcut) + const Offset(20, 20),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Luyện nghe theo chủ đề'), findsOneWidget);
       expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
@@ -74,8 +76,10 @@ void main() {
       await tester.tap(find.byTooltip('Cài đặt'));
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(find.text('Dữ liệu và quyền riêng tư'), findsOneWidget);
-      expect(find.text('Xem hoặc xóa dữ liệu'), findsOneWidget);
+      expect(find.text('Ngữ cảnh'), findsNothing);
+      expect(find.text('Dữ liệu và quyền riêng tư'), findsNothing);
+      expect(find.text('Xem hoặc xóa dữ liệu'), findsNothing);
+      expect(find.text('Xem lịch sử gần đây'), findsOneWidget);
       semantics.dispose();
     },
   );

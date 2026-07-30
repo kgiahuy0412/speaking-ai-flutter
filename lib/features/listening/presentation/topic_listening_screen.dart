@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
@@ -65,91 +66,100 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     return DisplayLanguageScope(
       language: widget.language,
       child: Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: CustomScrollView(
-            key: const Key('topic-listening-screen'),
-            slivers: <Widget>[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                sliver: SliverToBoxAdapter(child: _buildHeader(context)),
-              ),
-              SliverToBoxAdapter(child: _buildAgeSelector()),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                sliver: SliverToBoxAdapter(
-                  child: _ContinueLearningCard(
-                    topic: _catalog.topics[_catalog.continueTopicIndex],
-                    progress: _topicProgress(_catalog.continueTopicIndex),
-                    onPressed: () => _openTopic(
-                      _catalog.topics[_catalog.continueTopicIndex],
-                      _catalog.continueTopicIndex,
+        backgroundColor: Colors.transparent,
+        body: LearningScenery(
+          imageAlignment: Alignment.topCenter,
+          overlayOpacity: 0.12,
+          child: SafeArea(
+            bottom: false,
+            child: CustomScrollView(
+              key: const Key('topic-listening-screen'),
+              slivers: <Widget>[
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  sliver: SliverToBoxAdapter(child: _buildHeader(context)),
+                ),
+                SliverToBoxAdapter(child: _buildAgeSelector()),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _ContinueLearningCard(
+                      topic: _catalog.topics[_catalog.continueTopicIndex],
+                      progress: _topicProgress(_catalog.continueTopicIndex),
+                      onPressed: () => _openTopic(
+                        _catalog.topics[_catalog.continueTopicIndex],
+                        _catalog.continueTopicIndex,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                sliver: SliverToBoxAdapter(
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          context.tr('Chủ đề của con', '孩子的主题'),
-                          style: Theme.of(context).textTheme.headlineMedium,
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            context.tr('Chủ đề của con', '孩子的主题'),
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
                         ),
-                      ),
-                      Text(
-                        context.tr(
-                          '${_catalog.topics.length} chủ đề',
-                          '${_catalog.topics.length} 个主题',
+                        Text(
+                          context.tr(
+                            '${_catalog.topics.length} chủ đề',
+                            '${_catalog.topics.length} 个主题',
+                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: AppColors.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.muted,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                sliver: SliverLayoutBuilder(
-                  builder: (context, constraints) {
-                    final crossAxisCount = constraints.crossAxisExtent >= 720
-                        ? 4
-                        : constraints.crossAxisExtent >= 520
-                        ? 3
-                        : 2;
-                    final textScale = MediaQuery.textScalerOf(context).scale(1);
-                    final compactTwoColumnGrid =
-                        crossAxisCount == 2 &&
-                        (constraints.crossAxisExtent < 340 || textScale > 1.1);
-                    return SliverGrid(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _TopicCard(
-                          key: ValueKey('topic-${_catalog.id}-$index'),
-                          topic: _catalog.topics[index],
-                          progress: _topicProgress(index),
-                          onPressed: () =>
-                              _openTopic(_catalog.topics[index], index),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) {
+                      final crossAxisCount = constraints.crossAxisExtent >= 720
+                          ? 4
+                          : constraints.crossAxisExtent >= 520
+                          ? 3
+                          : 2;
+                      final textScale = MediaQuery.textScalerOf(
+                        context,
+                      ).scale(1);
+                      final compactTwoColumnGrid =
+                          crossAxisCount == 2 &&
+                          (constraints.crossAxisExtent < 340 ||
+                              textScale > 1.1);
+                      return SliverGrid(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _TopicCard(
+                            key: ValueKey('topic-${_catalog.id}-$index'),
+                            topic: _catalog.topics[index],
+                            progress: _topicProgress(index),
+                            onPressed: () =>
+                                _openTopic(_catalog.topics[index], index),
+                          ),
+                          childCount: _catalog.topics.length,
                         ),
-                        childCount: _catalog.topics.length,
-                      ),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: crossAxisCount == 2
-                            ? (compactTwoColumnGrid ? 0.76 : 0.93)
-                            : 0.96,
-                      ),
-                    );
-                  },
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: crossAxisCount == 2
+                              ? (compactTwoColumnGrid ? 0.76 : 0.93)
+                              : 0.96,
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: ListeningNavigationBar(
@@ -163,10 +173,17 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   Widget _buildHeader(BuildContext context) {
     return Row(
       children: <Widget>[
-        IconButton(
+        IconButton.filled(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: context.tr('Quay lại', '返回'),
+          style: IconButton.styleFrom(
+            minimumSize: const Size.square(52),
+            backgroundColor: const Color(0xF8FFFDF9),
+            foregroundColor: AppColors.ink,
+            elevation: 3,
+            shadowColor: const Color(0x24142451),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -184,9 +201,16 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           width: 48,
           height: 48,
           child: DecoratedBox(
-            decoration: const BoxDecoration(
-              color: AppColors.lavender,
+            decoration: BoxDecoration(
+              color: const Color(0xF8FFFDF9),
               shape: BoxShape.circle,
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.ink.withValues(alpha: 0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 7),
+                ),
+              ],
             ),
             child: Padding(
               padding: const EdgeInsets.all(8),
@@ -362,7 +386,7 @@ class _AgeChip extends StatelessWidget {
       selected: selected,
       button: true,
       child: Material(
-        color: selected ? AppColors.indigo : AppColors.lavenderSoft,
+        color: selected ? AppColors.indigo : const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -403,22 +427,22 @@ class _ContinueLearningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.lavenderSoft,
+      color: const Color(0xF8FFFDF9),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: const BorderSide(color: AppColors.lavenderBorder),
+        borderRadius: BorderRadius.circular(28),
+        side: const BorderSide(color: Color(0xCCFFFFFF), width: 1.4),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: const Key('continue-listening-card'),
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+          padding: const EdgeInsets.fromLTRB(14, 15, 16, 15),
           child: Row(
             children: <Widget>[
               SizedBox(
-                width: 76,
-                height: 76,
+                width: 88,
+                height: 88,
                 child: Image.asset(
                   'assets/images/mascot-robot.png',
                   fit: BoxFit.contain,
@@ -453,7 +477,7 @@ class _ContinueLearningCard extends StatelessWidget {
                         const Icon(
                           Icons.play_circle_fill_rounded,
                           color: AppColors.indigo,
-                          size: 30,
+                          size: 42,
                         ),
                       ],
                     ),
@@ -490,8 +514,10 @@ class _TopicCard extends StatelessWidget {
         color: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: AppColors.lavenderBorder),
+          side: const BorderSide(color: Color(0xB3FFFFFF), width: 1.2),
         ),
+        elevation: 4,
+        shadowColor: const Color(0x22142451),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
@@ -618,7 +644,7 @@ class _ProgressBar extends StatelessWidget {
         value: value.clamp(0, 1),
         minHeight: 7,
         backgroundColor: AppColors.lavenderBorder,
-        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.indigo),
+        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
       ),
     );
   }

@@ -106,7 +106,7 @@ và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
     "device": "mobile",
     "browser": "flutter_android",
     "utteranceDurationMs": 2180,
-    "vadSilenceMs": 700,
+    "vadSilenceMs": 900,
     "requestedAsrMode": "batch_chunks",
     "audioInputLabel": "Mic điện thoại",
     "bluetoothAudioInput": false,
