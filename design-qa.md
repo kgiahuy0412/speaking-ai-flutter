@@ -320,3 +320,17 @@ Không còn khác biệt P0, P1 hoặc P2 cần xử lý.
 - Emulator interaction: settings open, scroll, HFP empty state and dismiss affordance passed.
 
 final result: passed
+
+## Song karaoke — 6 tuổi trở lên
+
+- Reference: `C:\Users\Windows\.codex\generated_images\019fac05-f74f-7952-9259-e708249b6185\exec-a47c2850-92cf-4c45-af88-85f7002d63c3.png`.
+- Flutter capture: `test/features/listening/goldens/song-karaoke-390x844.png` at 390 × 844 logical pixels.
+- Same-input comparison: `C:\Users\Windows\.codex\visualizations\2026\07\29\019fac05-f74f-7952-9259-e708249b6185\song-karaoke-design-qa.png`.
+- P0 blockers: none.
+- P1 major mismatches: none.
+- P2 polish issues: none.
+- The implementation keeps the selected bright sunrise direction, full-screen illustration, left-aligned karaoke hierarchy, white pill exit control, bottom progress panel, and one large play/pause control.
+- Dynamic song and topic titles truncate safely before the exit action. Previous/next controls are absent as requested.
+- Functional checks pass for age filtering, three-second autoplay, synchronized active-line/word highlighting, both end-dialog actions, and reuse of the existing sentence-practice route.
+
+final result: passed

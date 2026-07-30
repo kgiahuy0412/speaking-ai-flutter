@@ -12,7 +12,7 @@ C:\Users\Windows\.cache\codex-runtimes\codex-primary-runtime\dependencies\python
 
 - `standard`: luyện từng câu cho bài thông thường.
 - `dialogue`: luyện từng lượt thoại; UI hiển thị vai nói và trang ôn tập phát hội thoại tiếng Anh hoàn chỉnh khi có `fullAudioUrl`.
-- `song`: luyện từng dòng; trang ôn tập phát bài hát tiếng Anh hoàn chỉnh khi có `fullAudioUrl`.
+- `song`: với nhóm từ 6 tuổi trở lên, sau lời mở đầu sẽ mở trình phát karaoke và tự phát sau 3 giây; nhóm 3–5 tuổi giữ nguyên luồng luyện từng dòng. Nút **Kết thúc** cho phép chuyển sang bài luyện từng câu hiện có hoặc xác nhận thoát.
 
 ## Gắn audio Cloudinary
 
@@ -29,6 +29,21 @@ Mỗi câu có mã duy nhất và hai trường audio độc lập:
 ```
 
 `audioUrl` tự phát ở đầu câu và khi bấm **Nghe mẫu**. `vietnameseAudioUrl` chỉ phát khi bấm **Nghe tiếng Việt**. Bài hội thoại/bài hát có thể gắn thêm `fullAudioUrl`; lời mở đầu và kết bài dùng `introAudioUrl`/`outroAudioUrl`.
+
+### Đồng bộ lời karaoke
+
+Mỗi dòng của bài hát có thể khai báo mốc bắt đầu và kết thúc theo mili giây:
+
+```json
+{
+  "english": "Monday, Tuesday — off we go!",
+  "vietnamese": "Thứ Hai, thứ Ba — mình đi thôi!",
+  "karaokeStartMs": 0,
+  "karaokeEndMs": 6200
+}
+```
+
+Khi có đủ hai mốc trên cho mọi dòng, giao diện sẽ đổi dòng và tô chữ theo đúng thời gian audio. Nếu chưa có timestamp, ứng dụng vẫn hoạt động và tạm chia thời lượng bài hát theo số từ của từng dòng; nên bổ sung timestamp khi đưa audio chính thức lên để karaoke khớp chính xác.
 
 ## Quy tắc trải nghiệm V1
 
