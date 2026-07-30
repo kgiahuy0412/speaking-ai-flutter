@@ -3,6 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'only Cloudflare Batch Chunks is selectable as the backend ASR path',
+    () {
+      expect(AsrMode.batchChunks.isUserSelectable, isTrue);
+      expect(AsrMode.openAiRealtime.isUserSelectable, isFalse);
+    },
+  );
+
   test('resolves a relative audio URL against the backend', () {
     final result = ConversationResult.fromJson(<String, dynamic>{
       'conversationId': 'conv_1',
