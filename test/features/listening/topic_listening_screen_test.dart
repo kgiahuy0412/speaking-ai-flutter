@@ -117,6 +117,81 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('shows song and chant content in the lesson journey', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(buildSubject(childAge: 3));
+    await tester.pumpAndSettle();
+
+    final topicWithSongs = find.byKey(const ValueKey('topic-3-5-1'));
+    await tester.scrollUntilVisible(
+      topicWithSongs,
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('topic-listening-screen')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(topicWithSongs);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
+    expect(find.text('♫ 3 bài hát/chant'), findsOneWidget);
+    expect(find.byKey(const ValueKey('lesson-a035_t02_l01')), findsOneWidget);
+
+    final lessonJourneyScrollView = find
+        .descendant(
+          of: find.byKey(const Key('topic-lesson-list-screen')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final firstSong = find.byKey(const ValueKey('song-a035_t02_song01'));
+    await tester.scrollUntilVisible(
+      firstSong,
+      220,
+      scrollable: lessonJourneyScrollView,
+    );
+    expect(find.text('Bài hát & chant'), findsOneWidget);
+    expect(firstSong, findsOneWidget);
+
+    final startLesson = find.byKey(const ValueKey('start-lesson-a035_t02_l01'));
+    await tester.scrollUntilVisible(
+      startLesson,
+      -220,
+      scrollable: lessonJourneyScrollView,
+    );
+
+    await tester.tap(startLesson);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byKey(const Key('lesson-intro-screen')), findsOneWidget);
+    expect(find.byKey(const Key('skip-lesson-intro')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('skip-lesson-intro')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
+    expect(find.byKey(const Key('auto-play-lesson-review')), findsOneWidget);
+    expect(find.byKey(const Key('complete-lesson-review')), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 6));
+    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
+    await tester.ensureVisible(learnNowButton);
+    await tester.tap(learnNowButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
+    expect(find.byKey(const Key('play-lesson-sample')), findsOneWidget);
+    expect(find.byKey(const Key('play-vietnamese-meaning')), findsOneWidget);
+    expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);
+    expect(find.byKey(const Key('continue-lesson-sentence')), findsOneWidget);
+  });
+
   testWidgets('bundled lesson content matches the approved Word catalog', (
     tester,
   ) async {
@@ -177,6 +252,33 @@ void main() {
     expect(greetings.lessons.first.sentences, hasLength(5));
     expect(greetings.lessons.first.sentences.first.english, 'Hello!');
     expect(greetings.lessons.first.sentences.first.vietnamese, 'Xin chào!');
+
+    final referenceLessons = content
+        .topic(startAge: 6, endAge: 7, topicNumber: 1)
+        .lessons;
+    final updatedLessons = <ListeningLessonContent>[
+      ...content.topic(startAge: 3, endAge: 5, topicNumber: 2).lessons,
+      ...content.topic(startAge: 3, endAge: 5, topicNumber: 3).lessons,
+      ...content.topic(startAge: 3, endAge: 5, topicNumber: 6).lessons,
+      ...content.topic(startAge: 3, endAge: 5, topicNumber: 10).lessons,
+    ];
+
+    expect(referenceLessons, hasLength(2));
+    expect(updatedLessons, hasLength(9));
+    bool supportsStandardLessonFlow(ListeningLessonContent lesson) {
+      return lesson.type == ListeningLessonType.standard &&
+          lesson.intro.isNotEmpty &&
+          lesson.introAudioUri != null &&
+          lesson.sentences.isNotEmpty &&
+          lesson.sentences.every(
+            (sentence) =>
+                sentence.audioUri != null &&
+                sentence.vietnameseAudioUri != null,
+          );
+    }
+
+    expect(referenceLessons.every(supportsStandardLessonFlow), isTrue);
+    expect(updatedLessons.every(supportsStandardLessonFlow), isTrue);
   });
 
   testWidgets('lesson flow remains usable on a compact phone', (tester) async {
