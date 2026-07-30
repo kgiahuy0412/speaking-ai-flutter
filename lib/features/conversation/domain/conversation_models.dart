@@ -12,9 +12,9 @@ enum PracticeContext {
 }
 
 enum AsrMode {
-  androidStreaming('android_streaming', 'Android streaming'),
+  androidStreaming('android_streaming', 'Chế độ tiêu chuẩn'),
   hfpStreaming('hfp_streaming', 'HFP streaming'),
-  openAiRealtime('openai_realtime', 'OpenAI Realtime'),
+  openAiRealtime('openai_realtime', 'Chế độ AI'),
   bleOfflineIntent('ble_offline_intent', 'BLE offline intent'),
   batchChunks('batch_chunks', 'Cloudflare Batch Chunks'),
   deviceStreaming('device_streaming', 'BLE streaming');
@@ -31,6 +31,8 @@ enum AsrMode {
 }
 
 enum ConversationPhase { idle, recording, processing, ready, error }
+
+enum ConversationProcessingStage { recognizing, translating, preparingAudio }
 
 class ConversationLearningOutcome {
   const ConversationLearningOutcome({

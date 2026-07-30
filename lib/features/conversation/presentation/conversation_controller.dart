@@ -9,6 +9,7 @@ import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
+import '../../../core/network/browser_network_quality.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
@@ -27,6 +28,8 @@ class ConversationController extends ChangeNotifier {
     bool realtimeBatchFallback = true,
     int realtimeFallbackBufferBytes = 15 * 1024 * 1024,
     AsrMode? initialAsrMode,
+    bool? webRuntimeOverride,
+    Duration? adaptiveWebUploadDelay,
   }) : _audioInput = audioInput,
        _bluetoothAudioControl = audioInput is BluetoothAudioInputControl
            ? audioInput as BluetoothAudioInputControl
@@ -40,6 +43,12 @@ class ConversationController extends ChangeNotifier {
        _childAge = childAge,
        _preferBleStreaming = preferBleStreaming,
        _realtimeBatchFallback = realtimeBatchFallback,
+       _isWebRuntime = webRuntimeOverride ?? kIsWeb,
+       _adaptiveWebUploadDelay =
+           adaptiveWebUploadDelay ??
+           (browserNetworkLooksSlow()
+               ? const Duration(milliseconds: 600)
+               : const Duration(seconds: 2)),
        _realtimeFallbackBuffer = RealtimeFallbackBuffer(
          maxBytes: realtimeFallbackBufferBytes > 0
              ? realtimeFallbackBufferBytes
@@ -106,6 +115,8 @@ class ConversationController extends ChangeNotifier {
   final int _childAge;
   final bool _preferBleStreaming;
   final bool _realtimeBatchFallback;
+  final bool _isWebRuntime;
+  final Duration _adaptiveWebUploadDelay;
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
 
   StreamSubscription<double>? _amplitudeSubscription;
@@ -123,6 +134,7 @@ class ConversationController extends ChangeNotifier {
   Timer? _noSpeechTimer;
   Timer? _maximumDurationTimer;
   Timer? _offlineFallbackTimer;
+  Timer? _processingStageTimer;
   DateTime? _recordingStartedAt;
   DateTime? _stoppedAt;
   bool _stopInProgress = false;
@@ -132,6 +144,7 @@ class ConversationController extends ChangeNotifier {
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
   BatchChunkUploadSession? _batchChunkUpload;
+  _AdaptiveWebChunkUpload? _adaptiveWebUpload;
   RealtimeTranscriptionSession? _realtimeSession;
   Future<void>? _realtimeConnectionFuture;
   int _realtimeConnectionGeneration = 0;
@@ -146,6 +159,8 @@ class ConversationController extends ChangeNotifier {
   Uri? _preferredPlaybackUri;
 
   ConversationPhase phase = ConversationPhase.idle;
+  ConversationProcessingStage processingStage =
+      ConversationProcessingStage.recognizing;
   PracticeContext context = PracticeContext.home;
   AsrMode asrMode;
   int vadSilenceMs = 700;
@@ -170,7 +185,7 @@ class ConversationController extends ChangeNotifier {
     // Web Batch Chunks has no local transcript to match while recording. The
     // backend performs the exact lookup after ASR, so downloading the catalog
     // during PWA startup only delays the first microphone interaction.
-    if (kIsWeb) {
+    if (_isWebRuntime) {
       return;
     }
     final catalog = _repository is OfflineIntentCatalogRepository
@@ -419,7 +434,7 @@ class ConversationController extends ChangeNotifier {
       asrMode = AsrMode.hfpStreaming;
       transientMessage = supportsBrowserHfp
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
-          : 'Đã chọn mic HFP. Android streaming sẽ nghe từ thiết bị Bluetooth.';
+          : 'Đã chọn mic HFP. Chế độ tiêu chuẩn sẽ nghe từ thiết bị Bluetooth.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -506,6 +521,8 @@ class ConversationController extends ChangeNotifier {
       errorMessage = null;
       transientMessage = null;
       qualityApproved = null;
+      _processingStageTimer?.cancel();
+      processingStage = ConversationProcessingStage.recognizing;
       _speechDetected = false;
       _stopInProgress = false;
       _realtimeConnectionGeneration += 1;
@@ -543,6 +560,11 @@ class ConversationController extends ChangeNotifier {
       _preferredPlaybackUri = null;
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
+      final previousAdaptiveWebUpload = _adaptiveWebUpload;
+      _adaptiveWebUpload = null;
+      if (previousAdaptiveWebUpload != null) {
+        await previousAdaptiveWebUpload.discard();
+      }
       final previousBatchUpload = _batchChunkUpload;
       _batchChunkUpload = null;
       if (previousBatchUpload != null) {
@@ -589,7 +611,7 @@ class ConversationController extends ChangeNotifier {
         try {
           await _hfpAudioControl!.startAudioRoute();
           _usingHfpRoute = true;
-          await _audioInput.startChunked();
+          await _startAdaptiveWebRecording();
         } catch (_) {
           await _stopHfpRoute();
           rethrow;
@@ -605,11 +627,8 @@ class ConversationController extends ChangeNotifier {
         } else {
           await _startRealtimeRecordingWithBatchFallback();
         }
-      } else if (kIsWeb && _audioInput is ChunkedAudioInput) {
-        // Short browser utterances are faster as one multipart request after
-        // stop. The repository still falls back to audio sessions when the
-        // direct route is unavailable, so unreliable networks remain safe.
-        await _audioInput.startChunked();
+      } else if (_isWebRuntime && _audioInput is ChunkedAudioInput) {
+        await _startAdaptiveWebRecording();
       } else {
         await _startBatchRecording();
       }
@@ -785,8 +804,7 @@ class ConversationController extends ChangeNotifier {
         : null;
 
     if (chunkedInput == null || realtimeRepository == null) {
-      transientMessage =
-          'OpenAI Realtime chưa khả dụng; đang dùng Batch Chunks dự phòng.';
+      transientMessage = 'Chế độ AI chưa khả dụng; đang dùng xử lý dự phòng.';
       await _startBatchRecording();
       return;
     }
@@ -837,8 +855,7 @@ class ConversationController extends ChangeNotifier {
       }
       _usingRealtimeTranscription = false;
       _realtimeFallbackBuffer.clear();
-      transientMessage =
-          'OpenAI Realtime chưa sẵn sàng; đang dùng Batch Chunks dự phòng.';
+      transientMessage = 'Chế độ AI chưa sẵn sàng; đang dùng xử lý dự phòng.';
       await _startBatchRecording();
     }
   }
@@ -939,6 +956,52 @@ class ConversationController extends ChangeNotifier {
           'Batch Chunks chưa sẵn sàng; đang dùng upload file dự phòng.';
       await _audioInput.start();
     }
+  }
+
+  Future<void> _startAdaptiveWebRecording() async {
+    final chunkedInput = _audioInput is ChunkedAudioInput ? _audioInput : null;
+    final chunkedRepository = _repository is ChunkedConversationRepository
+        ? _repository as ChunkedConversationRepository
+        : null;
+    if (chunkedInput == null || chunkedRepository == null) {
+      await _audioInput.start();
+      return;
+    }
+
+    final upload = _AdaptiveWebChunkUpload(
+      repository: chunkedRepository,
+      promotionDelay: _adaptiveWebUploadDelay,
+    );
+    _adaptiveWebUpload = upload;
+    _batchChunkSubscription = chunkedInput.audioChunks.listen(
+      upload.addAudioChunk,
+      onError: (Object error) {
+        debugPrint('Adaptive Web audio stream failed: $error');
+      },
+    );
+
+    try {
+      await chunkedInput.startChunked();
+      upload.schedulePromotion();
+    } catch (_) {
+      await _batchChunkSubscription?.cancel();
+      _batchChunkSubscription = null;
+      _adaptiveWebUpload = null;
+      await upload.discard();
+      rethrow;
+    }
+  }
+
+  void _beginProcessingStages() {
+    _processingStageTimer?.cancel();
+    processingStage = ConversationProcessingStage.recognizing;
+    _processingStageTimer = Timer(const Duration(milliseconds: 700), () {
+      if (_disposed || phase != ConversationPhase.processing) {
+        return;
+      }
+      processingStage = ConversationProcessingStage.translating;
+      notifyListeners();
+    });
   }
 
   void _listenToAmplitude(Stream<double> amplitudeStream) {
@@ -1058,6 +1121,11 @@ class ConversationController extends ChangeNotifier {
         }
         await _batchChunkSubscription?.cancel();
         _batchChunkSubscription = null;
+        final adaptiveWebUpload = _adaptiveWebUpload;
+        _adaptiveWebUpload = null;
+        if (adaptiveWebUpload != null) {
+          await adaptiveWebUpload.discard();
+        }
         await _realtimeChunkSubscription?.cancel();
         _realtimeChunkSubscription = null;
         await _realtimePartialSubscription?.cancel();
@@ -1092,6 +1160,11 @@ class ConversationController extends ChangeNotifier {
         }
         await _batchChunkSubscription?.cancel();
         _batchChunkSubscription = null;
+        final adaptiveWebUpload = _adaptiveWebUpload;
+        _adaptiveWebUpload = null;
+        if (adaptiveWebUpload != null) {
+          await adaptiveWebUpload.discard();
+        }
         await _realtimeChunkSubscription?.cancel();
         _realtimeChunkSubscription = null;
         await _realtimePartialSubscription?.cancel();
@@ -1120,6 +1193,7 @@ class ConversationController extends ChangeNotifier {
       StreamingSpeechCapture? streamingCapture;
       AudioCapture? audioCapture;
       BatchChunkUploadSession? realtimeFallbackUpload;
+      BatchChunkUploadSession? adaptiveWebUpload;
       if (_usingStreamingSpeech) {
         try {
           streamingCapture = await _streamingSpeechInput!.stop();
@@ -1146,6 +1220,11 @@ class ConversationController extends ChangeNotifier {
         }
       } else {
         audioCapture = await _audioInput.stop();
+        final adaptiveUpload = _adaptiveWebUpload;
+        _adaptiveWebUpload = null;
+        if (adaptiveUpload != null) {
+          adaptiveWebUpload = await adaptiveUpload.stopAndTakeSession();
+        }
         if (_usingHfpRoute && !supportsBrowserHfp) {
           audioCapture = AudioCapture(
             filePath: audioCapture.filePath,
@@ -1215,11 +1294,13 @@ class ConversationController extends ChangeNotifier {
       }
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
-      final batchUpload = _batchChunkUpload ?? realtimeFallbackUpload;
+      final batchUpload =
+          _batchChunkUpload ?? adaptiveWebUpload ?? realtimeFallbackUpload;
       _batchChunkUpload = null;
       _realtimeFallbackBuffer.clear();
       _usingOfflineIntent = false;
       phase = ConversationPhase.processing;
+      _beginProcessingStages();
       amplitude = 0;
       notifyListeners();
 
@@ -1259,16 +1340,24 @@ class ConversationController extends ChangeNotifier {
         _preferredPlaybackUri = preview.audioUri;
       }
       result = nextResult;
-      phase = ConversationPhase.ready;
+      _processingStageTimer?.cancel();
+      processingStage = ConversationProcessingStage.preparingAudio;
       errorMessage = null;
       notifyListeners();
 
       if (nextResult.audioUri != null) {
         await playResult(reportLatency: true);
       }
+      phase = ConversationPhase.ready;
+      notifyListeners();
     } catch (error) {
       _setError(_friendlyError(error));
     } finally {
+      final adaptiveWebUpload = _adaptiveWebUpload;
+      _adaptiveWebUpload = null;
+      if (adaptiveWebUpload != null) {
+        await adaptiveWebUpload.discard();
+      }
       await _stopHfpRoute();
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
@@ -1522,12 +1611,12 @@ class ConversationController extends ChangeNotifier {
     }
     if (nextMode == AsrMode.openAiRealtime) {
       transientMessage =
-          'OpenAI Realtime đã tắt khỏi luồng ứng dụng. Hãy dùng Cloudflare Batch Chunks.';
+          'Chế độ AI hiện chưa được bật. Ứng dụng sẽ dùng xử lý dự phòng.';
       notifyListeners();
       return;
     }
     if (nextMode == AsrMode.androidStreaming && _streamingSpeechInput == null) {
-      transientMessage = 'Android streaming không khả dụng trên nền tảng này.';
+      transientMessage = 'Chế độ tiêu chuẩn không khả dụng trên nền tảng này.';
       notifyListeners();
       return;
     }
@@ -1546,6 +1635,7 @@ class ConversationController extends ChangeNotifier {
   void clearMessage() {
     transientMessage = null;
     if (phase == ConversationPhase.error) {
+      _processingStageTimer?.cancel();
       phase = result == null ? ConversationPhase.idle : ConversationPhase.ready;
       errorMessage = null;
     }
@@ -1553,6 +1643,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   void _setError(String message) {
+    _processingStageTimer?.cancel();
     errorMessage = message;
     phase = ConversationPhase.error;
     if (!_disposed) {
@@ -1577,6 +1668,7 @@ class ConversationController extends ChangeNotifier {
     _maximumDurationTimer?.cancel();
     _partialPreviewTimer?.cancel();
     _offlineFallbackTimer?.cancel();
+    _processingStageTimer?.cancel();
     unawaited(_amplitudeSubscription?.cancel());
     unawaited(_batchChunkSubscription?.cancel());
     unawaited(_realtimeChunkSubscription?.cancel());
@@ -1585,6 +1677,10 @@ class ConversationController extends ChangeNotifier {
     final batchUpload = _batchChunkUpload;
     if (batchUpload != null) {
       unawaited(batchUpload.discard().catchError((Object _) {}));
+    }
+    final adaptiveWebUpload = _adaptiveWebUpload;
+    if (adaptiveWebUpload != null) {
+      unawaited(adaptiveWebUpload.discard());
     }
     final realtimeSession = _realtimeSession;
     if (realtimeSession != null) {
@@ -1602,5 +1698,89 @@ class ConversationController extends ChangeNotifier {
     unawaited(_playbackService.dispose());
     unawaited(_repository.dispose());
     super.dispose();
+  }
+}
+
+class _AdaptiveWebChunkUpload {
+  _AdaptiveWebChunkUpload({
+    required this.repository,
+    required this.promotionDelay,
+  });
+
+  final ChunkedConversationRepository repository;
+  final Duration promotionDelay;
+  final List<Uint8List> _bufferedChunks = <Uint8List>[];
+
+  Timer? _promotionTimer;
+  Future<void>? _promotionFuture;
+  BatchChunkUploadSession? _session;
+  bool _acceptingChunks = true;
+
+  void addAudioChunk(Uint8List bytes) {
+    if (!_acceptingChunks || bytes.isEmpty) {
+      return;
+    }
+    final session = _session;
+    if (session != null) {
+      session.addAudioChunk(bytes);
+      return;
+    }
+    _bufferedChunks.add(Uint8List.fromList(bytes));
+  }
+
+  void schedulePromotion() {
+    _promotionTimer ??= Timer(promotionDelay, () {
+      _promotionFuture = _promoteToChunkUpload();
+    });
+  }
+
+  Future<void> _promoteToChunkUpload() async {
+    try {
+      final session = await repository.startBatchChunkUpload();
+      if (!_acceptingChunks) {
+        await session.discard().catchError((Object _) {});
+        return;
+      }
+      _session = session;
+      for (final bytes in _bufferedChunks) {
+        session.addAudioChunk(bytes);
+      }
+      _bufferedChunks.clear();
+    } catch (error) {
+      debugPrint(
+        'Adaptive Web chunk upload was skipped; keeping WAV fallback: $error',
+      );
+    }
+  }
+
+  Future<BatchChunkUploadSession?> stopAndTakeSession() async {
+    _promotionTimer?.cancel();
+    final promotion = _promotionFuture;
+    if (promotion != null && _session == null) {
+      try {
+        await promotion.timeout(const Duration(milliseconds: 900));
+      } on TimeoutException {
+        _acceptingChunks = false;
+        _bufferedChunks.clear();
+        return null;
+      }
+    }
+
+    _acceptingChunks = false;
+    _bufferedChunks.clear();
+    final session = _session;
+    _session = null;
+    return session;
+  }
+
+  Future<void> discard() async {
+    _promotionTimer?.cancel();
+    _acceptingChunks = false;
+    _bufferedChunks.clear();
+    final session = _session;
+    _session = null;
+    if (session != null) {
+      await session.discard().catchError((Object _) {});
+    }
   }
 }

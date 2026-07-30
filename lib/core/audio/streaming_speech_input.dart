@@ -130,7 +130,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   bool _disposed = false;
 
   @override
-  String get label => 'ASR Android trực tiếp';
+  String get label => 'Chế độ tiêu chuẩn';
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;

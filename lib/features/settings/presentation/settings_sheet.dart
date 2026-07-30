@@ -198,8 +198,8 @@ class SettingsSheet extends StatelessWidget {
                                 ),
                                 subtitle: Text(switch (mode) {
                                   AsrMode.androidStreaming => context.tr(
-                                    'Nhanh như web streaming; tự dùng dịch vụ Android',
-                                    '与网页流式识别一样快；自动使用 Android 服务',
+                                    'Dùng nhận dạng giọng nói tích hợp trên thiết bị',
+                                    '使用设备内置的语音识别服务',
                                   ),
                                   AsrMode.hfpStreaming => context.tr(
                                     controller.supportsBrowserHfp
@@ -218,8 +218,8 @@ class SettingsSheet extends StatelessWidget {
                                         : '请先在上方连接 HFP 设备',
                                   ),
                                   AsrMode.openAiRealtime => context.tr(
-                                    'Nhận chữ khi đang nói; chỉ xử lý AI một lần sau khi dừng',
-                                    '说话时实时识别；停止后仅处理一次 AI',
+                                    'Nhận dạng trực tuyến khi đang nói; cần kết nối mạng',
+                                    '说话时在线识别；需要网络连接',
                                   ),
                                   AsrMode.bleOfflineIntent => context.tr(
                                     'Tự động cho BLE khi ý định có độ tin cậy cao',

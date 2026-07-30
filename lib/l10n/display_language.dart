@@ -83,6 +83,8 @@ const Map<String, String> _simplifiedChinese = <String, String>{
   'Ở nhà': '在家',
   'Ở trường': '在学校',
   'Ra ngoài': '外出',
+  'Chế độ tiêu chuẩn': '标准模式',
+  'Chế độ AI': 'AI 模式',
   'Android streaming': 'Android 流式识别',
   'HFP streaming': 'HFP 流式识别',
   'OpenAI Realtime': 'OpenAI 实时识别',
@@ -128,10 +130,8 @@ const Map<String, String> _simplifiedChinese = <String, String>{
       '句子置信度不足，已提前切换到 OpenAI 实时识别。',
   'Realtime chưa sẵn sàng; sẽ dùng Batch Chunks khi dừng.':
       '实时识别尚未就绪，停止后将使用分块批处理。',
-  'OpenAI Realtime chưa khả dụng; đang dùng Batch Chunks dự phòng.':
-      'OpenAI 实时识别不可用，正在使用分块批处理备用。',
-  'OpenAI Realtime chưa sẵn sàng; đang dùng Batch Chunks dự phòng.':
-      'OpenAI 实时识别尚未就绪，正在使用分块批处理备用。',
+  'Chế độ AI chưa khả dụng; đang dùng xử lý dự phòng.': 'AI 模式不可用，正在使用备用处理。',
+  'Chế độ AI chưa sẵn sàng; đang dùng xử lý dự phòng.': 'AI 模式尚未就绪，正在使用备用处理。',
   'Batch Chunks chưa sẵn sàng; đang dùng upload file dự phòng.':
       '分块批处理尚未就绪，正在使用文件上传备用。',
   'Hãy nói lâu hơn một chút nhé.': '请再多说一会儿。',
@@ -185,5 +185,5 @@ const Map<String, String> _simplifiedChinese = <String, String>{
       '选择 BLE 流式识别前，请先扫描并连接 INNOTRIK 麦克风。',
   'Batch Chunks chỉ chạy tự động khi OpenAI Realtime gặp lỗi.':
       '仅当 OpenAI 实时识别失败时才会自动使用分块批处理。',
-  'Android streaming không khả dụng trên nền tảng này.': '此平台不支持 Android 流式识别。',
+  'Chế độ tiêu chuẩn không khả dụng trên nền tảng này.': '此平台不支持标准模式。',
 };
