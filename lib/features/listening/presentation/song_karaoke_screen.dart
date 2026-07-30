@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
@@ -21,7 +22,7 @@ class SongKaraokeScreen extends StatefulWidget {
     required this.practiceBuilder,
     required this.topicTitle,
     this.autoPlayDelay = const Duration(seconds: 3),
-    this.backgroundAsset = 'assets/images/song-karaoke-sunrise.webp',
+    this.backgroundAsset = learningSceneryAsset,
     super.key,
   });
 
@@ -156,48 +157,81 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
               filterQuality: FilterQuality.high,
             ),
             const _SongReadabilityOverlay(),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: SafeArea(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            right: 22,
+                            bottom: 150,
+                          ),
+                          child: Image.asset(
+                            'assets/images/mascot-robot.png',
+                            width: 112,
+                            height: 112,
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxHeight < 720;
-                  return Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 20,
-                      10,
-                      compact ? 16 : 20,
-                      compact ? 12 : 18,
-                    ),
-                    child: Column(
-                      children: <Widget>[
-                        _SongHeader(
-                          title: _songTitle,
-                          subtitle: widget.topicTitle,
-                          onEnd: _showEndDialog,
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 16 : 20,
+                          10,
+                          compact ? 16 : 20,
+                          compact ? 12 : 18,
                         ),
-                        SizedBox(height: compact ? 22 : 44),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: _KaraokeLyrics(
-                              currentLine: snapshot.currentLine,
-                              nextLine: snapshot.nextLine,
-                              highlightedWordCount:
-                                  snapshot.highlightedWordCount,
-                              compact: compact,
+                        child: Column(
+                          children: <Widget>[
+                            _SongHeader(
+                              title: _songTitle,
+                              subtitle: widget.topicTitle,
+                              onEnd: _showEndDialog,
                             ),
-                          ),
+                            SizedBox(height: compact ? 22 : 44),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.topLeft,
+                                child: _KaraokeLyrics(
+                                  currentLine: snapshot.currentLine,
+                                  nextLine: snapshot.nextLine,
+                                  highlightedWordCount:
+                                      snapshot.highlightedWordCount,
+                                  compact: compact,
+                                ),
+                              ),
+                            ),
+                            _SongPlayer(
+                              title: _songTitle,
+                              progress: _progress,
+                              position: _position,
+                              duration: _effectiveDuration,
+                              playing: _playing,
+                              busy: _mediaBusy,
+                              secondsUntilAutoPlay: _secondsUntilAutoPlay,
+                              message: _message,
+                              onPlayPause: _togglePlayback,
+                            ),
+                          ],
                         ),
-                        _SongPlayer(
-                          progress: _progress,
-                          position: _position,
-                          duration: _effectiveDuration,
-                          playing: _playing,
-                          busy: _mediaBusy,
-                          secondsUntilAutoPlay: _secondsUntilAutoPlay,
-                          message: _message,
-                          onPlayPause: _togglePlayback,
-                        ),
-                      ],
+                      ),
                     ),
                   );
                 },
@@ -420,12 +454,12 @@ class _SongReadabilityOverlay extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: const <double>[0, 0.42, 0.69, 1],
+          stops: const <double>[0, 0.36, 0.72, 1],
           colors: <Color>[
-            Colors.white.withValues(alpha: 0.2),
-            Colors.white.withValues(alpha: 0.08),
             Colors.white.withValues(alpha: 0.12),
-            const Color(0xFFFFFBF2).withValues(alpha: 0.96),
+            const Color(0xFFFFFDF7).withValues(alpha: 0.58),
+            Colors.white.withValues(alpha: 0.05),
+            const Color(0xFFFFFBF2).withValues(alpha: 0.88),
           ],
         ),
       ),
@@ -449,8 +483,8 @@ class _SongHeader extends StatelessWidget {
     return Row(
       children: <Widget>[
         Container(
-          width: 40,
-          height: 40,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.9),
             shape: BoxShape.circle,
@@ -469,6 +503,7 @@ class _SongHeader extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.ink,
                   fontWeight: FontWeight.w800,
+                  fontSize: 18,
                   shadows: const <Shadow>[
                     Shadow(color: Colors.white, blurRadius: 12),
                   ],
@@ -591,6 +626,7 @@ class _KaraokeLyrics extends StatelessWidget {
 
 class _SongPlayer extends StatelessWidget {
   const _SongPlayer({
+    required this.title,
     required this.progress,
     required this.position,
     required this.duration,
@@ -601,6 +637,7 @@ class _SongPlayer extends StatelessWidget {
     required this.onPlayPause,
   });
 
+  final String title;
   final double progress;
   final Duration position;
   final Duration duration;
@@ -622,102 +659,127 @@ class _SongPlayer extends StatelessWidget {
             : context.tr('Bài hát tiếng Anh', '英语歌曲'));
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 4),
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF2).withValues(alpha: 0.8),
+        color: const Color(0xF5FFFBF2),
         borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.4),
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color(0x22142451),
-            blurRadius: 24,
+            color: Color(0x2B142451),
+            blurRadius: 26,
             offset: Offset(0, 12),
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: <Widget>[
-          Text(
-            status,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: message == null ? AppColors.indigoDark : AppColors.coral,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              key: const Key('song-karaoke-progress'),
-              value: progress,
-              minHeight: 7,
-              color: const Color(0xFF155EEF),
-              backgroundColor: const Color(0xFFDCE5F7),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(_formatDuration(position)),
-              Text(_formatDuration(duration)),
-            ],
-          ),
-          Semantics(
-            button: true,
-            label: playing
-                ? context.tr('Tạm dừng bài hát', '暂停歌曲')
-                : context.tr('Phát bài hát', '播放歌曲'),
-            child: InkResponse(
-              key: const Key('song-karaoke-play'),
-              onTap: busy ? null : onPlayPause,
-              radius: 58,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  color: busy ? AppColors.periwinkle : const Color(0xFF155EEF),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 5),
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Color(0x40155EEF),
-                      blurRadius: 24,
-                      offset: Offset(0, 10),
-                    ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  status,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: message == null
+                        ? AppColors.success
+                        : AppColors.coral,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    key: const Key('song-karaoke-progress'),
+                    value: progress,
+                    minHeight: 7,
+                    color: AppColors.indigo,
+                    backgroundColor: const Color(0xFFDCE5F7),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(_formatDuration(position)),
+                    Text('-${_formatDuration(duration - position)}'),
                   ],
                 ),
-                child: busy
-                    ? const Padding(
-                        padding: EdgeInsets.all(28),
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 4,
-                        ),
-                      )
-                    : Icon(
-                        playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 56,
-                      ),
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            playing
-                ? context.tr('Tạm dừng', '暂停')
-                : context.tr('Phát nhạc', '播放音乐'),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.ink,
-              fontWeight: FontWeight.w800,
-            ),
+          const SizedBox(width: 16),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Semantics(
+                button: true,
+                label: playing
+                    ? context.tr('Tạm dừng bài hát', '暂停歌曲')
+                    : context.tr('Phát bài hát', '播放歌曲'),
+                child: InkResponse(
+                  key: const Key('song-karaoke-play'),
+                  onTap: busy ? null : onPlayPause,
+                  radius: 48,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 78,
+                    height: 78,
+                    decoration: BoxDecoration(
+                      color: busy ? AppColors.periwinkle : AppColors.indigo,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: const <BoxShadow>[
+                        BoxShadow(
+                          color: Color(0x403D4DD6),
+                          blurRadius: 20,
+                          offset: Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: busy
+                        ? const Padding(
+                            padding: EdgeInsets.all(23),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 4,
+                            ),
+                          )
+                        : Icon(
+                            playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 48,
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                playing
+                    ? context.tr('Tạm dừng', '暂停')
+                    : context.tr('Phát nhạc', '播放音乐'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.indigoDark,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ],
       ),

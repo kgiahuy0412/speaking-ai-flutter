@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
 import '../../../core/audio/hfp_audio_control.dart';
@@ -118,6 +120,8 @@ class ConversationController extends ChangeNotifier {
   final bool _isWebRuntime;
   final Duration _adaptiveWebUploadDelay;
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
+  final AdaptiveVoiceActivityDetector _voiceActivityDetector =
+      AdaptiveVoiceActivityDetector();
 
   StreamSubscription<double>? _amplitudeSubscription;
   StreamSubscription<BluetoothAudioStatus>? _bluetoothStatusSubscription;
@@ -139,6 +143,7 @@ class ConversationController extends ChangeNotifier {
   DateTime? _stoppedAt;
   bool _stopInProgress = false;
   bool _speechDetected = false;
+  bool _noisyRecording = false;
   bool _usingStreamingSpeech = false;
   bool _usingHfpRoute = false;
   bool _usingRealtimeTranscription = false;
@@ -163,7 +168,7 @@ class ConversationController extends ChangeNotifier {
       ConversationProcessingStage.recognizing;
   PracticeContext context = PracticeContext.home;
   AsrMode asrMode;
-  int vadSilenceMs = 700;
+  int vadSilenceMs = 900;
   double amplitude = 0;
   ConversationResult? result;
   bool? qualityApproved;
@@ -524,6 +529,8 @@ class ConversationController extends ChangeNotifier {
       _processingStageTimer?.cancel();
       processingStage = ConversationProcessingStage.recognizing;
       _speechDetected = false;
+      _noisyRecording = false;
+      _voiceActivityDetector.reset();
       _stopInProgress = false;
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
@@ -644,7 +651,7 @@ class ConversationController extends ChangeNotifier {
         const Duration(seconds: 12),
         () => unawaited(stopRecording(manual: false)),
       );
-      _noSpeechTimer = Timer(const Duration(seconds: 2), () {
+      _noSpeechTimer = Timer(const Duration(seconds: 3), () {
         if (phase == ConversationPhase.recording && !_speechDetected) {
           unawaited(stopRecording(manual: false));
         }
@@ -724,13 +731,7 @@ class ConversationController extends ChangeNotifier {
     if (!_usingOfflineIntent || phase != ConversationPhase.recording) {
       return;
     }
-    final firstSpeechResult = !_speechDetected;
-    _speechDetected = true;
-    _noSpeechTimer?.cancel();
-    _noSpeechTimer = null;
-    if (firstSpeechResult) {
-      _scheduleOfflineFallback();
-    }
+    _registerSpeechDetection(confirmDetector: true);
     final decision = _offlineIntentGate?.evaluate(hypothesis);
     if (decision == null) {
       return;
@@ -1004,6 +1005,21 @@ class ConversationController extends ChangeNotifier {
     });
   }
 
+  void _registerSpeechDetection({bool confirmDetector = false}) {
+    if (confirmDetector) {
+      _voiceActivityDetector.confirmSpeech();
+    }
+    final firstSpeechFrame = !_speechDetected;
+    _speechDetected = true;
+    _noSpeechTimer?.cancel();
+    _noSpeechTimer = null;
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
+    if (firstSpeechFrame) {
+      _scheduleOfflineFallback();
+    }
+  }
+
   void _listenToAmplitude(Stream<double> amplitudeStream) {
     _amplitudeSubscription?.cancel();
     _amplitudeSubscription = amplitudeStream.listen((dbfs) {
@@ -1012,17 +1028,23 @@ class ConversationController extends ChangeNotifier {
       }
 
       amplitude = ((dbfs + 60) / 48).clamp(0.0, 1.0).toDouble();
-      if (dbfs > -38) {
-        final firstSpeechFrame = !_speechDetected;
-        _speechDetected = true;
-        if (firstSpeechFrame) {
-          _scheduleOfflineFallback();
-        }
-        _noSpeechTimer?.cancel();
-        _noSpeechTimer = null;
+      final startedAt = _recordingStartedAt;
+      final activity = _voiceActivityDetector.addSample(
+        dbfs,
+        elapsed: startedAt == null
+            ? Duration.zero
+            : DateTime.now().difference(startedAt),
+      );
+      _noisyRecording = _noisyRecording || activity.noisyEnvironment;
+      if (activity.speechStarted) {
+        _registerSpeechDetection();
+      }
+      if (activity.voiceActive) {
         _silenceTimer?.cancel();
         _silenceTimer = null;
-      } else if (_speechDetected && _silenceTimer == null) {
+      } else if (_speechDetected &&
+          !activity.isCalibrating &&
+          _silenceTimer == null) {
         _silenceTimer = Timer(
           Duration(milliseconds: vadSilenceMs),
           () => unawaited(stopRecording(manual: false)),
@@ -1041,9 +1063,7 @@ class ConversationController extends ChangeNotifier {
     if (normalized.length < 5 || normalized.split(' ').length < 2) {
       return;
     }
-    _speechDetected = true;
-    _noSpeechTimer?.cancel();
-    _noSpeechTimer = null;
+    _registerSpeechDetection(confirmDetector: true);
     _partialPreviewTimer?.cancel();
     final generation = _previewGeneration;
     final previewContext = context;
@@ -1150,7 +1170,13 @@ class ConversationController extends ChangeNotifier {
         return;
       }
 
-      if (!_speechDetected && !manual) {
+      // Browsers can still return PCM bytes when the selected microphone is
+      // muted, disconnected, or only captures background noise. A manual Stop
+      // used to bypass the VAD guard and upload that audio to ASR, which could
+      // produce a confident-looking hallucination. Web has no partial Android
+      // transcript to validate the capture, so never send an unconfirmed Web
+      // recording, even when the user stops it manually.
+      if (!_speechDetected && (!manual || _isWebRuntime)) {
         _realtimeConnectionGeneration += 1;
         _realtimeConnectionFuture = null;
         if (_usingStreamingSpeech) {
@@ -1183,8 +1209,9 @@ class ConversationController extends ChangeNotifier {
           await batchUpload.discard().catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
-        transientMessage =
-            'Mình chưa nghe thấy giọng nói, nên chưa gửi lên backend. Thử nói gần micro hơn nhé.';
+        transientMessage = _noisyRecording
+            ? 'Môi trường đang khá ồn. Hãy đưa micro gần hơn, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại.'
+            : 'Mình chưa nghe thấy giọng nói, nên chưa gửi lên backend. Thử nói gần micro hơn nhé.';
         _stopInProgress = false;
         notifyListeners();
         return;
@@ -1304,11 +1331,23 @@ class ConversationController extends ChangeNotifier {
       amplitude = 0;
       notifyListeners();
 
+      Future<PlaybackStartMetrics>? earlyRulePlayback;
+      DateTime? earlyRulePlaybackRequestedAt;
+      Uri? earlyRulePlaybackUri;
+      String? earlyRuleEnglishText;
       if (streamingCapture != null) {
-        _applyLocalExactPreview(
+        final matchedLocalRule = _applyLocalExactPreview(
           streamingCapture.sourceText,
           targetContext: context,
         );
+        final localPreview = _preview;
+        if (matchedLocalRule && localPreview?.audioUri != null) {
+          final localAudioUri = localPreview!.audioUri!;
+          earlyRulePlaybackUri = localAudioUri;
+          earlyRuleEnglishText = localPreview.englishText.trim();
+          earlyRulePlaybackRequestedAt = DateTime.now();
+          earlyRulePlayback = _playbackService.play(localAudioUri);
+        }
       }
 
       final resultFuture = streamingCapture != null
@@ -1330,7 +1369,9 @@ class ConversationController extends ChangeNotifier {
               vadSilenceMs: vadSilenceMs,
             );
       final processing = await Future.wait<Object?>([
-        _playbackService.prepare(),
+        earlyRulePlayback == null
+            ? _playbackService.prepare()
+            : Future<void>.value(),
         resultFuture,
       ]);
       final nextResult = processing[1]! as ConversationResult;
@@ -1345,7 +1386,42 @@ class ConversationController extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      if (nextResult.audioUri != null) {
+      var reusedEarlyRulePlayback = false;
+      final canReuseEarlyRulePlayback =
+          earlyRulePlayback != null &&
+          earlyRulePlaybackRequestedAt != null &&
+          earlyRulePlaybackUri != null &&
+          earlyRuleEnglishText == nextResult.englishText.trim() &&
+          (_preferredPlaybackUri == earlyRulePlaybackUri ||
+              nextResult.audioUri == earlyRulePlaybackUri);
+      if (canReuseEarlyRulePlayback) {
+        try {
+          final metrics = await earlyRulePlayback;
+          final startedAt = earlyRulePlaybackRequestedAt.add(
+            metrics.startedAfterRequest,
+          );
+          _reportPlaybackStarted(
+            currentResult: nextResult,
+            startedAt: startedAt,
+            metrics: metrics,
+          );
+          reusedEarlyRulePlayback = true;
+        } catch (error) {
+          debugPrint('Early exact-rule playback failed: $error');
+        }
+      }
+      if (!reusedEarlyRulePlayback && earlyRulePlayback != null) {
+        await earlyRulePlayback.catchError((Object _) {
+          return const PlaybackStartMetrics(
+            audioLoadDuration: Duration.zero,
+            startedAfterRequest: Duration.zero,
+            fromDeviceCache: false,
+          );
+        });
+        await _playbackService.stop();
+      }
+      if (!reusedEarlyRulePlayback &&
+          (nextResult.audioUri != null || _preferredPlaybackUri != null)) {
         await playResult(reportLatency: true);
       }
       phase = ConversationPhase.ready;
@@ -1473,29 +1549,48 @@ class ConversationController extends ChangeNotifier {
       }
       final metrics = gestureMetrics ?? await _playbackService.play(audioUri);
       if (reportLatency && _stoppedAt != null) {
-        final firstAudio = DateTime.now().difference(_stoppedAt!);
-        debugPrint(
-          jsonEncode(<String, dynamic>{
-            'event': 'playback_latency_client',
-            'conversationId': currentResult.conversationId,
-            'audioStartedAfterStopMs': firstAudio.inMilliseconds,
-            'audioLoadMs': metrics.audioLoadDuration.inMilliseconds,
-            'audioFromDeviceCache': metrics.fromDeviceCache,
-          }),
-        );
-        unawaited(
-          _reportPlaybackLatency(
-            currentResult: currentResult,
-            timeToFirstAudioMs: firstAudio.inMilliseconds,
-            audioLoadMs: metrics.audioLoadDuration.inMilliseconds,
-            audioFromDeviceCache: metrics.fromDeviceCache,
-          ),
+        _reportPlaybackStarted(
+          currentResult: currentResult,
+          startedAt: DateTime.now(),
+          metrics: metrics,
         );
       }
     } catch (error) {
       transientMessage = _friendlyError(error);
       notifyListeners();
     }
+  }
+
+  void _reportPlaybackStarted({
+    required ConversationResult currentResult,
+    required DateTime startedAt,
+    required PlaybackStartMetrics metrics,
+  }) {
+    final stoppedAt = _stoppedAt;
+    if (stoppedAt == null) {
+      return;
+    }
+    final firstAudioMs = math.max(
+      0,
+      startedAt.difference(stoppedAt).inMilliseconds,
+    );
+    debugPrint(
+      jsonEncode(<String, dynamic>{
+        'event': 'playback_latency_client',
+        'conversationId': currentResult.conversationId,
+        'audioStartedAfterStopMs': firstAudioMs,
+        'audioLoadMs': metrics.audioLoadDuration.inMilliseconds,
+        'audioFromDeviceCache': metrics.fromDeviceCache,
+      }),
+    );
+    unawaited(
+      _reportPlaybackLatency(
+        currentResult: currentResult,
+        timeToFirstAudioMs: firstAudioMs,
+        audioLoadMs: metrics.audioLoadDuration.inMilliseconds,
+        audioFromDeviceCache: metrics.fromDeviceCache,
+      ),
+    );
   }
 
   Future<void> _reportPlaybackLatency({

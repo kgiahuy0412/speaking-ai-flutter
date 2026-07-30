@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_guide_audio_library.dart';
@@ -159,147 +160,172 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       language: widget.language,
       child: Scaffold(
         key: const Key('lesson-practice-screen'),
-        body: Stack(
-          children: <Widget>[
-            SafeArea(
-              bottom: false,
-              child: Column(
-                children: <Widget>[
-                  _LessonHeader(
-                    current: _sentenceIndex + 1,
-                    total: total,
-                    onBack: _exitLesson,
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                      child: Column(
-                        children: <Widget>[
-                          _SentenceCard(
-                            sentence: _sentence,
-                            lessonType: widget.lesson.type,
-                            current: _sentenceIndex + 1,
-                            total: total,
-                            onPlaySample: _playSample,
-                            onPlayVietnamese: _playVietnamese,
-                          ),
-                          const SizedBox(height: 18),
-                          _RecordButton(
-                            recording: _recording,
-                            busy: _mediaBusy,
-                            onTap: _toggleRecording,
-                            onLongPressStart: _startRecording,
-                            onLongPressEnd: _stopRecording,
-                          ),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            child: _recordingPath == null
-                                ? const SizedBox(height: 14)
-                                : Padding(
-                                    key: ValueKey(_recordingPath),
-                                    padding: const EdgeInsets.only(top: 16),
-                                    child: _RecordingCard(
-                                      duration: _recordingDuration,
-                                      onPlay: _playRecording,
+        backgroundColor: Colors.transparent,
+        body: LearningScenery(
+          imageAlignment: Alignment.center,
+          overlayOpacity: 0.14,
+          child: Stack(
+            children: <Widget>[
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: <Widget>[
+                    _LessonHeader(
+                      current: _sentenceIndex + 1,
+                      total: total,
+                      onBack: _exitLesson,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                            child: Column(
+                              children: <Widget>[
+                                _SentenceCard(
+                                  sentence: _sentence,
+                                  lessonType: widget.lesson.type,
+                                  current: _sentenceIndex + 1,
+                                  total: total,
+                                  onPlaySample: _playSample,
+                                  onPlayVietnamese: _playVietnamese,
+                                ),
+                                if (_recordingPath == null) ...<Widget>[
+                                  const SizedBox(height: 14),
+                                  const _LessonCoachHint(),
+                                  const SizedBox(height: 14),
+                                ] else
+                                  const SizedBox(height: 18),
+                                _RecordButton(
+                                  recording: _recording,
+                                  busy: _mediaBusy,
+                                  onTap: _toggleRecording,
+                                  onLongPressStart: _startRecording,
+                                  onLongPressEnd: _stopRecording,
+                                ),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 220),
+                                  child: _recordingPath == null
+                                      ? const SizedBox(height: 14)
+                                      : Padding(
+                                          key: ValueKey(_recordingPath),
+                                          padding: const EdgeInsets.only(
+                                            top: 16,
+                                          ),
+                                          child: _RecordingCard(
+                                            duration: _recordingDuration,
+                                            onPlay: _playRecording,
+                                          ),
+                                        ),
+                                ),
+                                if (_message != null) ...<Widget>[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _message!,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: AppColors.muted),
+                                  ),
+                                ],
+                                const SizedBox(height: 18),
+                                if (_recordingPath != null)
+                                  _PostRecordingActions(
+                                    busy: _recording || _mediaBusy,
+                                    onPlaySample: _playSample,
+                                    onPlayRecording: _playRecording,
+                                    onRecordAgain: _startRecording,
+                                    onContinue: _continue,
+                                    onPrevious: _previous,
+                                    canGoPrevious: _sentenceIndex > 0,
+                                    finalSentence: _sentenceIndex == total - 1,
+                                  )
+                                else
+                                  _LessonNavigationActions(
+                                    current: _sentenceIndex,
+                                    total: total,
+                                    busy: _recording || _mediaBusy,
+                                    onPrevious: _previous,
+                                    onContinue: _continue,
+                                  ),
+                                if (_showSkip &&
+                                    _recordingPath == null) ...<Widget>[
+                                  const SizedBox(height: 10),
+                                  TextButton.icon(
+                                    key: const Key('skip-lesson-sentence'),
+                                    onPressed: _recording || _mediaBusy
+                                        ? null
+                                        : _skip,
+                                    icon: const Icon(
+                                      Icons.fast_forward_rounded,
+                                    ),
+                                    label: Text(
+                                      context.tr('Bỏ qua câu này', '跳过本句'),
                                     ),
                                   ),
+                                ],
+                              ],
+                            ),
                           ),
-                          if (_message != null) ...<Widget>[
-                            const SizedBox(height: 12),
-                            Text(
-                              _message!,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.muted),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          if (_recordingPath != null)
-                            _PostRecordingActions(
-                              busy: _recording || _mediaBusy,
-                              onPlaySample: _playSample,
-                              onPlayRecording: _playRecording,
-                              onRecordAgain: _startRecording,
-                              onContinue: _continue,
-                              onPrevious: _previous,
-                              canGoPrevious: _sentenceIndex > 0,
-                              finalSentence: _sentenceIndex == total - 1,
-                            )
-                          else
-                            _LessonNavigationActions(
-                              current: _sentenceIndex,
-                              total: total,
-                              busy: _recording || _mediaBusy,
-                              onPrevious: _previous,
-                              onContinue: _continue,
-                            ),
-                          if (_showSkip && _recordingPath == null) ...<Widget>[
-                            const SizedBox(height: 10),
-                            TextButton.icon(
-                              key: const Key('skip-lesson-sentence'),
-                              onPressed: _recording || _mediaBusy
-                                  ? null
-                                  : _skip,
-                              icon: const Icon(Icons.fast_forward_rounded),
-                              label: Text(context.tr('Bỏ qua câu này', '跳过本句')),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                key: const Key('lesson-praise-fireworks-interaction'),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  reverseDuration: const Duration(milliseconds: 180),
-                  child: _praiseFireworksVisible
-                      ? _LessonPraiseFireworks(
-                          key: ValueKey(_praiseFireworksSequence),
-                        )
-                      : const SizedBox.shrink(),
+                  ],
                 ),
               ),
-            ),
-            Positioned.fill(
-              child: AbsorbPointer(
-                key: const Key('lesson-coach-popup-interaction-blocker'),
-                absorbing:
-                    _coachPopupKind == _LessonCoachPopupKind.firstReminder ||
-                    _coachPopupKind == _LessonCoachPopupKind.secondReminder,
+              Positioned.fill(
                 child: IgnorePointer(
-                  ignoring:
-                      _coachPopupKind != _LessonCoachPopupKind.firstReminder &&
-                      _coachPopupKind != _LessonCoachPopupKind.secondReminder,
+                  key: const Key('lesson-praise-fireworks-interaction'),
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    reverseDuration: Duration.zero,
-                    transitionBuilder: (child, animation) {
-                      final curved = CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutBack,
-                        reverseCurve: Curves.easeInCubic,
-                      );
-                      return FadeTransition(
-                        opacity: animation,
-                        child: ScaleTransition(scale: curved, child: child),
-                      );
-                    },
-                    child: _coachPopupKind == null
-                        ? const SizedBox.shrink()
-                        : _LessonCoachPopup(
-                            key: ValueKey(_coachPopupKind),
-                            kind: _coachPopupKind!,
-                          ),
+                    duration: const Duration(milliseconds: 180),
+                    reverseDuration: const Duration(milliseconds: 180),
+                    child: _praiseFireworksVisible
+                        ? _LessonPraiseFireworks(
+                            key: ValueKey(_praiseFireworksSequence),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
               ),
-            ),
-          ],
+              Positioned.fill(
+                child: AbsorbPointer(
+                  key: const Key('lesson-coach-popup-interaction-blocker'),
+                  absorbing:
+                      _coachPopupKind == _LessonCoachPopupKind.firstReminder ||
+                      _coachPopupKind == _LessonCoachPopupKind.secondReminder,
+                  child: IgnorePointer(
+                    ignoring:
+                        _coachPopupKind !=
+                            _LessonCoachPopupKind.firstReminder &&
+                        _coachPopupKind != _LessonCoachPopupKind.secondReminder,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      reverseDuration: Duration.zero,
+                      transitionBuilder: (child, animation) {
+                        final curved = CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutBack,
+                          reverseCurve: Curves.easeInCubic,
+                        );
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(scale: curved, child: child),
+                        );
+                      },
+                      child: _coachPopupKind == null
+                          ? const SizedBox.shrink()
+                          : _LessonCoachPopup(
+                              key: ValueKey(_coachPopupKind),
+                              kind: _coachPopupKind!,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         bottomNavigationBar: ListeningNavigationBar(
           onCommunication: () =>
@@ -902,18 +928,30 @@ class _LessonHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
       child: Row(
         children: <Widget>[
-          IconButton(
+          IconButton.filled(
             onPressed: onBack,
             icon: const Icon(Icons.arrow_back_rounded),
             tooltip: context.tr('Quay lại', '返回'),
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(52),
+              backgroundColor: const Color(0xF8FFFDF9),
+              foregroundColor: AppColors.ink,
+            ),
           ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: const Color(0xF8FFFDF9),
               borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: AppColors.lavenderBorder),
+              border: Border.all(color: const Color(0xCCFFFFFF), width: 1.3),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x22142451),
+                  blurRadius: 16,
+                  offset: Offset(0, 7),
+                ),
+              ],
             ),
             child: Text(
               context.tr('Câu $current/$total', '第 $current/$total 句'),
@@ -929,8 +967,8 @@ class _LessonHeader extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
-              border: Border.all(color: AppColors.lavenderBorder),
+              color: const Color(0xF8FFFDF9),
+              border: Border.all(color: const Color(0xCCFFFFFF), width: 1.3),
             ),
             child: const Icon(Icons.star_rounded, color: Color(0xFFFFC75B)),
           ),
@@ -969,9 +1007,9 @@ class _SentenceCard extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 300),
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.lavenderBorder),
+        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.4),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x10142451),
@@ -1501,6 +1539,54 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
   }
 }
 
+class _LessonCoachHint extends StatelessWidget {
+  const _LessonCoachHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.fromLTRB(8, 6, 18, 6),
+      decoration: BoxDecoration(
+        color: const Color(0xF2FFFDF9),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.2),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x1F142451),
+            blurRadius: 16,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 58,
+            height: 58,
+            child: Image.asset(
+              'assets/images/mascot-robot.png',
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              context.tr('Nghe mẫu rồi đọc lại thật rõ nhé!', '先听示范，再清楚地跟读吧！'),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PostRecordingActions extends StatelessWidget {
   const _PostRecordingActions({
     required this.busy,
@@ -1607,7 +1693,8 @@ class _CompactAction extends StatelessWidget {
       label: Text(label, textAlign: TextAlign.center, maxLines: 2),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.indigo,
-        side: const BorderSide(color: AppColors.lavenderBorder),
+        backgroundColor: const Color(0xF2FFFDF9),
+        side: const BorderSide(color: Color(0xCCFFFFFF), width: 1.2),
       ),
     );
   }

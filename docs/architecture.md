@@ -60,8 +60,8 @@ Controller chỉ biết interface, nên thay nguồn âm thanh không làm thay 
    `record` mở micro PCM16 mono 24 kHz và đồng thời tạo client secret, mở
    WebSocket cho đúng lượt nói. Audio trước lúc kết nối được giữ trong buffer và
    replay đúng một lần khi WebSocket sẵn sàng; app không tạo session khi chỉ mở màn hình.
-3. Stream dBFS điều khiển hiển thị mức âm và VAD.
-4. Sau khi phát hiện tiếng nói, im lặng liên tục 700 ms sẽ tự dừng.
+3. Stream dBFS điều khiển hiển thị mức âm và VAD thích nghi. VAD hiệu chỉnh nền ồn trong 300 ms, dùng ngưỡng bắt đầu/kết thúc riêng và bỏ qua tiếng động ngắn hoặc nền ồn ổn định.
+4. Sau khi phát hiện tiếng nói, im lặng liên tục 900 ms sẽ tự dừng theo mặc định; người dùng vẫn có thể chỉnh từ 400–1.600 ms.
 5. Người dùng luôn có thể bấm Dừng.
 6. Partial transcript chỉ dò rule/cache để preload audio đã có. Sau Stop,
    Realtime commit buffer và final text mới đi qua pipeline backend một lần.

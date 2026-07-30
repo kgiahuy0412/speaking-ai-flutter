@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../listening/presentation/listening_route_names.dart';
@@ -34,70 +35,81 @@ class ConversationScreen extends StatelessWidget {
         return DisplayLanguageScope(
           language: controller.displayLanguage,
           child: Scaffold(
-            body: SafeArea(
-              bottom: false,
-              child: Column(
-                children: <Widget>[
-                  _AppHeader(
-                    inputLabel: controller.inputLabel,
-                    isReady: controller.isInputAvailable,
-                    onHistory: () => _showHistory(context),
-                    onSettings: () => _showSettings(context),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 5, 20, 18),
-                      child: Column(
-                        children: <Widget>[
-                          _TopicListeningShortcut(
-                            childAge: config.childAge,
-                            onPressed: () => _openTopicListening(context),
-                          ),
-                          const SizedBox(height: 12),
-                          VoiceHero(
-                            phase: controller.phase,
-                            processingStage: controller.processingStage,
-                            amplitude: controller.amplitude,
-                            onStop: () => unawaited(
-                              controller.stopRecording(manual: true),
+            backgroundColor: Colors.transparent,
+            body: LearningScenery(
+              imageAlignment: Alignment.center,
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: <Widget>[
+                    _AppHeader(
+                      inputLabel: controller.inputLabel,
+                      isReady: controller.isInputAvailable,
+                      onHistory: () => _showHistory(context),
+                      onSettings: () => _showSettings(context),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(20, 5, 20, 18),
+                            child: Column(
+                              children: <Widget>[
+                                _TopicListeningShortcut(
+                                  childAge: config.childAge,
+                                  onPressed: () => _openTopicListening(context),
+                                ),
+                                const SizedBox(height: 14),
+                                VoiceHero(
+                                  phase: controller.phase,
+                                  processingStage: controller.processingStage,
+                                  amplitude: controller.amplitude,
+                                  onStop: () => unawaited(
+                                    controller.stopRecording(manual: true),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                ResultPanel(
+                                  result: controller.result,
+                                  onPlay: () =>
+                                      unawaited(controller.playResult()),
+                                ),
+                                const SizedBox(height: 12),
+                                FeedbackButtons(
+                                  enabled:
+                                      controller.result != null &&
+                                      controller.phase !=
+                                          ConversationPhase.processing,
+                                  selectedValue: controller.qualityApproved,
+                                  onSelected: (value) =>
+                                      unawaited(controller.submitReview(value)),
+                                ),
+                                if (controller.errorMessage != null ||
+                                    controller.transientMessage !=
+                                        null) ...<Widget>[
+                                  const SizedBox(height: 12),
+                                  _InlineMessage(
+                                    isError: controller.errorMessage != null,
+                                    message:
+                                        controller.errorMessage ??
+                                        controller.transientMessage!,
+                                    onDismiss: controller.clearMessage,
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          ResultPanel(
-                            result: controller.result,
-                            onPlay: () => unawaited(controller.playResult()),
-                          ),
-                          const SizedBox(height: 12),
-                          FeedbackButtons(
-                            enabled:
-                                controller.result != null &&
-                                controller.phase !=
-                                    ConversationPhase.processing,
-                            selectedValue: controller.qualityApproved,
-                            onSelected: (value) =>
-                                unawaited(controller.submitReview(value)),
-                          ),
-                          if (controller.errorMessage != null ||
-                              controller.transientMessage != null) ...<Widget>[
-                            const SizedBox(height: 12),
-                            _InlineMessage(
-                              isError: controller.errorMessage != null,
-                              message:
-                                  controller.errorMessage ??
-                                  controller.transientMessage!,
-                              onDismiss: controller.clearMessage,
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                  SpeakActionBar(
-                    phase: controller.phase,
-                    processingStage: controller.processingStage,
-                    onPressed: () => unawaited(controller.onPrimaryAction()),
-                  ),
-                ],
+                    SpeakActionBar(
+                      phase: controller.phase,
+                      processingStage: controller.processingStage,
+                      onPressed: () => unawaited(controller.onPrimaryAction()),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -191,29 +203,29 @@ class _TopicListeningShortcut extends StatelessWidget {
             key: const Key('topic-listening-shortcut'),
             onTap: onPressed,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 112),
+              constraints: const BoxConstraints(minHeight: 126),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
+                padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     SizedBox(
-                      width: 78,
-                      height: 90,
+                      width: 94,
+                      height: 100,
                       child: Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.center,
                         children: <Widget>[
                           Container(
-                            width: 64,
-                            height: 64,
+                            width: 78,
+                            height: 78,
                             decoration: const BoxDecoration(
                               color: Color(0xB3FFFFFF),
                               shape: BoxShape.circle,
                             ),
                           ),
                           Transform.scale(
-                            scale: 1.28,
+                            scale: 1.38,
                             child: Image.asset(
                               'assets/images/mascot-robot.png',
                               fit: BoxFit.contain,
@@ -223,7 +235,7 @@ class _TopicListeningShortcut extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -236,7 +248,7 @@ class _TopicListeningShortcut extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
                                   color: AppColors.ink,
-                                  fontSize: 17,
+                                  fontSize: 20,
                                   height: 1.15,
                                 ),
                           ),
@@ -248,7 +260,7 @@ class _TopicListeningShortcut extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: AppColors.muted,
-                                  fontSize: 12,
+                                  fontSize: 14,
                                   height: 1.3,
                                 ),
                           ),
@@ -270,10 +282,10 @@ class _TopicListeningShortcut extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 10),
                     Container(
-                      width: 46,
-                      height: 46,
+                      width: 56,
+                      height: 56,
                       decoration: const BoxDecoration(
                         color: AppColors.indigo,
                         shape: BoxShape.circle,
@@ -288,7 +300,7 @@ class _TopicListeningShortcut extends StatelessWidget {
                       child: const Icon(
                         Icons.arrow_forward_rounded,
                         color: Colors.white,
-                        size: 26,
+                        size: 32,
                       ),
                     ),
                   ],
@@ -374,99 +386,116 @@ class _AppHeader extends StatelessWidget {
       final label => label,
     });
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 7),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 54,
-            height: 54,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: AppColors.lavender,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: const <BoxShadow>[
-                BoxShadow(
-                  color: Color(0x140D1B4C),
-                  blurRadius: 12,
-                  offset: Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Transform.scale(
-              scale: 1.15,
-              child: Image.asset(
-                'assets/images/mascot-robot.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              ),
-            ),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+          decoration: scenicPanelDecoration(
+            radius: 34,
+            color: const Color(0xF8FFFDF9),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  context.tr('Trợ lý giao tiếp', '沟通助手'),
-                  maxLines: largeText ? 2 : 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontSize: largeText ? 20 : 24,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: isReady ? AppColors.success : AppColors.muted,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        isReady
-                            ? '$compactInputLabel • ${context.tr('Sẵn sàng', '已就绪')}'
-                            : context.tr('Chưa kết nối', '未连接'),
-                        maxLines: largeText ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.ink,
-                          fontSize: largeText ? 12 : 13,
-                        ),
-                      ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 54,
+                height: 54,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.lavender,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(
+                      color: Color(0x140D1B4C),
+                      blurRadius: 12,
+                      offset: Offset(0, 5),
                     ),
                   ],
                 ),
-              ],
-            ),
+                child: Transform.scale(
+                  scale: 1.15,
+                  child: Image.asset(
+                    'assets/images/mascot-robot.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      context.tr('Trợ lý giao tiếp', '沟通助手'),
+                      maxLines: largeText ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontSize: largeText ? 20 : 24),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            color: isReady
+                                ? AppColors.success
+                                : AppColors.muted,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            isReady
+                                ? '$compactInputLabel • ${context.tr('Sẵn sàng', '已就绪')}'
+                                : context.tr('Chưa kết nối', '未连接'),
+                            maxLines: largeText ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.ink,
+                                  fontSize: largeText ? 12 : 13,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton.filledTonal(
+                onPressed: onHistory,
+                icon: const Icon(Icons.history_rounded),
+                tooltip: context.tr('Lịch sử gần đây', '最近记录'),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(48),
+                  maximumSize: const Size.square(48),
+                  foregroundColor: AppColors.indigoDark,
+                  backgroundColor: AppColors.lavender,
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton.filledTonal(
+                onPressed: onSettings,
+                icon: const Icon(Icons.settings_outlined),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(48),
+                  maximumSize: const Size.square(48),
+                  foregroundColor: AppColors.indigoDark,
+                  backgroundColor: AppColors.lavender,
+                ),
+                tooltip: context.tr('Cài đặt', '设置'),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            onPressed: onHistory,
-            icon: const Icon(Icons.history_rounded),
-            tooltip: context.tr('Lịch sử gần đây', '最近记录'),
-            style: IconButton.styleFrom(
-              minimumSize: const Size.square(44),
-              maximumSize: const Size.square(44),
-            ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            onPressed: onSettings,
-            icon: const Icon(Icons.settings_outlined),
-            style: IconButton.styleFrom(
-              minimumSize: const Size.square(44),
-              maximumSize: const Size.square(44),
-            ),
-            tooltip: context.tr('Cài đặt', '设置'),
-          ),
-        ],
+        ),
       ),
     );
   }

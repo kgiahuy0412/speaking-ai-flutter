@@ -136,6 +136,13 @@ void main() {
         ),
       ),
     );
+    await _precache(
+      tester,
+      find.byType(LessonPracticeScreen),
+      const <AssetImage>[
+        AssetImage('assets/images/learning-train-field-background.webp'),
+      ],
+    );
     await tester.pumpAndSettle();
 
     await expectLater(

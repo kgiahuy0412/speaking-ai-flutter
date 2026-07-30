@@ -210,8 +210,17 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
       minimumStableFor: const Duration(milliseconds: 350),
     );
     if (partialAtStop != null) {
-      sourceText = partialAtStop;
-      _resultAt = DateTime.now();
+      // A stable partial keeps stop responsive, but the Android final result is
+      // often more accurate for softly spoken child speech. Give it a short,
+      // bounded grace period before falling back to the partial transcript.
+      try {
+        sourceText = await completer.future.timeout(
+          const Duration(milliseconds: 220),
+        );
+      } on TimeoutException {
+        sourceText = partialAtStop;
+        _resultAt = DateTime.now();
+      }
     } else {
       try {
         sourceText = await completer.future.timeout(

@@ -288,7 +288,6 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           language: widget.language,
           lesson: widget.lesson,
           mediaService: widget.mediaService,
-          autoPlayDelay: Duration.zero,
           topicTitle:
               widget.topicContent?.titleEn ??
               widget.language.choose(

@@ -533,7 +533,7 @@ void main() {
     );
 
     await controller.startRecording();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _emitDetectedSpeech(input);
     await controller.stopRecording(manual: true);
 
     expect(repository.batchStarted, 0);
@@ -565,7 +565,7 @@ void main() {
       await controller.startRecording();
       await Future<void>.delayed(const Duration(milliseconds: 40));
       input.emit(<int>[3, 4]);
-      await Future<void>.delayed(const Duration(milliseconds: 460));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.batchStarted, 1);
@@ -605,7 +605,7 @@ void main() {
       );
 
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       final stopping = controller.stopRecording(manual: true);
       await Future<void>.delayed(Duration.zero);
 
@@ -636,6 +636,80 @@ void main() {
 
       playback.completePlay();
       await stopping;
+      expect(controller.phase, ConversationPhase.ready);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'Web manual stop does not upload audio without detected speech',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[0, 0, 0, 0],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(seconds: 2),
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.batchStarted, 0);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.result, isNull);
+      expect(controller.phase, ConversationPhase.idle);
+      expect(controller.transientMessage, contains('chưa nghe thấy giọng nói'));
+      controller.dispose();
+    },
+  );
+
+  test(
+    'exact Android rule starts cached audio before backend finishes',
+    () async {
+      final streamingResultCompleter = Completer<ConversationResult>();
+      final repository = _FallbackRepository(
+        streamingResultCompleter: streamingResultCompleter,
+      );
+      final playback = _DirectGesturePlaybackService();
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        streamingSpeechInput: _FakeStreamingSpeechInput(),
+        playbackService: playback,
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+      final audioUri = Uri.parse('https://api.example.com/water.mp3');
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final stopping = controller.stopRecording(manual: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(playback.playedUris, <Uri>[audioUri]);
+      expect(controller.result, isNull);
+
+      streamingResultCompleter.complete(
+        _result('stream-result', audioUri: audioUri),
+      );
+      await stopping;
+
+      expect(playback.playedUris, <Uri>[audioUri]);
       expect(controller.phase, ConversationPhase.ready);
       controller.dispose();
     },
@@ -1012,9 +1086,13 @@ class _FakeChunkedInput implements ChunkedAudioInput {
   final bool failOnStart;
   final StreamController<Uint8List> _chunks =
       StreamController<Uint8List>.broadcast(sync: true);
+  final StreamController<double> _amplitudes =
+      StreamController<double>.broadcast(sync: true);
   int startCount = 0;
 
   void emit(List<int> bytes) => _chunks.add(Uint8List.fromList(bytes));
+
+  void emitAmplitude(double dbfs) => _amplitudes.add(dbfs);
 
   @override
   final String label;
@@ -1026,7 +1104,7 @@ class _FakeChunkedInput implements ChunkedAudioInput {
   bool get isBluetooth => bluetooth;
 
   @override
-  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+  Stream<double> get amplitudeDbfs => _amplitudes.stream;
 
   @override
   Stream<Uint8List> get audioChunks => _chunks.stream;
@@ -1068,7 +1146,21 @@ class _FakeChunkedInput implements ChunkedAudioInput {
   Future<void> cancel() async {}
 
   @override
-  Future<void> dispose() => _chunks.close();
+  Future<void> dispose() async {
+    await _chunks.close();
+    await _amplitudes.close();
+  }
+}
+
+Future<void> _emitDetectedSpeech(_FakeChunkedInput input) async {
+  input.emitAmplitude(-60);
+  await Future<void>.delayed(const Duration(milliseconds: 150));
+  input.emitAmplitude(-58);
+  await Future<void>.delayed(const Duration(milliseconds: 170));
+  input.emitAmplitude(-60);
+  input.emitAmplitude(-20);
+  await Future<void>.delayed(const Duration(milliseconds: 190));
+  input.emitAmplitude(-28);
 }
 
 class _FailingRealtimeSession implements RealtimeTranscriptionSession {
@@ -1160,12 +1252,14 @@ class _FallbackRepository
     this.realtimeCompleter,
     this.batchCompleter,
     this.audioResultCompleter,
+    this.streamingResultCompleter,
     this.failRealtimeConnection = false,
   });
 
   final Completer<RealtimeTranscriptionSession>? realtimeCompleter;
   final Completer<BatchChunkUploadSession>? batchCompleter;
   final Completer<ConversationResult>? audioResultCompleter;
+  final Completer<ConversationResult>? streamingResultCompleter;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
@@ -1247,6 +1341,10 @@ class _FallbackRepository
     required int vadSilenceMs,
   }) async {
     streamingCapture = capture;
+    final completer = streamingResultCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     return _result('stream-result');
   }
 

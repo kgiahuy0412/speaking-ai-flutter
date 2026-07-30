@@ -66,28 +66,6 @@ class SettingsSheet extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _SectionLabel(label: context.tr('Ngữ cảnh', '场景')),
-                    const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SegmentedButton<PracticeContext>(
-                        showSelectedIcon: false,
-                        segments: PracticeContext.values
-                            .map(
-                              (item) => ButtonSegment<PracticeContext>(
-                                value: item,
-                                label: Text(context.trKnown(item.label)),
-                              ),
-                            )
-                            .toList(growable: false),
-                        selected: <PracticeContext>{controller.context},
-                        onSelectionChanged: controller.isBusy
-                            ? null
-                            : (selection) =>
-                                  controller.selectContext(selection.first),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     _SectionLabel(label: context.tr('Nguồn âm thanh', '音频输入')),
                     const SizedBox(height: 10),
                     _StatusTile(
@@ -277,8 +255,8 @@ class SettingsSheet extends StatelessWidget {
                     ),
                     Text(
                       context.tr(
-                        '700 ms là mặc định; có thể tăng nếu trẻ thường ngắt câu.',
-                        '默认 700 毫秒；如果孩子说话经常停顿，可以调高。',
+                        '900 ms là mặc định; có thể tăng nếu trẻ thường ngắt câu.',
+                        '默认 900 毫秒；如果孩子说话经常停顿，可以调高。',
                       ),
                       style: Theme.of(
                         context,
@@ -289,24 +267,6 @@ class SettingsSheet extends StatelessWidget {
                       onPressed: () => _showHistory(context),
                       icon: const Icon(Icons.history_rounded),
                       label: Text(context.tr('Xem lịch sử gần đây', '查看最近记录')),
-                    ),
-                    const SizedBox(height: 24),
-                    _SectionLabel(
-                      label: context.tr('Dữ liệu và quyền riêng tư', '数据与隐私'),
-                    ),
-                    const SizedBox(height: 10),
-                    _DataPrivacyCard(
-                      onOpenHistory: () => _showHistory(context),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      context.tr(
-                        'Khóa dịch vụ không được lưu trong ứng dụng trên thiết bị.',
-                        '服务密钥不会存储在设备上的应用中。',
-                      ),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -1059,58 +1019,5 @@ class _HfpStatusCard extends StatelessWidget {
         '使用 Android 中已配对的 HFP 设备。',
       ),
     };
-  }
-}
-
-class _DataPrivacyCard extends StatelessWidget {
-  const _DataPrivacyCard({required this.onOpenHistory});
-
-  final VoidCallback onOpenHistory;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: context.tr(
-        'Dữ liệu lượt nói được lưu để phụ huynh xem lại. Có thể xóa từng lượt hoặc xóa toàn bộ lịch sử.',
-        '对话记录会保存供家长查看。可以删除单条记录或清除全部历史。',
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.successSoft,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.success.withValues(alpha: 0.22)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              context.tr('Quyền kiểm soát của phụ huynh', '家长控制'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: AppColors.success),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              context.tr(
-                'Lịch sử giúp phụ huynh kiểm tra câu trẻ đã nói và phản hồi của hệ thống. Bạn có thể xóa từng lượt hoặc toàn bộ lịch sử bất cứ lúc nào.',
-                '历史记录可帮助家长查看孩子说过的句子和系统反馈。你可以随时删除单条记录或清除全部历史。',
-              ),
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onOpenHistory,
-              icon: const Icon(Icons.manage_history_rounded),
-              label: Text(context.tr('Xem hoặc xóa dữ liệu', '查看或删除数据')),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

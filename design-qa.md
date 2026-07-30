@@ -274,6 +274,43 @@ final result: passed
 
 ---
 
+# Design QA — Summer train visual system
+
+## Evidence
+
+- Source visual truth:
+  - `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-6f973d27-18e5-4536-a70a-866d9272e26c.png` — communication.
+  - `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-52b5d6df-69aa-4af2-8cdc-e7dc3dbfad89.png` — topic catalog.
+  - `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-4dd979b2-58e3-4457-9a10-23b38b080de1.png` — sentence practice.
+  - `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-13269f4c-2447-4884-bf21-0c50f3787bf8.png` — karaoke.
+- Rendered Flutter implementation:
+  - `test/goldens/conversation-idle-compact-450x1025.png`.
+  - `test/goldens/topic-listening-426x923.png`.
+  - `test/features/listening/goldens/lesson-practice-390x844.png`.
+  - `test/features/listening/goldens/song-karaoke-390x844.png`.
+- Same-input side-by-side comparison: `design-qa-assets/implementation-comparison.png`.
+- Production illustration: `assets/images/learning-train-field-background.webp` — original 853 × 1844 WebP, optimized to 267 KB.
+
+## Comparison findings
+
+- The four screens share the requested bright blue sky, cloud, mountain, train and green-field visual language without reducing the prominence of the topic shortcut, Vietnamese/English result panel, topic cards, lesson sentence or karaoke lyrics.
+- Warm ivory surfaces, navy typography, indigo primary controls, green progress and coral micro-accents remain consistent across the journey.
+- Phone layouts preserve practical tap targets and scroll when required. Web layouts cap interactive content at 720 logical pixels while the scenery fills the viewport.
+- The sentence-practice evidence is the existing-recording state, so it intentionally shows the recording card and post-recording actions. The fresh-sentence state additionally shows the requested mascot coaching strip before recording.
+- Karaoke retains three-second autoplay, word highlighting, end confirmation and practice routing. The mascot now sits above the player without obscuring lyrics or controls.
+- No actionable P0, P1 or P2 visual mismatch remains. Dynamic lesson counts and fixture copy differ from the supplied examples but remain data-driven and do not change the visual hierarchy.
+
+## Verification
+
+- `flutter analyze`: passed with no issues.
+- Full Flutter suite: 157 tests passed, including compact-phone, 200% text, HFP/BLE fallback, recording, topic navigation and karaoke.
+- Web release `1.0.3+5`: built successfully with the Railway backend define.
+- Android APK release `1.0.3+5`: built successfully; output size 78.5 MB.
+
+final result: passed
+
+---
+
 # Design QA — HFP Recognition Mode
 
 ## Comparison target
