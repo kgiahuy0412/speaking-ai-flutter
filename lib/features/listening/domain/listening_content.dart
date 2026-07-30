@@ -123,6 +123,7 @@ class ListeningLessonContent {
     required this.outro,
     required this.estimatedMinutes,
     required this.sentences,
+    this.karaokeLines = const <ListeningSentenceContent>[],
     this.code = '',
     this.type = ListeningLessonType.standard,
     this.reviewPause = const Duration(seconds: 2),
@@ -156,6 +157,11 @@ class ListeningLessonContent {
           .whereType<Map<String, Object?>>()
           .map(ListeningSentenceContent.fromJson)
           .toList(growable: false),
+      karaokeLines:
+          (json['karaokeLines'] as List<Object?>? ?? const <Object?>[])
+              .whereType<Map<String, Object?>>()
+              .map(ListeningSentenceContent.fromJson)
+              .toList(growable: false),
       introAudioUri: _readUri(json['introAudioUrl']),
       outroAudioUri: _readUri(json['outroAudioUrl']),
       dialogueTransitionAudioId: json['dialogueTransitionAudioId'] as String?,
@@ -177,6 +183,7 @@ class ListeningLessonContent {
   final Duration reviewPause;
   final Duration autoAdvanceDelay;
   final List<ListeningSentenceContent> sentences;
+  final List<ListeningSentenceContent> karaokeLines;
   final Uri? introAudioUri;
   final Uri? outroAudioUri;
   final String? dialogueTransitionAudioId;

@@ -40,6 +40,95 @@ void main() {
     }
   });
 
+  test('all five karaoke songs have loadable intro and full audio', () async {
+    final content = await AssetListeningContentRepository().load();
+    final songs = <String, ListeningLessonContent>{
+      for (final song
+          in content.groups
+              .expand((group) => group.topics)
+              .expand((topic) => topic.songs))
+        song.id: song,
+    };
+    const expectedAssets = <String, String>{
+      'a067_t05_song01': 'assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3',
+      'a067_t07_song01': 'assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3',
+      'a067_t08_song01': 'assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3',
+      'a0810_t03_song01':
+          'assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3',
+      'a0810_t04_song01':
+          'assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3',
+    };
+    const expectedTimelineLengths = <String, int>{
+      'a067_t05_song01': 12,
+      'a067_t07_song01': 56,
+      'a067_t08_song01': 44,
+      'a0810_t03_song01': 62,
+      'a0810_t04_song01': 22,
+    };
+    const expectedIntros = <String, (String, String, String)>{
+      'a067_t05_song01': (
+        'Count the Days',
+        'Chào con! Bây giờ mình cùng nghe bài hát “Count the Days”. Con hãy lắng nghe và hát theo nhé!',
+        'assets/audio/A-6-7/SONG_INTRO/SONG_INTRO_06_07_01.mp3',
+      ),
+      'a067_t07_song01': (
+        'My Day',
+        'Chào con! Bây giờ mình cùng nghe bài hát “My Day”. Con hãy lắng nghe và hát theo nhé!',
+        'assets/audio/A-6-7/SONG_INTRO/SONG_INTRO_06_07_02.mp3',
+      ),
+      'a067_t08_song01': (
+        'What Should I Wear?',
+        'Chào con! Bây giờ mình cùng nghe bài hát “What Should I Wear?”. Con hãy lắng nghe và hát theo nhé!',
+        'assets/audio/A-6-7/SONG_INTRO/SONG_INTRO_06_07_03.mp3',
+      ),
+      'a0810_t03_song01': (
+        'My Busy Day',
+        'Chào con! Bây giờ mình cùng nghe bài hát “My Busy Day”. Con hãy lắng nghe và hát theo nhé!',
+        'assets/audio/A-8-10/SONG_INTRO/SONG_INTRO_08_10_01.mp3',
+      ),
+      'a0810_t04_song01': (
+        'Let’s Play Together',
+        'Chào con! Bây giờ mình cùng nghe bài hát “Let’s Play Together”. Con hãy lắng nghe và hát theo nhé!',
+        'assets/audio/A-8-10/SONG_INTRO/SONG_INTRO_08_10_02.mp3',
+      ),
+    };
+
+    for (final entry in expectedAssets.entries) {
+      final song = songs[entry.key];
+      final uri = song?.fullAudioUri;
+      expect(uri?.scheme, 'asset', reason: entry.key);
+      expect(uri?.path, '/${entry.value}', reason: entry.key);
+      final bytes = await rootBundle.load(entry.value);
+      expect(bytes.lengthInBytes, greaterThan(1000), reason: entry.key);
+      final expectedIntro = expectedIntros[entry.key]!;
+      expect(song?.titleEn, expectedIntro.$1, reason: entry.key);
+      expect(song?.intro, expectedIntro.$2, reason: entry.key);
+      expect(song?.introAudioUri?.scheme, 'asset', reason: entry.key);
+      expect(
+        song?.introAudioUri?.path,
+        '/${expectedIntro.$3}',
+        reason: entry.key,
+      );
+      final introBytes = await rootBundle.load(expectedIntro.$3);
+      expect(introBytes.lengthInBytes, greaterThan(1000), reason: entry.key);
+      expect(
+        song?.karaokeLines,
+        hasLength(expectedTimelineLengths[entry.key]),
+        reason: entry.key,
+      );
+      expect(
+        song?.karaokeLines.every(
+          (line) =>
+              line.karaokeStart != null &&
+              line.karaokeEnd != null &&
+              line.karaokeEnd! > line.karaokeStart!,
+        ),
+        isTrue,
+        reason: entry.key,
+      );
+    }
+  });
+
   testWidgets('selects the matching age group and changes its topic catalog', (
     tester,
   ) async {
@@ -212,7 +301,7 @@ void main() {
     expect(lessons, hasLength(101));
     expect(sentences, hasLength(634));
     expect(songs, hasLength(11));
-    expect(songLines, hasLength(69));
+    expect(songLines, hasLength(79));
     expect(
       allLearningItems.map((lesson) => lesson.id).toSet(),
       hasLength(allLearningItems.length),
