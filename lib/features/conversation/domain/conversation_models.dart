@@ -168,7 +168,7 @@ class ConversationResult {
           : backendBaseUri.resolve(rawAudioUrl),
       processingMode: json['processingMode'] as String? ?? 'fallback',
       textSource: json['textSource'] as String? ?? 'fallback',
-      audioSource: json['audioSource'] as String? ?? 'openai_tts',
+      audioSource: json['audioSource'] as String? ?? 'cloudflare_tts',
       asrMode: json['asrMode'] as String? ?? 'batch_chunks',
       latency: ConversationLatency.fromJson(
         json['latency'] as Map<String, dynamic>? ?? const <String, dynamic>{},

@@ -197,6 +197,8 @@ class ListeningSentenceContent {
     this.vietnameseAudioId,
     this.audioUri,
     this.vietnameseAudioUri,
+    this.karaokeStart,
+    this.karaokeEnd,
   });
 
   factory ListeningSentenceContent.fromJson(Map<String, Object?> json) {
@@ -210,6 +212,8 @@ class ListeningSentenceContent {
       vietnameseAudioId: json['vietnameseAudioId'] as String?,
       audioUri: _readUri(json['audioUrl']),
       vietnameseAudioUri: _readUri(json['vietnameseAudioUrl']),
+      karaokeStart: _readDurationMs(json['karaokeStartMs']),
+      karaokeEnd: _readDurationMs(json['karaokeEndMs']),
     );
   }
 
@@ -222,6 +226,8 @@ class ListeningSentenceContent {
   final String? vietnameseAudioId;
   final Uri? audioUri;
   final Uri? vietnameseAudioUri;
+  final Duration? karaokeStart;
+  final Duration? karaokeEnd;
 }
 
 Uri? _readUri(Object? value) {
@@ -229,6 +235,13 @@ Uri? _readUri(Object? value) {
     return null;
   }
   return Uri.tryParse(value.trim());
+}
+
+Duration? _readDurationMs(Object? value) {
+  if (value is! num || value < 0) {
+    return null;
+  }
+  return Duration(milliseconds: value.round());
 }
 
 class AssetListeningContentRepository {

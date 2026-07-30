@@ -68,6 +68,46 @@ class LessonMediaService {
     await _activePlayback.play(uri);
   }
 
+  Stream<bool> get playbackPlayingStream => _activePlayback.playingStream;
+
+  Stream<Duration> get playbackPositionStream {
+    final playback = _activePlayback;
+    return playback is ProgressAwareAudioPlaybackService
+        ? (playback as ProgressAwareAudioPlaybackService).positionStream
+        : const Stream<Duration>.empty();
+  }
+
+  Stream<Duration?> get playbackDurationStream {
+    final playback = _activePlayback;
+    return playback is ProgressAwareAudioPlaybackService
+        ? (playback as ProgressAwareAudioPlaybackService).durationStream
+        : const Stream<Duration?>.empty();
+  }
+
+  Duration get playbackPosition {
+    final playback = _activePlayback;
+    return playback is ProgressAwareAudioPlaybackService
+        ? (playback as ProgressAwareAudioPlaybackService).position
+        : Duration.zero;
+  }
+
+  Duration? get playbackDuration {
+    final playback = _activePlayback;
+    return playback is ProgressAwareAudioPlaybackService
+        ? (playback as ProgressAwareAudioPlaybackService).duration
+        : null;
+  }
+
+  Future<void> preload(Uri uri) => _activePlayback.preload(uri);
+
+  Future<void> unlockPlaybackForUserGesture() async {
+    final playback = _activePlayback;
+    if (playback is UserGestureAudioPlaybackService) {
+      await (playback as UserGestureAudioPlaybackService)
+          .unlockForUserGesture();
+    }
+  }
+
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
