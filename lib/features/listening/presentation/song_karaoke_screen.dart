@@ -54,6 +54,11 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
 
   Uri? get _songUri => widget.lesson.fullAudioUri;
 
+  List<ListeningSentenceContent> get _lyrics =>
+      widget.lesson.karaokeLines.isNotEmpty
+      ? widget.lesson.karaokeLines
+      : widget.lesson.sentences;
+
   @override
   void initState() {
     super.initState();
@@ -213,7 +218,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     if (duration != null && duration > Duration.zero) {
       return duration;
     }
-    final explicitEnd = widget.lesson.sentences
+    final explicitEnd = _lyrics
         .map((line) => line.karaokeEnd ?? Duration.zero)
         .fold<Duration>(
           Duration.zero,
@@ -222,7 +227,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     if (explicitEnd > Duration.zero) {
       return explicitEnd;
     }
-    return Duration(seconds: math.max(30, widget.lesson.sentences.length * 6));
+    return Duration(seconds: math.max(30, _lyrics.length * 6));
   }
 
   double get _progress {
@@ -234,7 +239,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
   }
 
   _KaraokeSnapshot _karaokeSnapshot() {
-    final lines = widget.lesson.sentences;
+    final lines = _lyrics;
     if (lines.isEmpty) {
       return _KaraokeSnapshot(
         currentLine: context.tr('Lời bài hát sẽ được bổ sung sớm.', '歌词即将补充。'),
@@ -243,11 +248,11 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
       );
     }
     final windows = _buildLineWindows(lines, _effectiveDuration);
-    var activeIndex = windows.indexWhere(
-      (window) => _position >= window.start && _position < window.end,
+    var activeIndex = windows.lastIndexWhere(
+      (window) => _position >= window.start,
     );
     if (activeIndex < 0) {
-      activeIndex = _position >= windows.last.end ? windows.length - 1 : 0;
+      activeIndex = 0;
     }
     final activeWindow = windows[activeIndex];
     final lineDuration = math.max(

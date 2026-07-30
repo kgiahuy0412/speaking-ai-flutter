@@ -9,6 +9,7 @@ import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'lesson_practice_screen.dart';
 import 'lesson_review_screen.dart';
+import 'song_karaoke_screen.dart';
 
 class LessonIntroScreen extends StatefulWidget {
   const LessonIntroScreen({
@@ -85,7 +86,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   @override
   void dispose() {
     _animationController.dispose();
-    widget.mediaService.stopPlayback();
+    if (!_movingForward) {
+      widget.mediaService.stopPlayback();
+    }
     super.dispose();
   }
 
@@ -236,6 +239,10 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   }
 
   Future<void> _openOverview() async {
+    if (_usesSongKaraoke) {
+      await _openSongKaraoke();
+      return;
+    }
     if (_movingForward || !mounted) {
       return;
     }
@@ -265,4 +272,47 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       ),
     );
   }
+
+  Future<void> _openSongKaraoke() async {
+    if (_movingForward || !mounted) {
+      return;
+    }
+    _movingForward = true;
+    await widget.mediaService.stopPlayback();
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SongKaraokeScreen(
+          language: widget.language,
+          lesson: widget.lesson,
+          mediaService: widget.mediaService,
+          autoPlayDelay: Duration.zero,
+          topicTitle:
+              widget.topicContent?.titleEn ??
+              widget.language.choose(
+                widget.topic.titleVi,
+                widget.topic.titleZh,
+              ),
+          practiceBuilder: _buildPracticeScreen,
+        ),
+      ),
+    );
+  }
+
+  bool get _usesSongKaraoke =>
+      shouldUseSongKaraoke(startAge: widget.startAge, lesson: widget.lesson);
+
+  Widget _buildPracticeScreen(BuildContext context) => LessonPracticeScreen(
+    language: widget.language,
+    startAge: widget.startAge,
+    endAge: widget.endAge,
+    topic: widget.topic,
+    lesson: widget.lesson,
+    controller: widget.controller,
+    topicContent: widget.topicContent,
+    progressStore: widget.progressStore,
+    mediaService: widget.mediaService,
+  );
 }

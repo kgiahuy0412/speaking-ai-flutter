@@ -28,15 +28,27 @@ void main() {
     );
   });
 
-  test('karaoke timestamps are read from song content', () {
-    final line = ListeningSentenceContent.fromJson(<String, Object?>{
-      'number': 1,
-      'english': 'Monday, Tuesday — off we go!',
-      'vietnamese': 'Thứ Hai, thứ Ba — mình đi thôi!',
-      'karaokeStartMs': 1250,
-      'karaokeEndMs': 6200,
+  test('dedicated karaoke timeline is read separately from practice lines', () {
+    final lesson = ListeningLessonContent.fromJson(<String, Object?>{
+      'sentences': <Object?>[
+        <String, Object?>{
+          'number': 1,
+          'english': 'Practice line.',
+          'vietnamese': 'Câu luyện tập.',
+        },
+      ],
+      'karaokeLines': <Object?>[
+        <String, Object?>{
+          'number': 1,
+          'english': 'Monday, Tuesday — off we go!',
+          'karaokeStartMs': 1250,
+          'karaokeEndMs': 6200,
+        },
+      ],
     });
 
+    expect(lesson.sentences.single.english, 'Practice line.');
+    final line = lesson.karaokeLines.single;
     expect(line.karaokeStart, const Duration(milliseconds: 1250));
     expect(line.karaokeEnd, const Duration(milliseconds: 6200));
   });
@@ -93,7 +105,16 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final currentLine = tester.widget<Text>(
+    var currentLine = tester.widget<Text>(
+      find.byKey(const Key('song-karaoke-current-line')),
+    );
+    expect(currentLine.textSpan?.toPlainText(), 'Monday, Tuesday — off we go!');
+
+    mediaService.emitPosition(const Duration(seconds: 9));
+    await tester.pump();
+    await tester.pump();
+
+    currentLine = tester.widget<Text>(
       find.byKey(const Key('song-karaoke-current-line')),
     );
     expect(
@@ -161,6 +182,36 @@ void main() {
 
     expect(find.byType(SongKaraokeScreen), findsOneWidget);
     expect(find.byType(LessonReviewScreen), findsNothing);
+    expect(mediaService.playCalls, 1);
+  });
+
+  testWidgets('full song starts immediately after intro audio completes', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _KaraokeMediaService();
+    addTearDown(mediaService.dispose);
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 6,
+          endAge: 7,
+          topic: listeningCatalogs[1].topics[4],
+          lesson: _song(),
+          progressStore: const _MemoryProgressStore(),
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(mediaService.playToCompletionCalls, 1);
+    expect(find.byType(SongKaraokeScreen), findsOneWidget);
+    expect(mediaService.playCalls, 1);
+    expect(mediaService.stopCalls, 1);
   });
 
   testWidgets('ages three to five keep the existing song flow', (tester) async {
@@ -247,22 +298,28 @@ ListeningLessonContent _song() => ListeningLessonContent(
   outro: 'Con làm tốt lắm!',
   estimatedMinutes: 3,
   type: ListeningLessonType.song,
+  introAudioUri: Uri.parse('asset:///assets/audio/song-intro.mp3'),
   fullAudioUri: Uri.parse('https://example.com/days-and-time.mp3'),
   sentences: const <ListeningSentenceContent>[
     ListeningSentenceContent(
-      id: 'song-line-1',
+      number: 1,
+      english: 'Practice line.',
+      vietnamese: 'Câu luyện tập.',
+    ),
+  ],
+  karaokeLines: const <ListeningSentenceContent>[
+    ListeningSentenceContent(
       number: 1,
       english: 'Monday, Tuesday — off we go!',
-      vietnamese: 'Thứ Hai, thứ Ba — mình đi thôi!',
+      vietnamese: '',
       karaokeStart: Duration.zero,
       karaokeEnd: Duration(seconds: 6),
     ),
     ListeningSentenceContent(
-      id: 'song-line-2',
       number: 2,
       english: 'Wednesday, Thursday — learn and grow!',
-      vietnamese: 'Thứ Tư, thứ Năm — học thật chăm!',
-      karaokeStart: Duration(seconds: 6),
+      vietnamese: '',
+      karaokeStart: Duration(seconds: 8),
       karaokeEnd: Duration(seconds: 12),
     ),
   ],
@@ -316,6 +373,7 @@ class _KaraokeMediaService extends LessonMediaService {
   Duration position;
   Duration? duration;
   int playCalls = 0;
+  int playToCompletionCalls = 0;
   int preloadCalls = 0;
   int stopCalls = 0;
   bool playing = false;
@@ -357,7 +415,9 @@ class _KaraokeMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
-  }) async {}
+  }) async {
+    playToCompletionCalls += 1;
+  }
 
   @override
   Future<void> stopPlayback() async {

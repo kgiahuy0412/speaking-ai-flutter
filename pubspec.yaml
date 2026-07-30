@@ -44,6 +44,8 @@ flutter:
     - assets/audio/A-6-7/GUIDE_IDLE2/
     - assets/audio/A-6-7/GUIDE_SKIP/
     - assets/audio/A-6-7/GUIDE_ENDING/
+    - assets/audio/A-6-7/SONGS/
+    - assets/audio/A-6-7/SONG_INTRO/
     - assets/audio/A-8-10/GUIDE_RECORD/
     - assets/audio/A-8-10/GUIDE_PRAISE/
     - assets/audio/A-8-10/GUIDE_NEXT/
@@ -51,6 +53,8 @@ flutter:
     - assets/audio/A-8-10/GUIDE_IDLE2/
     - assets/audio/A-8-10/GUIDE_SKIP/
     - assets/audio/A-8-10/GUIDE_ENDING/
+    - assets/audio/A-8-10/SONGS/
+    - assets/audio/A-8-10/SONG_INTRO/
     - assets/audio/A-11-12/GUIDE_RECORD/
     - assets/audio/A-11-12/GUIDE_PRAISE/
     - assets/audio/A-11-12/GUIDE_NEXT/
