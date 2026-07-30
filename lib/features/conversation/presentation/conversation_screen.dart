@@ -56,6 +56,7 @@ class ConversationScreen extends StatelessWidget {
                           const SizedBox(height: 12),
                           VoiceHero(
                             phase: controller.phase,
+                            processingStage: controller.processingStage,
                             amplitude: controller.amplitude,
                             onStop: () => unawaited(
                               controller.stopRecording(manual: true),
@@ -93,6 +94,7 @@ class ConversationScreen extends StatelessWidget {
                   ),
                   SpeakActionBar(
                     phase: controller.phase,
+                    processingStage: controller.processingStage,
                     onPressed: () => unawaited(controller.onPrimaryAction()),
                   ),
                 ],
@@ -367,7 +369,7 @@ class _AppHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
     final compactInputLabel = context.trKnown(switch (inputLabel) {
-      final label when label.contains('Android') => 'ASR Android trực tiếp',
+      final label when label.contains('Android') => 'Chế độ tiêu chuẩn',
       final label when label.contains('INNOTRIK') => 'Mic INNOTRIK',
       final label => label,
     });

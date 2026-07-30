@@ -909,9 +909,9 @@ String _sourceLabel(ConversationHistoryItem item) {
 
 String _asrLabel(String asrMode) {
   return switch (asrMode) {
-    'android_streaming' => 'ASR trực tiếp',
+    'android_streaming' => 'Chế độ tiêu chuẩn',
     'hfp_streaming' => 'HFP ASR',
-    'openai_realtime' => 'OpenAI Realtime',
+    'openai_realtime' => 'Chế độ AI',
     'ble_offline_intent' => 'BLE offline',
     'batch_chunks' => 'Batch ASR',
     'device_streaming' => 'BLE ASR',

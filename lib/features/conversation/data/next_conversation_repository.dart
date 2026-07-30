@@ -300,7 +300,7 @@ class NextConversationRepository
         websocketUrl.isEmpty ||
         sampleRate != 24000) {
       throw const ConversationApiException(
-        'Backend không trả về cấu hình OpenAI Realtime hợp lệ.',
+        'Backend không trả về cấu hình Chế độ AI hợp lệ.',
       );
     }
 
@@ -805,7 +805,7 @@ class _OpenAiRealtimeTranscriptionSession
           : null;
       _completed.completeError(
         ConversationApiException(
-          message ?? 'OpenAI Realtime không thể nhận diện âm thanh.',
+          message ?? 'Chế độ AI không thể nhận diện âm thanh.',
         ),
       );
     }
@@ -814,7 +814,7 @@ class _OpenAiRealtimeTranscriptionSession
   void _handleError(Object error, StackTrace stackTrace) {
     if (!_completed.isCompleted) {
       _completed.completeError(
-        ConversationApiException('Kết nối OpenAI Realtime bị lỗi: $error'),
+        ConversationApiException('Kết nối Chế độ AI bị lỗi: $error'),
         stackTrace,
       );
     }
@@ -824,7 +824,7 @@ class _OpenAiRealtimeTranscriptionSession
     if (!_closed && !_completed.isCompleted) {
       _completed.completeError(
         const ConversationApiException(
-          'Kết nối OpenAI Realtime đã đóng trước khi có kết quả.',
+          'Kết nối Chế độ AI đã đóng trước khi có kết quả.',
         ),
       );
     }
@@ -834,7 +834,7 @@ class _OpenAiRealtimeTranscriptionSession
   Future<StreamingSpeechCapture> finalize() async {
     if (_closed) {
       throw const ConversationApiException(
-        'Lượt OpenAI Realtime đã được hoàn tất hoặc hủy.',
+        'Lượt Chế độ AI đã được hoàn tất hoặc hủy.',
       );
     }
     _stopRequestedAt = DateTime.now();

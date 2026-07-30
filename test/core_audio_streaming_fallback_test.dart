@@ -514,6 +514,133 @@ void main() {
     },
   );
 
+  test('short Web utterance keeps the direct WAV upload path', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[1, 2, 3],
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: const Duration(seconds: 2),
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.batchStarted, 0);
+    expect(repository.fullFileUploads, 1);
+    expect(controller.result?.conversationId, 'file-result');
+    controller.dispose();
+  });
+
+  test(
+    'long Web utterance uploads buffered and live chunks in parallel',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(milliseconds: 20),
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      input.emit(<int>[3, 4]);
+      await Future<void>.delayed(const Duration(milliseconds: 460));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[1, 2],
+        <int>[3, 4],
+      ]);
+      expect(repository.batchSession.finalized, isTrue);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'processing status advances through ASR, translation, and audio',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3],
+      );
+      final resultCompleter = Completer<ConversationResult>();
+      final repository = _FallbackRepository(
+        audioResultCompleter: resultCompleter,
+      );
+      final playback = _BlockingPlaybackService();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: playback,
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(seconds: 2),
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final stopping = controller.stopRecording(manual: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.phase, ConversationPhase.processing);
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.recognizing,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 750));
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.translating,
+      );
+
+      resultCompleter.complete(
+        _result(
+          'file-result',
+          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.preparingAudio,
+      );
+      expect(controller.phase, ConversationPhase.processing);
+
+      playback.completePlay();
+      await stopping;
+      expect(controller.phase, ConversationPhase.ready);
+      controller.dispose();
+    },
+  );
+
   test('stop briefly waits for an almost-ready Realtime connection', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -1032,11 +1159,13 @@ class _FallbackRepository
   _FallbackRepository({
     this.realtimeCompleter,
     this.batchCompleter,
+    this.audioResultCompleter,
     this.failRealtimeConnection = false,
   });
 
   final Completer<RealtimeTranscriptionSession>? realtimeCompleter;
   final Completer<BatchChunkUploadSession>? batchCompleter;
+  final Completer<ConversationResult>? audioResultCompleter;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
@@ -1103,6 +1232,10 @@ class _FallbackRepository
   }) async {
     fullFileUploads += 1;
     audioCapture = capture;
+    final completer = audioResultCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     return _result('file-result');
   }
 
@@ -1233,6 +1366,41 @@ class _FakePlaybackService implements AudioPlaybackService {
   Future<void> dispose() async {}
 }
 
+class _BlockingPlaybackService implements AudioPlaybackService {
+  final Completer<PlaybackStartMetrics> _playCompleter =
+      Completer<PlaybackStartMetrics>();
+
+  void completePlay() {
+    if (!_playCompleter.isCompleted) {
+      _playCompleter.complete(
+        const PlaybackStartMetrics(
+          audioLoadDuration: Duration.zero,
+          startedAfterRequest: Duration.zero,
+          fromDeviceCache: false,
+        ),
+      );
+    }
+  }
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) => _playCompleter.future;
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 class _GesturePlaybackService
     implements AudioPlaybackService, UserGestureAudioPlaybackService {
   _GesturePlaybackService(this.events);
@@ -1320,21 +1488,22 @@ class _DirectGesturePlaybackService
   Future<void> dispose() async {}
 }
 
-ConversationResult _result(String conversationId) => ConversationResult(
-  conversationId: conversationId,
-  sessionId: 'session',
-  context: PracticeContext.home,
-  vietnameseText: 'Con muốn uống nước',
-  englishText: 'Can I have some water?',
-  audioUri: null,
-  processingMode: 'rule',
-  textSource: 'phrase_rule',
-  audioSource: 'cache',
-  asrMode: 'batch_chunks',
-  latency: const ConversationLatency(
-    asrMs: 1,
-    llmMs: 1,
-    ttsMs: 1,
-    timeToFirstAudioMs: 3,
-  ),
-);
+ConversationResult _result(String conversationId, {Uri? audioUri}) =>
+    ConversationResult(
+      conversationId: conversationId,
+      sessionId: 'session',
+      context: PracticeContext.home,
+      vietnameseText: 'Con muốn uống nước',
+      englishText: 'Can I have some water?',
+      audioUri: audioUri,
+      processingMode: 'rule',
+      textSource: 'phrase_rule',
+      audioSource: 'cache',
+      asrMode: 'batch_chunks',
+      latency: const ConversationLatency(
+        asrMs: 1,
+        llmMs: 1,
+        ttsMs: 1,
+        timeToFirstAudioMs: 3,
+      ),
+    );
