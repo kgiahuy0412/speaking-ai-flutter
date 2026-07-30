@@ -1,7 +1,7 @@
 name: ai_speaking_flutter_app
 description: INNOTRIK speaking assistant for Android and installable web.
 publish_to: none
-version: 1.0.2+4
+version: 1.0.3+5
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

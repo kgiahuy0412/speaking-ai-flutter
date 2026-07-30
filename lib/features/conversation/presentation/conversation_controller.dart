@@ -48,7 +48,7 @@ class ConversationController extends ChangeNotifier {
        asrMode =
            initialAsrMode ??
            (streamingSpeechInput == null
-               ? AsrMode.openAiRealtime
+               ? AsrMode.batchChunks
                : AsrMode.androidStreaming) {
     _streamingCompletionSubscription = streamingSpeechInput?.completed.listen((
       _,
@@ -139,7 +139,6 @@ class ConversationController extends ChangeNotifier {
   OfflineIntentGate? _offlineIntentGate;
   OfflineIntentDecision? _offlineIntentDecision;
   int? _offlineIntentFirstResultMs;
-  Future<void>? _offlineRealtimeActivation;
   bool _disposed = false;
   int _previewGeneration = 0;
   String? _lastPreviewText;
@@ -259,7 +258,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   String get inputLabel {
-    if (asrMode == AsrMode.hfpStreaming) {
+    if (asrMode == AsrMode.hfpStreaming || _usingHfpRoute) {
       final name = hfpAudioStatus.deviceName?.trim();
       if (supportsBrowserHfp) {
         return name == null || name.isEmpty
@@ -299,7 +298,9 @@ class ConversationController extends ChangeNotifier {
   bool get isBrowserHfpMode =>
       asrMode == AsrMode.hfpStreaming && supportsBrowserHfp;
   bool get isBluetoothInput =>
-      asrMode == AsrMode.hfpStreaming || _audioInput.isBluetooth;
+      asrMode == AsrMode.hfpStreaming ||
+      _usingHfpRoute ||
+      _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
   bool get isBusy =>
@@ -373,7 +374,7 @@ class ConversationController extends ChangeNotifier {
     if (asrMode == AsrMode.deviceStreaming) {
       asrMode = supportsAndroidStreaming
           ? AsrMode.androidStreaming
-          : AsrMode.openAiRealtime;
+          : AsrMode.batchChunks;
     }
     transientMessage = 'Đã ngắt Mic INNOTRIK; ứng dụng sẽ dùng mic điện thoại.';
     notifyListeners();
@@ -437,7 +438,7 @@ class ConversationController extends ChangeNotifier {
           ? AsrMode.batchChunks
           : supportsAndroidStreaming
           ? AsrMode.androidStreaming
-          : AsrMode.openAiRealtime;
+          : AsrMode.batchChunks;
     }
     transientMessage = supportsBrowserHfp
         ? 'Đã bỏ chọn mic HFP Web; trình duyệt sẽ dùng mic mặc định.'
@@ -518,7 +519,7 @@ class ConversationController extends ChangeNotifier {
         asrMode = AsrMode.deviceStreaming;
       } else if (!preferAvailableBle && asrMode == AsrMode.deviceStreaming) {
         asrMode = _streamingSpeechInput == null
-            ? AsrMode.openAiRealtime
+            ? AsrMode.batchChunks
             : AsrMode.androidStreaming;
       }
       _usingHfpRoute = false;
@@ -532,7 +533,6 @@ class ConversationController extends ChangeNotifier {
       _offlineIntentDecision = null;
       _offlineIntentFirstResultMs = null;
       _offlineIntentGate = null;
-      _offlineRealtimeActivation = null;
       _offlineFallbackTimer?.cancel();
       _offlineFallbackTimer = null;
       amplitude = 0;
@@ -569,19 +569,21 @@ class ConversationController extends ChangeNotifier {
           }
           await _streamingSpeechInput!.start();
         } catch (error) {
-          if (_usingHfpRoute) {
-            await _stopHfpRoute();
-          }
-          if (error is StreamingSpeechInputException &&
+          final permissionFailure =
+              error is StreamingSpeechInputException &&
               (error.code == 'MICROPHONE_PERMISSION_DENIED' ||
-                  error.code == 'MICROPHONE_PERMISSION_PENDING')) {
+                  error.code == 'MICROPHONE_PERMISSION_PENDING');
+          if (permissionFailure) {
+            await _stopHfpRoute();
             rethrow;
           }
           _usingStreamingSpeech = false;
-          asrMode = AsrMode.openAiRealtime;
-          transientMessage =
-              'Nhận diện trực tiếp chưa sẵn sàng; đã chuyển sang OpenAI Realtime.';
-          await _startRealtimeRecordingWithBatchFallback();
+          final keepsHfpRoute = _usingHfpRoute;
+          asrMode = AsrMode.batchChunks;
+          transientMessage = keepsHfpRoute
+              ? 'Nhận diện HFP trực tiếp chưa sẵn sàng; đang ghi âm HFP để gửi Cloudflare.'
+              : 'Nhận diện Android trực tiếp chưa sẵn sàng; đang ghi âm để gửi Cloudflare.';
+          await _startBatchRecording();
         }
       } else if (isBrowserHfpMode && _audioInput is ChunkedAudioInput) {
         try {
@@ -646,8 +648,8 @@ class ConversationController extends ChangeNotifier {
         recognizer == null ||
         !await recognizer.checkAvailability()) {
       transientMessage =
-          'ASR offline BLE chưa có mô hình native; đang dùng OpenAI Realtime.';
-      await _startRealtimeRecordingWithBatchFallback();
+          'ASR offline BLE chưa sẵn sàng; đang gửi Batch Chunks qua Cloudflare.';
+      await _startBatchRecording();
       return;
     }
 
@@ -663,7 +665,7 @@ class ConversationController extends ChangeNotifier {
         _onOfflineIntentHypothesis,
         onError: (Object error) {
           debugPrint('BLE offline intent failed: $error');
-          unawaited(_activateRealtimeForOffline());
+          _markOfflineBatchFallback();
         },
       );
       await recognizer.start(manifest: manifest);
@@ -675,13 +677,13 @@ class ConversationController extends ChangeNotifier {
         },
         onError: (Object error) {
           debugPrint('BLE hybrid audio stream failed: $error');
-          unawaited(_activateRealtimeForOffline());
+          _markOfflineBatchFallback(audioStreamFailed: true);
         },
       );
       await chunkedInput.startChunked();
       _usingOfflineIntent = true;
       transientMessage =
-          'BLE offline fast path đang nghe; câu lạ sẽ tự chuyển Realtime.';
+          'BLE offline đang nghe; câu lạ sẽ được gửi Batch Chunks qua Cloudflare.';
     } catch (error) {
       await _offlineIntentHypothesisSubscription?.cancel();
       _offlineIntentHypothesisSubscription = null;
@@ -694,8 +696,8 @@ class ConversationController extends ChangeNotifier {
       _offlineIntentDecision = null;
       _realtimeFallbackBuffer.clear();
       transientMessage =
-          'ASR offline BLE chưa sẵn sàng; đang dùng OpenAI Realtime.';
-      await _startRealtimeRecordingWithBatchFallback();
+          'ASR offline BLE chưa sẵn sàng; đang gửi Batch Chunks qua Cloudflare.';
+      await _startBatchRecording();
     }
   }
 
@@ -753,56 +755,26 @@ class ConversationController extends ChangeNotifier {
       _offlineFallbackTimer = null;
       if (_offlineIntentDecision == null &&
           phase == ConversationPhase.recording) {
-        unawaited(_activateRealtimeForOffline());
+        _markOfflineBatchFallback();
       }
     });
   }
 
-  Future<void> _activateRealtimeForOffline() {
-    return _offlineRealtimeActivation ??= _doActivateRealtimeForOffline();
-  }
-
-  Future<void> _doActivateRealtimeForOffline() async {
-    if (!_usingOfflineIntent ||
-        _offlineIntentDecision != null ||
-        _realtimeSession != null) {
+  void _markOfflineBatchFallback({bool audioStreamFailed = false}) {
+    if (!_usingOfflineIntent || _offlineIntentDecision != null) {
       return;
     }
-    final realtimeRepository = _repository is RealtimeConversationRepository
-        ? _repository as RealtimeConversationRepository
-        : null;
-    if (realtimeRepository == null) {
-      return;
+    if (audioStreamFailed) {
+      // A broken chunk stream may only contain part of the utterance. Clearing
+      // it forces the safe full-file upload path at stop instead of sending a
+      // truncated Batch Chunks session.
+      _realtimeFallbackBuffer.clear();
     }
-
-    _realtimeChunkSubscription?.pause();
-    RealtimeTranscriptionSession? session;
-    try {
-      session = await realtimeRepository.startRealtimeTranscription(
-        audioInputLabel: _audioInput.label,
-        bluetoothAudioInput: true,
-      );
-      session.markRecordingStarted(_recordingStartedAt ?? DateTime.now());
-      _realtimeFallbackBuffer.replay(session.addAudioChunk);
-      _realtimeSession = session;
-      _usingRealtimeTranscription = true;
-      _realtimePartialSubscription = session.partialText.listen(
-        _onPartialText,
-        onError: (Object error) {
-          debugPrint('OpenAI Realtime transcript failed: $error');
-        },
-      );
-      transientMessage =
-          'Câu chưa đủ chắc chắn; đã chuyển sớm sang OpenAI Realtime.';
+    transientMessage = audioStreamFailed
+        ? 'Luồng BLE bị gián đoạn; sẽ gửi file ghi âm đầy đủ qua Cloudflare.'
+        : 'Câu chưa đủ chắc chắn; sẽ gửi Batch Chunks qua Cloudflare khi dừng.';
+    if (!_disposed) {
       notifyListeners();
-    } catch (error) {
-      debugPrint('Cannot activate BLE Realtime fallback: $error');
-      await session?.discard().catchError((Object _) {});
-      transientMessage =
-          'Realtime chưa sẵn sàng; sẽ dùng Batch Chunks khi dừng.';
-      notifyListeners();
-    } finally {
-      _realtimeChunkSubscription?.resume();
     }
   }
 
@@ -1149,7 +1121,16 @@ class ConversationController extends ChangeNotifier {
       AudioCapture? audioCapture;
       BatchChunkUploadSession? realtimeFallbackUpload;
       if (_usingStreamingSpeech) {
-        streamingCapture = await _streamingSpeechInput!.stop();
+        try {
+          streamingCapture = await _streamingSpeechInput!.stop();
+        } catch (error) {
+          _usingStreamingSpeech = false;
+          asrMode = AsrMode.batchChunks;
+          throw StreamingSpeechInputException(
+            'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
+            code: 'STREAMING_FAILED_USE_BATCH',
+          );
+        }
         if (_usingHfpRoute) {
           streamingCapture = StreamingSpeechCapture(
             sourceText: streamingCapture.sourceText,
@@ -1165,6 +1146,20 @@ class ConversationController extends ChangeNotifier {
         }
       } else {
         audioCapture = await _audioInput.stop();
+        if (_usingHfpRoute && !supportsBrowserHfp) {
+          audioCapture = AudioCapture(
+            filePath: audioCapture.filePath,
+            mimeType: audioCapture.mimeType,
+            duration: audioCapture.duration,
+            inputLabel: inputLabel,
+            isBluetoothInput: true,
+            initialNoiseRms: audioCapture.initialNoiseRms,
+            streamHeaderBytes: audioCapture.streamHeaderBytes,
+            streamedAudioBytes: audioCapture.streamedAudioBytes,
+            recordingSampleRate: audioCapture.recordingSampleRate,
+            dataBytes: audioCapture.dataBytes,
+          );
+        }
       }
       if (_usingOfflineIntent) {
         final finalHypothesis = await _offlineIntentRecognizer?.stop();
@@ -1172,9 +1167,6 @@ class ConversationController extends ChangeNotifier {
           _onOfflineIntentHypothesis(finalHypothesis);
         }
         final decision = _offlineIntentDecision;
-        if (decision == null && _realtimeSession == null) {
-          await _activateRealtimeForOffline();
-        }
         if (decision != null) {
           streamingCapture = StreamingSpeechCapture(
             sourceText: decision.hypothesis.transcript.trim(),
@@ -1187,11 +1179,6 @@ class ConversationController extends ChangeNotifier {
             isBluetoothInput: true,
             initialNoiseRms: audioCapture?.initialNoiseRms,
           );
-          final unnecessaryRealtime = _realtimeSession;
-          _realtimeSession = null;
-          if (unnecessaryRealtime != null) {
-            await unnecessaryRealtime.discard().catchError((Object _) {});
-          }
         }
         await _offlineIntentHypothesisSubscription?.cancel();
         _offlineIntentHypothesisSubscription = null;
@@ -1223,7 +1210,7 @@ class ConversationController extends ChangeNotifier {
         realtimeFallbackUpload = await _prepareRealtimeBatchFallback();
         if (realtimeFallbackUpload != null) {
           transientMessage =
-              'Realtime chưa kết nối kịp; đã chuyển sang Batch Chunks dự phòng.';
+              'Đang gửi phần ghi âm qua Cloudflare Batch Chunks.';
         }
       }
       await _batchChunkSubscription?.cancel();
@@ -1531,7 +1518,11 @@ class ConversationController extends ChangeNotifier {
     }
     if (nextMode == AsrMode.batchChunks) {
       transientMessage =
-          'Batch Chunks chỉ chạy tự động khi OpenAI Realtime gặp lỗi.';
+          'Đã chọn Cloudflare Batch Chunks; OpenAI chỉ được backend dùng khi Cloudflare lỗi.';
+    }
+    if (nextMode == AsrMode.openAiRealtime) {
+      transientMessage =
+          'OpenAI Realtime đã tắt khỏi luồng ứng dụng. Hãy dùng Cloudflare Batch Chunks.';
       notifyListeners();
       return;
     }

@@ -16,7 +16,7 @@ enum AsrMode {
   hfpStreaming('hfp_streaming', 'HFP streaming'),
   openAiRealtime('openai_realtime', 'OpenAI Realtime'),
   bleOfflineIntent('ble_offline_intent', 'BLE offline intent'),
-  batchChunks('batch_chunks', 'Batch Chunks dự phòng'),
+  batchChunks('batch_chunks', 'Cloudflare Batch Chunks'),
   deviceStreaming('device_streaming', 'BLE streaming');
 
   const AsrMode(this.apiValue, this.label);
@@ -27,7 +27,7 @@ enum AsrMode {
   bool get isBackendSupported => true;
 
   bool get isUserSelectable =>
-      this != AsrMode.batchChunks && this != AsrMode.bleOfflineIntent;
+      this != AsrMode.openAiRealtime && this != AsrMode.bleOfflineIntent;
 }
 
 enum ConversationPhase { idle, recording, processing, ready, error }
