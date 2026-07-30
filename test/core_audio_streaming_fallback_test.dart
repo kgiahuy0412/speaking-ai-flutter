@@ -191,6 +191,214 @@ void main() {
   );
 
   test(
+    'defaults to Cloudflare Batch Chunks without Android streaming',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3, 4],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+      );
+
+      expect(controller.asrMode, AsrMode.batchChunks);
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.realtimeStarted, 0);
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.finalized, isTrue);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'Android streaming start failure records with Cloudflare Batch Chunks',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[5, 6, 7, 8],
+      );
+      final streaming = _FakeStreamingSpeechInput(failOnStart: true);
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: streaming,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+      );
+
+      await controller.startRecording();
+      expect(controller.asrMode, AsrMode.batchChunks);
+      expect(controller.phase, ConversationPhase.recording);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(streaming.startCount, 1);
+      expect(repository.realtimeStarted, 0);
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[5, 6, 7, 8],
+      ]);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'late Android streaming failure switches the next attempt to Batch Chunks',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[21, 22, 23, 24],
+      );
+      final streaming = _FakeStreamingSpeechInput(failOnStop: true);
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: streaming,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.error);
+      expect(controller.asrMode, AsrMode.batchChunks);
+      expect(repository.realtimeStarted, 0);
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(streaming.startCount, 1);
+      expect(repository.realtimeStarted, 0);
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[21, 22, 23, 24],
+      ]);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'HFP streaming start failure keeps the route for Batch Chunks',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[9, 10, 11, 12],
+      );
+      final hfp = _FakeHfpAudioControl();
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: _FakeStreamingSpeechInput(failOnStart: true),
+        hfpAudioControl: hfp,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+
+      await controller.startRecording();
+      expect(controller.asrMode, AsrMode.batchChunks);
+      expect(hfp.startRouteCount, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.realtimeStarted, 0);
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.capture?.isBluetoothInput, isTrue);
+      expect(
+        repository.batchSession.capture?.inputLabel,
+        contains('Tai nghe HFP'),
+      );
+      expect(hfp.stopRouteCount, 1);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'BLE without offline ASR falls back directly to Cloudflare Batch Chunks',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: true,
+        label: 'INNOTRIK BLE',
+        emitOnStart: <int>[13, 14, 15, 16],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.deviceStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.realtimeStarted, 0);
+      expect(repository.batchStarted, 1);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test('uncertain BLE intent uses buffered Cloudflare Batch Chunks', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: true,
+      label: 'INNOTRIK BLE',
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      offlineIntentRecognizer: _FakeOfflineIntentRecognizer(
+        emitHighConfidenceIntent: false,
+      ),
+      childAge: 6,
+      initialAsrMode: AsrMode.deviceStreaming,
+    );
+
+    await controller.startRecording();
+    input.emit(<int>[17, 18, 19, 20]);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.realtimeStarted, 0);
+    expect(repository.batchStarted, 1);
+    expect(repository.batchSession.chunks, <List<int>>[
+      <int>[17, 18, 19, 20],
+    ]);
+    expect(controller.result?.conversationId, 'batch-result');
+    controller.dispose();
+  });
+
+  test(
     'Realtime failure replays buffered audio through Batch Chunks',
     () async {
       final input = _FakeChunkedInput(
@@ -205,6 +413,7 @@ void main() {
         playbackService: const _FakePlaybackService(),
         repository: repository,
         childAge: 6,
+        initialAsrMode: AsrMode.openAiRealtime,
       );
 
       await controller.startRecording();
@@ -242,6 +451,7 @@ void main() {
         playbackService: const _FakePlaybackService(),
         repository: repository,
         childAge: 6,
+        initialAsrMode: AsrMode.openAiRealtime,
       );
       final stopwatch = Stopwatch()..start();
 
@@ -304,6 +514,133 @@ void main() {
     },
   );
 
+  test('short Web utterance keeps the direct WAV upload path', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[1, 2, 3],
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: const Duration(seconds: 2),
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.batchStarted, 0);
+    expect(repository.fullFileUploads, 1);
+    expect(controller.result?.conversationId, 'file-result');
+    controller.dispose();
+  });
+
+  test(
+    'long Web utterance uploads buffered and live chunks in parallel',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(milliseconds: 20),
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      input.emit(<int>[3, 4]);
+      await Future<void>.delayed(const Duration(milliseconds: 460));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[1, 2],
+        <int>[3, 4],
+      ]);
+      expect(repository.batchSession.finalized, isTrue);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'processing status advances through ASR, translation, and audio',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3],
+      );
+      final resultCompleter = Completer<ConversationResult>();
+      final repository = _FallbackRepository(
+        audioResultCompleter: resultCompleter,
+      );
+      final playback = _BlockingPlaybackService();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: playback,
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(seconds: 2),
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final stopping = controller.stopRecording(manual: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.phase, ConversationPhase.processing);
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.recognizing,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 750));
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.translating,
+      );
+
+      resultCompleter.complete(
+        _result(
+          'file-result',
+          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        controller.processingStage,
+        ConversationProcessingStage.preparingAudio,
+      );
+      expect(controller.phase, ConversationPhase.processing);
+
+      playback.completePlay();
+      await stopping;
+      expect(controller.phase, ConversationPhase.ready);
+      controller.dispose();
+    },
+  );
+
   test('stop briefly waits for an almost-ready Realtime connection', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -321,6 +658,7 @@ void main() {
       playbackService: const _FakePlaybackService(),
       repository: repository,
       childAge: 6,
+      initialAsrMode: AsrMode.openAiRealtime,
     );
 
     await controller.startRecording();
@@ -355,6 +693,7 @@ void main() {
         playbackService: const _FakePlaybackService(),
         repository: repository,
         childAge: 6,
+        initialAsrMode: AsrMode.openAiRealtime,
       );
 
       await controller.startRecording();
@@ -385,6 +724,7 @@ void main() {
       playbackService: const _FakePlaybackService(),
       repository: repository,
       childAge: 6,
+      initialAsrMode: AsrMode.openAiRealtime,
     );
 
     await controller.startRecording();
@@ -552,6 +892,15 @@ void main() {
 }
 
 class _FakeStreamingSpeechInput implements StreamingSpeechInput {
+  _FakeStreamingSpeechInput({
+    this.failOnStart = false,
+    this.failOnStop = false,
+  });
+
+  final bool failOnStart;
+  final bool failOnStop;
+  int startCount = 0;
+
   @override
   String get label => 'ASR Android trực tiếp';
 
@@ -568,17 +917,31 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   Future<bool> checkAvailability() async => true;
 
   @override
-  Future<void> start() async {}
+  Future<void> start() async {
+    startCount += 1;
+    if (failOnStart) {
+      throw const StreamingSpeechInputException(
+        'Android streaming start failed.',
+      );
+    }
+  }
 
   @override
-  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
-    sourceText: 'Con muốn uống nước',
-    duration: Duration(seconds: 1),
-    inputLabel: 'ASR Android trực tiếp',
-    confidence: 0.9,
-    firstResultMs: 120,
-    finalAfterStopMs: 30,
-  );
+  Future<StreamingSpeechCapture> stop() async {
+    if (failOnStop) {
+      throw const StreamingSpeechInputException(
+        'Android streaming stop failed.',
+      );
+    }
+    return const StreamingSpeechCapture(
+      sourceText: 'Con muốn uống nước',
+      duration: Duration(seconds: 1),
+      inputLabel: 'ASR Android trực tiếp',
+      confidence: 0.9,
+      firstResultMs: 120,
+      finalAfterStopMs: 30,
+    );
+  }
 
   @override
   Future<void> cancel() async {}
@@ -764,6 +1127,7 @@ class _ExpectedRealtimeFailure implements Exception {
 class _RecordingBatchSession implements BatchChunkUploadSession {
   final List<List<int>> chunks = <List<int>>[];
   bool finalized = false;
+  AudioCapture? capture;
 
   @override
   void addAudioChunk(Uint8List bytes) {
@@ -778,6 +1142,7 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
     required int vadSilenceMs,
   }) async {
     finalized = true;
+    this.capture = capture;
     return _result('batch-result');
   }
 
@@ -794,11 +1159,13 @@ class _FallbackRepository
   _FallbackRepository({
     this.realtimeCompleter,
     this.batchCompleter,
+    this.audioResultCompleter,
     this.failRealtimeConnection = false,
   });
 
   final Completer<RealtimeTranscriptionSession>? realtimeCompleter;
   final Completer<BatchChunkUploadSession>? batchCompleter;
+  final Completer<ConversationResult>? audioResultCompleter;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
@@ -865,6 +1232,10 @@ class _FallbackRepository
   }) async {
     fullFileUploads += 1;
     audioCapture = capture;
+    final completer = audioResultCompleter;
+    if (completer != null) {
+      return completer.future;
+    }
     return _result('file-result');
   }
 
@@ -924,6 +1295,9 @@ class _FallbackRepository
 }
 
 class _FakeOfflineIntentRecognizer implements OfflineIntentRecognizer {
+  _FakeOfflineIntentRecognizer({this.emitHighConfidenceIntent = true});
+
+  final bool emitHighConfidenceIntent;
   final StreamController<OfflineIntentHypothesis> _controller =
       StreamController<OfflineIntentHypothesis>.broadcast(sync: true);
 
@@ -938,6 +1312,9 @@ class _FakeOfflineIntentRecognizer implements OfflineIntentRecognizer {
 
   @override
   void addAudioChunk(Uint8List bytes) {
+    if (!emitHighConfidenceIntent) {
+      return;
+    }
     for (var index = 0; index < 3; index += 1) {
       _controller.add(
         const OfflineIntentHypothesis(
@@ -981,6 +1358,41 @@ class _FakePlaybackService implements AudioPlaybackService {
         startedAfterRequest: Duration.zero,
         fromDeviceCache: false,
       );
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _BlockingPlaybackService implements AudioPlaybackService {
+  final Completer<PlaybackStartMetrics> _playCompleter =
+      Completer<PlaybackStartMetrics>();
+
+  void completePlay() {
+    if (!_playCompleter.isCompleted) {
+      _playCompleter.complete(
+        const PlaybackStartMetrics(
+          audioLoadDuration: Duration.zero,
+          startedAfterRequest: Duration.zero,
+          fromDeviceCache: false,
+        ),
+      );
+    }
+  }
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) => _playCompleter.future;
 
   @override
   Future<void> stop() async {}
@@ -1076,21 +1488,22 @@ class _DirectGesturePlaybackService
   Future<void> dispose() async {}
 }
 
-ConversationResult _result(String conversationId) => ConversationResult(
-  conversationId: conversationId,
-  sessionId: 'session',
-  context: PracticeContext.home,
-  vietnameseText: 'Con muốn uống nước',
-  englishText: 'Can I have some water?',
-  audioUri: null,
-  processingMode: 'rule',
-  textSource: 'phrase_rule',
-  audioSource: 'cache',
-  asrMode: 'batch_chunks',
-  latency: const ConversationLatency(
-    asrMs: 1,
-    llmMs: 1,
-    ttsMs: 1,
-    timeToFirstAudioMs: 3,
-  ),
-);
+ConversationResult _result(String conversationId, {Uri? audioUri}) =>
+    ConversationResult(
+      conversationId: conversationId,
+      sessionId: 'session',
+      context: PracticeContext.home,
+      vietnameseText: 'Con muốn uống nước',
+      englishText: 'Can I have some water?',
+      audioUri: audioUri,
+      processingMode: 'rule',
+      textSource: 'phrase_rule',
+      audioSource: 'cache',
+      asrMode: 'batch_chunks',
+      latency: const ConversationLatency(
+        asrMs: 1,
+        llmMs: 1,
+        ttsMs: 1,
+        timeToFirstAudioMs: 3,
+      ),
+    );

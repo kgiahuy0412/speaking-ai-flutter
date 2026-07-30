@@ -7,11 +7,13 @@ import '../../domain/conversation_models.dart';
 class SpeakActionBar extends StatelessWidget {
   const SpeakActionBar({
     required this.phase,
+    required this.processingStage,
     required this.onPressed,
     super.key,
   });
 
   final ConversationPhase phase;
+  final ConversationProcessingStage processingStage;
   final VoidCallback? onPressed;
 
   @override
@@ -96,7 +98,20 @@ class SpeakActionBar extends StatelessWidget {
 
   String _label(BuildContext context) => switch (phase) {
     ConversationPhase.recording => context.tr('Dừng ghi âm', '停止录音'),
-    ConversationPhase.processing => context.tr('Đang xử lý…', '处理中…'),
+    ConversationPhase.processing => switch (processingStage) {
+      ConversationProcessingStage.recognizing => context.tr(
+        'Đang nhận giọng nói…',
+        '正在识别语音…',
+      ),
+      ConversationProcessingStage.translating => context.tr(
+        'Đang dịch…',
+        '正在翻译…',
+      ),
+      ConversationProcessingStage.preparingAudio => context.tr(
+        'Đang chuẩn bị âm thanh…',
+        '正在准备语音…',
+      ),
+    },
     ConversationPhase.ready => context.tr('Nói câu mới', '说新句子'),
     ConversationPhase.error => context.tr('Thử lại', '重试'),
     ConversationPhase.idle => context.tr('Bắt đầu nói', '开始说话'),

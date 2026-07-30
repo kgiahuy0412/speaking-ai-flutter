@@ -7,12 +7,14 @@ import '../../domain/conversation_models.dart';
 class VoiceHero extends StatelessWidget {
   const VoiceHero({
     required this.phase,
+    required this.processingStage,
     required this.amplitude,
     required this.onStop,
     super.key,
   });
 
   final ConversationPhase phase;
+  final ConversationProcessingStage processingStage;
   final double amplitude;
   final VoidCallback onStop;
 
@@ -169,10 +171,20 @@ class VoiceHero extends StatelessWidget {
   String _statusLabel(BuildContext context) => switch (phase) {
     ConversationPhase.idle => context.tr('Con nói tiếng Việt', '请说越南语'),
     ConversationPhase.recording => context.tr('Mình đang nghe…', '正在聆听…'),
-    ConversationPhase.processing => context.tr(
-      'Mình đang giúp con…',
-      '正在为你处理…',
-    ),
+    ConversationPhase.processing => switch (processingStage) {
+      ConversationProcessingStage.recognizing => context.tr(
+        'Đang nhận giọng nói…',
+        '正在识别语音…',
+      ),
+      ConversationProcessingStage.translating => context.tr(
+        'Đang dịch sang tiếng Anh…',
+        '正在翻译成英语…',
+      ),
+      ConversationProcessingStage.preparingAudio => context.tr(
+        'Đang chuẩn bị âm thanh…',
+        '正在准备语音…',
+      ),
+    },
     ConversationPhase.ready => context.tr('Đã có câu tiếng Anh', '英语句子已准备好'),
     ConversationPhase.error => context.tr('Mình thử lại nhé', '我们再试一次'),
   };
@@ -186,10 +198,20 @@ class VoiceHero extends StatelessWidget {
       'Nói tự nhiên và rõ ràng nhé',
       '请自然、清晰地说话',
     ),
-    ConversationPhase.processing => context.tr(
-      'Chỉ một chút thôi nhé',
-      '请稍等一下',
-    ),
+    ConversationPhase.processing => switch (processingStage) {
+      ConversationProcessingStage.recognizing => context.tr(
+        'Cloudflare đang nghe lại câu con vừa nói',
+        'Cloudflare 正在识别刚才说的话',
+      ),
+      ConversationProcessingStage.translating => context.tr(
+        'Sắp có câu tiếng Anh rồi',
+        '英语句子马上就好',
+      ),
+      ConversationProcessingStage.preparingAudio => context.tr(
+        'Sắp phát câu tiếng Anh cho con',
+        '马上播放英语句子',
+      ),
+    },
     ConversationPhase.ready => context.tr(
       'Con có thể nghe lại câu bên dưới',
       '可以播放下面的句子',

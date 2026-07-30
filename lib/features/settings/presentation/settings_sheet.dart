@@ -111,14 +111,16 @@ class SettingsSheet extends StatelessWidget {
                           'PCM16 24 kHz • 实时识别 • 分块备用',
                         ),
                         AsrMode.bleOfflineIntent => context.tr(
-                          'BLE • offline fast path • Realtime dự phòng',
-                          'BLE • 离线快速路径 • 实时备用',
+                          'BLE • offline fast path • Cloudflare Batch dự phòng',
+                          'BLE • 离线快速路径 • Cloudflare 分块备用',
                         ),
                         AsrMode.batchChunks => context.tr(
                           kIsWeb
-                              ? 'PCM16 • truyền trong lúc nói • tự động dự phòng'
-                              : 'PCM16 • chế độ dự phòng tự động',
-                          kIsWeb ? 'PCM16 • 说话时传输 • 自动备用' : 'PCM16 • 自动备用模式',
+                              ? 'PCM16 • truyền trong lúc nói • Cloudflare chính'
+                              : 'PCM16 • Cloudflare ASR chính',
+                          kIsWeb
+                              ? 'PCM16 • 说话时传输 • Cloudflare 主服务'
+                              : 'PCM16 • Cloudflare 语音识别主服务',
                         ),
                         AsrMode.deviceStreaming => context.tr(
                           'Opus BLE • cần thiết bị thật',
@@ -196,8 +198,8 @@ class SettingsSheet extends StatelessWidget {
                                 ),
                                 subtitle: Text(switch (mode) {
                                   AsrMode.androidStreaming => context.tr(
-                                    'Nhanh như web streaming; tự dùng dịch vụ Android',
-                                    '与网页流式识别一样快；自动使用 Android 服务',
+                                    'Dùng nhận dạng giọng nói tích hợp trên thiết bị',
+                                    '使用设备内置的语音识别服务',
                                   ),
                                   AsrMode.hfpStreaming => context.tr(
                                     controller.supportsBrowserHfp
@@ -216,27 +218,23 @@ class SettingsSheet extends StatelessWidget {
                                         : '请先在上方连接 HFP 设备',
                                   ),
                                   AsrMode.openAiRealtime => context.tr(
-                                    'Nhận chữ khi đang nói; chỉ xử lý AI một lần sau khi dừng',
-                                    '说话时实时识别；停止后仅处理一次 AI',
+                                    'Nhận dạng trực tuyến khi đang nói; cần kết nối mạng',
+                                    '说话时在线识别；需要网络连接',
                                   ),
                                   AsrMode.bleOfflineIntent => context.tr(
                                     'Tự động cho BLE khi ý định có độ tin cậy cao',
                                     '当意图置信度高时自动用于 BLE',
                                   ),
                                   AsrMode.batchChunks => context.tr(
-                                    kIsWeb
-                                        ? 'Gửi từng phần khi đang nói; xử lý an toàn khi dừng'
-                                        : 'Tự bật khi Realtime gặp lỗi; không cần chọn thủ công',
-                                    kIsWeb
-                                        ? '说话时分段发送；停止后安全处理'
-                                        : '实时识别失败时自动启用；无需手动选择',
+                                    'Gửi bản ghi về backend; Cloudflare xử lý trước, OpenAI chỉ dự phòng khi Cloudflare lỗi',
+                                    '将录音发送到后端；优先使用 Cloudflare，仅在 Cloudflare 失败时使用 OpenAI',
                                   ),
                                   AsrMode.deviceStreaming => context.tr(
                                     controller.canUseInnotrikBle
-                                        ? 'INNOTRIK Opus → PCM16 24 kHz → Realtime/Batch'
+                                        ? 'INNOTRIK Opus → PCM16 24 kHz → Offline/Cloudflare Batch'
                                         : 'Kết nối Mic INNOTRIK ở phía trên để bật',
                                     controller.canUseInnotrikBle
-                                        ? 'INNOTRIK Opus → PCM16 24 kHz → 实时/分块识别'
+                                        ? 'INNOTRIK Opus → PCM16 24 kHz → 离线/Cloudflare 分块识别'
                                         : '请先在上方连接 INNOTRIK 麦克风',
                                   ),
                                 }),
