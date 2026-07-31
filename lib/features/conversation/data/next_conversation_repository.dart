@@ -227,23 +227,15 @@ class NextConversationRepository
               body: body,
             )
             .timeout(const Duration(seconds: 35));
-
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          return ConversationResult.fromJson(
-            _decodeResponse(response),
-            backendBaseUri: _config.backendBaseUri,
-          );
-        }
-
-        if (response.statusCode != 409 && response.statusCode < 500) {
-          _decodeResponse(response);
-        }
-
-        lastError = ConversationApiException(
-          'Finalize tạm thời chưa hoàn tất (${response.statusCode}).',
+        return ConversationResult.fromJson(
+          _decodeResponse(response),
+          backendBaseUri: _config.backendBaseUri,
         );
       } catch (error) {
         lastError = error;
+        if (!_isRetryableConversationRequest(error)) {
+          rethrow;
+        }
       }
 
       if (attempt < 3) {
@@ -649,6 +641,9 @@ class NextConversationRepository
       final message = error is Map<String, dynamic>
           ? error['message'] as String?
           : null;
+      final errorCode = error is Map<String, dynamic>
+          ? error['code'] as String?
+          : null;
       final requestId = response.headers['x-request-id']?.trim();
       final supportCode = requestId == null || requestId.isEmpty
           ? ''
@@ -656,6 +651,7 @@ class NextConversationRepository
       throw ConversationApiException(
         '${message ?? 'Backend trả về lỗi ${response.statusCode}.'}$supportCode',
         statusCode: response.statusCode,
+        errorCode: errorCode,
       );
     }
 
@@ -1067,10 +1063,16 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
         return;
       } catch (error) {
         lastError = error;
+        if (!_isRetryableConversationRequest(error)) {
+          rethrow;
+        }
         if (attempt < 3) {
           await Future<void>.delayed(Duration(milliseconds: 150 * attempt));
         }
       }
+    }
+    if (lastError is ConversationApiException) {
+      throw lastError;
     }
     throw ConversationApiException(
       'Không upload được audio chunk $sequence: $lastError',
@@ -1163,11 +1165,32 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
 }
 
 class ConversationApiException implements Exception {
-  const ConversationApiException(this.message, {this.statusCode});
+  const ConversationApiException(
+    this.message, {
+    this.statusCode,
+    this.errorCode,
+  });
 
   final String message;
   final int? statusCode;
+  final String? errorCode;
 
   @override
   String toString() => message;
+}
+
+bool _isRetryableConversationRequest(Object error) {
+  if (error is TimeoutException || error is http.ClientException) {
+    return true;
+  }
+  if (error is! ConversationApiException) {
+    return false;
+  }
+
+  final statusCode = error.statusCode;
+  return statusCode == 408 ||
+      statusCode == 425 ||
+      statusCode == 429 ||
+      (statusCode == 409 && error.errorCode == 'RATE_LIMITED') ||
+      (statusCode != null && statusCode >= 500);
 }
