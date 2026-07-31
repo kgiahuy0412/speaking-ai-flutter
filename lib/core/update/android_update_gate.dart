@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/mascot_assets.dart';
 import '../../config/app_config.dart';
 import '../../l10n/display_language.dart';
 import 'app_update_policy.dart';
@@ -230,7 +231,7 @@ class _RequiredUpdateScreen extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Image.asset(
-                          'assets/images/mascot-robot.png',
+                          MascotAssets.wave,
                           width: 112,
                           height: 112,
                           fit: BoxFit.contain,
