@@ -71,6 +71,7 @@ class NextConversationRepository
             'clientId': clientId,
             'context': 'all',
             'background': true,
+            'limit': 200,
           }),
         )
         .timeout(const Duration(seconds: 12));
