@@ -161,8 +161,9 @@ void main() {
       final context = tester.element(find.byType(TopicListeningScreen));
       await Future.wait<void>(
         const <AssetImage>[
-          AssetImage('assets/images/learning-train-field-background.webp'),
-          AssetImage('assets/images/mascot-robot.png'),
+          AssetImage('assets/images/learning-penguin-field-background.webp'),
+          AssetImage('assets/images/mascot/penguin-avatar.png'),
+          AssetImage('assets/images/mascot/penguin-listen.png'),
           AssetImage('assets/images/topics/name-age.jpg'),
           AssetImage('assets/images/topics/family-home.jpg'),
           AssetImage('assets/images/topics/school-bag.jpg'),
@@ -186,8 +187,10 @@ Future<void> _precacheConversationAssets(WidgetTester tester) async {
     final context = tester.element(find.byType(ConversationScreen));
     await Future.wait<void>(
       const <AssetImage>[
-        AssetImage('assets/images/learning-train-field-background.webp'),
-        AssetImage('assets/images/mascot-robot.png'),
+        AssetImage('assets/images/learning-penguin-field-background.webp'),
+        AssetImage('assets/images/mascot/penguin-avatar.png'),
+        AssetImage('assets/images/mascot/penguin-listen.png'),
+        AssetImage('assets/images/mascot/penguin-wave.png'),
       ].map((provider) => precacheImage(provider, context)),
     );
   });

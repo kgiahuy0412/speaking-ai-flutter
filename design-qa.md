@@ -274,6 +274,51 @@ final result: passed
 
 ---
 
+# Design QA — Hành trình luyện nghe theo chủ đề
+
+## Bằng chứng
+
+- Nguồn thiết kế được chọn: `C:/Users/Windows/.codex/generated_images/019fb5fc-945a-7330-bd0d-b6ad15b55359/exec-fd883c65-d221-40f5-bdb8-491074a964b4.png` — 852 × 1846 px, tương ứng khung logic 426 × 923 ở DPR 2.
+- Bản Flutter Web: `.codex/design-qa/topic-listening-web-426x923.png` — 426 × 922 px tại viewport logic 426 × 923, DPR 1.
+- Bản Web màn hình rộng: `.codex/design-qa/topic-listening-web-1280x900.png` — nội dung giới hạn 760 px và căn giữa trong viewport rộng.
+- Trạng thái mở chủ đề: `.codex/design-qa/topic-first-open-426x923.png`.
+- So sánh cùng một đầu vào: `.codex/design-qa/topic-listening-comparison.png`; ảnh nguồn được thu về đúng 426 × 923 trước khi đặt cạnh bản Web.
+- Golden Flutter: `test/goldens/topic-listening-426x923.png` — 426 × 923 logical px.
+
+## Trạng thái và hành vi đã kiểm tra
+
+- Nhóm tuổi 6–7 được chọn; thẻ “Tiếp tục học”, 10 chủ đề, thanh điều hướng và đường cong hành trình cùng hiển thị.
+- Chọn nhóm 3–5 thay đúng danh mục, ảnh chủ đề và bài tiếp tục.
+- Chạm chủ đề đầu tiên mở danh sách bài học đúng chủ đề; nút quay lại trở về đúng vị trí hành trình.
+- Web console không có lỗi hoặc cảnh báo trong luồng đã kiểm tra.
+
+## Đánh giá fidelity
+
+- Bố cục: giữ đúng nhịp header → nhóm tuổi → tiếp tục học → hành trình; các điểm dừng xen kẽ hai bên và nối bằng Bézier mềm, không dùng đường thẳng cứng.
+- Typography: tiêu đề và metadata có độ tương phản cao hơn sau vòng sửa thứ hai; bóng chữ trắng giúp nội dung đọc được trên nền phong cảnh mà không thêm nhiều khung AI.
+- Màu sắc và hình ảnh: giữ nền phong cảnh mùa hè hiện có của sản phẩm, ảnh chủ đề thật, indigo cho đường đi/checkpoint và bề mặt trắng mờ cho thẻ tiếp tục học.
+- Responsive: 426 × 923 không tràn hoặc che nút; màn hình rộng giữ chiều rộng nội dung tối đa 760 px và thanh điều hướng căn giữa.
+- Accessibility: điểm chạm lớn, nội dung cuộn được, widget test bao phủ text scale 200% và compact phone.
+
+## Lịch sử so sánh
+
+- Pass 1: phát hiện metadata và số lượng chủ đề hơi chìm trên vùng núi/tàu (P2 về độ tương phản).
+- Fix: đổi metadata sang màu ink đậm hơn, tăng font weight và tinh chỉnh bóng chữ trắng; không thêm hộp nền mới.
+- Pass 2: so sánh cùng khung 426 × 923 cho thấy không còn P0, P1 hoặc P2 cần xử lý. Việc dùng nền tàu và mascot hiện có thay vì nền minh họa trong mock là lựa chọn giữ nhận diện sản phẩm, không làm thay đổi cấu trúc hành trình.
+
+## Xác minh kỹ thuật
+
+- `flutter analyze`: qua, không có issue.
+- 9/9 test của `topic_listening_screen_test.dart`: qua.
+- Golden riêng của màn topic listening: qua khi chạy độc lập.
+- `flutter build web --release`: qua.
+- `flutter build apk --release`: qua, APK 82.5 MB.
+- Lần chạy toàn bộ suite trước vòng polish có 13 test lỗi trong `core_audio_streaming_fallback_test.dart`; đây là nhóm timing/fallback audio có sẵn và không thuộc các file giao diện hành trình.
+
+final result: passed
+
+---
+
 # Design QA — Summer train visual system
 
 ## Evidence
@@ -369,5 +414,41 @@ final result: passed
 - The implementation keeps the selected bright sunrise direction, full-screen illustration, left-aligned karaoke hierarchy, white pill exit control, bottom progress panel, and one large play/pause control.
 - Dynamic song and topic titles truncate safely before the exit action. Previous/next controls are absent as requested.
 - Functional checks pass for age filtering, three-second autoplay, synchronized active-line/word highlighting, both end-dialog actions, and reuse of the existing sentence-practice route.
+
+final result: passed
+
+---
+
+# Design QA — Bỏ mascot VoiceHero và tăng độ cong hành trình
+
+## Bằng chứng
+
+- Nguồn VoiceHero: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-16183f2a-2577-44f0-b214-1d7222af8b15.png` — 904 × 296 px, trạng thái idle có chim cánh cụt ở góc trái.
+- Bản VoiceHero sau chỉnh sửa: `.codex/design-qa/conversation-no-penguin-426x923.png` — ảnh Web tại viewport 426 × 923 CSS px, DPR 1.
+- Nguồn hành trình: `C:/Users/Windows/.codex/generated_images/019fb5fc-945a-7330-bd0d-b6ad15b55359/exec-fd883c65-d221-40f5-bdb8-491074a964b4.png` — 852 × 1846 px, chuẩn hóa về 426 × 923.
+- Bản hành trình sau chỉnh sửa: `.codex/design-qa/topic-more-curved-426x923.png` — 426 × 923 CSS px, DPR 1.
+- So sánh cùng một đầu vào: `.codex/design-qa/penguin-removal-and-curve-comparison.png`.
+- Trạng thái: giao tiếp idle và danh mục luyện nghe nhóm 6–7 tuổi.
+
+## So sánh và phát hiện
+
+- VoiceHero không còn chim cánh cụt hoặc khoảng chồng hình ở góc trái; nội dung, bề mặt, icon trạng thái, waveform và CTA giữ nguyên.
+- Mỗi chặng chủ đề nay dùng hai cubic Bézier nối tiếp với tangent liên tục. Phần giữa uốn rõ hơn và đoạn vào checkpoint vẫn tròn, không xuất hiện góc gãy.
+- Font, hierarchy, màu indigo, bề mặt trắng mờ, ảnh chủ đề và copy không thay đổi ngoài phạm vi yêu cầu.
+- Viewport 426 × 923 không có overflow; các checkpoint, đường nét và thanh điều hướng vẫn đọc được trên nền phong cảnh.
+- Không cần focused crop riêng: vùng VoiceHero đã được so sánh ở kích thước component, còn đường đi chiếm phần lớn full-view 426 × 923.
+- Không còn P0, P1 hoặc P2 cần xử lý.
+
+## Lịch sử
+
+- Pass 1: mascot được gỡ khỏi mọi trạng thái VoiceHero; không để lại asset reference hoặc semantic label thừa.
+- Pass 2: đường cubic đơn được thay bằng hai cubic Bézier liên tục cho mỗi chặng; ảnh Web sau build xác nhận độ cong sâu hơn và không tạo gãy nét.
+
+## Xác minh
+
+- `flutter analyze`: qua, không có issue.
+- 12 test chức năng liên quan VoiceHero và topic listening: qua.
+- 4 golden của conversation/topic listening: qua sau khi cập nhật đúng thay đổi hình ảnh.
+- Web console: không có error hoặc warning trong hai màn đã kiểm tra.
 
 final result: passed

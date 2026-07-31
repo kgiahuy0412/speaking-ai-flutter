@@ -71,9 +71,8 @@ flutter:
     - assets/audio/A-13-15/GUIDE_ENDING/
     - assets/images/lesson-intro-stage.webp
     - assets/images/song-karaoke-sunrise.webp
-    - assets/images/learning-train-field-background.webp
-    - assets/images/mascot-robot.png
-    - assets/images/mascot-robot-pointing.png
+    - assets/images/learning-penguin-field-background.webp
+    - assets/images/mascot/
     - assets/images/topics/
   fonts:
     - family: Roboto

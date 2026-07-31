@@ -147,23 +147,6 @@ class VoiceHero extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          left: -8,
-          top: 0,
-          child: IgnorePointer(
-            child: Image.asset(
-              'assets/images/mascot-robot.png',
-              width: 94,
-              height: 94,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-              semanticLabel: context.tr(
-                'Robot trợ lý đang vẫy tay',
-                '助手机器人正在挥手',
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
