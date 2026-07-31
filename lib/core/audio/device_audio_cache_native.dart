@@ -8,7 +8,7 @@ class DeviceAudioCache {
   DeviceAudioCache({
     http.Client? client,
     Future<Directory> Function()? directoryProvider,
-    this.maxFiles = 128,
+    this.maxFiles = 256,
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null,
        _directoryProvider = directoryProvider ?? getApplicationSupportDirectory;
