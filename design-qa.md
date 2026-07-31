@@ -371,3 +371,42 @@ final result: passed
 - Functional checks pass for age filtering, three-second autoplay, synchronized active-line/word highlighting, both end-dialog actions, and reuse of the existing sentence-practice route.
 
 final result: passed
+
+## Nhãn “Bẩm để học” phía trên robot
+
+- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-08851615-66a6-47c1-be9a-11ac70da5eee.png` — 444 × 149 px.
+- Rendered implementation: `build/design-qa/implementation-a.png` — Android emulator at 1080 × 2400 physical px, density 2.75, approximately 393 × 873 logical px.
+- Focused comparison: `build/design-qa/comparison.png` — source and first-card crop normalized to 880 px width on one 1760 × 600 board.
+- State: nhóm tuổi 6–7, chủ đề “Tên và tuổi của con”, bài “Tên của con”, trang “Nghe tổng quan”, idle state, hint at full opacity.
+- Full-view evidence: the label sits above the first robot without covering the sentence, play control, neighboring cards, or bottom actions; all five cards remain visible.
+- Focused evidence: the original robot, play control, card border, number badge, typography and alignment remain intact. The first card grows only enough to contain the requested label.
+- Fonts and typography: app typography, bold optical weight, compact 11 px label and single-line copy are preserved.
+- Spacing and layout rhythm: the label clears the robot antenna and does not overlap the sentence or play button.
+- Colors and visual tokens: white surface, lavender border, indigo copy and soft indigo shadow reuse existing tokens.
+- Image quality and asset fidelity: the existing transparent robot asset remains sharp and undistorted.
+- Copy and content: “Bẩm để học” appears once, above the first robot.
+- Interaction: the label ignores pointer input; opacity alternates every 700 ms with a 250 ms ease transition; the play button remains usable.
+- Findings: no actionable P0, P1 or P2 differences.
+- Comparison history: pass 1 had no P0/P1/P2 finding, so no post-capture visual correction was required.
+- Follow-up polish: P3 — the first card is intentionally taller than the source so the added label stays readable.
+
+final result: passed
+
+## Nền trắng cho nút “Câu trước”
+
+- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-d29b5964-56f0-4851-9416-2ca5f3aac206.png` — 229 × 115 px.
+- Rendered implementation: `build/design-qa/implementation-white-previous-button.png` — Android emulator at 1080 × 2400 physical px, density 2.75, approximately 393 × 873 logical px.
+- Focused comparison: `build/design-qa/comparison-white-previous-button.png` — source button crop 225 × 75 px and implementation crop 471 × 162 px, each normalized to 800 px width on one 1600 × 360 board.
+- State: nhóm tuổi 6–7, bài “Tên của con”, câu 2/5, màn hình luyện câu trước khi ghi âm.
+- Full-view evidence: the white previous button remains fully visible over the grass background, aligns with the filled “Tiếp tục” action and does not affect the recording card or bottom navigation.
+- Focused evidence: the button keeps its rounded outline, indigo back icon and label while replacing the transparent grass-filled interior with a solid white surface.
+- Fonts and typography: Roboto weight, size and single-line “Câu trước” copy remain unchanged.
+- Spacing and layout rhythm: button height, radius, icon-to-label gap and two-column alignment remain unchanged.
+- Colors and visual tokens: white background provides the requested contrast; indigo foreground and lavender outline remain consistent with the existing app palette.
+- Image quality and asset fidelity: the grass background is untouched and remains visible around the button with no generated or substituted asset.
+- Copy and content: no copy changed.
+- Interaction: enabled and disabled styles both retain a white surface; navigation behavior is unchanged and covered by tests.
+- Findings: no actionable P0, P1 or P2 differences.
+- Comparison history: pass 1 had no P0/P1/P2 finding, so no post-capture visual correction was required.
+
+final result: passed
