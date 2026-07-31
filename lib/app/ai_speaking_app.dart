@@ -127,9 +127,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return;
     }
     try {
-      // Warm only audio that this child actually used. Global warmup and the
-      // full exact-rule catalog compete with the first recording and become
-      // increasingly expensive as the rule set grows.
+      // Backend warm-up is capped at 200 reviewed rules and runs in the
+      // background. It creates each shared TTS asset at most once.
+      await repository.warmAudioCache();
+      // Keep the child's most useful recent audio on the device as well.
       await _warmCommonRuleAudio(repository, deviceCache);
     } catch (error, stackTrace) {
       debugPrint('Audio cache warm-up was skipped: $error');
