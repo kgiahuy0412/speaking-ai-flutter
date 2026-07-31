@@ -2,7 +2,7 @@
 /// immutable and include the content hash, so a second playback is served by
 /// the browser without maintaining a duplicate Dart-side file cache.
 class DeviceAudioCache {
-  DeviceAudioCache({this.maxFiles = 128});
+  DeviceAudioCache({this.maxFiles = 256});
 
   final int maxFiles;
 
