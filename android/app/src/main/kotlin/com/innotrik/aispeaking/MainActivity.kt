@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
     private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
+    private var voicePromptBridge: VoicePromptBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -37,6 +38,11 @@ class MainActivity : FlutterActivity() {
             )
         hfpAudioBridge =
             HfpAudioBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        voicePromptBridge =
+            VoicePromptBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -93,6 +99,8 @@ class MainActivity : FlutterActivity() {
         innotrikBleAudioBridge = null
         hfpAudioBridge?.dispose()
         hfpAudioBridge = null
+        voicePromptBridge?.dispose()
+        voicePromptBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
