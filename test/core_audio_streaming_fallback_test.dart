@@ -563,9 +563,9 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 40));
       input.emit(<int>[3, 4]);
-      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.batchStarted, 1);
@@ -658,7 +658,7 @@ void main() {
         childAge: 6,
         initialAsrMode: AsrMode.batchChunks,
         webRuntimeOverride: true,
-        adaptiveWebUploadDelay: const Duration(seconds: 2),
+        adaptiveWebUploadDelay: const Duration(milliseconds: 20),
       );
 
       await controller.startRecording();
