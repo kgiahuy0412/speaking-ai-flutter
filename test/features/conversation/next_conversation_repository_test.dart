@@ -435,11 +435,14 @@ void main() {
             return http.Response(
               jsonEncode(<String, dynamic>{
                 'error': <String, dynamic>{
-                  'code': 'TEMPORARY',
+                  'code': 'RATE_LIMITED',
                   'message': 'Backend đang bận.',
                 },
               }),
-              503,
+              409,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
             );
           }
           return http.Response(
@@ -495,6 +498,139 @@ void main() {
       'finalize:audio_retry',
       'finalize:audio_retry',
     ]);
+    await repository.dispose();
+  });
+
+  test('does not retry a permanent chunk upload error', () async {
+    var chunkAttempts = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        if (request.url.path == '/api/audio-sessions') {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'audioSessionId': 'audio_bad_chunk',
+              'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
+            }),
+            200,
+          );
+        }
+        if (request.url.path.endsWith('/chunks')) {
+          chunkAttempts += 1;
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'error': <String, dynamic>{
+                'code': 'BAD_REQUEST',
+                'message': 'Chunk không hợp lệ.',
+              },
+            }),
+            400,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+          );
+        }
+        fail('Unexpected request: ${request.method} ${request.url}');
+      }),
+    );
+
+    final upload = await repository.startBatchChunkUpload();
+    upload.addAudioChunk(Uint8List(8000));
+
+    await expectLater(
+      upload.finalize(
+        capture: AudioCapture(
+          filePath: 'fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 500),
+          inputLabel: 'Mic điện thoại',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
+          streamedAudioBytes: 8000,
+          recordingSampleRate: 24000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      ),
+      throwsA(
+        isA<ConversationApiException>()
+            .having((error) => error.statusCode, 'statusCode', 400)
+            .having((error) => error.errorCode, 'errorCode', 'BAD_REQUEST'),
+      ),
+    );
+
+    expect(chunkAttempts, 1);
+    await repository.dispose();
+  });
+
+  test('does not retry a permanent finalize conflict', () async {
+    var finalizeAttempts = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        if (request.url.path == '/api/audio-sessions') {
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'audioSessionId': 'audio_missing_chunk',
+              'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
+            }),
+            200,
+          );
+        }
+        if (request.url.path.endsWith('/chunks')) {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path.endsWith('/finalize')) {
+          finalizeAttempts += 1;
+          return http.Response(
+            jsonEncode(<String, dynamic>{
+              'error': <String, dynamic>{
+                'code': 'MISSING_CHUNKS',
+                'message': 'Audio session thiếu chunk.',
+              },
+            }),
+            409,
+            headers: const <String, String>{
+              'content-type': 'application/json; charset=utf-8',
+            },
+          );
+        }
+        fail('Unexpected request: ${request.method} ${request.url}');
+      }),
+    );
+
+    final upload = await repository.startBatchChunkUpload();
+    upload.addAudioChunk(Uint8List(8000));
+
+    await expectLater(
+      upload.finalize(
+        capture: AudioCapture(
+          filePath: 'fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 500),
+          inputLabel: 'Mic điện thoại',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
+          streamedAudioBytes: 8000,
+          recordingSampleRate: 24000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      ),
+      throwsA(
+        isA<ConversationApiException>()
+            .having((error) => error.statusCode, 'statusCode', 409)
+            .having((error) => error.errorCode, 'errorCode', 'MISSING_CHUNKS'),
+      ),
+    );
+
+    expect(finalizeAttempts, 1);
     await repository.dispose();
   });
 

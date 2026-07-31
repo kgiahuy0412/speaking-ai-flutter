@@ -11,7 +11,6 @@ import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
-import '../../../core/network/browser_network_quality.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
@@ -46,11 +45,7 @@ class ConversationController extends ChangeNotifier {
        _preferBleStreaming = preferBleStreaming,
        _realtimeBatchFallback = realtimeBatchFallback,
        _isWebRuntime = webRuntimeOverride ?? kIsWeb,
-       _adaptiveWebUploadDelay =
-           adaptiveWebUploadDelay ??
-           (browserNetworkLooksSlow()
-               ? const Duration(milliseconds: 600)
-               : const Duration(seconds: 2)),
+       _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
        _realtimeFallbackBuffer = RealtimeFallbackBuffer(
          maxBytes: realtimeFallbackBufferBytes > 0
              ? realtimeFallbackBufferBytes
@@ -983,7 +978,6 @@ class ConversationController extends ChangeNotifier {
 
     try {
       await chunkedInput.startChunked();
-      upload.schedulePromotion();
     } catch (_) {
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
@@ -1016,6 +1010,7 @@ class ConversationController extends ChangeNotifier {
     _silenceTimer?.cancel();
     _silenceTimer = null;
     if (firstSpeechFrame) {
+      _adaptiveWebUpload?.schedulePromotion();
       _scheduleOfflineFallback();
     }
   }
