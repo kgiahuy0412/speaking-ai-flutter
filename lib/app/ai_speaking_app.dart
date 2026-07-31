@@ -13,6 +13,7 @@ import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
 import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
+import '../core/audio/voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
@@ -85,6 +86,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           : null,
       hfpAudioControl: hfpAudioControl,
       playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
+      voicePromptService: createVoicePromptService(),
       repository: repository,
       offlineIntentRecognizer: supportsAndroidNativeSpeech
           ? MethodChannelOfflineIntentRecognizer()

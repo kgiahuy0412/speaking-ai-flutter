@@ -1164,15 +1164,18 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
   }
 }
 
-class ConversationApiException implements Exception {
+class ConversationApiException
+    implements Exception, CodedConversationException {
   const ConversationApiException(
     this.message, {
     this.statusCode,
     this.errorCode,
   });
 
+  @override
   final String message;
   final int? statusCode;
+  @override
   final String? errorCode;
 
   @override

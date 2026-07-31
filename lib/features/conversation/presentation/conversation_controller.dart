@@ -11,6 +11,7 @@ import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
@@ -21,6 +22,7 @@ class ConversationController extends ChangeNotifier {
     StreamingSpeechInput? streamingSpeechInput,
     HfpAudioControl? hfpAudioControl,
     required AudioPlaybackService playbackService,
+    VoicePromptService? voicePromptService,
     required ConversationRepository repository,
     OfflineIntentRecognizer? offlineIntentRecognizer,
     DisplayLanguageStore? displayLanguageStore,
@@ -38,6 +40,7 @@ class ConversationController extends ChangeNotifier {
        _streamingSpeechInput = streamingSpeechInput,
        _hfpAudioControl = hfpAudioControl,
        _playbackService = playbackService,
+       _voicePromptService = voicePromptService,
        _repository = repository,
        _offlineIntentRecognizer = offlineIntentRecognizer,
        _displayLanguageStore = displayLanguageStore,
@@ -106,6 +109,7 @@ class ConversationController extends ChangeNotifier {
   final StreamingSpeechInput? _streamingSpeechInput;
   final HfpAudioControl? _hfpAudioControl;
   final AudioPlaybackService _playbackService;
+  final VoicePromptService? _voicePromptService;
   final ConversationRepository _repository;
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
   final DisplayLanguageStore? _displayLanguageStore;
@@ -1165,13 +1169,13 @@ class ConversationController extends ChangeNotifier {
         return;
       }
 
-      // Browsers can still return PCM bytes when the selected microphone is
-      // muted, disconnected, or only captures background noise. A manual Stop
-      // used to bypass the VAD guard and upload that audio to ASR, which could
-      // produce a confident-looking hallucination. Web has no partial Android
-      // transcript to validate the capture, so never send an unconfirmed Web
-      // recording, even when the user stops it manually.
-      if (!_speechDetected && (!manual || _isWebRuntime)) {
+      // Cloud ASR inputs can still return PCM bytes when the selected
+      // microphone is muted, disconnected, too far away or only captures
+      // background noise. Never upload an unconfirmed cloud recording: ASR
+      // could otherwise produce a confident-looking hallucination. Preserve
+      // the existing manual-stop behavior for Android SpeechRecognizer, which
+      // has its own transcript/confidence checks.
+      if (!_speechDetected && (!_usingStreamingSpeech || !manual)) {
         _realtimeConnectionGeneration += 1;
         _realtimeConnectionFuture = null;
         if (_usingStreamingSpeech) {
@@ -1206,7 +1210,8 @@ class ConversationController extends ChangeNotifier {
         phase = ConversationPhase.idle;
         transientMessage = _noisyRecording
             ? 'Môi trường đang khá ồn. Hãy đưa micro gần hơn, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại.'
-            : 'Mình chưa nghe thấy giọng nói, nên chưa gửi lên backend. Thử nói gần micro hơn nhé.';
+            : _unclearSpeechMessage;
+        unawaited(_speakUnclearSpeechPrompt());
         _stopInProgress = false;
         notifyListeners();
         return;
@@ -1422,7 +1427,7 @@ class ConversationController extends ChangeNotifier {
       phase = ConversationPhase.ready;
       notifyListeners();
     } catch (error) {
-      _setError(_friendlyError(error));
+      _handleConversationError(error);
     } finally {
       final adaptiveWebUpload = _adaptiveWebUpload;
       _adaptiveWebUpload = null;
@@ -1741,6 +1746,25 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  static const _unclearSpeechMessage =
+      'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.';
+
+  void _handleConversationError(Object error) {
+    if (error is CodedConversationException &&
+        error.errorCode == 'ASR_LOW_CONFIDENCE') {
+      _setError(_unclearSpeechMessage);
+      unawaited(_speakUnclearSpeechPrompt());
+      return;
+    }
+    _setError(_friendlyError(error));
+  }
+
+  Future<void> _speakUnclearSpeechPrompt() async {
+    await _voicePromptService?.speak(
+      'Con đưa micro lại gần và nói rõ hơn nhé.',
+    );
+  }
+
   String _friendlyError(Object error) {
     if (error is TimeoutException) {
       return 'Kết nối backend quá chậm. Vui lòng thử lại.';
@@ -1786,6 +1810,7 @@ class ConversationController extends ChangeNotifier {
     unawaited(_offlineIntentRecognizer?.dispose());
     unawaited(_hfpAudioControl?.dispose());
     unawaited(_playbackService.dispose());
+    unawaited(_voicePromptService?.dispose());
     unawaited(_repository.dispose());
     super.dispose();
   }
