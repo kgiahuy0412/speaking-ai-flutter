@@ -206,7 +206,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows song and chant content in the lesson journey', (
+  testWidgets('hides song and chant content for ages three to five', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -229,7 +229,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-    expect(find.text('♫ 3 bài hát/chant'), findsOneWidget);
+    expect(find.text('♫ 3 bài hát/chant'), findsNothing);
+    expect(find.text('Bài hát & chant'), findsNothing);
+    expect(find.byKey(const ValueKey('song-a035_t02_song01')), findsNothing);
     expect(find.byKey(const ValueKey('lesson-a035_t02_l01')), findsOneWidget);
 
     final lessonJourneyScrollView = find
@@ -238,15 +240,6 @@ void main() {
           matching: find.byType(Scrollable),
         )
         .first;
-    final firstSong = find.byKey(const ValueKey('song-a035_t02_song01'));
-    await tester.scrollUntilVisible(
-      firstSong,
-      220,
-      scrollable: lessonJourneyScrollView,
-    );
-    expect(find.text('Bài hát & chant'), findsOneWidget);
-    expect(firstSong, findsOneWidget);
-
     final startLesson = find.byKey(const ValueKey('start-lesson-a035_t02_l01'));
     await tester.scrollUntilVisible(
       startLesson,
@@ -279,6 +272,49 @@ void main() {
     expect(find.byKey(const Key('play-vietnamese-meaning')), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);
     expect(find.byKey(const Key('continue-lesson-sentence')), findsOneWidget);
+  });
+
+  testWidgets('keeps song and chant content for ages six and older', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(buildSubject(childAge: 6));
+    await tester.pumpAndSettle();
+
+    final topicWithSongs = find.byKey(const ValueKey('topic-6-7-4'));
+    final topicsScrollable = find
+        .descendant(
+          of: find.byKey(const Key('topic-listening-screen')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      topicWithSongs,
+      180,
+      scrollable: topicsScrollable,
+    );
+    await tester.drag(topicsScrollable, const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.tap(topicWithSongs);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
+    expect(find.text('♫ 1 bài hát/chant'), findsOneWidget);
+
+    final firstSong = find.byKey(const ValueKey('song-a067_t05_song01'));
+    await tester.scrollUntilVisible(
+      firstSong,
+      220,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('topic-lesson-list-screen')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(find.text('Bài hát & chant'), findsOneWidget);
+    expect(firstSong, findsOneWidget);
   });
 
   testWidgets('bundled lesson content matches the approved Word catalog', (
