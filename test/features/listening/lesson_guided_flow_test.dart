@@ -578,6 +578,14 @@ void main() {
     expect(find.byKey(const Key('auto-play-lesson-review')), findsOneWidget);
     expect(find.text('Tự động phát'), findsOneWidget);
     expect(find.byIcon(Icons.play_circle_outline_rounded), findsOneWidget);
+    expect(find.text('Bẩm để học'), findsOneWidget);
+    final learningHint = find.byKey(
+      const Key('review-first-sentence-learning-hint'),
+    );
+    expect(learningHint, findsOneWidget);
+    expect(tester.widget<AnimatedOpacity>(learningHint).opacity, 1);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(tester.widget<AnimatedOpacity>(learningHint).opacity, 0.28);
     expect(mediaService.playedUris, isEmpty);
     expect(find.byKey(const Key('complete-lesson-review')), findsOneWidget);
     var completeButton = tester.widget<FilledButton>(
@@ -648,7 +656,12 @@ void main() {
 
     mediaService.finishNextLessonAudio();
     await tester.pump();
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 999));
+
+    expect(_reviewTileBorder(tester, 1).top.color, AppColors.indigo);
+    expect(_reviewTileBorder(tester, 2).top.color, AppColors.lavenderBorder);
+
+    await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
 
     expect(_reviewTileBorder(tester, 1).top.color, AppColors.lavenderBorder);

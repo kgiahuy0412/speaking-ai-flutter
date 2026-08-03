@@ -35,6 +35,8 @@ class TopicLessonListScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService? mediaService;
 
+  bool get showsSongs => startAge >= 6 && content.songs.isNotEmpty;
+
   @override
   State<TopicLessonListScreen> createState() => _TopicLessonListScreenState();
 }
@@ -140,7 +142,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                         },
                       ),
                     ),
-                    if (widget.content.songs.isNotEmpty) ...<Widget>[
+                    if (widget.showsSongs) ...<Widget>[
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                         sliver: SliverToBoxAdapter(
@@ -330,7 +332,7 @@ class _TopicHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        if (content.songs.isNotEmpty) ...<Widget>[
+        if (widget.showsSongs) ...<Widget>[
           Align(
             alignment: Alignment.center,
             child: Container(
