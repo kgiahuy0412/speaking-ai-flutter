@@ -19,8 +19,8 @@ class ResultPanel extends StatelessWidget {
           ? Duration.zero
           : const Duration(milliseconds: 260),
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 218),
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      constraints: const BoxConstraints(minHeight: 198),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 11),
       decoration: BoxDecoration(
         color: const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(30),
@@ -100,13 +100,13 @@ class _TranslationSection extends StatelessWidget {
         Row(
           children: <Widget>[
             Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: const BoxDecoration(
                 color: AppColors.lavender,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.indigo, size: 21),
+              child: Icon(icon, color: AppColors.indigo, size: 19),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -121,11 +121,11 @@ class _TranslationSection extends StatelessWidget {
             ?trailing,
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 52),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color: AppColors.lavenderSoft,
             borderRadius: BorderRadius.circular(18),
@@ -158,14 +158,14 @@ class _TranslationConnector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 28,
+      height: 22,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
           const Divider(color: AppColors.lavenderBorder, height: 1),
           Container(
-            width: 30,
-            height: 30,
+            width: 24,
+            height: 24,
             decoration: const BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
@@ -173,7 +173,7 @@ class _TranslationConnector extends StatelessWidget {
             child: const Icon(
               Icons.favorite_rounded,
               color: AppColors.peach,
-              size: 19,
+              size: 16,
             ),
           ),
         ],

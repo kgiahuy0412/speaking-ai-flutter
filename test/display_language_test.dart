@@ -51,7 +51,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.close_rounded).first);
       await tester.pumpAndSettle();
 
-      expect(find.text('沟通助手'), findsOneWidget);
+      expect(find.text('请说越南语'), findsOneWidget);
       expect(find.text('开始说话'), findsOneWidget);
       expect(find.text('越南语句子'), findsOneWidget);
       expect(find.text('英语句子'), findsOneWidget);

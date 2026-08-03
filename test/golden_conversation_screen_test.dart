@@ -94,7 +94,7 @@ void main() {
     );
   });
 
-  testWidgets('ready result screen includes the topic listening shortcut', (
+  testWidgets('ready result screen keeps the scenic communication layout', (
     tester,
   ) async {
     await _loadGoldenFonts();
@@ -129,15 +129,10 @@ void main() {
     await _precacheConversationAssets(tester);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('topic-listening-shortcut')), findsOneWidget);
     await expectLater(
       find.byType(ConversationScreen),
       matchesGoldenFile('goldens/conversation-ready-shortcut-450x1025.png'),
     );
-
-    await tester.tap(find.byKey(const Key('topic-listening-shortcut')));
-    await tester.pumpAndSettle();
-    expect(find.byType(TopicListeningScreen), findsOneWidget);
   });
 
   testWidgets('topic listening screen matches the selected mobile direction', (
@@ -161,7 +156,7 @@ void main() {
       final context = tester.element(find.byType(TopicListeningScreen));
       await Future.wait<void>(
         const <AssetImage>[
-          AssetImage('assets/images/learning-penguin-field-background.webp'),
+          AssetImage('assets/images/learning-minimal-sky-background.png'),
           AssetImage('assets/images/mascot/penguin-avatar.png'),
           AssetImage('assets/images/mascot/penguin-listen.png'),
           AssetImage('assets/images/topics/name-age.jpg'),
@@ -187,7 +182,7 @@ Future<void> _precacheConversationAssets(WidgetTester tester) async {
     final context = tester.element(find.byType(ConversationScreen));
     await Future.wait<void>(
       const <AssetImage>[
-        AssetImage('assets/images/learning-penguin-field-background.webp'),
+        AssetImage('assets/images/learning-minimal-sky-background.png'),
         AssetImage('assets/images/mascot/penguin-avatar.png'),
         AssetImage('assets/images/mascot/penguin-listen.png'),
         AssetImage('assets/images/mascot/penguin-wave.png'),

@@ -5,5 +5,7 @@ abstract final class MascotAssets {
   static const speak = 'assets/images/mascot/penguin-speak.png';
   static const sing = 'assets/images/mascot/penguin-sing.png';
 
-  static const scenery = 'assets/images/learning-penguin-field-background.webp';
+  static const scenery = 'assets/images/learning-minimal-sky-background.png';
+  static const homeScenery =
+      'assets/images/learning-train-field-background.webp';
 }

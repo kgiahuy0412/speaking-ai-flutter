@@ -10,12 +10,14 @@ const learningSceneryAsset = MascotAssets.scenery;
 class LearningScenery extends StatelessWidget {
   const LearningScenery({
     required this.child,
+    this.assetPath = learningSceneryAsset,
     this.imageAlignment = Alignment.topCenter,
     this.overlayOpacity = 0.08,
     super.key,
   });
 
   final Widget child;
+  final String assetPath;
   final Alignment imageAlignment;
   final double overlayOpacity;
 
@@ -25,7 +27,7 @@ class LearningScenery extends StatelessWidget {
       fit: StackFit.expand,
       children: <Widget>[
         Image.asset(
-          learningSceneryAsset,
+          assetPath,
           fit: BoxFit.cover,
           alignment: imageAlignment,
           filterQuality: FilterQuality.high,

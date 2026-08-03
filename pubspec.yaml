@@ -71,7 +71,8 @@ flutter:
     - assets/audio/A-13-15/GUIDE_ENDING/
     - assets/images/lesson-intro-stage.webp
     - assets/images/song-karaoke-sunrise.webp
-    - assets/images/learning-penguin-field-background.webp
+    - assets/images/learning-train-field-background.webp
+    - assets/images/learning-minimal-sky-background.png
     - assets/images/mascot/
     - assets/images/topics/
   fonts:

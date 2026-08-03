@@ -274,6 +274,65 @@ final result: passed
 
 ---
 
+# Design QA — Compact staggered home edge rails (2026-08-03)
+
+- Source visual truth: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-c84e2ddb-64af-45b2-a6bb-9772dd54fa3f.png`.
+- Implementation: `test/features/home/goldens/home-communication-390x844.png` and `test/features/home/goldens/home-vocabulary-390x844.png`, 390 × 844 logical pixels at DPR 1.
+- Comparison evidence: `.codex/design-qa/home-edge-rails/rails-before-after-full.png` and `.codex/design-qa/home-edge-rails/rails-before-after-focused.png`.
+- Result: both collapsed rails changed from 51 × 270 to 47 × 224; the vocabulary rail now sits above the topic rail while the topic expansion remains 154 × 270.
+- Fonts, spacing, color tokens, source assets, and copy were checked. No P0/P1/P2 issue remains.
+- Analyze, six focused tests, release Web/APK builds, local Web navigation, and browser console checks passed.
+- Detailed report: `.codex/design-qa/home-edge-rails/design-qa.md`.
+
+final result: passed
+
++# Design QA — Nền tối giản và bỏ nút Đúng/Sai
+
+## Evidence
+
+- Source visual truth: `C:/Users/Windows/.codex/generated_images/019fac05-f74f-7952-9259-e708249b6185/exec-4d8df4a0-1f82-4c50-9978-8a536aa5e669.png` — 942 × 1672 px.
+- Flutter mobile implementation: `test/goldens/conversation-ready-shortcut-450x1025.png` — 450 × 1025 logical px, DPR 1.
+- Browser-rendered implementation: `.codex/design-qa/minimal-background/conversation-web.png` — 1280 × 720 px.
+- Combined comparison input: `.codex/design-qa/minimal-background/source-vs-mobile.png` — 924 × 1077 px.
+- State: màn giao tiếp đã có câu tiếng Anh; không hiển thị nút “Đúng ý” hoặc “Sai ý”.
+- Density normalization: ảnh nguồn được crop trung tâm và chuẩn hóa về 450 × 1025 trước khi đặt cạnh ảnh Flutter mobile.
+
+## Full-view comparison
+
+- Nền giữ đúng bảng màu xanh trời, mint và blue-gray của nguồn nhưng giảm mạnh độ bão hòa và chi tiết.
+- Vùng giữa có khoảng thở lớn; các thẻ trắng/lavender vẫn là điểm tập trung.
+- Mây chỉ nằm ở mép trên, đồi chỉ nằm sát đáy nên không cạnh tranh với chữ hoặc CTA.
+- Hai nút phản hồi đã được gỡ; bố cục kết quả tự khép lại tự nhiên, không để khoảng trống bất thường.
+
+## Required fidelity surfaces
+
+- Fonts and typography: Roboto, trọng lượng chữ, line-height và hierarchy không thay đổi; không có chữ bị cắt ngoài các quy tắc ellipsis sẵn có.
+- Spacing and layout rhythm: khoảng cách giữa hero, result panel và CTA giữ nhịp cũ; vùng trước đây chứa feedback buttons được thu gọn.
+- Colors and visual tokens: nền powder-blue/mint mới có độ tương phản thấp; indigo, lavender, success và surface token của UI giữ nguyên.
+- Image quality and asset fidelity: nền raster 942 × 1672 rõ nét ở mobile lẫn Web, không có watermark, text, nhân vật hay chi tiết giả UI.
+- Copy and content: nội dung giao tiếp không đổi; “Đúng ý” và “Sai ý” không còn trong DOM màn chính.
+- Accessibility and responsiveness: 13 golden trạng thái mobile qua; không có overflow ở 450 × 1025.
+
+## Interaction verification
+
+- Topic shortcut mở được màn “Luyện nghe theo chủ đề” và quay lại màn giao tiếp.
+- Browser DOM không chứa “Đúng ý” hoặc “Sai ý”.
+- Web console không có error/warning; chỉ có log debug khởi tạo Flutter.
+
+## Findings
+
+- Không còn P0, P1 hoặc P2.
+- Không cần focused crop riêng vì thay đổi chỉ liên quan nền toàn màn hình và việc loại bỏ hai control; cả hai đều đọc rõ ở full-view comparison.
+
+## Comparison history
+
+- Pass 1: nền nhiều chi tiết được thay bằng nền phẳng, ít bão hòa; hai nút feedback được gỡ. So sánh kết hợp xác nhận hierarchy, độ tương phản và nhịp dọc đều ổn, không cần vòng sửa P0/P1/P2.
+
+final result: passed
+
+
+---
+
 # Design QA — Hành trình luyện nghe theo chủ đề
 
 ## Bằng chứng
@@ -450,5 +509,82 @@ final result: passed
 - 12 test chức năng liên quan VoiceHero và topic listening: qua.
 - 4 golden của conversation/topic listening: qua sau khi cập nhật đúng thay đổi hình ảnh.
 - Web console: không có error hoặc warning trong hai màn đã kiểm tra.
+
+final result: passed
+## 2026-08-02 — Shared minimal background
+
+- Applied `learning-minimal-sky-background.png` to every non-song app surface.
+- Kept `song-karaoke-sunrise.webp` as the karaoke-only artwork.
+- Verified with focused analyze, 24 widget/golden tests, Web build, APK build, and Web browser inspection.
+- Detailed evidence: `.codex/design-qa/all-app-background/design-qa.md`
+
+final result: passed
+
+---
+
+# Design QA — Home, vocabulary, and topic-listening entry flow (2026-08-02)
+
+## Evidence
+
+- References: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-68fbc637-f44e-4a44-8ddc-c905afcbc86f.png`, `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-cc63ad2b-2cf3-4128-9739-1e69356c31bb.png`, and `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-2dad1955-e825-4cd0-beff-6d80afb6d75d.png`; each source is 852 × 1840 px and was normalized to the 390 × 844 test viewport.
+- Flutter captures: `test/features/home/goldens/home-communication-390x844.png`, `test/features/home/goldens/home-vocabulary-390x844.png`, and `test/features/home/goldens/home-add-vocabulary-390x844.png` at DPR 1.
+- Combined same-input comparison: `design-qa-assets/home-vocabulary-flow-comparison.png`.
+- States covered: communication home, persisted vocabulary list, and the add-vocabulary modal.
+
+## Visual and interaction review
+
+- Typography, hierarchy, indigo/lavender palette, translucent surfaces, mascot imagery, copy, spacing, controls, and scenic background were checked in the full-view comparison.
+- The two edge destinations stay visible: the left rail opens vocabulary and changes to “Giao tiếp” on that page so it can return; the right rail opens the existing 50-topic listening screen.
+- Vocabulary search, local persistence, add, delete mode, English pronunciation, history/settings access, Android back navigation, and the practice CTA were exercised through widget tests.
+- The background intentionally reuses the app's existing high-quality train-field scenery; this is more saturated than the reference watercolor but was explicitly permitted by the product direction.
+
+## Comparison history
+
+- Pass 1 found P2 issues: the vocabulary title wrapped, the long bottom CTA clipped, the communication mascot was undersized, and the result/dialog surfaces had weak source proportions.
+- Fixes: constrained the title to one line, rebuilt the CTA as a fixed full-width row, enlarged the mascot, and tightened the communication result panel plus modal spacing.
+- Pass 2: no remaining P0, P1, or P2 issue. The modal remains slightly more compact than the reference to preserve legibility and keyboard space on small devices (P3, accepted).
+
+## Verification
+
+- `flutter analyze`: passed with no issues.
+- 10 focused functional, accessibility, localization, persistence, navigation, and golden tests: passed.
+- 4 existing conversation/topic-listening goldens: updated and passed again without diffs.
+- Release Web build and release APK build: passed; local Web preview returned HTTP 200.
+
+final result: passed
+
+---
+
+# Design QA — Expanded “Chủ đề” edge transition (2026-08-03)
+
+## Evidence
+
+- Source motion truth: `C:/Users/Windows/Downloads/2aOboQoit8DB2wy9p4aNmdPCcApiS5fYoEfcupoO.mp4`.
+- Selected source frame: `outputs/coach-reference-frames/frame-06.jpg`, 544 × 1233 px; the app-owned area was cropped and normalized to a 390 px comparison width.
+- Flutter implementation: `test/features/home/goldens/home-topic-expanded-390x844.png`, 390 × 844 logical pixels at DPR 1.
+- Same-input full-view comparison: `design-qa-assets/topic-expanded-video-comparison.png`.
+- State: the right edge destination after tapping and immediately before the topic catalog slides in.
+
+## Findings
+
+- No P0, P1, or P2 mismatch remains. The implementation preserves the source interaction pattern: an edge-anchored rail widens inward, swaps its vertical label for a centered icon and horizontal title, then reveals the destination with a right-to-left slide.
+- Typography and copy: the long “Luyện nghe theo chủ đề” label is replaced by “Chủ đề” on both the rail and destination header; the “50 chủ đề” rail badge is absent.
+- Spacing and layout: the expanded panel remains attached to the right edge, with centered content and rounded inner corners. It intentionally stays taller than the video reference for a more noticeable 300 ms child-friendly transition (P3, accepted).
+- Colors and tokens: the existing purple gradient, white foreground, border, radius, and shadow are preserved.
+- Image quality: no source raster was replaced or synthesized; the change uses the existing Material headphones icon and app scenery.
+- The full-view board keeps both the transition panel and surrounding layout readable, so an additional focused crop was not required.
+
+## Comparison history
+
+- Pass 1: the implementation had the correct width expansion, but the first golden captured the animation's initial frame and appeared collapsed.
+- Fix: started the animation on one frame, then captured at 280 ms before the 300 ms navigation delay; the revised comparison visibly shows the expanded panel.
+- Post-fix: no actionable P0/P1/P2 issue remains.
+
+## Verification
+
+- `flutter analyze`: passed with no issues.
+- 19 focused navigation, motion, accessibility, responsive, topic-content, and golden tests: passed.
+- Compact 320 × 568 layout with 200% text and reduced motion: passed without overflow.
+- Release Web and APK builds: passed; the local Web server returned HTTP 200. Automated in-app-browser navigation to the loopback URL was unavailable under browser URL policy, so the browser interaction was not claimed as evidence.
 
 final result: passed

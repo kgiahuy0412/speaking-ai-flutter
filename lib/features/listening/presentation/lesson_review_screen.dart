@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
@@ -76,79 +77,82 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
       language: widget.language,
       child: Scaffold(
         key: const Key('lesson-review-screen'),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                        tooltip: context.tr('Quay lại bài học', '返回课程'),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _title(context),
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      IconButton(
-                        key: const Key('replay-lesson-review'),
-                        onPressed: _playReview,
-                        icon: const Icon(Icons.replay_rounded),
-                        tooltip: context.tr('Phát lại từ đầu', '从头播放'),
-                      ),
-                    ],
-                  ),
-                ),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                  itemCount: widget.lesson.sentences.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 9),
-                  itemBuilder: (context, index) {
-                    final sentence = widget.lesson.sentences[index];
-                    return _ReviewSentenceTile(
-                      index: index,
-                      sentence: sentence,
-                      lessonType: widget.lesson.type,
-                      playing: _playingIndex == index,
-                      recordingStatus: widget.mode == LessonReviewMode.learned
-                          ? widget.unrecordedSentenceIndexes.contains(index)
-                                ? _ReviewRecordingStatus.unrecorded
-                                : _ReviewRecordingStatus.recorded
-                          : null,
-                      redesigned: widget.mode == LessonReviewMode.overview,
-                      featured:
-                          widget.mode == LessonReviewMode.overview &&
-                          index == 0,
-                      onPlay: () => _playSentence(index),
-                    );
-                  },
-                ),
-                if (_message != null)
+        backgroundColor: Colors.transparent,
+        body: LearningScenery(
+          child: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: <Widget>[
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    child: Text(
-                      _message!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                    padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          tooltip: context.tr('Quay lại bài học', '返回课程'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _title(context),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          key: const Key('replay-lesson-review'),
+                          onPressed: _playReview,
+                          icon: const Icon(Icons.replay_rounded),
+                          tooltip: context.tr('Phát lại từ đầu', '从头播放'),
+                        ),
+                      ],
                     ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-                  child: widget.mode == LessonReviewMode.learned
-                      ? _buildLearnedActions(context)
-                      : _buildOverviewActions(context),
-                ),
-              ],
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                    itemCount: widget.lesson.sentences.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 9),
+                    itemBuilder: (context, index) {
+                      final sentence = widget.lesson.sentences[index];
+                      return _ReviewSentenceTile(
+                        index: index,
+                        sentence: sentence,
+                        lessonType: widget.lesson.type,
+                        playing: _playingIndex == index,
+                        recordingStatus: widget.mode == LessonReviewMode.learned
+                            ? widget.unrecordedSentenceIndexes.contains(index)
+                                  ? _ReviewRecordingStatus.unrecorded
+                                  : _ReviewRecordingStatus.recorded
+                            : null,
+                        redesigned: widget.mode == LessonReviewMode.overview,
+                        featured:
+                            widget.mode == LessonReviewMode.overview &&
+                            index == 0,
+                        onPlay: () => _playSentence(index),
+                      );
+                    },
+                  ),
+                  if (_message != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Text(
+                        _message!,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                    child: widget.mode == LessonReviewMode.learned
+                        ? _buildLearnedActions(context)
+                        : _buildOverviewActions(context),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
