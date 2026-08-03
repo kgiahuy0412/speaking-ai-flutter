@@ -193,7 +193,7 @@ const listeningCatalogs = <ListeningAgeCatalog>[
         imagePath: 'assets/images/topics/school-day.jpg',
       ),
       ListeningTopic(
-        titleVi: 'Số, ngày và giờ',
+        titleVi: 'Số đếm',
         titleZh: '数字、日期和时间',
         icon: Icons.schedule_rounded,
         background: _amberWash,
@@ -211,7 +211,7 @@ const listeningCatalogs = <ListeningAgeCatalog>[
         imagePath: 'assets/images/topics/favorite-food.jpg',
       ),
       ListeningTopic(
-        titleVi: 'Các hoạt động hằng ngày',
+        titleVi: 'Một ngày của con',
         titleZh: '日常活动',
         icon: Icons.directions_run_rounded,
         background: _purpleWash,
@@ -220,7 +220,7 @@ const listeningCatalogs = <ListeningAgeCatalog>[
         imagePath: 'assets/images/topics/daily-activities-6-7.jpg',
       ),
       ListeningTopic(
-        titleVi: 'Thời tiết và quần áo',
+        titleVi: 'Thời tiết',
         titleZh: '天气和衣服',
         icon: Icons.wb_sunny_rounded,
         background: _amberWash,
@@ -272,7 +272,7 @@ const listeningCatalogs = <ListeningAgeCatalog>[
         imagePath: 'assets/images/topics/subjects-timetable.jpg',
       ),
       ListeningTopic(
-        titleVi: 'Một ngày của con',
+        titleVi: 'Một ngày ở trường',
         titleZh: '我的一天',
         icon: Icons.today_rounded,
         background: _amberWash,
@@ -281,7 +281,7 @@ const listeningCatalogs = <ListeningAgeCatalog>[
         imagePath: 'assets/images/topics/my-day-8-10.jpg',
       ),
       ListeningTopic(
-        titleVi: 'Sở thích và thể thao',
+        titleVi: 'Môn thể thao',
         titleZh: '爱好和运动',
         icon: Icons.sports_basketball_rounded,
         background: _greenWash,

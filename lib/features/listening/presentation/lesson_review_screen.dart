@@ -485,7 +485,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     _cancelReviewGap();
     final completer = Completer<bool>();
     _reviewGapCompleter = completer;
-    _reviewGapTimer = Timer(const Duration(seconds: 2), () {
+    _reviewGapTimer = Timer(const Duration(seconds: 1), () {
       _reviewGapTimer = null;
       _reviewGapCompleter = null;
       if (!completer.isCompleted) {
@@ -664,7 +664,7 @@ class _ReviewRecordingBadge extends StatelessWidget {
   }
 }
 
-class _ReviewPlayControl extends StatelessWidget {
+class _ReviewPlayControl extends StatefulWidget {
   const _ReviewPlayControl({
     required this.index,
     required this.playing,
@@ -682,36 +682,106 @@ class _ReviewPlayControl extends StatelessWidget {
   final String tooltip;
 
   @override
+  State<_ReviewPlayControl> createState() => _ReviewPlayControlState();
+}
+
+class _ReviewPlayControlState extends State<_ReviewPlayControl> {
+  Timer? _learningHintTimer;
+  bool _learningHintHighlighted = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.showMascot) {
+      _learningHintTimer = Timer.periodic(const Duration(milliseconds: 700), (
+        _,
+      ) {
+        if (mounted) {
+          setState(() => _learningHintHighlighted = !_learningHintHighlighted);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _learningHintTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final button = _ReviewPlayButton(
-      key: ValueKey('review-sentence-play-${index + 1}'),
-      playing: playing,
-      onPressed: onPressed,
-      tooltip: tooltip,
+      key: ValueKey('review-sentence-play-${widget.index + 1}'),
+      playing: widget.playing,
+      onPressed: widget.onPressed,
+      tooltip: widget.tooltip,
     );
-    if (!showMascot) {
+    if (!widget.showMascot) {
       return button;
     }
 
     return SizedBox(
       width: 132,
-      height: 88,
+      height: 110,
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-          Align(alignment: Alignment.centerRight, child: button),
+          Positioned(right: 0, top: 25, child: button),
           Positioned(
             left: 0,
-            top: -2,
+            top: 18,
             width: 100,
             height: 92,
             child: IgnorePointer(
               child: Image.asset(
-                _mascotAsset,
+                _ReviewPlayControl._mascotAsset,
                 key: const Key('review-first-sentence-mascot'),
                 fit: BoxFit.cover,
                 alignment: Alignment.topCenter,
                 filterQuality: FilterQuality.high,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 5,
+            top: 0,
+            width: 92,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                key: const Key('review-first-sentence-learning-hint'),
+                opacity: _learningHintHighlighted ? 1 : 0.28,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.lavenderBorder),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: AppColors.indigo.withValues(alpha: 0.14),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    context.tr('Bẩm để học', '点击学习'),
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.indigoDark,
+                      fontSize: 11,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

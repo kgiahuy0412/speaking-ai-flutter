@@ -62,6 +62,13 @@ void main() {
     await tester.pumpWidget(_subject(lesson, store, const Key('session-1')));
     await tester.pumpAndSettle();
     expect(find.text('Sentence 3'), findsOneWidget);
+    var previousButton = tester.widget<OutlinedButton>(
+      find.byKey(const Key('previous-lesson-sentence')),
+    );
+    expect(
+      previousButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      Colors.white,
+    );
 
     await tester.tap(find.byKey(const Key('previous-lesson-sentence')));
     await tester.pumpAndSettle();
@@ -77,10 +84,16 @@ void main() {
     expect(find.text('Sentence 1'), findsOneWidget);
     expect(store.currentSentence, 0);
 
-    final previousButton = tester.widget<OutlinedButton>(
+    previousButton = tester.widget<OutlinedButton>(
       find.byKey(const Key('previous-lesson-sentence')),
     );
     expect(previousButton.onPressed, isNull);
+    expect(
+      previousButton.style?.backgroundColor?.resolve(const <WidgetState>{
+        WidgetState.disabled,
+      }),
+      Colors.white.withValues(alpha: 0.72),
+    );
   });
 
   testWidgets('review from beginning resets the resume sentence', (

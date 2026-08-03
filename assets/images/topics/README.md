@@ -38,10 +38,10 @@
 | Gia đình và ngôi nhà | `family-home.jpg` |
 | Cặp sách và lớp học | `school-bag.jpg` |
 | Một ngày ở trường | `school-day.jpg` |
-| Số, ngày và giờ | `numbers-time.jpg` |
+| Số đếm | `numbers-time.jpg` |
 | Đồ ăn con thích | `favorite-food.jpg` |
-| Các hoạt động hằng ngày | `daily-activities-6-7.jpg` |
-| Thời tiết và quần áo | `weather-clothes-6-7.jpg` |
+| Một ngày của con | `daily-activities-6-7.jpg` |
+| Thời tiết | `weather-clothes-6-7.jpg` |
 | Sở thích và thể thao | `hobbies-sports-6-7.jpg` |
 | Lời nói lịch sự và nhu cầu | `polite-needs-6-7.jpg` |
 
@@ -51,8 +51,8 @@
 |---|---|
 | Con và những người bạn | `friends-8-10.jpg` |
 | Môn học và thời khóa biểu | `subjects-timetable.jpg` |
-| Một ngày của con | `my-day-8-10.jpg` |
-| Sở thích và thể thao | `hobbies-sports-8-10.jpg` |
+| Một ngày ở trường | `my-day-8-10.jpg` |
+| Môn thể thao | `hobbies-sports-8-10.jpg` |
 | Con giúp đỡ gia đình | `help-family.jpg` |
 | Đi mua sắm | `shopping-8-10.jpg` |
 | Đi ăn uống | `eating-out-8-10.jpg` |

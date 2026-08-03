@@ -40,7 +40,128 @@ void main() {
     }
   });
 
-  test('all five karaoke songs have loadable intro and full audio', () async {
+  test('song topics use the approved Vietnamese names', () async {
+    final content = await AssetListeningContentRepository().load();
+    const expectedNames =
+        <({int startAge, int endAge, int topicNumber, String titleVi})>[
+          (startAge: 6, endAge: 7, topicNumber: 5, titleVi: 'Số đếm'),
+          (startAge: 6, endAge: 7, topicNumber: 7, titleVi: 'Một ngày của con'),
+          (startAge: 6, endAge: 7, topicNumber: 8, titleVi: 'Thời tiết'),
+          (
+            startAge: 8,
+            endAge: 10,
+            topicNumber: 3,
+            titleVi: 'Một ngày ở trường',
+          ),
+          (startAge: 8, endAge: 10, topicNumber: 4, titleVi: 'Môn thể thao'),
+        ];
+
+    for (final expected in expectedNames) {
+      final catalog = listeningCatalogs.singleWhere(
+        (catalog) =>
+            catalog.startAge == expected.startAge &&
+            catalog.endAge == expected.endAge,
+      );
+      expect(
+        catalog.topics[expected.topicNumber - 1].titleVi,
+        expected.titleVi,
+      );
+      expect(
+        content
+            .topic(
+              startAge: expected.startAge,
+              endAge: expected.endAge,
+              topicNumber: expected.topicNumber,
+            )
+            .titleVi,
+        expected.titleVi,
+      );
+    }
+  });
+
+  test(
+    'five updated topics expose their retained lesson as lesson 1',
+    () async {
+      final content = await AssetListeningContentRepository().load();
+      const expectedLessons =
+          <({int startAge, int endAge, int topicNumber, String lessonId})>[
+            (startAge: 6, endAge: 7, topicNumber: 5, lessonId: 'a067_t05_l02'),
+            (startAge: 6, endAge: 7, topicNumber: 7, lessonId: 'a067_t07_l02'),
+            (startAge: 6, endAge: 7, topicNumber: 8, lessonId: 'a067_t08_l02'),
+            (
+              startAge: 8,
+              endAge: 10,
+              topicNumber: 3,
+              lessonId: 'a0810_t03_l02',
+            ),
+            (
+              startAge: 8,
+              endAge: 10,
+              topicNumber: 4,
+              lessonId: 'a0810_t04_l02',
+            ),
+          ];
+
+      for (final expected in expectedLessons) {
+        final topic = content.topic(
+          startAge: expected.startAge,
+          endAge: expected.endAge,
+          topicNumber: expected.topicNumber,
+        );
+        expect(topic.lessons, hasLength(1));
+        expect(topic.lessons.single.id, expected.lessonId);
+        expect(topic.lessons.single.number, 1);
+      }
+    },
+  );
+
+  test('five new lessons have loadable opening audio', () async {
+    final content = await AssetListeningContentRepository().load();
+    final lessons = content.groups
+        .expand((group) => group.topics)
+        .expand((topic) => topic.lessons)
+        .toList();
+    const expectedOpenings = <String, ({String intro, String assetPath})>{
+      'a067_t05_l02': (
+        intro:
+            'Chào con! Hôm nay mình sẽ học bài “Count and Move”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
+        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T05_L02_OPEN.mp3',
+      ),
+      'a067_t07_l02': (
+        intro:
+            'Chào con! Hôm nay mình sẽ học bài “Things I Do”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
+        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T07_L02_OPEN.mp3',
+      ),
+      'a067_t08_l02': (
+        intro:
+            'Chào con! Hôm nay mình sẽ học bài “Dress for Today”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
+        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T08_L02_OPEN.mp3',
+      ),
+      'a0810_t03_l02': (
+        intro:
+            'Chào con! Hôm nay mình sẽ học bài “My School Day”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
+        assetPath: 'assets/audio/A-8-10/LESSON_INTRO/A0810_T03_L02_OPEN.mp3',
+      ),
+      'a0810_t04_l02': (
+        intro:
+            'Chào con! Hôm nay mình sẽ học bài “Sports I Like”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
+        assetPath: 'assets/audio/A-8-10/LESSON_INTRO/A0810_T04_L02_OPEN.mp3',
+      ),
+    };
+
+    for (final entry in expectedOpenings.entries) {
+      final lesson = lessons.singleWhere((lesson) => lesson.id == entry.key);
+      expect(lesson.intro, entry.value.intro);
+      expect(
+        lesson.introAudioUri,
+        Uri.parse('asset:///${entry.value.assetPath}'),
+      );
+      final bytes = await rootBundle.load(entry.value.assetPath);
+      expect(bytes.lengthInBytes, greaterThan(100000));
+    }
+  });
+
+  test('all five official songs have loadable intro and full audio', () async {
     final content = await AssetListeningContentRepository().load();
     final songs = <String, ListeningLessonContent>{
       for (final song
@@ -60,20 +181,34 @@ void main() {
     };
     const expectedTimelineLengths = <String, int>{
       'a067_t05_song01': 12,
-      'a067_t07_song01': 56,
-      'a067_t08_song01': 44,
-      'a0810_t03_song01': 62,
-      'a0810_t04_song01': 22,
+      'a067_t07_song01': 16,
+      'a067_t08_song01': 8,
+      'a0810_t03_song01': 16,
+      'a0810_t04_song01': 19,
+    };
+    const expectedTimelineEnds = <String, int>{
+      'a067_t05_song01': 19220,
+      'a067_t07_song01': 45900,
+      'a067_t08_song01': 21960,
+      'a0810_t03_song01': 27980,
+      'a0810_t04_song01': 46260,
+    };
+    const expectedAudioBytes = <String, int>{
+      'a067_t05_song01': 449304,
+      'a067_t07_song01': 1071672,
+      'a067_t08_song01': 536280,
+      'a0810_t03_song01': 690600,
+      'a0810_t04_song01': 1075272,
     };
     const expectedIntros = <String, (String, String, String)>{
       'a067_t05_song01': (
-        'Count the Days',
-        'Chào con! Bây giờ mình cùng nghe bài hát “Count the Days”. Con hãy lắng nghe và hát theo nhé!',
+        'Count with Me',
+        'Chào con! Bây giờ mình cùng nghe bài hát “Count with Me”. Con hãy lắng nghe và hát theo nhé!',
         'assets/audio/A-6-7/SONG_INTRO/SONG_INTRO_06_07_01.mp3',
       ),
       'a067_t07_song01': (
-        'My Day',
-        'Chào con! Bây giờ mình cùng nghe bài hát “My Day”. Con hãy lắng nghe và hát theo nhé!',
+        'My Happy Day',
+        'Chào con! Bây giờ mình cùng nghe bài hát “My Happy Day”. Con hãy lắng nghe và hát theo nhé!',
         'assets/audio/A-6-7/SONG_INTRO/SONG_INTRO_06_07_02.mp3',
       ),
       'a067_t08_song01': (
@@ -99,9 +234,14 @@ void main() {
       expect(uri?.scheme, 'asset', reason: entry.key);
       expect(uri?.path, '/${entry.value}', reason: entry.key);
       final bytes = await rootBundle.load(entry.value);
-      expect(bytes.lengthInBytes, greaterThan(1000), reason: entry.key);
+      expect(
+        bytes.lengthInBytes,
+        expectedAudioBytes[entry.key],
+        reason: entry.key,
+      );
       final expectedIntro = expectedIntros[entry.key]!;
       expect(song?.titleEn, expectedIntro.$1, reason: entry.key);
+      expect(song?.titleVi, expectedIntro.$1, reason: entry.key);
       expect(song?.intro, expectedIntro.$2, reason: entry.key);
       expect(song?.introAudioUri?.scheme, 'asset', reason: entry.key);
       expect(
@@ -117,6 +257,21 @@ void main() {
         reason: entry.key,
       );
       expect(
+        song?.sentences,
+        hasLength(expectedTimelineLengths[entry.key]),
+        reason: entry.key,
+      );
+      expect(
+        song?.karaokeLines.map((line) => line.english),
+        song?.sentences.map((line) => line.english),
+        reason: entry.key,
+      );
+      expect(
+        song?.sentences.every((line) => line.vietnamese.trim().isNotEmpty),
+        isTrue,
+        reason: entry.key,
+      );
+      expect(
         song?.karaokeLines.every(
           (line) =>
               line.karaokeStart != null &&
@@ -126,6 +281,18 @@ void main() {
         isTrue,
         reason: entry.key,
       );
+      expect(
+        song?.karaokeLines.last.karaokeEnd,
+        Duration(milliseconds: expectedTimelineEnds[entry.key]!),
+        reason: entry.key,
+      );
+      for (var index = 1; index < song!.karaokeLines.length; index += 1) {
+        expect(
+          song.karaokeLines[index].karaokeStart,
+          greaterThanOrEqualTo(song.karaokeLines[index - 1].karaokeEnd!),
+          reason: '${entry.key} line ${index + 1}',
+        );
+      }
     }
   });
 
@@ -206,7 +373,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows song and chant content in the lesson journey', (
+  testWidgets('hides song and chant content for ages three to five', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -229,7 +396,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-    expect(find.text('♫ 3 bài hát/chant'), findsOneWidget);
+    expect(find.text('♫ 3 bài hát/chant'), findsNothing);
+    expect(find.text('Bài hát & chant'), findsNothing);
+    expect(find.byKey(const ValueKey('song-a035_t02_song01')), findsNothing);
     expect(find.byKey(const ValueKey('lesson-a035_t02_l01')), findsOneWidget);
 
     final lessonJourneyScrollView = find
@@ -238,15 +407,6 @@ void main() {
           matching: find.byType(Scrollable),
         )
         .first;
-    final firstSong = find.byKey(const ValueKey('song-a035_t02_song01'));
-    await tester.scrollUntilVisible(
-      firstSong,
-      220,
-      scrollable: lessonJourneyScrollView,
-    );
-    expect(find.text('Bài hát & chant'), findsOneWidget);
-    expect(firstSong, findsOneWidget);
-
     final startLesson = find.byKey(const ValueKey('start-lesson-a035_t02_l01'));
     await tester.scrollUntilVisible(
       startLesson,
@@ -281,6 +441,38 @@ void main() {
     expect(find.byKey(const Key('continue-lesson-sentence')), findsOneWidget);
   });
 
+  testWidgets('keeps song and chant content for ages six and older', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(buildSubject(childAge: 6));
+    await tester.pumpAndSettle();
+
+    final topicWithSongs = find.byKey(const ValueKey('topic-6-7-4'));
+    await tester.ensureVisible(topicWithSongs);
+    await tester.pumpAndSettle();
+    await tester.tap(topicWithSongs);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
+    expect(find.text('♫ 1 bài hát/chant'), findsOneWidget);
+
+    final firstSong = find.byKey(const ValueKey('song-a067_t05_song01'));
+    await tester.scrollUntilVisible(
+      firstSong,
+      220,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('topic-lesson-list-screen')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(find.text('Bài hát & chant'), findsOneWidget);
+    expect(firstSong, findsOneWidget);
+  });
+
   testWidgets('bundled lesson content matches the approved Word catalog', (
     tester,
   ) async {
@@ -298,10 +490,146 @@ void main() {
         .expand((lesson) => lesson.sentences)
         .toList();
 
-    expect(lessons, hasLength(101));
-    expect(sentences, hasLength(634));
+    expect(lessons, hasLength(96));
+    expect(sentences, hasLength(608));
     expect(songs, hasLength(11));
-    expect(songLines, hasLength(79));
+    expect(songLines, hasLength(110));
+
+    final approvedSongLeadLessons =
+        <
+          String,
+          ({
+            String titleEn,
+            String titleVi,
+            List<String> english,
+            List<String> vietnamese,
+          })
+        >{
+          'a067_t05_l02': (
+            titleEn: 'Count and Move',
+            titleVi: 'Đếm và chuyển động',
+            english: <String>[
+              'One, two.',
+              'Three, four.',
+              'Five, six.',
+              'Seven, eight.',
+              'Nine, ten.',
+              'Clap your hands.',
+              'Turn around.',
+              'Touch the ground.',
+            ],
+            vietnamese: <String>[
+              'Một, hai.',
+              'Ba, bốn.',
+              'Năm, sáu.',
+              'Bảy, tám.',
+              'Chín, mười.',
+              'Vỗ tay nào.',
+              'Xoay một vòng.',
+              'Chạm xuống đất.',
+            ],
+          ),
+          'a067_t07_l02': (
+            titleEn: 'Things I Do',
+            titleVi: 'Những điều con làm',
+            english: <String>[
+              'Wake up.',
+              'Wash my face.',
+              'Eat breakfast.',
+              'Go to school.',
+              'Learn and play.',
+              'Time for bed.',
+            ],
+            vietnamese: <String>[
+              'Thức dậy.',
+              'Rửa mặt.',
+              'Ăn sáng.',
+              'Đi học.',
+              'Học và chơi.',
+              'Đến giờ đi ngủ.',
+            ],
+          ),
+          'a067_t08_l02': (
+            titleEn: 'Dress for Today',
+            titleVi: 'Đồ mặc hôm nay',
+            english: <String>[
+              'It’s sunny.',
+              'Put your hat on.',
+              'It’s rainy.',
+              'Put your coat on.',
+              'It’s cold.',
+              'Zip it up.',
+              'It’s hot.',
+              'Wear a T-shirt.',
+            ],
+            vietnamese: <String>[
+              'Trời nắng.',
+              'Đội mũ lên.',
+              'Trời mưa.',
+              'Mặc áo khoác vào.',
+              'Trời lạnh.',
+              'Kéo khóa lên.',
+              'Trời nóng.',
+              'Mặc áo thun.',
+            ],
+          ),
+          'a0810_t03_l02': (
+            titleEn: 'My School Day',
+            titleVi: 'Một ngày ở trường của mình',
+            english: <String>[
+              'I get dressed.',
+              'I pack my bag.',
+              'I’m on my way.',
+              'It’s a busy day.',
+              'I learn at school.',
+              'I play with friends.',
+            ],
+            vietnamese: <String>[
+              'Mình mặc quần áo.',
+              'Mình chuẩn bị cặp.',
+              'Mình lên đường rồi.',
+              'Hôm nay là một ngày bận rộn.',
+              'Mình học ở trường.',
+              'Mình chơi với bạn.',
+            ],
+          ),
+          'a0810_t04_l02': (
+            titleEn: 'Sports I Like',
+            titleVi: 'Môn thể thao mình thích',
+            english: <String>[
+              'Do you like soccer?',
+              'Yes, I do.',
+              'Do you like swimming?',
+              'I do too.',
+              'Let’s play together.',
+              'Run and jump with me.',
+            ],
+            vietnamese: <String>[
+              'Bạn có thích bóng đá không?',
+              'Có, mình thích.',
+              'Bạn có thích bơi không?',
+              'Mình cũng thích.',
+              'Mình cùng chơi nhé.',
+              'Chạy và nhảy cùng mình nhé.',
+            ],
+          ),
+        };
+
+    for (final entry in approvedSongLeadLessons.entries) {
+      final lesson = lessons.singleWhere((lesson) => lesson.id == entry.key);
+      expect(lesson.titleEn, entry.value.titleEn);
+      expect(lesson.titleVi, entry.value.titleVi);
+      expect(lesson.type, ListeningLessonType.standard);
+      expect(
+        lesson.sentences.map((sentence) => sentence.english).toList(),
+        entry.value.english,
+      );
+      expect(
+        lesson.sentences.map((sentence) => sentence.vietnamese).toList(),
+        entry.value.vietnamese,
+      );
+    }
+
     expect(
       allLearningItems.map((lesson) => lesson.id).toSet(),
       hasLength(allLearningItems.length),

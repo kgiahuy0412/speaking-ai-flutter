@@ -213,7 +213,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
                                 alignment: Alignment.topLeft,
                                 child: _KaraokeLyrics(
                                   currentLine: snapshot.currentLine,
-                                  nextLine: snapshot.nextLine,
+                                  translationLine: snapshot.translationLine,
                                   highlightedWordCount:
                                       snapshot.highlightedWordCount,
                                   compact: compact,
@@ -279,7 +279,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     if (lines.isEmpty) {
       return _KaraokeSnapshot(
         currentLine: context.tr('Lời bài hát sẽ được bổ sung sớm.', '歌词即将补充。'),
-        nextLine: '',
+        translationLine: '',
         highlightedWordCount: 0,
       );
     }
@@ -306,14 +306,28 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
         : currentLine.split(RegExp(r'\s+')).length;
     return _KaraokeSnapshot(
       currentLine: currentLine,
-      nextLine: activeIndex + 1 < lines.length
-          ? lines[activeIndex + 1].english.trim()
-          : '',
+      translationLine: _vietnameseForLine(lines[activeIndex]),
       highlightedWordCount: (lineProgress * wordCount).ceil().clamp(
         0,
         wordCount,
       ),
     );
+  }
+
+  String _vietnameseForLine(ListeningSentenceContent line) {
+    final embeddedTranslation = line.vietnamese.trim();
+    if (embeddedTranslation.isNotEmpty) {
+      return embeddedTranslation;
+    }
+
+    final english = line.english.trim();
+    for (final sentence in widget.lesson.sentences) {
+      if (sentence.number == line.number &&
+          sentence.english.trim() == english) {
+        return sentence.vietnamese.trim();
+      }
+    }
+    return '';
   }
 
   List<_KaraokeWindow> _buildLineWindows(
@@ -549,13 +563,13 @@ class _SongHeader extends StatelessWidget {
 class _KaraokeLyrics extends StatelessWidget {
   const _KaraokeLyrics({
     required this.currentLine,
-    required this.nextLine,
+    required this.translationLine,
     required this.highlightedWordCount,
     required this.compact,
   });
 
   final String currentLine;
-  final String nextLine;
+  final String translationLine;
   final int highlightedWordCount;
   final bool compact;
 
@@ -601,11 +615,11 @@ class _KaraokeLyrics extends StatelessWidget {
               key: const Key('song-karaoke-current-line'),
             ),
           ),
-          if (nextLine.isNotEmpty) ...<Widget>[
-            SizedBox(height: compact ? 12 : 20),
+          if (translationLine.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 30),
             Text(
-              nextLine,
-              key: const Key('song-karaoke-next-line'),
+              translationLine,
+              key: const Key('song-karaoke-translation-line'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: const Color(0xFF47628F),
                 fontSize: compact ? 20 : 25,
@@ -870,12 +884,12 @@ class _SongEndDialog extends StatelessWidget {
 class _KaraokeSnapshot {
   const _KaraokeSnapshot({
     required this.currentLine,
-    required this.nextLine,
+    required this.translationLine,
     required this.highlightedWordCount,
   });
 
   final String currentLine;
-  final String nextLine;
+  final String translationLine;
   final int highlightedWordCount;
 }
 

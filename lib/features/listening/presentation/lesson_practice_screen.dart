@@ -1656,6 +1656,10 @@ class _PostRecordingActions extends StatelessWidget {
           TextButton.icon(
             key: const Key('previous-lesson-sentence'),
             onPressed: busy ? null : onPrevious,
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              disabledBackgroundColor: Colors.white.withValues(alpha: 0.72),
+            ),
             icon: const Icon(Icons.arrow_back_rounded),
             label: Text(context.tr('Câu trước', '上一句')),
           ),
@@ -1727,6 +1731,8 @@ class _LessonNavigationActions extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(62),
               foregroundColor: AppColors.indigo,
+              backgroundColor: Colors.white,
+              disabledBackgroundColor: Colors.white.withValues(alpha: 0.72),
               side: const BorderSide(color: AppColors.lavenderBorder),
               textStyle: const TextStyle(
                 fontFamily: 'Roboto',
