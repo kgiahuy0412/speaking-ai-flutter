@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../listening/presentation/listening_route_names.dart';
@@ -227,7 +228,7 @@ class _TopicListeningShortcut extends StatelessWidget {
                           Transform.scale(
                             scale: 1.38,
                             child: Image.asset(
-                              'assets/images/mascot-robot.png',
+                              MascotAssets.listen,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.high,
                             ),
@@ -418,7 +419,7 @@ class _AppHeader extends StatelessWidget {
                 child: Transform.scale(
                   scale: 1.15,
                   child: Image.asset(
-                    'assets/images/mascot-robot.png',
+                    MascotAssets.avatar,
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
                   ),

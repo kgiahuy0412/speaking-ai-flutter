@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
@@ -171,7 +172,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
                             bottom: 150,
                           ),
                           child: Image.asset(
-                            'assets/images/mascot-robot.png',
+                            MascotAssets.sing,
                             width: 112,
                             height: 112,
                             fit: BoxFit.contain,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
@@ -152,7 +153,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 child: Transform.scale(
                                   scale: 1.42,
                                   child: Image.asset(
-                                    'assets/images/mascot-robot.png',
+                                    MascotAssets.wave,
                                     fit: BoxFit.contain,
                                     filterQuality: FilterQuality.high,
                                   ),

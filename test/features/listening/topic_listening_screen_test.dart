@@ -726,6 +726,12 @@ void main() {
           )
           .first,
     );
+    await Scrollable.ensureVisible(
+      tester.element(compactTopic),
+      alignment: 0.4,
+      duration: Duration.zero,
+    );
+    await tester.pump();
     await tester.tap(compactTopic);
     await tester.pumpAndSettle();
     final startLesson = find.byKey(const ValueKey('start-lesson-a035_t01_l01'));
@@ -755,6 +761,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('renders the learning journey responsively on web width', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(buildSubject());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-journey-path')), findsOneWidget);
+    expect(find.byKey(const ValueKey('topic-6-7-0')), findsOneWidget);
+    expect(find.text('Hành trình của con'), findsOneWidget);
+    expect(
+      find.byKey(const Key('listening-bottom-navigation')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

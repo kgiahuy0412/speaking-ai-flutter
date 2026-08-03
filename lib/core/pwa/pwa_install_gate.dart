@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/mascot_assets.dart';
 import 'pwa_runtime.dart';
 import 'pwa_update_gate.dart';
 
@@ -44,7 +45,7 @@ class PwaInstallGate extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Image.asset(
-                          'assets/images/mascot-robot.png',
+                          MascotAssets.wave,
                           width: 96,
                           height: 96,
                           fit: BoxFit.contain,
