@@ -99,7 +99,18 @@ void main() {
     await tester.pump();
 
     expect(find.text('Monday, Tuesday — off we go!'), findsOneWidget);
-    expect(find.text('Wednesday, Thursday — learn and grow!'), findsOneWidget);
+    expect(find.text('Thứ Hai, thứ Ba — mình cùng đi!'), findsOneWidget);
+    expect(find.text('Wednesday, Thursday — learn and grow!'), findsNothing);
+    final currentLineFinder = find.byKey(
+      const Key('song-karaoke-current-line'),
+    );
+    final translationLineFinder = find.byKey(
+      const Key('song-karaoke-translation-line'),
+    );
+    final translationGap =
+        tester.getTopLeft(translationLineFinder).dy -
+        tester.getBottomLeft(currentLineFinder).dy;
+    expect(translationGap, 30);
 
     mediaService.emitPosition(const Duration(seconds: 7));
     await tester.pump();
@@ -109,6 +120,7 @@ void main() {
       find.byKey(const Key('song-karaoke-current-line')),
     );
     expect(currentLine.textSpan?.toPlainText(), 'Monday, Tuesday — off we go!');
+    expect(find.text('Thứ Hai, thứ Ba — mình cùng đi!'), findsOneWidget);
 
     mediaService.emitPosition(const Duration(seconds: 9));
     await tester.pump();
@@ -121,6 +133,7 @@ void main() {
       currentLine.textSpan?.toPlainText(),
       'Wednesday, Thursday — learn and grow!',
     );
+    expect(find.text('Thứ Tư, thứ Năm — học và lớn lên!'), findsOneWidget);
   });
 
   testWidgets('end dialog offers practice or confirmed exit', (tester) async {
@@ -311,8 +324,13 @@ ListeningLessonContent _song() => ListeningLessonContent(
   sentences: const <ListeningSentenceContent>[
     ListeningSentenceContent(
       number: 1,
-      english: 'Practice line.',
-      vietnamese: 'Câu luyện tập.',
+      english: 'Monday, Tuesday — off we go!',
+      vietnamese: 'Thứ Hai, thứ Ba — mình cùng đi!',
+    ),
+    ListeningSentenceContent(
+      number: 2,
+      english: 'Wednesday, Thursday — learn and grow!',
+      vietnamese: 'Thứ Tư, thứ Năm — học và lớn lên!',
     ),
   ],
   karaokeLines: const <ListeningSentenceContent>[

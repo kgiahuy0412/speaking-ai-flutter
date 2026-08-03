@@ -3028,107 +3028,22 @@
         {
           "id": "age-6-7-topic-5",
           "number": 5,
-          "titleVi": "Số, ngày và giờ",
+          "titleVi": "Số đếm",
           "titleEn": "Numbers, Days and Time",
           "lessons": [
             {
-              "id": "a067_t05_l01",
-              "code": "A067_T05_L01",
-              "number": 1,
-              "titleVi": "Số từ 1 đến 20",
-              "titleEn": "Numbers 1 to 20",
-              "lessonType": "standard",
-              "intro": "Chào con! Hôm nay mình sẽ học bài “Numbers 1 to 20”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
-              "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
-              "estimatedMinutes": 3,
-              "reviewPauseMs": 900,
-              "autoAdvanceMs": 2500,
-              "introAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785318742/speaking-ai/listening/intro-open-elevenlabs/2026-07-29/A067_T05_L01_OPEN.mp3",
-              "outroAudioUrl": null,
-              "fullAudioId": null,
-              "fullAudioUrl": null,
-              "sentences": [
-                {
-                  "id": "A067_T05_L01_S01",
-                  "number": 1,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Count to ten.",
-                  "vietnamese": "Đếm đến mười.",
-                  "englishAudioId": "A067_T05_L01_S01_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T05_L01_S02",
-                  "number": 2,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Count to twenty.",
-                  "vietnamese": "Đếm đến hai mươi.",
-                  "englishAudioId": "A067_T05_L01_S02_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T05_L01_S03",
-                  "number": 3,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I have twelve stickers.",
-                  "vietnamese": "Con có mười hai nhãn dán.",
-                  "englishAudioId": "A067_T05_L01_S03_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T05_L01_S04",
-                  "number": 4,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "There are fifteen books.",
-                  "vietnamese": "Có mười lăm quyển sách.",
-                  "englishAudioId": "A067_T05_L01_S04_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T05_L01_S05",
-                  "number": 5,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "What number is this?",
-                  "vietnamese": "Đây là số mấy?",
-                  "englishAudioId": "A067_T05_L01_S05_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T05_L01_S06",
-                  "number": 6,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "It’s number eighteen.",
-                  "vietnamese": "Đó là số mười tám.",
-                  "englishAudioId": "A067_T05_L01_S06_EN",
-                  "vietnameseAudioId": "A067_T05_L01_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                }
-              ]
-            },
-            {
               "id": "a067_t05_l02",
               "code": "A067_T05_L02",
-              "number": 2,
-              "titleVi": "Ngày và giờ",
-              "titleEn": "Days and Time",
+              "number": 1,
+              "titleVi": "Đếm và chuyển động",
+              "titleEn": "Count and Move",
               "lessonType": "standard",
-              "intro": "Chào con! Cuối bài “Days and Time” hôm nay có một bài hát vui giúp con nhớ các câu dễ hơn. Cô sẽ đọc trước, con nghe rồi ghi âm theo cô nhé! Cuối bài mình sẽ nghe toàn bộ bài hát. Let’s learn and sing!",
+              "intro": "Chào con! Hôm nay mình sẽ học bài “Count and Move”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
               "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 900,
               "autoAdvanceMs": 2500,
-              "introAudioUrl": null,
+              "introAudioUrl": "asset:///assets/audio/A-6-7/LESSON_INTRO/A067_T05_L02_OPEN.mp3",
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
@@ -3137,67 +3052,89 @@
                   "id": "A067_T05_L02_S01",
                   "number": 1,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "Today is Monday.",
-                  "vietnamese": "Hôm nay là thứ Hai.",
+                  "english": "One, two.",
+                  "vietnamese": "Một, hai.",
                   "englishAudioId": "A067_T05_L02_S01_EN",
                   "vietnameseAudioId": "A067_T05_L02_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491715/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S001_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491715/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S001_VI.mp3"
                 },
                 {
                   "id": "A067_T05_L02_S02",
                   "number": 2,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "Tomorrow is Tuesday.",
-                  "vietnamese": "Ngày mai là thứ Ba.",
+                  "english": "Three, four.",
+                  "vietnamese": "Ba, bốn.",
                   "englishAudioId": "A067_T05_L02_S02_EN",
                   "vietnameseAudioId": "A067_T05_L02_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491716/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S002_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491716/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S002_VI.mp3"
                 },
                 {
                   "id": "A067_T05_L02_S03",
                   "number": 3,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "English is on Wednesday.",
-                  "vietnamese": "Tiếng Anh học vào thứ Tư.",
+                  "english": "Five, six.",
+                  "vietnamese": "Năm, sáu.",
                   "englishAudioId": "A067_T05_L02_S03_EN",
                   "vietnameseAudioId": "A067_T05_L02_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491716/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S003_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491716/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S003_VI.mp3"
                 },
                 {
                   "id": "A067_T05_L02_S04",
                   "number": 4,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "Friday is sports day.",
-                  "vietnamese": "Thứ Sáu là ngày thể thao.",
+                  "english": "Seven, eight.",
+                  "vietnamese": "Bảy, tám.",
                   "englishAudioId": "A067_T05_L02_S04_EN",
                   "vietnameseAudioId": "A067_T05_L02_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491717/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S004_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491717/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S004_VI.mp3"
                 },
                 {
                   "id": "A067_T05_L02_S05",
                   "number": 5,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s eight o’clock.",
-                  "vietnamese": "Bây giờ là tám giờ.",
+                  "english": "Nine, ten.",
+                  "vietnamese": "Chín, mười.",
                   "englishAudioId": "A067_T05_L02_S05_EN",
                   "vietnameseAudioId": "A067_T05_L02_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491717/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S005_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491717/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S005_VI.mp3"
                 },
                 {
                   "id": "A067_T05_L02_S06",
                   "number": 6,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s time for school.",
-                  "vietnamese": "Đến giờ đi học rồi.",
+                  "english": "Clap your hands.",
+                  "vietnamese": "Vỗ tay nào.",
                   "englishAudioId": "A067_T05_L02_S06_EN",
                   "vietnameseAudioId": "A067_T05_L02_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491718/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S006_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491718/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S006_VI.mp3"
+                },
+                {
+                  "id": "A067_T05_L02_S07",
+                  "number": 7,
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Turn around.",
+                  "vietnamese": "Xoay một vòng.",
+                  "englishAudioId": "A067_T05_L02_S07_EN",
+                  "vietnameseAudioId": "A067_T05_L02_S07_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491718/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S007_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491718/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S007_VI.mp3"
+                },
+                {
+                  "id": "A067_T05_L02_S08",
+                  "number": 8,
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Touch the ground.",
+                  "vietnamese": "Chạm xuống đất.",
+                  "englishAudioId": "A067_T05_L02_S08_EN",
+                  "vietnameseAudioId": "A067_T05_L02_S08_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491719/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S008_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491719/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T01_S008_VI.mp3"
                 }
               ]
             }
@@ -3207,10 +3144,10 @@
               "id": "a067_t05_song01",
               "code": "A067_T05_SONG01",
               "number": 1,
-              "titleVi": "Ngày vui và giờ học",
-              "titleEn": "Count the Days",
+              "titleVi": "Count with Me",
+              "titleEn": "Count with Me",
               "lessonType": "song",
-              "intro": "Chào con! Bây giờ mình cùng nghe bài hát “Count the Days”. Con hãy lắng nghe và hát theo nhé!",
+              "intro": "Chào con! Bây giờ mình cùng nghe bài hát “Count with Me”. Con hãy lắng nghe và hát theo nhé!",
               "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 900,
@@ -3224,73 +3161,73 @@
                   "number": 1,
                   "english": "One, two — clap, clap!",
                   "karaokeStartMs": 0,
-                  "karaokeEndMs": 2260
+                  "karaokeEndMs": 2080
                 },
                 {
                   "number": 2,
                   "english": "Three, four — tap, tap!",
-                  "karaokeStartMs": 2640,
-                  "karaokeEndMs": 4480
+                  "karaokeStartMs": 2560,
+                  "karaokeEndMs": 4400
                 },
                 {
                   "number": 3,
                   "english": "Five, six — turn around!",
-                  "karaokeStartMs": 4820,
-                  "karaokeEndMs": 6900
+                  "karaokeStartMs": 4900,
+                  "karaokeEndMs": 6680
                 },
                 {
                   "number": 4,
                   "english": "Seven, eight — touch the ground!",
-                  "karaokeStartMs": 7200,
-                  "karaokeEndMs": 9380
+                  "karaokeStartMs": 7300,
+                  "karaokeEndMs": 9180
                 },
                 {
                   "number": 5,
                   "english": "Count with me!",
-                  "karaokeStartMs": 9980,
-                  "karaokeEndMs": 10560
+                  "karaokeStartMs": 9700,
+                  "karaokeEndMs": 10440
                 },
                 {
                   "number": 6,
                   "english": "One, two, three!",
-                  "karaokeStartMs": 10980,
-                  "karaokeEndMs": 11680
+                  "karaokeStartMs": 10940,
+                  "karaokeEndMs": 11580
                 },
                 {
                   "number": 7,
                   "english": "Count with me!",
-                  "karaokeStartMs": 12180,
-                  "karaokeEndMs": 13040
+                  "karaokeStartMs": 12040,
+                  "karaokeEndMs": 12880
                 },
                 {
                   "number": 8,
                   "english": "Happy as can be!",
-                  "karaokeStartMs": 13460,
-                  "karaokeEndMs": 14480
+                  "karaokeStartMs": 13260,
+                  "karaokeEndMs": 14400
                 },
                 {
                   "number": 9,
                   "english": "Count with me!",
-                  "karaokeStartMs": 14700,
-                  "karaokeEndMs": 15400
+                  "karaokeStartMs": 14580,
+                  "karaokeEndMs": 15300
                 },
                 {
                   "number": 10,
                   "english": "One, two, three!",
-                  "karaokeStartMs": 15720,
-                  "karaokeEndMs": 16500
+                  "karaokeStartMs": 15520,
+                  "karaokeEndMs": 16420
                 },
                 {
                   "number": 11,
                   "english": "Count with me!",
-                  "karaokeStartMs": 17100,
-                  "karaokeEndMs": 17900
+                  "karaokeStartMs": 16620,
+                  "karaokeEndMs": 17720
                 },
                 {
                   "number": 12,
                   "english": "Happy as can be!",
-                  "karaokeStartMs": 18180,
-                  "karaokeEndMs": 19380
+                  "karaokeStartMs": 18040,
+                  "karaokeEndMs": 19220
                 }
               ],
               "sentences": [
@@ -3379,6 +3316,50 @@
                   "vietnamese": "Vui ơi là vui!",
                   "englishAudioId": "A067_T05_SONG01_S08_EN",
                   "vietnameseAudioId": "A067_T05_SONG01_S08_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T05_SONG01_S09",
+                  "number": 9,
+                  "voice": "",
+                  "english": "Count with me!",
+                  "vietnamese": "Cùng đếm nha!",
+                  "englishAudioId": "A067_T05_SONG01_S09_EN",
+                  "vietnameseAudioId": "A067_T05_SONG01_S09_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T05_SONG01_S10",
+                  "number": 10,
+                  "voice": "",
+                  "english": "One, two, three!",
+                  "vietnamese": "Một, hai, ba!",
+                  "englishAudioId": "A067_T05_SONG01_S10_EN",
+                  "vietnameseAudioId": "A067_T05_SONG01_S10_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T05_SONG01_S11",
+                  "number": 11,
+                  "voice": "",
+                  "english": "Count with me!",
+                  "vietnamese": "Cùng đếm nha!",
+                  "englishAudioId": "A067_T05_SONG01_S11_EN",
+                  "vietnameseAudioId": "A067_T05_SONG01_S11_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T05_SONG01_S12",
+                  "number": 12,
+                  "voice": "",
+                  "english": "Happy as can be!",
+                  "vietnamese": "Vui ơi là vui!",
+                  "englishAudioId": "A067_T05_SONG01_S12_EN",
+                  "vietnameseAudioId": "A067_T05_SONG01_S12_VI",
                   "audioUrl": null,
                   "vietnameseAudioUrl": null
                 }
@@ -3568,107 +3549,22 @@
         {
           "id": "age-6-7-topic-7",
           "number": 7,
-          "titleVi": "Các hoạt động hằng ngày",
+          "titleVi": "Một ngày của con",
           "titleEn": "My Daily Routine",
           "lessons": [
             {
-              "id": "a067_t07_l01",
-              "code": "A067_T07_L01",
-              "number": 1,
-              "titleVi": "Buổi sáng",
-              "titleEn": "My Morning",
-              "lessonType": "standard",
-              "intro": "Chào con! Hôm nay mình sẽ học bài “My Morning”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
-              "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
-              "estimatedMinutes": 3,
-              "reviewPauseMs": 900,
-              "autoAdvanceMs": 2500,
-              "introAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785318743/speaking-ai/listening/intro-open-elevenlabs/2026-07-29/A067_T07_L01_OPEN.mp3",
-              "outroAudioUrl": null,
-              "fullAudioId": null,
-              "fullAudioUrl": null,
-              "sentences": [
-                {
-                  "id": "A067_T07_L01_S01",
-                  "number": 1,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I wake up early.",
-                  "vietnamese": "Con dậy sớm.",
-                  "englishAudioId": "A067_T07_L01_S01_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T07_L01_S02",
-                  "number": 2,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I make my bed.",
-                  "vietnamese": "Con dọn giường.",
-                  "englishAudioId": "A067_T07_L01_S02_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T07_L01_S03",
-                  "number": 3,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I brush my teeth.",
-                  "vietnamese": "Con đánh răng.",
-                  "englishAudioId": "A067_T07_L01_S03_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T07_L01_S04",
-                  "number": 4,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I wash my face.",
-                  "vietnamese": "Con rửa mặt.",
-                  "englishAudioId": "A067_T07_L01_S04_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T07_L01_S05",
-                  "number": 5,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I get dressed.",
-                  "vietnamese": "Con mặc quần áo.",
-                  "englishAudioId": "A067_T07_L01_S05_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A067_T07_L01_S06",
-                  "number": 6,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I eat breakfast.",
-                  "vietnamese": "Con ăn sáng.",
-                  "englishAudioId": "A067_T07_L01_S06_EN",
-                  "vietnameseAudioId": "A067_T07_L01_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                }
-              ]
-            },
-            {
               "id": "a067_t07_l02",
               "code": "A067_T07_L02",
-              "number": 2,
-              "titleVi": "Buổi tối",
-              "titleEn": "My Evening",
+              "number": 1,
+              "titleVi": "Những điều con làm",
+              "titleEn": "Things I Do",
               "lessonType": "standard",
-              "intro": "Chào con! Cuối bài “My Evening” hôm nay có một bài hát vui giúp con nhớ các câu dễ hơn. Cô sẽ đọc trước, con nghe rồi ghi âm theo cô nhé! Cuối bài mình sẽ nghe toàn bộ bài hát. Let’s learn and sing!",
+              "intro": "Chào con! Hôm nay mình sẽ học bài “Things I Do”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
               "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 900,
               "autoAdvanceMs": 2500,
-              "introAudioUrl": null,
+              "introAudioUrl": "asset:///assets/audio/A-6-7/LESSON_INTRO/A067_T07_L02_OPEN.mp3",
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
@@ -3677,67 +3573,67 @@
                   "id": "A067_T07_L02_S01",
                   "number": 1,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I come home.",
-                  "vietnamese": "Con về nhà.",
+                  "english": "Wake up.",
+                  "vietnamese": "Thức dậy.",
                   "englishAudioId": "A067_T07_L02_S01_EN",
                   "vietnameseAudioId": "A067_T07_L02_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491719/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S001_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491719/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S001_VI.mp3"
                 },
                 {
                   "id": "A067_T07_L02_S02",
                   "number": 2,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I do homework.",
-                  "vietnamese": "Con làm bài tập.",
+                  "english": "Wash my face.",
+                  "vietnamese": "Rửa mặt.",
                   "englishAudioId": "A067_T07_L02_S02_EN",
                   "vietnameseAudioId": "A067_T07_L02_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491719/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S002_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491720/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S002_VI.mp3"
                 },
                 {
                   "id": "A067_T07_L02_S03",
                   "number": 3,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I eat dinner.",
-                  "vietnamese": "Con ăn tối.",
+                  "english": "Eat breakfast.",
+                  "vietnamese": "Ăn sáng.",
                   "englishAudioId": "A067_T07_L02_S03_EN",
                   "vietnameseAudioId": "A067_T07_L02_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491720/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S003_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491720/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S003_VI.mp3"
                 },
                 {
                   "id": "A067_T07_L02_S04",
                   "number": 4,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I take a shower.",
-                  "vietnamese": "Con đi tắm.",
+                  "english": "Go to school.",
+                  "vietnamese": "Đi học.",
                   "englishAudioId": "A067_T07_L02_S04_EN",
                   "vietnameseAudioId": "A067_T07_L02_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491720/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S004_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491720/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S004_VI.mp3"
                 },
                 {
                   "id": "A067_T07_L02_S05",
                   "number": 5,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I read a book.",
-                  "vietnamese": "Con đọc sách.",
+                  "english": "Learn and play.",
+                  "vietnamese": "Học và chơi.",
                   "englishAudioId": "A067_T07_L02_S05_EN",
                   "vietnameseAudioId": "A067_T07_L02_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491721/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S005_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491721/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S005_VI.mp3"
                 },
                 {
                   "id": "A067_T07_L02_S06",
                   "number": 6,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I go to bed.",
-                  "vietnamese": "Con đi ngủ.",
+                  "english": "Time for bed.",
+                  "vietnamese": "Đến giờ đi ngủ.",
                   "englishAudioId": "A067_T07_L02_S06_EN",
                   "vietnameseAudioId": "A067_T07_L02_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491721/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S006_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491721/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T02_S006_VI.mp3"
                 }
               ]
             }
@@ -3747,10 +3643,10 @@
               "id": "a067_t07_song01",
               "code": "A067_T07_SONG01",
               "number": 1,
-              "titleVi": "Một ngày của con",
-              "titleEn": "My Day",
+              "titleVi": "My Happy Day",
+              "titleEn": "My Happy Day",
               "lessonType": "song",
-              "intro": "Chào con! Bây giờ mình cùng nghe bài hát “My Day”. Con hãy lắng nghe và hát theo nhé!",
+              "intro": "Chào con! Bây giờ mình cùng nghe bài hát “My Happy Day”. Con hãy lắng nghe và hát theo nhé!",
               "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 900,
@@ -3763,338 +3659,98 @@
                 {
                   "number": 1,
                   "english": "Wake up, wake up!",
-                  "karaokeStartMs": 3240,
-                  "karaokeEndMs": 5160
+                  "karaokeStartMs": 1880,
+                  "karaokeEndMs": 6740
                 },
                 {
                   "number": 2,
                   "english": "Start the day!",
-                  "karaokeStartMs": 5420,
-                  "karaokeEndMs": 6760
+                  "karaokeStartMs": 7320,
+                  "karaokeEndMs": 9420
                 },
                 {
                   "number": 3,
-                  "english": "Wash my face,",
-                  "karaokeStartMs": 7220,
-                  "karaokeEndMs": 8640
+                  "english": "Wash my face",
+                  "karaokeStartMs": 10100,
+                  "karaokeEndMs": 12080
                 },
                 {
                   "number": 4,
                   "english": "On my way!",
-                  "karaokeStartMs": 9240,
-                  "karaokeEndMs": 10220
+                  "karaokeStartMs": 12080,
+                  "karaokeEndMs": 14540
                 },
                 {
                   "number": 5,
-                  "english": "My shoes go on,",
-                  "karaokeStartMs": 10720,
-                  "karaokeEndMs": 12100
+                  "english": "My day, my day",
+                  "karaokeStartMs": 15180,
+                  "karaokeEndMs": 17180
                 },
                 {
                   "number": 6,
-                  "english": "My bag is packed.",
-                  "karaokeStartMs": 12220,
-                  "karaokeEndMs": 13620
+                  "english": "Learn and play",
+                  "karaokeStartMs": 17180,
+                  "karaokeEndMs": 19700
                 },
                 {
                   "number": 7,
-                  "english": "I check the clock,",
-                  "karaokeStartMs": 14220,
-                  "karaokeEndMs": 15380
+                  "english": "My day, my day",
+                  "karaokeStartMs": 19700,
+                  "karaokeEndMs": 22460
                 },
                 {
                   "number": 8,
-                  "english": "Then I’m back on track.",
-                  "karaokeStartMs": 15500,
-                  "karaokeEndMs": 17140
+                  "english": "Hip, hip, hooray!",
+                  "karaokeStartMs": 22460,
+                  "karaokeEndMs": 25060
                 },
                 {
                   "number": 9,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 17660,
-                  "karaokeEndMs": 19180
+                  "english": "Wake up, wake up!",
+                  "karaokeStartMs": 25400,
+                  "karaokeEndMs": 27600
                 },
                 {
                   "number": 10,
-                  "english": "I’m ready now.",
-                  "karaokeStartMs": 19340,
-                  "karaokeEndMs": 20860
+                  "english": "Start the day!",
+                  "karaokeStartMs": 28000,
+                  "karaokeEndMs": 29980
                 },
                 {
                   "number": 11,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 21280,
-                  "karaokeEndMs": 22740
+                  "english": "Wash my face",
+                  "karaokeStartMs": 30860,
+                  "karaokeEndMs": 32940
                 },
                 {
                   "number": 12,
-                  "english": "Show me how.",
-                  "karaokeStartMs": 23100,
-                  "karaokeEndMs": 24320
+                  "english": "On my way!",
+                  "karaokeStartMs": 32940,
+                  "karaokeEndMs": 35460
                 },
                 {
                   "number": 13,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 24880,
-                  "karaokeEndMs": 26300
+                  "english": "My day, my day",
+                  "karaokeStartMs": 35750,
+                  "karaokeEndMs": 38100
                 },
                 {
                   "number": 14,
-                  "english": "Learn and play.",
-                  "karaokeStartMs": 26560,
-                  "karaokeEndMs": 27860
+                  "english": "Learn and play",
+                  "karaokeStartMs": 38790,
+                  "karaokeEndMs": 40580
                 },
                 {
                   "number": 15,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 28260,
-                  "karaokeEndMs": 29720
+                  "english": "My day, my day",
+                  "karaokeStartMs": 40580,
+                  "karaokeEndMs": 43580
                 },
                 {
                   "number": 16,
                   "english": "Hip, hip, hooray!",
-                  "karaokeStartMs": 29980,
-                  "karaokeEndMs": 31500
-                },
-                {
-                  "number": 17,
-                  "english": "Wake up, wake up!",
-                  "karaokeStartMs": 31780,
-                  "karaokeEndMs": 33360
-                },
-                {
-                  "number": 18,
-                  "english": "Let’s begin!",
-                  "karaokeStartMs": 33820,
-                  "karaokeEndMs": 34920
-                },
-                {
-                  "number": 19,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 34920,
-                  "karaokeEndMs": 36900
-                },
-                {
-                  "number": 20,
-                  "english": "I’m all in!",
-                  "karaokeStartMs": 36900,
-                  "karaokeEndMs": 38540
-                },
-                {
-                  "number": 21,
-                  "english": "Brush my teeth,",
-                  "karaokeStartMs": 38540,
-                  "karaokeEndMs": 40380
-                },
-                {
-                  "number": 22,
-                  "english": "Tie both shoes.",
-                  "karaokeStartMs": 40860,
-                  "karaokeEndMs": 42220
-                },
-                {
-                  "number": 23,
-                  "english": "Pick my book,",
-                  "karaokeStartMs": 42220,
-                  "karaokeEndMs": 43700
-                },
-                {
-                  "number": 24,
-                  "english": "And choose what to do.",
-                  "karaokeStartMs": 43700,
-                  "karaokeEndMs": 45560
-                },
-                {
-                  "number": 25,
-                  "english": "I see the sun,",
-                  "karaokeStartMs": 45560,
-                  "karaokeEndMs": 47200
-                },
-                {
-                  "number": 26,
-                  "english": "I hear the swan—",
-                  "karaokeStartMs": 47380,
-                  "karaokeEndMs": 48620
-                },
-                {
-                  "number": 27,
-                  "english": "Oops, I mean birds,",
-                  "karaokeStartMs": 49160,
-                  "karaokeEndMs": 50900
-                },
-                {
-                  "number": 28,
-                  "english": "And I sing along.",
-                  "karaokeStartMs": 50900,
-                  "karaokeEndMs": 52370
-                },
-                {
-                  "number": 29,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 52580,
-                  "karaokeEndMs": 54460
-                },
-                {
-                  "number": 30,
-                  "english": "I’m ready now.",
-                  "karaokeStartMs": 54460,
-                  "karaokeEndMs": 56180
-                },
-                {
-                  "number": 31,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 56180,
-                  "karaokeEndMs": 58080
-                },
-                {
-                  "number": 32,
-                  "english": "Show me how.",
-                  "karaokeStartMs": 58080,
-                  "karaokeEndMs": 59720
-                },
-                {
-                  "number": 33,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 59720,
-                  "karaokeEndMs": 61560
-                },
-                {
-                  "number": 34,
-                  "english": "Learn and play.",
-                  "karaokeStartMs": 61560,
-                  "karaokeEndMs": 63200
-                },
-                {
-                  "number": 35,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 63200,
-                  "karaokeEndMs": 65060
-                },
-                {
-                  "number": 36,
-                  "english": "Hip, hip, hooray!",
-                  "karaokeStartMs": 65060,
-                  "karaokeEndMs": 66800
-                },
-                {
-                  "number": 37,
-                  "english": "Wake up, wake up!",
-                  "karaokeStartMs": 67240,
-                  "karaokeEndMs": 68600
-                },
-                {
-                  "number": 38,
-                  "english": "Let’s begin!",
-                  "karaokeStartMs": 68600,
-                  "karaokeEndMs": 70140
-                },
-                {
-                  "number": 39,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 70140,
-                  "karaokeEndMs": 72180
-                },
-                {
-                  "number": 40,
-                  "english": "I’m all in!",
-                  "karaokeStartMs": 72180,
-                  "karaokeEndMs": 73860
-                },
-                {
-                  "number": 41,
-                  "english": "Big deep breath,",
-                  "karaokeStartMs": 73860,
-                  "karaokeEndMs": 75580
-                },
-                {
-                  "number": 42,
-                  "english": "One two three.",
-                  "karaokeStartMs": 75580,
-                  "karaokeEndMs": 77360
-                },
-                {
-                  "number": 43,
-                  "english": "Hands up high,",
-                  "karaokeStartMs": 77360,
-                  "karaokeEndMs": 79240
-                },
-                {
-                  "number": 44,
-                  "english": "That’s the key.",
-                  "karaokeStartMs": 79240,
-                  "karaokeEndMs": 80880
-                },
-                {
-                  "number": 45,
-                  "english": "Spin around,",
-                  "karaokeStartMs": 80880,
-                  "karaokeEndMs": 82800
-                },
-                {
-                  "number": 46,
-                  "english": "Clap with me.",
-                  "karaokeStartMs": 82800,
-                  "karaokeEndMs": 84260
-                },
-                {
-                  "number": 47,
-                  "english": "My day is bright,",
-                  "karaokeStartMs": 84260,
-                  "karaokeEndMs": 86000
-                },
-                {
-                  "number": 48,
-                  "english": "As bright can be.",
-                  "karaokeStartMs": 86000,
-                  "karaokeEndMs": 88020
-                },
-                {
-                  "number": 49,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 88020,
-                  "karaokeEndMs": 89820
-                },
-                {
-                  "number": 50,
-                  "english": "Learn and play.",
-                  "karaokeStartMs": 89820,
-                  "karaokeEndMs": 91380
-                },
-                {
-                  "number": 51,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 91380,
-                  "karaokeEndMs": 93280
-                },
-                {
-                  "number": 52,
-                  "english": "Hip, hip, hooray!",
-                  "karaokeStartMs": 93280,
-                  "karaokeEndMs": 95000
-                },
-                {
-                  "number": 53,
-                  "english": "Wake up, wake up!",
-                  "karaokeStartMs": 95400,
-                  "karaokeEndMs": 96820
-                },
-                {
-                  "number": 54,
-                  "english": "Let’s begin!",
-                  "karaokeStartMs": 96820,
-                  "karaokeEndMs": 98340
-                },
-                {
-                  "number": 55,
-                  "english": "My day, my day,",
-                  "karaokeStartMs": 98340,
-                  "karaokeEndMs": 100460
-                },
-                {
-                  "number": 56,
-                  "english": "I’m all in!",
-                  "karaokeStartMs": 100770,
-                  "karaokeEndMs": 102120
+                  "karaokeStartMs": 43580,
+                  "karaokeEndMs": 45900
                 }
               ],
               "sentences": [
@@ -4124,8 +3780,8 @@
                   "id": "A067_T07_SONG01_S03",
                   "number": 3,
                   "voice": "",
-                  "english": "Wash my face,",
-                  "vietnamese": "Rửa mặt nào,",
+                  "english": "Wash my face",
+                  "vietnamese": "Rửa mặt nào",
                   "englishAudioId": "A067_T07_SONG01_S03_EN",
                   "vietnameseAudioId": "A067_T07_SONG01_S03_VI",
                   "audioUrl": null,
@@ -4146,8 +3802,8 @@
                   "id": "A067_T07_SONG01_S05",
                   "number": 5,
                   "voice": "",
-                  "english": "My day, my day,",
-                  "vietnamese": "Ngày của con,",
+                  "english": "My day, my day",
+                  "vietnamese": "Ngày của con",
                   "englishAudioId": "A067_T07_SONG01_S05_EN",
                   "vietnameseAudioId": "A067_T07_SONG01_S05_VI",
                   "audioUrl": null,
@@ -4157,8 +3813,8 @@
                   "id": "A067_T07_SONG01_S06",
                   "number": 6,
                   "voice": "",
-                  "english": "Learn and play.",
-                  "vietnamese": "Học và chơi.",
+                  "english": "Learn and play",
+                  "vietnamese": "Học và chơi",
                   "englishAudioId": "A067_T07_SONG01_S06_EN",
                   "vietnameseAudioId": "A067_T07_SONG01_S06_VI",
                   "audioUrl": null,
@@ -4168,8 +3824,8 @@
                   "id": "A067_T07_SONG01_S07",
                   "number": 7,
                   "voice": "",
-                  "english": "My day, my day,",
-                  "vietnamese": "Ngày của con,",
+                  "english": "My day, my day",
+                  "vietnamese": "Ngày của con",
                   "englishAudioId": "A067_T07_SONG01_S07_EN",
                   "vietnameseAudioId": "A067_T07_SONG01_S07_VI",
                   "audioUrl": null,
@@ -4185,6 +3841,94 @@
                   "vietnameseAudioId": "A067_T07_SONG01_S08_VI",
                   "audioUrl": null,
                   "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S09",
+                  "number": 9,
+                  "voice": "",
+                  "english": "Wake up, wake up!",
+                  "vietnamese": "Dậy thôi, dậy thôi!",
+                  "englishAudioId": "A067_T07_SONG01_S09_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S09_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S10",
+                  "number": 10,
+                  "voice": "",
+                  "english": "Start the day!",
+                  "vietnamese": "Đón ngày mới!",
+                  "englishAudioId": "A067_T07_SONG01_S10_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S10_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S11",
+                  "number": 11,
+                  "voice": "",
+                  "english": "Wash my face",
+                  "vietnamese": "Rửa mặt nào",
+                  "englishAudioId": "A067_T07_SONG01_S11_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S11_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S12",
+                  "number": 12,
+                  "voice": "",
+                  "english": "On my way!",
+                  "vietnamese": "Mình đi thôi!",
+                  "englishAudioId": "A067_T07_SONG01_S12_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S12_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S13",
+                  "number": 13,
+                  "voice": "",
+                  "english": "My day, my day",
+                  "vietnamese": "Ngày của con",
+                  "englishAudioId": "A067_T07_SONG01_S13_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S13_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S14",
+                  "number": 14,
+                  "voice": "",
+                  "english": "Learn and play",
+                  "vietnamese": "Học và chơi",
+                  "englishAudioId": "A067_T07_SONG01_S14_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S14_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S15",
+                  "number": 15,
+                  "voice": "",
+                  "english": "My day, my day",
+                  "vietnamese": "Ngày của con",
+                  "englishAudioId": "A067_T07_SONG01_S15_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S15_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A067_T07_SONG01_S16",
+                  "number": 16,
+                  "voice": "",
+                  "english": "Hip, hip, hooray!",
+                  "vietnamese": "Vui ơi là vui!",
+                  "englishAudioId": "A067_T07_SONG01_S16_EN",
+                  "vietnameseAudioId": "A067_T07_SONG01_S16_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
                 }
               ]
             }
@@ -4193,176 +3937,113 @@
         {
           "id": "age-6-7-topic-8",
           "number": 8,
-          "titleVi": "Thời tiết và quần áo",
+          "titleVi": "Thời tiết",
           "titleEn": "Weather and Clothes",
           "lessons": [
             {
-              "id": "a067_t08_l01",
-              "code": "A067_T08_L01",
+              "id": "a067_t08_l02",
+              "code": "A067_T08_L02",
               "number": 1,
-              "titleVi": "Thời tiết hôm nay",
-              "titleEn": "Today’s Weather",
+              "titleVi": "Đồ mặc hôm nay",
+              "titleEn": "Dress for Today",
               "lessonType": "standard",
-              "intro": "Chào con! Hôm nay mình sẽ học bài “Today’s Weather”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
+              "intro": "Chào con! Hôm nay mình sẽ học bài “Dress for Today”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
               "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 900,
               "autoAdvanceMs": 2500,
-              "introAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785318743/speaking-ai/listening/intro-open-elevenlabs/2026-07-29/A067_T08_L01_OPEN.mp3",
+              "introAudioUrl": "asset:///assets/audio/A-6-7/LESSON_INTRO/A067_T08_L02_OPEN.mp3",
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
               "sentences": [
                 {
-                  "id": "A067_T08_L01_S01",
+                  "id": "A067_T08_L02_S01",
                   "number": 1,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s sunny today.",
-                  "vietnamese": "Hôm nay trời nắng.",
-                  "englishAudioId": "A067_T08_L01_S01_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "english": "It’s sunny.",
+                  "vietnamese": "Trời nắng.",
+                  "englishAudioId": "A067_T08_L02_S01_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S01_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491721/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S001_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491722/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S001_VI.mp3"
                 },
                 {
-                  "id": "A067_T08_L01_S02",
+                  "id": "A067_T08_L02_S02",
                   "number": 2,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s raining now.",
-                  "vietnamese": "Bây giờ trời mưa.",
-                  "englishAudioId": "A067_T08_L01_S02_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "english": "Put your hat on.",
+                  "vietnamese": "Đội mũ lên.",
+                  "englishAudioId": "A067_T08_L02_S02_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S02_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491722/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S002_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491722/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S002_VI.mp3"
                 },
                 {
-                  "id": "A067_T08_L01_S03",
+                  "id": "A067_T08_L02_S03",
                   "number": 3,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "The sky is cloudy.",
-                  "vietnamese": "Trời nhiều mây.",
-                  "englishAudioId": "A067_T08_L01_S03_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "english": "It’s rainy.",
+                  "vietnamese": "Trời mưa.",
+                  "englishAudioId": "A067_T08_L02_S03_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S03_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491722/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S003_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491738/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S003_VI.mp3"
                 },
                 {
-                  "id": "A067_T08_L01_S04",
+                  "id": "A067_T08_L02_S04",
                   "number": 4,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s hot outside.",
-                  "vietnamese": "Ngoài trời nóng.",
-                  "englishAudioId": "A067_T08_L01_S04_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "english": "Put your coat on.",
+                  "vietnamese": "Mặc áo khoác vào.",
+                  "englishAudioId": "A067_T08_L02_S04_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S04_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491739/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S004_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491739/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S004_VI.mp3"
                 },
                 {
-                  "id": "A067_T08_L01_S05",
+                  "id": "A067_T08_L02_S05",
                   "number": 5,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "It’s cool today.",
-                  "vietnamese": "Hôm nay trời mát.",
-                  "englishAudioId": "A067_T08_L01_S05_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "english": "It’s cold.",
+                  "vietnamese": "Trời lạnh.",
+                  "englishAudioId": "A067_T08_L02_S05_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S05_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491739/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S005_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491739/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S005_VI.mp3"
                 },
                 {
-                  "id": "A067_T08_L01_S06",
+                  "id": "A067_T08_L02_S06",
                   "number": 6,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "The wind is strong.",
-                  "vietnamese": "Gió rất mạnh.",
-                  "englishAudioId": "A067_T08_L01_S06_EN",
-                  "vietnameseAudioId": "A067_T08_L01_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                }
-              ]
-            },
-            {
-              "id": "mặc áo thun.",
-              "code": "Mặc áo thun.",
-              "number": 2,
-              "titleVi": "Chọn quần áo",
-              "titleEn": "Choosing Clothes",
-              "lessonType": "standard",
-              "intro": "Chào con! Cuối bài “Choosing Clothes” hôm nay có một bài hát vui giúp con nhớ các câu dễ hơn. Cô sẽ đọc trước, con nghe rồi ghi âm theo cô nhé! Cuối bài mình sẽ nghe toàn bộ bài hát. Let’s learn and sing!",
-              "outro": "Con hoàn thành bài rồi! Làm tốt lắm! Hẹn gặp lại!",
-              "estimatedMinutes": 3,
-              "reviewPauseMs": 900,
-              "autoAdvanceMs": 2500,
-              "introAudioUrl": null,
-              "outroAudioUrl": null,
-              "fullAudioId": null,
-              "fullAudioUrl": null,
-              "sentences": [
+                  "english": "Zip it up.",
+                  "vietnamese": "Kéo khóa lên.",
+                  "englishAudioId": "A067_T08_L02_S06_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S06_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S006_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S006_VI.mp3"
+                },
                 {
-                  "id": "Mặc áo thun._S01",
-                  "number": 1,
+                  "id": "A067_T08_L02_S07",
+                  "number": 7,
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "It’s hot.",
+                  "vietnamese": "Trời nóng.",
+                  "englishAudioId": "A067_T08_L02_S07_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S07_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S007_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S007_VI.mp3"
+                },
+                {
+                  "id": "A067_T08_L02_S08",
+                  "number": 8,
                   "voice": "Giọng nữ giáo viên",
                   "english": "Wear a T-shirt.",
                   "vietnamese": "Mặc áo thun.",
-                  "englishAudioId": "Mặc áo thun._S01_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "Mặc áo thun._S02",
-                  "number": 2,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Put on a jacket.",
-                  "vietnamese": "Mặc áo khoác.",
-                  "englishAudioId": "Mặc áo thun._S02_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "Mặc áo thun._S03",
-                  "number": 3,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Take your umbrella.",
-                  "vietnamese": "Mang theo ô.",
-                  "englishAudioId": "Mặc áo thun._S03_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "Mặc áo thun._S04",
-                  "number": 4,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "These shoes fit.",
-                  "vietnamese": "Đôi giày này vừa.",
-                  "englishAudioId": "Mặc áo thun._S04_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "Mặc áo thun._S05",
-                  "number": 5,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "My hat is blue.",
-                  "vietnamese": "Mũ của con màu xanh.",
-                  "englishAudioId": "Mặc áo thun._S05_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "Mặc áo thun._S06",
-                  "number": 6,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I’m ready to go.",
-                  "vietnamese": "Con sẵn sàng đi rồi.",
-                  "englishAudioId": "Mặc áo thun._S06_EN",
-                  "vietnameseAudioId": "Mặc áo thun._S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "englishAudioId": "A067_T08_L02_S08_EN",
+                  "vietnameseAudioId": "A067_T08_L02_S08_VI",
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S008_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491740/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A06_07_T03_S008_VI.mp3"
                 }
               ]
             }
@@ -4372,7 +4053,7 @@
               "id": "a067_t08_song01",
               "code": "A067_T08_SONG01",
               "number": 1,
-              "titleVi": "Thời tiết và quần áo",
+              "titleVi": "What Should I Wear?",
               "titleEn": "What Should I Wear?",
               "lessonType": "song",
               "intro": "Chào con! Bây giờ mình cùng nghe bài hát “What Should I Wear?”. Con hãy lắng nghe và hát theo nhé!",
@@ -4388,266 +4069,50 @@
                 {
                   "number": 1,
                   "english": "Sunny day — hat on!",
-                  "karaokeStartMs": 3100,
-                  "karaokeEndMs": 6200
+                  "karaokeStartMs": 1960,
+                  "karaokeEndMs": 4600
                 },
                 {
                   "number": 2,
                   "english": "Rainy day — coat on!",
-                  "karaokeStartMs": 7040,
-                  "karaokeEndMs": 9900
+                  "karaokeStartMs": 5180,
+                  "karaokeEndMs": 7340
                 },
                 {
                   "number": 3,
                   "english": "Cold today — zip up!",
-                  "karaokeStartMs": 11520,
-                  "karaokeEndMs": 13300
+                  "karaokeStartMs": 7800,
+                  "karaokeEndMs": 9820
                 },
                 {
                   "number": 4,
                   "english": "Hot today — T-shirt on!",
-                  "karaokeStartMs": 15240,
-                  "karaokeEndMs": 17260
+                  "karaokeStartMs": 10380,
+                  "karaokeEndMs": 12420
                 },
                 {
                   "number": 5,
                   "english": "What should I wear?",
-                  "karaokeStartMs": 18260,
-                  "karaokeEndMs": 20260
+                  "karaokeStartMs": 13280,
+                  "karaokeEndMs": 14340
                 },
                 {
                   "number": 6,
                   "english": "Look and see!",
-                  "karaokeStartMs": 20500,
-                  "karaokeEndMs": 21960
+                  "karaokeStartMs": 15980,
+                  "karaokeEndMs": 16900
                 },
                 {
                   "number": 7,
                   "english": "What should I wear?",
-                  "karaokeStartMs": 21960,
-                  "karaokeEndMs": 24060
+                  "karaokeStartMs": 18160,
+                  "karaokeEndMs": 19620
                 },
                 {
                   "number": 8,
                   "english": "Right for me!",
-                  "karaokeStartMs": 24720,
-                  "karaokeEndMs": 25720
-                },
-                {
-                  "number": 9,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 25980,
-                  "karaokeEndMs": 27820
-                },
-                {
-                  "number": 10,
-                  "english": "Look and see!",
-                  "karaokeStartMs": 28340,
-                  "karaokeEndMs": 29600
-                },
-                {
-                  "number": 11,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 29800,
-                  "karaokeEndMs": 31620
-                },
-                {
-                  "number": 12,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 32360,
-                  "karaokeEndMs": 33540
-                },
-                {
-                  "number": 13,
-                  "english": "Sunny day — hat on!",
-                  "karaokeStartMs": 33720,
-                  "karaokeEndMs": 36420
-                },
-                {
-                  "number": 14,
-                  "english": "Rainy day — coat on!",
-                  "karaokeStartMs": 37260,
-                  "karaokeEndMs": 40540
-                },
-                {
-                  "number": 15,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 41260,
-                  "karaokeEndMs": 44780
-                },
-                {
-                  "number": 16,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 44780,
-                  "karaokeEndMs": 47460
-                },
-                {
-                  "number": 17,
-                  "english": "Puddle day — boots on!",
-                  "karaokeStartMs": 47460,
-                  "karaokeEndMs": 51480
-                },
-                {
-                  "number": 18,
-                  "english": "Windy day — scarf on!",
-                  "karaokeStartMs": 51480,
-                  "karaokeEndMs": 56440
-                },
-                {
-                  "number": 19,
-                  "english": "Snow today — mittens!",
-                  "karaokeStartMs": 56440,
-                  "karaokeEndMs": 59320
-                },
-                {
-                  "number": 20,
-                  "english": "Mud today — old shoes on!",
-                  "karaokeStartMs": 59320,
-                  "karaokeEndMs": 62940
-                },
-                {
-                  "number": 21,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 62940,
-                  "karaokeEndMs": 65640
-                },
-                {
-                  "number": 22,
-                  "english": "Look and see!",
-                  "karaokeStartMs": 65860,
-                  "karaokeEndMs": 67260
-                },
-                {
-                  "number": 23,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 67340,
-                  "karaokeEndMs": 69420
-                },
-                {
-                  "number": 24,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 70100,
-                  "karaokeEndMs": 71220
-                },
-                {
-                  "number": 25,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 71220,
-                  "karaokeEndMs": 73180
-                },
-                {
-                  "number": 26,
-                  "english": "Look and see!",
-                  "karaokeStartMs": 73180,
-                  "karaokeEndMs": 74940
-                },
-                {
-                  "number": 27,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 74940,
-                  "karaokeEndMs": 77020
-                },
-                {
-                  "number": 28,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 77020,
-                  "karaokeEndMs": 78760
-                },
-                {
-                  "number": 29,
-                  "english": "Sunny day — hat on!",
-                  "karaokeStartMs": 78760,
-                  "karaokeEndMs": 83000
-                },
-                {
-                  "number": 30,
-                  "english": "Rainy day — coat on!",
-                  "karaokeStartMs": 83000,
-                  "karaokeEndMs": 86720
-                },
-                {
-                  "number": 31,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 86860,
-                  "karaokeEndMs": 90240
-                },
-                {
-                  "number": 32,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 91180,
-                  "karaokeEndMs": 93440
-                },
-                {
-                  "number": 33,
-                  "english": "Check the sky now",
-                  "karaokeStartMs": 94060,
-                  "karaokeEndMs": 96220
-                },
-                {
-                  "number": 34,
-                  "english": "Check my feet",
-                  "karaokeStartMs": 96220,
-                  "karaokeEndMs": 97580
-                },
-                {
-                  "number": 35,
-                  "english": "Soft or warm or splashy",
-                  "karaokeStartMs": 97860,
-                  "karaokeEndMs": 101920
-                },
-                {
-                  "number": 36,
-                  "english": "All set and neat",
-                  "karaokeStartMs": 101920,
-                  "karaokeEndMs": 104380
-                },
-                {
-                  "number": 37,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 104920,
-                  "karaokeEndMs": 107220
-                },
-                {
-                  "number": 38,
-                  "english": "Look and see!",
-                  "karaokeStartMs": 107520,
-                  "karaokeEndMs": 108980
-                },
-                {
-                  "number": 39,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 108980,
-                  "karaokeEndMs": 111180
-                },
-                {
-                  "number": 40,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 111780,
-                  "karaokeEndMs": 112820
-                },
-                {
-                  "number": 41,
-                  "english": "Sunny day — hat on!",
-                  "karaokeStartMs": 112820,
-                  "karaokeEndMs": 115820
-                },
-                {
-                  "number": 42,
-                  "english": "Rainy day — coat on!",
-                  "karaokeStartMs": 117060,
-                  "karaokeEndMs": 119580
-                },
-                {
-                  "number": 43,
-                  "english": "What should I wear?",
-                  "karaokeStartMs": 119580,
-                  "karaokeEndMs": 123640
-                },
-                {
-                  "number": 44,
-                  "english": "Right for me!",
-                  "karaokeStartMs": 125280,
-                  "karaokeEndMs": 126900
+                  "karaokeStartMs": 21060,
+                  "karaokeEndMs": 21960
                 }
               ],
               "sentences": [
@@ -4656,7 +4121,7 @@
                   "number": 1,
                   "voice": "",
                   "english": "Sunny day — hat on!",
-                  "vietnamese": "Trời nắng — mũ lên!",
+                  "vietnamese": "Trời nắng — đội mũ lên!",
                   "englishAudioId": "A067_T08_SONG01_S01_EN",
                   "vietnameseAudioId": "A067_T08_SONG01_S01_VI",
                   "audioUrl": null,
@@ -4667,7 +4132,7 @@
                   "number": 2,
                   "voice": "",
                   "english": "Rainy day — coat on!",
-                  "vietnamese": "Trời mưa — áo khoác!",
+                  "vietnamese": "Trời mưa — mặc áo khoác!",
                   "englishAudioId": "A067_T08_SONG01_S02_EN",
                   "vietnameseAudioId": "A067_T08_SONG01_S02_VI",
                   "audioUrl": null,
@@ -4678,7 +4143,7 @@
                   "number": 3,
                   "voice": "",
                   "english": "Cold today — zip up!",
-                  "vietnamese": "Trời lạnh — kéo khóa!",
+                  "vietnamese": "Trời lạnh — kéo khóa lên!",
                   "englishAudioId": "A067_T08_SONG01_S03_EN",
                   "vietnameseAudioId": "A067_T08_SONG01_S03_VI",
                   "audioUrl": null,
@@ -4689,7 +4154,7 @@
                   "number": 4,
                   "voice": "",
                   "english": "Hot today — T-shirt on!",
-                  "vietnamese": "Trời nóng — áo thun!",
+                  "vietnamese": "Trời nóng — mặc áo thun!",
                   "englishAudioId": "A067_T08_SONG01_S04_EN",
                   "vietnameseAudioId": "A067_T08_SONG01_S04_VI",
                   "audioUrl": null,
@@ -5475,107 +4940,22 @@
         {
           "id": "age-8-10-topic-3",
           "number": 3,
-          "titleVi": "Một ngày của con",
+          "titleVi": "Một ngày ở trường",
           "titleEn": "A Day in My Life",
           "lessons": [
             {
-              "id": "a0810_t03_l01",
-              "code": "A0810_T03_L01",
-              "number": 1,
-              "titleVi": "Buổi sáng và đến trường",
-              "titleEn": "Morning and School",
-              "lessonType": "standard",
-              "intro": "Chào con! Hôm nay mình sẽ học bài “Morning and School”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
-              "outro": "Great work! Con hoàn thành bài rồi! Hẹn gặp bài sau!",
-              "estimatedMinutes": 3,
-              "reviewPauseMs": 800,
-              "autoAdvanceMs": 2000,
-              "introAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785318751/speaking-ai/listening/intro-open-elevenlabs/2026-07-29/A0810_T03_L01_OPEN.mp3",
-              "outroAudioUrl": null,
-              "fullAudioId": null,
-              "fullAudioUrl": null,
-              "sentences": [
-                {
-                  "id": "A0810_T03_L01_S01",
-                  "number": 1,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "My alarm rings at six.",
-                  "vietnamese": "Chuông báo lúc sáu giờ.",
-                  "englishAudioId": "A0810_T03_L01_S01_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T03_L01_S02",
-                  "number": 2,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I brush my teeth.",
-                  "vietnamese": "Mình đánh răng.",
-                  "englishAudioId": "A0810_T03_L01_S02_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T03_L01_S03",
-                  "number": 3,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I put on my uniform.",
-                  "vietnamese": "Mình mặc đồng phục.",
-                  "englishAudioId": "A0810_T03_L01_S03_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T03_L01_S04",
-                  "number": 4,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I eat bread and milk.",
-                  "vietnamese": "Mình ăn bánh mì và uống sữa.",
-                  "englishAudioId": "A0810_T03_L01_S04_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T03_L01_S05",
-                  "number": 5,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I check my school bag.",
-                  "vietnamese": "Mình kiểm tra cặp sách.",
-                  "englishAudioId": "A0810_T03_L01_S05_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T03_L01_S06",
-                  "number": 6,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Dad takes me to school.",
-                  "vietnamese": "Bố chở mình đến trường.",
-                  "englishAudioId": "A0810_T03_L01_S06_EN",
-                  "vietnameseAudioId": "A0810_T03_L01_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                }
-              ]
-            },
-            {
               "id": "a0810_t03_l02",
               "code": "A0810_T03_L02",
-              "number": 2,
-              "titleVi": "Buổi chiều và buổi tối",
-              "titleEn": "Afternoon and Evening",
+              "number": 1,
+              "titleVi": "Một ngày ở trường của mình",
+              "titleEn": "My School Day",
               "lessonType": "standard",
-              "intro": "Welcome! Today’s lesson is “Afternoon and Evening”, and we’ll finish with a fun English chant. Hôm nay mình sẽ học về “Afternoon and Evening”. Cô sẽ đọc trước, con nghe rồi ghi âm theo cô nhé! Cuối bài mình sẽ nghe toàn bộ bài hát.",
+              "intro": "Chào con! Hôm nay mình sẽ học bài “My School Day”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
               "outro": "Great work! Con hoàn thành bài rồi! Hẹn gặp bài sau!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 800,
               "autoAdvanceMs": 2000,
-              "introAudioUrl": null,
+              "introAudioUrl": "asset:///assets/audio/A-8-10/LESSON_INTRO/A0810_T03_L02_OPEN.mp3",
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
@@ -5584,67 +4964,67 @@
                   "id": "A0810_T03_L02_S01",
                   "number": 1,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I eat lunch at school.",
-                  "vietnamese": "Mình ăn trưa ở trường.",
+                  "english": "I get dressed.",
+                  "vietnamese": "Mình mặc quần áo.",
                   "englishAudioId": "A0810_T03_L02_S01_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S001_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S001_VI.mp3"
                 },
                 {
                   "id": "A0810_T03_L02_S02",
                   "number": 2,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I rest after school.",
-                  "vietnamese": "Mình nghỉ sau giờ học.",
+                  "english": "I pack my bag.",
+                  "vietnamese": "Mình chuẩn bị cặp.",
                   "englishAudioId": "A0810_T03_L02_S02_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S002_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S002_VI.mp3"
                 },
                 {
                   "id": "A0810_T03_L02_S03",
                   "number": 3,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I finish my homework.",
-                  "vietnamese": "Mình làm xong bài tập.",
+                  "english": "I’m on my way.",
+                  "vietnamese": "Mình lên đường rồi.",
                   "englishAudioId": "A0810_T03_L02_S03_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S003_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491741/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S003_VI.mp3"
                 },
                 {
                   "id": "A0810_T03_L02_S04",
                   "number": 4,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I help Mom cook.",
-                  "vietnamese": "Mình giúp mẹ nấu ăn.",
+                  "english": "It’s a busy day.",
+                  "vietnamese": "Hôm nay là một ngày bận rộn.",
                   "englishAudioId": "A0810_T03_L02_S04_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491742/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S004_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491742/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S004_VI.mp3"
                 },
                 {
                   "id": "A0810_T03_L02_S05",
                   "number": 5,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I read after dinner.",
-                  "vietnamese": "Mình đọc sách sau bữa tối.",
+                  "english": "I learn at school.",
+                  "vietnamese": "Mình học ở trường.",
                   "englishAudioId": "A0810_T03_L02_S05_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491742/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S005_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491742/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S005_VI.mp3"
                 },
                 {
                   "id": "A0810_T03_L02_S06",
                   "number": 6,
                   "voice": "Giọng nữ giáo viên",
-                  "english": "I sleep at nine.",
-                  "vietnamese": "Mình ngủ lúc chín giờ.",
+                  "english": "I play with friends.",
+                  "vietnamese": "Mình chơi với bạn.",
                   "englishAudioId": "A0810_T03_L02_S06_EN",
                   "vietnameseAudioId": "A0810_T03_L02_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491743/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S006_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491743/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T04_S006_VI.mp3"
                 }
               ]
             }
@@ -5654,7 +5034,7 @@
               "id": "a0810_t03_song01",
               "code": "A0810_T03_SONG01",
               "number": 1,
-              "titleVi": "Một ngày của mình",
+              "titleVi": "My Busy Day",
               "titleEn": "My Busy Day",
               "lessonType": "song",
               "intro": "Chào con! Bây giờ mình cùng nghe bài hát “My Busy Day”. Con hãy lắng nghe và hát theo nhé!",
@@ -5669,375 +5049,99 @@
               "karaokeLines": [
                 {
                   "number": 1,
-                  "english": "Wake up, get dressed",
-                  "karaokeStartMs": 12580,
-                  "karaokeEndMs": 14640
+                  "english": "Wake up, get dressed!",
+                  "karaokeStartMs": 1700,
+                  "karaokeEndMs": 3660
                 },
                 {
                   "number": 2,
                   "english": "Start the day",
-                  "karaokeStartMs": 14920,
-                  "karaokeEndMs": 15980
+                  "karaokeStartMs": 4340,
+                  "karaokeEndMs": 5180
                 },
                 {
                   "number": 3,
                   "english": "Pack my bag",
-                  "karaokeStartMs": 16660,
-                  "karaokeEndMs": 17600
+                  "karaokeStartMs": 5180,
+                  "karaokeEndMs": 6860
                 },
                 {
                   "number": 4,
-                  "english": "On my way",
-                  "karaokeStartMs": 17980,
-                  "karaokeEndMs": 18860
+                  "english": "On my way!",
+                  "karaokeStartMs": 6860,
+                  "karaokeEndMs": 8420
                 },
                 {
                   "number": 5,
-                  "english": "Tie my shoes up tight",
-                  "karaokeStartMs": 19200,
-                  "karaokeEndMs": 20420
+                  "english": "Go, go, go!",
+                  "karaokeStartMs": 8840,
+                  "karaokeEndMs": 10260
                 },
                 {
                   "number": 6,
-                  "english": "Grab my lunch",
-                  "karaokeStartMs": 20740,
-                  "karaokeEndMs": 21840
+                  "english": "Busy day",
+                  "karaokeStartMs": 10660,
+                  "karaokeEndMs": 11560
                 },
                 {
                   "number": 7,
-                  "english": "I’m ready now",
-                  "karaokeStartMs": 22080,
-                  "karaokeEndMs": 23400
+                  "english": "Learn and play",
+                  "karaokeStartMs": 11560,
+                  "karaokeEndMs": 13160
                 },
                 {
                   "number": 8,
-                  "english": "In a rush",
-                  "karaokeStartMs": 23760,
-                  "karaokeEndMs": 24820
+                  "english": "All the way!",
+                  "karaokeStartMs": 13160,
+                  "karaokeEndMs": 14880
                 },
                 {
                   "number": 9,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 24820,
-                  "karaokeEndMs": 26460
+                  "english": "Wake up, get dressed!",
+                  "karaokeStartMs": 15480,
+                  "karaokeEndMs": 16580
                 },
                 {
                   "number": 10,
-                  "english": "Busy day",
-                  "karaokeStartMs": 26880,
-                  "karaokeEndMs": 27800
+                  "english": "Start the day",
+                  "karaokeStartMs": 17180,
+                  "karaokeEndMs": 18180
                 },
                 {
                   "number": 11,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 27800,
-                  "karaokeEndMs": 29420
+                  "english": "Pack my bag",
+                  "karaokeStartMs": 18180,
+                  "karaokeEndMs": 19980
                 },
                 {
                   "number": 12,
-                  "english": "All the way",
-                  "karaokeStartMs": 29420,
-                  "karaokeEndMs": 30980
+                  "english": "On my way!",
+                  "karaokeStartMs": 19980,
+                  "karaokeEndMs": 21420
                 },
                 {
                   "number": 13,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 30980,
-                  "karaokeEndMs": 32340
+                  "english": "Go, go, go!",
+                  "karaokeStartMs": 21980,
+                  "karaokeEndMs": 23100
                 },
                 {
                   "number": 14,
                   "english": "Busy day",
-                  "karaokeStartMs": 32760,
-                  "karaokeEndMs": 33840
+                  "karaokeStartMs": 23660,
+                  "karaokeEndMs": 24540
                 },
                 {
                   "number": 15,
-                  "english": "Pack my bag",
-                  "karaokeStartMs": 33840,
-                  "karaokeEndMs": 35380
+                  "english": "Learn and play",
+                  "karaokeStartMs": 24540,
+                  "karaokeEndMs": 26380
                 },
                 {
                   "number": 16,
-                  "english": "On my way",
-                  "karaokeStartMs": 35380,
-                  "karaokeEndMs": 36880
-                },
-                {
-                  "number": 17,
-                  "english": "go, go, go",
-                  "karaokeStartMs": 36880,
-                  "karaokeEndMs": 38960
-                },
-                {
-                  "number": 18,
-                  "english": "busy day",
-                  "karaokeStartMs": 39340,
-                  "karaokeEndMs": 40780
-                },
-                {
-                  "number": 19,
-                  "english": "Notebook, crayons",
-                  "karaokeStartMs": 42800,
-                  "karaokeEndMs": 44360
-                },
-                {
-                  "number": 20,
-                  "english": "Socks in blue",
-                  "karaokeStartMs": 44420,
-                  "karaokeEndMs": 45540
-                },
-                {
-                  "number": 21,
-                  "english": "Zip that zipper",
-                  "karaokeStartMs": 45540,
-                  "karaokeEndMs": 47120
-                },
-                {
-                  "number": 22,
-                  "english": "Almost through",
-                  "karaokeStartMs": 47120,
-                  "karaokeEndMs": 48520
-                },
-                {
-                  "number": 23,
-                  "english": "Bell rings loud",
-                  "karaokeStartMs": 48520,
-                  "karaokeEndMs": 50060
-                },
-                {
-                  "number": 24,
-                  "english": "I hear the call",
-                  "karaokeStartMs": 50360,
-                  "karaokeEndMs": 51520
-                },
-                {
-                  "number": 25,
-                  "english": "Smile so big",
-                  "karaokeStartMs": 51520,
-                  "karaokeEndMs": 53080
-                },
-                {
-                  "number": 26,
-                  "english": "I’ve got it all",
-                  "karaokeStartMs": 53120,
-                  "karaokeEndMs": 54580
-                },
-                {
-                  "number": 27,
-                  "english": "Hold my water",
-                  "karaokeStartMs": 54580,
-                  "karaokeEndMs": 56080
-                },
-                {
-                  "number": 28,
-                  "english": "Take my coat",
-                  "karaokeStartMs": 56220,
-                  "karaokeEndMs": 57380
-                },
-                {
-                  "number": 29,
-                  "english": "Step outside",
-                  "karaokeStartMs": 57380,
-                  "karaokeEndMs": 58860
-                },
-                {
-                  "number": 30,
-                  "english": "Here I go",
-                  "karaokeStartMs": 59060,
-                  "karaokeEndMs": 60700
-                },
-                {
-                  "number": 31,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 60700,
-                  "karaokeEndMs": 62000
-                },
-                {
-                  "number": 32,
-                  "english": "Busy day",
-                  "karaokeStartMs": 62400,
-                  "karaokeEndMs": 63300
-                },
-                {
-                  "number": 33,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 63300,
-                  "karaokeEndMs": 64900
-                },
-                {
-                  "number": 34,
-                  "english": "All the way",
-                  "karaokeStartMs": 64900,
-                  "karaokeEndMs": 66380
-                },
-                {
-                  "number": 35,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 66380,
-                  "karaokeEndMs": 67860
-                },
-                {
-                  "number": 36,
-                  "english": "Busy day",
-                  "karaokeStartMs": 68200,
-                  "karaokeEndMs": 69340
-                },
-                {
-                  "number": 37,
-                  "english": "Pack my bag",
-                  "karaokeStartMs": 69340,
-                  "karaokeEndMs": 70880
-                },
-                {
-                  "number": 38,
-                  "english": "On my way",
-                  "karaokeStartMs": 70880,
-                  "karaokeEndMs": 72280
-                },
-                {
-                  "number": 39,
-                  "english": "go, go, go",
-                  "karaokeStartMs": 72280,
-                  "karaokeEndMs": 74480
-                },
-                {
-                  "number": 40,
-                  "english": "busy day",
-                  "karaokeStartMs": 74780,
-                  "karaokeEndMs": 76140
-                },
-                {
-                  "number": 41,
-                  "english": "One more breath",
-                  "karaokeStartMs": 78020,
-                  "karaokeEndMs": 79660
-                },
-                {
-                  "number": 42,
-                  "english": "One more grin",
-                  "karaokeStartMs": 79840,
-                  "karaokeEndMs": 81040
-                },
-                {
-                  "number": 43,
-                  "english": "I can do it",
-                  "karaokeStartMs": 81040,
-                  "karaokeEndMs": 82840
-                },
-                {
-                  "number": 44,
-                  "english": "Let’s begin",
-                  "karaokeStartMs": 82920,
-                  "karaokeEndMs": 83980
-                },
-                {
-                  "number": 45,
-                  "english": "Friends and fun",
-                  "karaokeStartMs": 83980,
-                  "karaokeEndMs": 85600
-                },
-                {
-                  "number": 46,
-                  "english": "Here I come",
-                  "karaokeStartMs": 85600,
-                  "karaokeEndMs": 87080
-                },
-                {
-                  "number": 47,
-                  "english": "Morning shines",
-                  "karaokeStartMs": 87080,
-                  "karaokeEndMs": 88920
-                },
-                {
-                  "number": 48,
-                  "english": "We’re on the run",
-                  "karaokeStartMs": 89460,
-                  "karaokeEndMs": 91080
-                },
-                {
-                  "number": 49,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 92820,
-                  "karaokeEndMs": 94480
-                },
-                {
-                  "number": 50,
-                  "english": "Busy day",
-                  "karaokeStartMs": 94940,
-                  "karaokeEndMs": 95820
-                },
-                {
-                  "number": 51,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 95820,
-                  "karaokeEndMs": 97460
-                },
-                {
-                  "number": 52,
-                  "english": "All the way",
-                  "karaokeStartMs": 97460,
-                  "karaokeEndMs": 98960
-                },
-                {
-                  "number": 53,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 98960,
-                  "karaokeEndMs": 100400
-                },
-                {
-                  "number": 54,
-                  "english": "Busy day",
-                  "karaokeStartMs": 100800,
-                  "karaokeEndMs": 101800
-                },
-                {
-                  "number": 55,
-                  "english": "Pack my bag",
-                  "karaokeStartMs": 101800,
-                  "karaokeEndMs": 103560
-                },
-                {
-                  "number": 56,
-                  "english": "On my way",
-                  "karaokeStartMs": 103560,
-                  "karaokeEndMs": 104860
-                },
-                {
-                  "number": 57,
-                  "english": "Go, go, go",
-                  "karaokeStartMs": 104860,
-                  "karaokeEndMs": 106260
-                },
-                {
-                  "number": 58,
-                  "english": "Busy day",
-                  "karaokeStartMs": 106620,
-                  "karaokeEndMs": 107760
-                },
-                {
-                  "number": 59,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 107760,
-                  "karaokeEndMs": 109300
-                },
-                {
-                  "number": 60,
-                  "english": "All the way",
-                  "karaokeStartMs": 109300,
-                  "karaokeEndMs": 111000
-                },
-                {
-                  "number": 61,
-                  "english": "pack my bag",
-                  "karaokeStartMs": 111000,
-                  "karaokeEndMs": 113260
-                },
-                {
-                  "number": 62,
-                  "english": "on my way",
-                  "karaokeStartMs": 114120,
-                  "karaokeEndMs": 116120
+                  "english": "All the way!",
+                  "karaokeStartMs": 26380,
+                  "karaokeEndMs": 27980
                 }
               ],
               "sentences": [
@@ -6045,8 +5149,8 @@
                   "id": "A0810_T03_SONG01_S01",
                   "number": 1,
                   "voice": "",
-                  "english": "Wake up, get dressed.",
-                  "vietnamese": "Dậy thôi, mặc đồ.",
+                  "english": "Wake up, get dressed!",
+                  "vietnamese": "Dậy thôi, mặc đồ!",
                   "englishAudioId": "A0810_T03_SONG01_S01_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S01_VI",
                   "audioUrl": null,
@@ -6056,8 +5160,8 @@
                   "id": "A0810_T03_SONG01_S02",
                   "number": 2,
                   "voice": "",
-                  "english": "Start the day.",
-                  "vietnamese": "Ngày bắt đầu.",
+                  "english": "Start the day",
+                  "vietnamese": "Ngày mới bắt đầu",
                   "englishAudioId": "A0810_T03_SONG01_S02_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S02_VI",
                   "audioUrl": null,
@@ -6067,8 +5171,8 @@
                   "id": "A0810_T03_SONG01_S03",
                   "number": 3,
                   "voice": "",
-                  "english": "Pack my bag.",
-                  "vietnamese": "Xếp cặp vào.",
+                  "english": "Pack my bag",
+                  "vietnamese": "Xếp đồ vào cặp",
                   "englishAudioId": "A0810_T03_SONG01_S03_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S03_VI",
                   "audioUrl": null,
@@ -6078,8 +5182,8 @@
                   "id": "A0810_T03_SONG01_S04",
                   "number": 4,
                   "voice": "",
-                  "english": "On my way.",
-                  "vietnamese": "Mình đi mau.",
+                  "english": "On my way!",
+                  "vietnamese": "Mình đi mau thôi!",
                   "englishAudioId": "A0810_T03_SONG01_S04_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S04_VI",
                   "audioUrl": null,
@@ -6089,8 +5193,8 @@
                   "id": "A0810_T03_SONG01_S05",
                   "number": 5,
                   "voice": "",
-                  "english": "Go, go, go,",
-                  "vietnamese": "Đi, đi, đi,",
+                  "english": "Go, go, go!",
+                  "vietnamese": "Đi, đi, đi nào!",
                   "englishAudioId": "A0810_T03_SONG01_S05_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S05_VI",
                   "audioUrl": null,
@@ -6100,8 +5204,8 @@
                   "id": "A0810_T03_SONG01_S06",
                   "number": 6,
                   "voice": "",
-                  "english": "Busy day.",
-                  "vietnamese": "Bận cả ngày.",
+                  "english": "Busy day",
+                  "vietnamese": "Cả ngày bận rộn",
                   "englishAudioId": "A0810_T03_SONG01_S06_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S06_VI",
                   "audioUrl": null,
@@ -6111,8 +5215,8 @@
                   "id": "A0810_T03_SONG01_S07",
                   "number": 7,
                   "voice": "",
-                  "english": "Learn and play,",
-                  "vietnamese": "Học và chơi,",
+                  "english": "Learn and play",
+                  "vietnamese": "Học và vui chơi",
                   "englishAudioId": "A0810_T03_SONG01_S07_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S07_VI",
                   "audioUrl": null,
@@ -6123,9 +5227,97 @@
                   "number": 8,
                   "voice": "",
                   "english": "All the way!",
-                  "vietnamese": "Suốt hôm nay!",
+                  "vietnamese": "Suốt ngày hôm nay!",
                   "englishAudioId": "A0810_T03_SONG01_S08_EN",
                   "vietnameseAudioId": "A0810_T03_SONG01_S08_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S09",
+                  "number": 9,
+                  "voice": "",
+                  "english": "Wake up, get dressed!",
+                  "vietnamese": "Dậy thôi, mặc đồ!",
+                  "englishAudioId": "A0810_T03_SONG01_S09_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S09_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S10",
+                  "number": 10,
+                  "voice": "",
+                  "english": "Start the day",
+                  "vietnamese": "Ngày mới bắt đầu",
+                  "englishAudioId": "A0810_T03_SONG01_S10_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S10_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S11",
+                  "number": 11,
+                  "voice": "",
+                  "english": "Pack my bag",
+                  "vietnamese": "Xếp đồ vào cặp",
+                  "englishAudioId": "A0810_T03_SONG01_S11_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S11_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S12",
+                  "number": 12,
+                  "voice": "",
+                  "english": "On my way!",
+                  "vietnamese": "Mình đi mau thôi!",
+                  "englishAudioId": "A0810_T03_SONG01_S12_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S12_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S13",
+                  "number": 13,
+                  "voice": "",
+                  "english": "Go, go, go!",
+                  "vietnamese": "Đi, đi, đi nào!",
+                  "englishAudioId": "A0810_T03_SONG01_S13_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S13_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S14",
+                  "number": 14,
+                  "voice": "",
+                  "english": "Busy day",
+                  "vietnamese": "Cả ngày bận rộn",
+                  "englishAudioId": "A0810_T03_SONG01_S14_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S14_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S15",
+                  "number": 15,
+                  "voice": "",
+                  "english": "Learn and play",
+                  "vietnamese": "Học và vui chơi",
+                  "englishAudioId": "A0810_T03_SONG01_S15_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S15_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T03_SONG01_S16",
+                  "number": 16,
+                  "voice": "",
+                  "english": "All the way!",
+                  "vietnamese": "Suốt ngày hôm nay!",
+                  "englishAudioId": "A0810_T03_SONG01_S16_EN",
+                  "vietnameseAudioId": "A0810_T03_SONG01_S16_VI",
                   "audioUrl": null,
                   "vietnameseAudioUrl": null
                 }
@@ -6136,176 +5328,91 @@
         {
           "id": "age-8-10-topic-4",
           "number": 4,
-          "titleVi": "Sở thích và thể thao",
+          "titleVi": "Môn thể thao",
           "titleEn": "Hobbies and Sports",
           "lessons": [
             {
-              "id": "a0810_t04_l01",
-              "code": "A0810_T04_L01",
+              "id": "a0810_t04_l02",
+              "code": "A0810_T04_L02",
               "number": 1,
-              "titleVi": "Nói về sở thích",
-              "titleEn": "Talking About Hobbies",
+              "titleVi": "Môn thể thao mình thích",
+              "titleEn": "Sports I Like",
               "lessonType": "standard",
-              "intro": "Chào con! Hôm nay mình sẽ học bài “Talking About Hobbies”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
+              "intro": "Chào con! Hôm nay mình sẽ học bài “Sports I Like”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!",
               "outro": "Great work! Con hoàn thành bài rồi! Hẹn gặp bài sau!",
               "estimatedMinutes": 3,
               "reviewPauseMs": 800,
               "autoAdvanceMs": 2000,
-              "introAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785318751/speaking-ai/listening/intro-open-elevenlabs/2026-07-29/A0810_T04_L01_OPEN.mp3",
+              "introAudioUrl": "asset:///assets/audio/A-8-10/LESSON_INTRO/A0810_T04_L02_OPEN.mp3",
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
               "sentences": [
                 {
-                  "id": "A0810_T04_L01_S01",
-                  "number": 1,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I like drawing animals.",
-                  "vietnamese": "Mình thích vẽ động vật.",
-                  "englishAudioId": "A0810_T04_L01_S01_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T04_L01_S02",
-                  "number": 2,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I enjoy reading comics.",
-                  "vietnamese": "Mình thích đọc truyện tranh.",
-                  "englishAudioId": "A0810_T04_L01_S02_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T04_L01_S03",
-                  "number": 3,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "I practice piano weekly.",
-                  "vietnamese": "Mình luyện đàn mỗi tuần.",
-                  "englishAudioId": "A0810_T04_L01_S03_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T04_L01_S04",
-                  "number": 4,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "My brother builds models.",
-                  "vietnamese": "Anh mình lắp mô hình.",
-                  "englishAudioId": "A0810_T04_L01_S04_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T04_L01_S05",
-                  "number": 5,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "Hobbies make me happy.",
-                  "vietnamese": "Sở thích làm mình vui.",
-                  "englishAudioId": "A0810_T04_L01_S05_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                },
-                {
-                  "id": "A0810_T04_L01_S06",
-                  "number": 6,
-                  "voice": "Giọng nữ giáo viên",
-                  "english": "What hobby do you have?",
-                  "vietnamese": "Bạn có sở thích gì?",
-                  "englishAudioId": "A0810_T04_L01_S06_EN",
-                  "vietnameseAudioId": "A0810_T04_L01_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
-                }
-              ]
-            },
-            {
-              "id": "a0810_t04_l02",
-              "code": "A0810_T04_L02",
-              "number": 2,
-              "titleVi": "Rủ bạn chơi thể thao",
-              "titleEn": "Inviting a Friend",
-              "lessonType": "dialogue",
-              "intro": "Welcome! Today’s lesson is “Inviting a Friend”, and we’ll finish with a fun English chant. Hôm nay mình sẽ học về “Inviting a Friend”. Cô sẽ đọc trước, con nghe rồi ghi âm theo cô nhé! Cuối bài mình sẽ nghe toàn bộ bài hát.",
-              "outro": "Great work! Con hoàn thành bài rồi! Hẹn gặp bài sau!",
-              "estimatedMinutes": 3,
-              "reviewPauseMs": 800,
-              "autoAdvanceMs": 2000,
-              "introAudioUrl": null,
-              "outroAudioUrl": null,
-              "fullAudioId": "A0810_T04_L02_FULL_EN",
-              "fullAudioUrl": null,
-              "sentences": [
-                {
                   "id": "A0810_T04_L02_S01",
                   "number": 1,
-                  "voice": "Nhân vật nữ",
-                  "english": "Want to play badminton?",
-                  "vietnamese": "Bạn muốn chơi cầu lông không?",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Do you like soccer?",
+                  "vietnamese": "Bạn có thích bóng đá không?",
                   "englishAudioId": "A0810_T04_L02_S01_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S01_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491743/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S001_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491743/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S001_VI.mp3"
                 },
                 {
                   "id": "A0810_T04_L02_S02",
                   "number": 2,
-                  "voice": "Nhân vật nam",
-                  "english": "Yes, that sounds fun.",
-                  "vietnamese": "Có, nghe vui đấy.",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Yes, I do.",
+                  "vietnamese": "Có, mình thích.",
                   "englishAudioId": "A0810_T04_L02_S02_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S02_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491744/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S002_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491744/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S002_VI.mp3"
                 },
                 {
                   "id": "A0810_T04_L02_S03",
                   "number": 3,
-                  "voice": "Nhân vật nữ",
-                  "english": "Let’s meet at five.",
-                  "vietnamese": "Gặp nhau lúc năm giờ nhé.",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Do you like swimming?",
+                  "vietnamese": "Bạn có thích bơi không?",
                   "englishAudioId": "A0810_T04_L02_S03_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S03_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491744/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S003_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491744/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S003_VI.mp3"
                 },
                 {
                   "id": "A0810_T04_L02_S04",
                   "number": 4,
-                  "voice": "Nhân vật nam",
-                  "english": "Please bring your racket.",
-                  "vietnamese": "Nhớ mang vợt nhé.",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "I do too.",
+                  "vietnamese": "Mình cũng thích.",
                   "englishAudioId": "A0810_T04_L02_S04_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S04_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491744/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S004_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491745/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S004_VI.mp3"
                 },
                 {
                   "id": "A0810_T04_L02_S05",
                   "number": 5,
-                  "voice": "Nhân vật nữ",
-                  "english": "I’ll bring the shuttlecocks.",
-                  "vietnamese": "Mình sẽ mang cầu.",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Let’s play together.",
+                  "vietnamese": "Mình cùng chơi nhé.",
                   "englishAudioId": "A0810_T04_L02_S05_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S05_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491745/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S005_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491745/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S005_VI.mp3"
                 },
                 {
                   "id": "A0810_T04_L02_S06",
                   "number": 6,
-                  "voice": "Nhân vật nam",
-                  "english": "Great! See you then.",
-                  "vietnamese": "Tuyệt! Hẹn gặp lúc đó.",
+                  "voice": "Giọng nữ giáo viên",
+                  "english": "Run and jump with me.",
+                  "vietnamese": "Chạy và nhảy cùng mình nhé.",
                   "englishAudioId": "A0810_T04_L02_S06_EN",
                   "vietnameseAudioId": "A0810_T04_L02_S06_VI",
-                  "audioUrl": null,
-                  "vietnameseAudioUrl": null
+                  "audioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491745/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S006_EN.mp3",
+                  "vietnameseAudioUrl": "https://res.cloudinary.com/dcwe56hrc/video/upload/v1785491745/speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29/A08_10_T05_S006_VI.mp3"
                 }
               ]
             }
@@ -6315,7 +5422,7 @@
               "id": "a0810_t04_song01",
               "code": "A0810_T04_SONG01",
               "number": 1,
-              "titleVi": "Sở thích làm ngày thêm vui",
+              "titleVi": "Let’s Play Together",
               "titleEn": "Let’s Play Together",
               "lessonType": "song",
               "intro": "Chào con! Bây giờ mình cùng nghe bài hát “Let’s Play Together”. Con hãy lắng nghe và hát theo nhé!",
@@ -6331,134 +5438,116 @@
                 {
                   "number": 1,
                   "english": "Do you like soccer?",
-                  "karaokeStartMs": 1200,
-                  "karaokeEndMs": 3120
+                  "karaokeStartMs": 0,
+                  "karaokeEndMs": 2460
                 },
                 {
                   "number": 2,
                   "english": "Yes, I do!",
-                  "karaokeStartMs": 3600,
+                  "karaokeStartMs": 3260,
                   "karaokeEndMs": 4780
                 },
                 {
                   "number": 3,
                   "english": "Do you like to swim?",
-                  "karaokeStartMs": 5540,
-                  "karaokeEndMs": 6620
+                  "karaokeStartMs": 5440,
+                  "karaokeEndMs": 6980
                 },
                 {
                   "number": 4,
                   "english": "I do too!",
-                  "karaokeStartMs": 7220,
-                  "karaokeEndMs": 8280
+                  "karaokeStartMs": 7980,
+                  "karaokeEndMs": 9300
                 },
                 {
                   "number": 5,
-                  "english": "Play together, you and me",
-                  "karaokeStartMs": 9180,
-                  "karaokeEndMs": 12060
+                  "english": "Play together",
+                  "karaokeStartMs": 9920,
+                  "karaokeEndMs": 11420
                 },
                 {
                   "number": 6,
-                  "english": "Run and jump, one, two, three!",
-                  "karaokeStartMs": 15780,
-                  "karaokeEndMs": 19200
+                  "english": "You and me",
+                  "karaokeStartMs": 11420,
+                  "karaokeEndMs": 13720
                 },
                 {
                   "number": 7,
-                  "english": "Do you like soccer?",
-                  "karaokeStartMs": 21100,
-                  "karaokeEndMs": 24720
+                  "english": "Run and jump",
+                  "karaokeStartMs": 13720,
+                  "karaokeEndMs": 15920
                 },
                 {
                   "number": 8,
-                  "english": "Yes, I do!",
-                  "karaokeStartMs": 25500,
-                  "karaokeEndMs": 26460
+                  "english": "One, two, three!",
+                  "karaokeStartMs": 15920,
+                  "karaokeEndMs": 18240
                 },
                 {
                   "number": 9,
-                  "english": "Do you like to swim?",
-                  "karaokeStartMs": 27260,
-                  "karaokeEndMs": 28440
+                  "english": "You and me",
+                  "karaokeStartMs": 18980,
+                  "karaokeEndMs": 20520
                 },
                 {
                   "number": 10,
-                  "english": "I do too!",
-                  "karaokeStartMs": 29040,
-                  "karaokeEndMs": 29980
+                  "english": "Run and jump",
+                  "karaokeStartMs": 20520,
+                  "karaokeEndMs": 22640
                 },
                 {
                   "number": 11,
-                  "english": "Play together, you and me",
-                  "karaokeStartMs": 30160,
-                  "karaokeEndMs": 33840
+                  "english": "One, two, three!",
+                  "karaokeStartMs": 22640,
+                  "karaokeEndMs": 26180
                 },
                 {
                   "number": 12,
-                  "english": "Play together, you and me",
-                  "karaokeStartMs": 33840,
-                  "karaokeEndMs": 37620
+                  "english": "Do you like soccer?",
+                  "karaokeStartMs": 27100,
+                  "karaokeEndMs": 29540
                 },
                 {
                   "number": 13,
-                  "english": "Run and jump, one, two, three!",
-                  "karaokeStartMs": 37620,
-                  "karaokeEndMs": 41080
+                  "english": "Yes, I do!",
+                  "karaokeStartMs": 29540,
+                  "karaokeEndMs": 31660
                 },
                 {
                   "number": 14,
-                  "english": "Run and jump, one, two, three!",
-                  "karaokeStartMs": 41080,
-                  "karaokeEndMs": 44900
+                  "english": "Do you like to swim?",
+                  "karaokeStartMs": 32260,
+                  "karaokeEndMs": 33820
                 },
                 {
                   "number": 15,
-                  "english": "You and me",
-                  "karaokeStartMs": 44900,
-                  "karaokeEndMs": 46760
+                  "english": "I do too!",
+                  "karaokeStartMs": 34840,
+                  "karaokeEndMs": 36260
                 },
                 {
                   "number": 16,
-                  "english": "You and me",
-                  "karaokeStartMs": 46800,
-                  "karaokeEndMs": 48580
+                  "english": "Play together",
+                  "karaokeStartMs": 37040,
+                  "karaokeEndMs": 38300
                 },
                 {
                   "number": 17,
-                  "english": "One, two",
-                  "karaokeStartMs": 48580,
-                  "karaokeEndMs": 50280
+                  "english": "You and me",
+                  "karaokeStartMs": 39340,
+                  "karaokeEndMs": 40580
                 },
                 {
                   "number": 18,
-                  "english": "One, two, three!",
-                  "karaokeStartMs": 50500,
-                  "karaokeEndMs": 52260
+                  "english": "Run and jump",
+                  "karaokeStartMs": 41620,
+                  "karaokeEndMs": 42760
                 },
                 {
                   "number": 19,
-                  "english": "Play together, you and me",
-                  "karaokeStartMs": 52260,
-                  "karaokeEndMs": 55800
-                },
-                {
-                  "number": 20,
-                  "english": "Play together, you and me",
-                  "karaokeStartMs": 55800,
-                  "karaokeEndMs": 59340
-                },
-                {
-                  "number": 21,
-                  "english": "Run and jump, one, two, three!",
-                  "karaokeStartMs": 59340,
-                  "karaokeEndMs": 62880
-                },
-                {
-                  "number": 22,
-                  "english": "Run and jump, one, two, three!",
-                  "karaokeStartMs": 63360,
-                  "karaokeEndMs": 66520
+                  "english": "One, two, three!",
+                  "karaokeStartMs": 43780,
+                  "karaokeEndMs": 46260
                 }
               ],
               "sentences": [
@@ -6510,8 +5599,8 @@
                   "id": "A0810_T04_SONG01_S05",
                   "number": 5,
                   "voice": "",
-                  "english": "Play together,",
-                  "vietnamese": "Cùng nhau chơi,",
+                  "english": "Play together",
+                  "vietnamese": "Cùng nhau chơi",
                   "englishAudioId": "A0810_T04_SONG01_S05_EN",
                   "vietnameseAudioId": "A0810_T04_SONG01_S05_VI",
                   "audioUrl": null,
@@ -6521,8 +5610,8 @@
                   "id": "A0810_T04_SONG01_S06",
                   "number": 6,
                   "voice": "",
-                  "english": "You and me.",
-                  "vietnamese": "Bạn và mình.",
+                  "english": "You and me",
+                  "vietnamese": "Bạn và mình",
                   "englishAudioId": "A0810_T04_SONG01_S06_EN",
                   "vietnameseAudioId": "A0810_T04_SONG01_S06_VI",
                   "audioUrl": null,
@@ -6532,8 +5621,8 @@
                   "id": "A0810_T04_SONG01_S07",
                   "number": 7,
                   "voice": "",
-                  "english": "Run and jump,",
-                  "vietnamese": "Chạy rồi nhảy,",
+                  "english": "Run and jump",
+                  "vietnamese": "Chạy rồi nhảy",
                   "englishAudioId": "A0810_T04_SONG01_S07_EN",
                   "vietnameseAudioId": "A0810_T04_SONG01_S07_VI",
                   "audioUrl": null,
@@ -6547,6 +5636,127 @@
                   "vietnamese": "Một, hai, ba!",
                   "englishAudioId": "A0810_T04_SONG01_S08_EN",
                   "vietnameseAudioId": "A0810_T04_SONG01_S08_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S09",
+                  "number": 9,
+                  "voice": "",
+                  "english": "You and me",
+                  "vietnamese": "Bạn và mình",
+                  "englishAudioId": "A0810_T04_SONG01_S09_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S09_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S10",
+                  "number": 10,
+                  "voice": "",
+                  "english": "Run and jump",
+                  "vietnamese": "Chạy rồi nhảy",
+                  "englishAudioId": "A0810_T04_SONG01_S10_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S10_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S11",
+                  "number": 11,
+                  "voice": "",
+                  "english": "One, two, three!",
+                  "vietnamese": "Một, hai, ba!",
+                  "englishAudioId": "A0810_T04_SONG01_S11_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S11_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S12",
+                  "number": 12,
+                  "voice": "",
+                  "english": "Do you like soccer?",
+                  "vietnamese": "Bạn thích bóng đá?",
+                  "englishAudioId": "A0810_T04_SONG01_S12_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S12_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S13",
+                  "number": 13,
+                  "voice": "",
+                  "english": "Yes, I do!",
+                  "vietnamese": "Có, mình thích!",
+                  "englishAudioId": "A0810_T04_SONG01_S13_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S13_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S14",
+                  "number": 14,
+                  "voice": "",
+                  "english": "Do you like to swim?",
+                  "vietnamese": "Bạn thích bơi chứ?",
+                  "englishAudioId": "A0810_T04_SONG01_S14_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S14_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S15",
+                  "number": 15,
+                  "voice": "",
+                  "english": "I do too!",
+                  "vietnamese": "Mình cũng thích!",
+                  "englishAudioId": "A0810_T04_SONG01_S15_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S15_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S16",
+                  "number": 16,
+                  "voice": "",
+                  "english": "Play together",
+                  "vietnamese": "Cùng nhau chơi",
+                  "englishAudioId": "A0810_T04_SONG01_S16_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S16_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S17",
+                  "number": 17,
+                  "voice": "",
+                  "english": "You and me",
+                  "vietnamese": "Bạn và mình",
+                  "englishAudioId": "A0810_T04_SONG01_S17_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S17_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S18",
+                  "number": 18,
+                  "voice": "",
+                  "english": "Run and jump",
+                  "vietnamese": "Chạy rồi nhảy",
+                  "englishAudioId": "A0810_T04_SONG01_S18_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S18_VI",
+                  "audioUrl": null,
+                  "vietnameseAudioUrl": null
+                },
+                {
+                  "id": "A0810_T04_SONG01_S19",
+                  "number": 19,
+                  "voice": "",
+                  "english": "One, two, three!",
+                  "vietnamese": "Một, hai, ba!",
+                  "englishAudioId": "A0810_T04_SONG01_S19_EN",
+                  "vietnameseAudioId": "A0810_T04_SONG01_S19_VI",
                   "audioUrl": null,
                   "vietnameseAudioUrl": null
                 }

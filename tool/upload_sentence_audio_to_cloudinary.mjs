@@ -1,10 +1,36 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const toolDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(toolDirectory, '..');
+const options = parseArguments(process.argv.slice(2));
+const datasetProfiles = {
+  a035: {
+    checkpointName: 'sentence-audio-elevenlabs-upload.json',
+    expectedAudioFiles: 112,
+    filenamePattern: /^A035_T(\d{2})_L(\d{2})_S(\d{3})_(EN|VI)\.mp3$/i,
+    publicIdPrefix: 'speaking-ai/listening/sentence-elevenlabs/2026-07-29',
+  },
+  'song-lessons': {
+    checkpointName: 'song-lesson-sentence-audio-elevenlabs-upload.json',
+    expectedAudioFiles: 68,
+    filenamePattern:
+      /^(A06_07_T0[123]|A08_10_T0[45])_S(\d{3})_(EN|VI)\.mp3$/i,
+    publicIdPrefix:
+      'speaking-ai/listening/song-lesson-sentence-elevenlabs/2026-07-29',
+    sourceLessons: {
+      A06_07_T01: { lessonId: 'a067_t05_l02', expectedFiles: 16 },
+      A06_07_T02: { lessonId: 'a067_t07_l02', expectedFiles: 12 },
+      A06_07_T03: { lessonId: 'a067_t08_l02', expectedFiles: 16 },
+      A08_10_T04: { lessonId: 'a0810_t03_l02', expectedFiles: 12 },
+      A08_10_T05: { lessonId: 'a0810_t04_l02', expectedFiles: 12 },
+    },
+  },
+};
+const datasetProfile = datasetProfiles[options.dataset];
+if (!datasetProfile) throw new Error(`Unknown dataset: ${options.dataset}`);
 const defaultCatalogPath = path.join(
   projectRoot,
   'assets',
@@ -15,14 +41,10 @@ const checkpointPath = path.join(
   projectRoot,
   'build',
   'cloudinary',
-  'sentence-audio-elevenlabs-upload.json',
+  datasetProfile.checkpointName,
 );
-const publicIdPrefix =
-  'speaking-ai/listening/sentence-elevenlabs/2026-07-29';
-const filenamePattern =
-  /^A035_T(\d{2})_L(\d{2})_S(\d{3})_(EN|VI)\.mp3$/i;
-
-const options = parseArguments(process.argv.slice(2));
+const publicIdPrefix = datasetProfile.publicIdPrefix;
+const filenamePattern = datasetProfile.filenamePattern;
 
 try {
   await main();
@@ -104,6 +126,7 @@ function parseArguments(args) {
     audioRoot: undefined,
     catalog: undefined,
     concurrency: 4,
+    dataset: 'a035',
     envFile: undefined,
     upload: false,
     verify: false,
@@ -119,6 +142,9 @@ function parseArguments(args) {
         break;
       case '--concurrency':
         result.concurrency = positiveInteger(args[++index], '--concurrency');
+        break;
+      case '--dataset':
+        result.dataset = requiredValue(args[++index], '--dataset');
         break;
       case '--env-file':
         result.envFile = requiredValue(args[++index], '--env-file');
@@ -184,11 +210,14 @@ function hasCloudinaryConfig(config) {
 }
 
 async function readDescriptors(audioRoot) {
+  if (options.dataset === 'song-lessons') {
+    return readSongLessonDescriptors(audioRoot);
+  }
   const reportPath = path.join(audioRoot, 'generation_report.json');
   const report = JSON.parse(await readFile(reportPath, 'utf8'));
   if (
     report.status !== 'complete' ||
-    report.audioFiles !== 112 ||
+    report.audioFiles !== datasetProfile.expectedAudioFiles ||
     !Array.isArray(report.files)
   ) {
     throw new Error('The sentence audio generation report is incomplete.');
@@ -232,15 +261,84 @@ async function readDescriptors(audioRoot) {
       topicNumber: Number.parseInt(match[1], 10),
     });
   }
-  if (descriptors.length !== 112) {
-    throw new Error(`Expected 112 audio files, found ${descriptors.length}.`);
+  if (descriptors.length !== datasetProfile.expectedAudioFiles) {
+    throw new Error(
+      `Expected ${datasetProfile.expectedAudioFiles} audio files, found ${descriptors.length}.`,
+    );
   }
   return descriptors.sort((left, right) =>
     left.filename.localeCompare(right.filename),
   );
 }
 
+async function readSongLessonDescriptors(audioRoot) {
+  const filePaths = await listFilesRecursively(audioRoot);
+  const audioPaths = filePaths.filter((filePath) => /\.mp3$/i.test(filePath));
+  if (audioPaths.length !== datasetProfile.expectedAudioFiles) {
+    throw new Error(
+      `Expected ${datasetProfile.expectedAudioFiles} audio files, found ${audioPaths.length}.`,
+    );
+  }
+  const descriptors = [];
+  const publicIds = new Set();
+  const sourceCounts = new Map();
+  for (const filePath of audioPaths) {
+    const filename = path.basename(filePath);
+    const match = filenamePattern.exec(filename);
+    if (!match) throw new Error(`Unexpected filename: ${filename}`);
+    const sourceCode = match[1].toUpperCase();
+    if (path.basename(path.dirname(filePath)).toUpperCase() !== sourceCode) {
+      throw new Error(`${filename} is not inside its expected source directory.`);
+    }
+    const sourceLesson = datasetProfile.sourceLessons[sourceCode];
+    if (!sourceLesson) throw new Error(`Unsupported source lesson: ${sourceCode}`);
+    const contents = await readFile(filePath);
+    const publicId = `${publicIdPrefix}/${filename.replace(/\.mp3$/i, '')}`;
+    if (publicIds.has(publicId)) throw new Error(`Duplicate file: ${filename}`);
+    publicIds.add(publicId);
+    sourceCounts.set(sourceCode, (sourceCounts.get(sourceCode) ?? 0) + 1);
+    descriptors.push({
+      bytes: contents.length,
+      filePath,
+      filename,
+      language: match[3].toUpperCase(),
+      lessonId: sourceLesson.lessonId,
+      publicId,
+      sentenceNumber: Number.parseInt(match[2], 10),
+      sha256: createHash('sha256').update(contents).digest('hex'),
+      sourceCode,
+    });
+  }
+  for (const [sourceCode, sourceLesson] of Object.entries(
+    datasetProfile.sourceLessons,
+  )) {
+    const actual = sourceCounts.get(sourceCode) ?? 0;
+    if (actual !== sourceLesson.expectedFiles) {
+      throw new Error(
+        `${sourceCode} has ${actual} files instead of ${sourceLesson.expectedFiles}.`,
+      );
+    }
+  }
+  return descriptors.sort((left, right) =>
+    left.filename.localeCompare(right.filename),
+  );
+}
+
+async function listFilesRecursively(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      return entry.isDirectory() ? listFilesRecursively(entryPath) : [entryPath];
+    }),
+  );
+  return nested.flat();
+}
+
 function mapDescriptorsToSentences(catalog, descriptors) {
+  if (options.dataset === 'song-lessons') {
+    return mapSongLessonDescriptors(catalog, descriptors);
+  }
   const group = catalog.groups?.find(
     (candidate) => candidate.startAge === 3 && candidate.endAge === 5,
   );
@@ -263,6 +361,42 @@ function mapDescriptorsToSentences(catalog, descriptors) {
       descriptor.language === 'EN' ? sentence.english : sentence.vietnamese;
     if (descriptor.sourceText !== expectedText) {
       throw new Error(`Text mismatch for ${descriptor.filename}.`);
+    }
+    const fieldName =
+      descriptor.language === 'EN' ? 'audioUrl' : 'vietnameseAudioUrl';
+    const fields = bySentence.get(sentence) ?? {};
+    if (fields[fieldName]) {
+      throw new Error(`Duplicate ${fieldName} for ${descriptor.filename}.`);
+    }
+    fields[fieldName] = descriptor;
+    bySentence.set(sentence, fields);
+  }
+  for (const [sentence, fields] of bySentence) {
+    if (!fields.audioUrl || !fields.vietnameseAudioUrl) {
+      throw new Error(`Sentence ${sentence.id} does not have both languages.`);
+    }
+  }
+  return { bySentence, fieldCount: descriptors.length };
+}
+
+function mapSongLessonDescriptors(catalog, descriptors) {
+  const lessons = new Map();
+  for (const group of catalog.groups ?? []) {
+    for (const topic of group.topics ?? []) {
+      for (const lesson of topic.lessons ?? []) {
+        if (lessons.has(lesson.id)) throw new Error(`Duplicate lesson ID: ${lesson.id}`);
+        lessons.set(lesson.id, lesson);
+      }
+    }
+  }
+  const bySentence = new Map();
+  for (const descriptor of descriptors) {
+    const lesson = lessons.get(descriptor.lessonId);
+    const sentence = lesson?.sentences?.find(
+      (candidate) => Number(candidate.number) === descriptor.sentenceNumber,
+    );
+    if (!sentence) {
+      throw new Error(`${descriptor.filename} did not match a catalog sentence.`);
     }
     const fieldName =
       descriptor.language === 'EN' ? 'audioUrl' : 'vietnameseAudioUrl';
@@ -506,8 +640,16 @@ function validateCatalogReplacement(source, catalog, bySentence, checkpoint) {
   if (fieldIndex !== fields.length) {
     throw new Error(`Found ${fieldIndex} textual fields for ${fields.length} catalog fields.`);
   }
-  if (replacements !== 112) {
-    throw new Error(`Prepared ${replacements} replacements instead of 112.`);
+  const expectedReplacements = [...bySentence.values()].reduce(
+    (total, fieldsForSentence) =>
+      total + Number(Boolean(fieldsForSentence.audioUrl)) +
+      Number(Boolean(fieldsForSentence.vietnameseAudioUrl)),
+    0,
+  );
+  if (replacements !== expectedReplacements) {
+    throw new Error(
+      `Prepared ${replacements} replacements instead of ${expectedReplacements}.`,
+    );
   }
   return result;
 }

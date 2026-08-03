@@ -65,6 +65,8 @@ class JustAudioPlaybackService
         ProgressAwareAudioPlaybackService,
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService {
+  static Future<void>? _assetCacheRefresh;
+
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
     : _cache = cache ?? DeviceAudioCache(),
       _ownsCache = cache == null,
@@ -264,6 +266,19 @@ class JustAudioPlaybackService
   @override
   Duration? get duration => _browserPlayback?.duration ?? _player.duration;
 
+  Future<void> _refreshAssetCacheOnce() {
+    if (kIsWeb) {
+      return Future<void>.value();
+    }
+
+    // just_audio extracts bundled assets into a persistent cache keyed by the
+    // asset path. When an asset is replaced without changing its path, older
+    // installations can otherwise keep playing the previously extracted file.
+    // Share this future across service instances so the cache is cleared only
+    // once per app process and always before the first asset is loaded.
+    return _assetCacheRefresh ??= AudioPlayer.clearAssetCache();
+  }
+
   @override
   Stream<void> get completionStream {
     final browserPlayback = _browserPlayback;
@@ -288,6 +303,7 @@ class JustAudioPlaybackService
 
   Future<void> _setSource(Uri uri) async {
     if (uri.isScheme('asset')) {
+      await _refreshAssetCacheOnce();
       final assetPath = uri.path.startsWith('/')
           ? uri.path.substring(1)
           : uri.path;
