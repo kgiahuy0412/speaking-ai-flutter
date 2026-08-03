@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
@@ -84,6 +85,7 @@ class NextConversationRepository
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async {
     final clientId = await _clientId;
     try {
@@ -93,6 +95,7 @@ class NextConversationRepository
         context: context,
         childAge: childAge,
         vadSilenceMs: vadSilenceMs,
+        fallbackReason: fallbackReason,
       );
     } catch (error, stackTrace) {
       if (!_canFallBackFromDirectUpload(error)) {
@@ -106,17 +109,21 @@ class NextConversationRepository
       );
     }
 
-    final audioSession = await _createAudioSession();
+    final audioSession = await _createAudioSession(encoding: 'encoded_audio');
     final audioSessionId = audioSession.id;
-    await _uploadAudio(audioSessionId: audioSessionId, capture: capture);
+    await _uploadAudio(audioSession: audioSession, capture: capture);
 
     return _finalizeAudioSession(
       clientId: clientId,
       audioSessionId: audioSessionId,
+      uploadToken: audioSession.uploadToken,
       capture: capture,
       context: context,
       childAge: childAge,
       vadSilenceMs: vadSilenceMs,
+      batchTelemetry: <String, dynamic>{
+        'batchFallbackReason': fallbackReason ?? 'direct_upload_failed',
+      },
     );
   }
 
@@ -126,6 +133,7 @@ class NextConversationRepository
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async {
     final benchmark = ConversationBenchmark(
       utteranceDurationMs: capture.duration.inMilliseconds,
@@ -144,6 +152,7 @@ class NextConversationRepository
           ..fields['benchmark'] = jsonEncode(<String, dynamic>{
             ...benchmark.toJson(),
             'batchTransport': 'direct_multipart',
+            'batchFallbackReason': ?fallbackReason,
           })
           ..files.add(
             await createAudioMultipartFile(
@@ -183,6 +192,7 @@ class NextConversationRepository
   Future<ConversationResult> _finalizeAudioSession({
     required String clientId,
     required String audioSessionId,
+    String? uploadToken,
     required AudioCapture capture,
     required PracticeContext context,
     required int childAge,
@@ -212,6 +222,8 @@ class NextConversationRepository
           'channelCount': pcm16ChannelCount,
           'bitsPerSample': pcm16BitsPerSample,
           'pcmByteLength': capture.streamedAudioBytes,
+          if (batchTelemetry['transportChunkCount'] is int)
+            'chunkCount': batchTelemetry['transportChunkCount'],
         },
       'benchmark': <String, dynamic>{...benchmark.toJson(), ...batchTelemetry},
     });
@@ -225,6 +237,7 @@ class NextConversationRepository
               headers: <String, String>{
                 'content-type': 'application/json',
                 'Idempotency-Key': 'finalize:$audioSessionId',
+                if (uploadToken != null) 'Authorization': 'Bearer $uploadToken',
               },
               body: body,
             )
@@ -241,7 +254,13 @@ class NextConversationRepository
       }
 
       if (attempt < 3) {
-        await Future<void>.delayed(Duration(milliseconds: 300 * attempt));
+        await Future<void>.delayed(
+          _conversationRetryDelay(
+            error: lastError,
+            attempt: attempt,
+            baseMs: 300,
+          ),
+        );
       }
     }
 
@@ -263,6 +282,10 @@ class NextConversationRepository
       audioSessionId: audioSession.id,
       sessionCreateMs: stopwatch.elapsedMilliseconds,
       supportsPcm16WavFinalize: audioSession.supportsPcm16WavFinalize,
+      uploadToken: audioSession.uploadToken,
+      supportsChunkChecksum: audioSession.supportsChunkChecksum,
+      supportsMissingChunkRecovery: audioSession.supportsMissingChunkRecovery,
+      uploadProtocolVersion: audioSession.uploadProtocolVersion,
     );
   }
 
@@ -411,9 +434,25 @@ class NextConversationRepository
     );
   }
 
-  Future<_AudioSessionDescriptor> _createAudioSession() async {
+  Future<_AudioSessionDescriptor> _createAudioSession({
+    String encoding = 'pcm_s16le',
+  }) async {
     final response = await _client
-        .post(_config.resolve('/api/audio-sessions'))
+        .post(
+          _config.resolve('/api/audio-sessions'),
+          headers: const <String, String>{'content-type': 'application/json'},
+          body: jsonEncode(<String, dynamic>{
+            'protocolVersion': 2,
+            'audio': <String, dynamic>{
+              'encoding': encoding,
+              'requestedSampleRate': pcm16SampleRate,
+              'channelCount': pcm16ChannelCount,
+              'bitsPerSample': pcm16BitsPerSample,
+              'sourceChunkDurationMs': pcmChunkDurationMs,
+              'maxDurationMs': 12000,
+            },
+          }),
+        )
         .timeout(const Duration(seconds: 10));
     final json = _decodeResponse(response);
     final audioSessionId = json['audioSessionId'];
@@ -424,37 +463,67 @@ class NextConversationRepository
       );
     }
     final capabilities = json['capabilities'];
+    final capabilityMap = capabilities is Map<String, dynamic>
+        ? capabilities
+        : const <String, dynamic>{};
+    final uploadToken = json['uploadToken'];
+    final uploadProtocolVersion = capabilityMap['uploadProtocolVersion'];
     return _AudioSessionDescriptor(
       id: audioSessionId,
-      supportsPcm16WavFinalize:
-          capabilities is Map<String, dynamic> &&
-          capabilities['pcm16WavFinalize'] == true,
+      supportsPcm16WavFinalize: capabilityMap['pcm16WavFinalize'] == true,
+      uploadToken: uploadToken is String && uploadToken.isNotEmpty
+          ? uploadToken
+          : null,
+      supportsChunkChecksum: capabilityMap['chunkChecksumSha256'] == true,
+      supportsMissingChunkRecovery:
+          capabilityMap['missingChunkRecovery'] == true,
+      uploadProtocolVersion: uploadProtocolVersion is num
+          ? uploadProtocolVersion.toInt()
+          : 1,
     );
   }
 
   Future<void> _uploadAudio({
-    required String audioSessionId,
+    required _AudioSessionDescriptor audioSession,
     required AudioCapture capture,
   }) async {
+    final audioBytes = await readAudioBytes(
+      path: capture.filePath,
+      bytes: capture.dataBytes,
+    );
+    final checksum = crypto.sha256.convert(audioBytes).toString();
     final request =
         http.MultipartRequest(
             'POST',
-            _config.resolve('/api/audio-sessions/$audioSessionId/chunks'),
+            _config.resolve('/api/audio-sessions/${audioSession.id}/chunks'),
           )
           ..fields['sequence'] = '0'
           ..files.add(
-            await createAudioMultipartFile(
-              field: 'audio',
-              path: capture.filePath,
+            http.MultipartFile.fromBytes(
+              'audio',
+              audioBytes,
               filename: _audioFilename(capture.mimeType),
-              bytes: capture.dataBytes,
             ),
           );
+    request.headers['Idempotency-Key'] = 'chunk:${audioSession.id}:0';
+    request.headers['X-Chunk-SHA256'] = checksum;
+    if (audioSession.uploadToken != null) {
+      request.headers['Authorization'] = 'Bearer ${audioSession.uploadToken}';
+    }
     final streamedResponse = await _client
         .send(request)
         .timeout(const Duration(seconds: 25));
     final response = await http.Response.fromStream(streamedResponse);
-    _decodeResponse(response);
+    final json = _decodeResponse(response);
+    final acknowledgedSha256 = json['sha256'];
+    if (acknowledgedSha256 is String &&
+        acknowledgedSha256.isNotEmpty &&
+        acknowledgedSha256.toLowerCase() != checksum) {
+      throw const ConversationApiException(
+        'Checksum file audio không khớp xác nhận từ backend.',
+        errorCode: 'AUDIO_CHUNK_ACK_MISMATCH',
+      );
+    }
   }
 
   Future<void> _uploadAudioBytes({
@@ -462,6 +531,8 @@ class NextConversationRepository
     required int sequence,
     required Uint8List bytes,
     required String filename,
+    required String sha256,
+    String? uploadToken,
   }) async {
     final request =
         http.MultipartRequest(
@@ -472,16 +543,48 @@ class NextConversationRepository
           ..files.add(
             http.MultipartFile.fromBytes('audio', bytes, filename: filename),
           );
+    request.headers['Idempotency-Key'] = 'chunk:$audioSessionId:$sequence';
+    request.headers['X-Chunk-SHA256'] = sha256;
+    if (uploadToken != null) {
+      request.headers['Authorization'] = 'Bearer $uploadToken';
+    }
     final streamedResponse = await _client
         .send(request)
         .timeout(const Duration(seconds: 10));
     final response = await http.Response.fromStream(streamedResponse);
-    _decodeResponse(response);
+    final json = _decodeResponse(response);
+    final acknowledgedSequence = json['sequence'];
+    if (acknowledgedSequence is num &&
+        acknowledgedSequence.toInt() != sequence) {
+      throw ConversationApiException(
+        'Backend xác nhận sai audio chunk $sequence.',
+        errorCode: 'AUDIO_CHUNK_ACK_MISMATCH',
+      );
+    }
+    final acknowledgedSha256 = json['sha256'];
+    if (acknowledgedSha256 is String &&
+        acknowledgedSha256.isNotEmpty &&
+        acknowledgedSha256.toLowerCase() != sha256) {
+      throw ConversationApiException(
+        'Checksum audio chunk $sequence không khớp xác nhận từ backend.',
+        errorCode: 'AUDIO_CHUNK_ACK_MISMATCH',
+      );
+    }
   }
 
-  Future<void> _discardAudioSession(String audioSessionId) async {
+  Future<void> _discardAudioSession(
+    String audioSessionId, {
+    String? uploadToken,
+    String reason = 'unspecified',
+  }) async {
     final response = await _client
-        .delete(_config.resolve('/api/audio-sessions/$audioSessionId/chunks'))
+        .delete(
+          _config.resolve('/api/audio-sessions/$audioSessionId/chunks'),
+          headers: <String, String>{
+            if (uploadToken != null) 'Authorization': 'Bearer $uploadToken',
+            'X-Discard-Reason': reason,
+          },
+        )
         .timeout(const Duration(seconds: 5));
     _decodeResponse(response);
   }
@@ -646,6 +749,12 @@ class NextConversationRepository
       final errorCode = error is Map<String, dynamic>
           ? error['code'] as String?
           : null;
+      final detailsValue = error is Map<String, dynamic>
+          ? error['details']
+          : null;
+      final details = detailsValue is Map<String, dynamic>
+          ? detailsValue
+          : null;
       final requestId = response.headers['x-request-id']?.trim();
       final supportCode = requestId == null || requestId.isEmpty
           ? ''
@@ -654,6 +763,8 @@ class NextConversationRepository
         '${message ?? 'Backend trả về lỗi ${response.statusCode}.'}$supportCode',
         statusCode: response.statusCode,
         errorCode: errorCode,
+        details: details,
+        retryAfter: _parseRetryAfter(response.headers['retry-after']),
       );
     }
 
@@ -664,6 +775,28 @@ class NextConversationRepository
     }
 
     return json;
+  }
+
+  Duration? _parseRetryAfter(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+    final seconds = int.tryParse(normalized);
+    if (seconds != null && seconds >= 0) {
+      return Duration(seconds: math.min(seconds, 30));
+    }
+    final retryAt = DateTime.tryParse(normalized)?.toUtc();
+    if (retryAt == null) {
+      return null;
+    }
+    final delay = retryAt.difference(DateTime.now().toUtc());
+    if (delay <= Duration.zero) {
+      return Duration.zero;
+    }
+    return delay > const Duration(seconds: 30)
+        ? const Duration(seconds: 30)
+        : delay;
   }
 
   String _audioFilename(String mimeType) => switch (mimeType) {
@@ -961,10 +1094,18 @@ class _AudioSessionDescriptor {
   const _AudioSessionDescriptor({
     required this.id,
     required this.supportsPcm16WavFinalize,
+    required this.uploadToken,
+    required this.supportsChunkChecksum,
+    required this.supportsMissingChunkRecovery,
+    required this.uploadProtocolVersion,
   });
 
   final String id;
   final bool supportsPcm16WavFinalize;
+  final String? uploadToken;
+  final bool supportsChunkChecksum;
+  final bool supportsMissingChunkRecovery;
+  final int uploadProtocolVersion;
 }
 
 class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
@@ -973,27 +1114,51 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     required this.audioSessionId,
     required this.sessionCreateMs,
     required this.supportsPcm16WavFinalize,
+    required this.uploadToken,
+    required this.supportsChunkChecksum,
+    required this.supportsMissingChunkRecovery,
+    required this.uploadProtocolVersion,
   }) : _repository = repository,
        _uploadLanes = List<Future<void>>.generate(
          _maxConcurrentUploads,
          (_) => Future<void>.value(),
-       );
+       ) {
+    _sessionStopwatch.start();
+  }
 
   static const _sourceChunksPerTransportUpload = 5;
   static const _maxConcurrentUploads = 2;
+  static const _maxMissingRecoveryRounds = 2;
+  static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
 
   final NextConversationRepository _repository;
   final String audioSessionId;
   final int sessionCreateMs;
   final bool supportsPcm16WavFinalize;
+  final String? uploadToken;
+  final bool supportsChunkChecksum;
+  final bool supportsMissingChunkRecovery;
+  final int uploadProtocolVersion;
   final List<Future<void>> _pendingUploads = <Future<void>>[];
   final List<Future<void>> _uploadLanes;
   final BytesBuilder _transportBuffer = BytesBuilder(copy: false);
+  final Map<int, _RetainedTransportChunk> _retainedChunks =
+      <int, _RetainedTransportChunk>{};
+  final List<int> _chunkUploadDurationsMs = <int>[];
+  final Stopwatch _sessionStopwatch = Stopwatch();
   late var _nextSequence = supportsPcm16WavFinalize ? 0 : 1;
   var _nextUploadLane = 0;
   var _sourceChunkCount = 0;
   var _transportChunkCount = 0;
   var _audioByteCount = 0;
+  var _retainedAudioBytes = 0;
+  var _chunkRetryCount = 0;
+  var _missingChunkCount = 0;
+  var _recoveryUploadCount = 0;
+  int? _firstChunkAckMs;
+  int? _lastFailedSequence;
+  String? _lastUploadErrorCode;
+  var _recoveryBufferTruncated = false;
   var _closed = false;
   var _discarded = false;
 
@@ -1018,58 +1183,84 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     final sequence = _nextSequence++;
     final bytes = _transportBuffer.takeBytes();
     _transportChunkCount += 1;
-    _scheduleUpload(
+    _scheduleNewUpload(
       sequence: sequence,
       bytes: bytes,
       filename: 'chunk-$sequence.pcm',
     );
   }
 
-  void _scheduleUpload({
+  void _scheduleNewUpload({
     required int sequence,
     required Uint8List bytes,
     required String filename,
   }) {
+    final chunk = _RetainedTransportChunk(
+      sequence: sequence,
+      bytes: bytes,
+      filename: filename,
+    );
+    if (_retainedAudioBytes + bytes.length <= _maxRetainedAudioBytes) {
+      _retainedChunks[sequence] = chunk;
+      _retainedAudioBytes += bytes.length;
+    } else {
+      _recoveryBufferTruncated = true;
+    }
+    _scheduleUpload(chunk);
+  }
+
+  void _scheduleUpload(_RetainedTransportChunk chunk, {bool recovery = false}) {
+    if (recovery) {
+      _recoveryUploadCount += 1;
+    }
     final laneIndex = _nextUploadLane;
     _nextUploadLane = (_nextUploadLane + 1) % _uploadLanes.length;
     final previousLane = _uploadLanes[laneIndex].then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
     );
-    final upload = previousLane.then<void>(
-      (_) => _uploadWithRetry(
-        sequence: sequence,
-        bytes: bytes,
-        filename: filename,
-      ),
-    );
+    final upload = previousLane.then<void>((_) => _uploadWithRetry(chunk));
     _uploadLanes[laneIndex] = upload;
     _pendingUploads.add(upload);
     unawaited(upload.catchError((Object _) {}));
   }
 
-  Future<void> _uploadWithRetry({
-    required int sequence,
-    required Uint8List bytes,
-    required String filename,
-  }) async {
+  Future<void> _uploadWithRetry(_RetainedTransportChunk chunk) async {
     Object? lastError;
     for (var attempt = 1; attempt <= 3; attempt += 1) {
+      final uploadStopwatch = Stopwatch()..start();
       try {
         await _repository._uploadAudioBytes(
           audioSessionId: audioSessionId,
-          sequence: sequence,
-          bytes: bytes,
-          filename: filename,
+          sequence: chunk.sequence,
+          bytes: chunk.bytes,
+          filename: chunk.filename,
+          sha256: chunk.sha256,
+          uploadToken: uploadToken,
         );
+        uploadStopwatch.stop();
+        _chunkUploadDurationsMs.add(uploadStopwatch.elapsedMilliseconds);
+        _firstChunkAckMs ??= _sessionStopwatch.elapsedMilliseconds;
         return;
       } catch (error) {
+        uploadStopwatch.stop();
         lastError = error;
+        _lastFailedSequence = chunk.sequence;
+        _lastUploadErrorCode = error is ConversationApiException
+            ? error.errorCode
+            : error.runtimeType.toString();
         if (!_isRetryableConversationRequest(error)) {
           rethrow;
         }
         if (attempt < 3) {
-          await Future<void>.delayed(Duration(milliseconds: 150 * attempt));
+          _chunkRetryCount += 1;
+          await Future<void>.delayed(
+            _conversationRetryDelay(
+              error: lastError,
+              attempt: attempt,
+              baseMs: 150,
+            ),
+          );
         }
       }
     }
@@ -1077,7 +1268,132 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       throw lastError;
     }
     throw ConversationApiException(
-      'Không upload được audio chunk $sequence: $lastError',
+      'Không upload được audio chunk ${chunk.sequence}: $lastError',
+    );
+  }
+
+  Future<void> _drainPendingUploads() async {
+    if (_pendingUploads.isEmpty) {
+      return;
+    }
+    final pending = List<Future<void>>.of(_pendingUploads);
+    _pendingUploads.clear();
+    await Future.wait<void>(pending);
+  }
+
+  List<int> _missingSequences(Object error) {
+    if (!supportsMissingChunkRecovery ||
+        error is! ConversationApiException ||
+        error.errorCode != 'AUDIO_CHUNKS_MISSING') {
+      return const <int>[];
+    }
+    final raw = error.details?['missingSequences'];
+    if (raw is! List<dynamic>) {
+      return const <int>[];
+    }
+    return raw
+        .whereType<num>()
+        .map((value) => value.toInt())
+        .where((value) => value >= 0)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+  }
+
+  int? _percentile(int percentile) {
+    if (_chunkUploadDurationsMs.isEmpty) {
+      return null;
+    }
+    final sorted = List<int>.of(_chunkUploadDurationsMs)..sort();
+    final rank = ((percentile / 100) * sorted.length).ceil() - 1;
+    return sorted[rank.clamp(0, sorted.length - 1)];
+  }
+
+  Map<String, dynamic> _batchTelemetry({
+    required int uploadDrainMs,
+  }) => <String, dynamic>{
+    'batchTransport': 'streamed_pcm16_chunks',
+    'chunkIntervalMs': pcmChunkDurationMs * _sourceChunksPerTransportUpload,
+    'sourceChunkIntervalMs': pcmChunkDurationMs,
+    'audioChunkCount': _sourceChunkCount,
+    'transportChunkCount': _transportChunkCount,
+    'maxConcurrentChunkUploads': _maxConcurrentUploads,
+    'uploadedAudioBytes': _audioByteCount,
+    'retainedAudioBytes': _retainedAudioBytes,
+    'recoveryBufferTruncated': _recoveryBufferTruncated,
+    'chunkChecksumSha256': supportsChunkChecksum,
+    'missingChunkRecovery': supportsMissingChunkRecovery,
+    'uploadProtocolVersion': uploadProtocolVersion,
+    'scopedUploadToken': uploadToken != null,
+    'chunkRetryCount': _chunkRetryCount,
+    'missingChunkCount': _missingChunkCount,
+    'recoveryUploadCount': _recoveryUploadCount,
+    if (_firstChunkAckMs != null) 'firstChunkAckMs': _firstChunkAckMs,
+    if (_percentile(50) != null) 'chunkUploadP50Ms': _percentile(50),
+    if (_percentile(95) != null) 'chunkUploadP95Ms': _percentile(95),
+    if (_lastFailedSequence != null) 'lastFailedSequence': _lastFailedSequence,
+    if (_lastUploadErrorCode != null)
+      'lastUploadErrorCode': _lastUploadErrorCode,
+    'batchUploadSessionMs': _sessionStopwatch.elapsedMilliseconds,
+    'retryStrategy': 'exponential_full_jitter_retry_after',
+    'wavHeaderStrategy': supportsPcm16WavFinalize
+        ? 'finalize_metadata'
+        : 'uploaded_chunk',
+    'sessionCreateMs': sessionCreateMs,
+    'uploadDrainAfterStopMs': uploadDrainMs,
+  };
+
+  Future<ConversationResult> _finalizeWithMissingRecovery({
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+    required int uploadDrainMs,
+  }) async {
+    for (
+      var recoveryRound = 0;
+      recoveryRound <= _maxMissingRecoveryRounds;
+      recoveryRound += 1
+    ) {
+      try {
+        return await _repository._finalizeAudioSession(
+          clientId: await _repository._clientId,
+          audioSessionId: audioSessionId,
+          uploadToken: uploadToken,
+          capture: capture,
+          context: context,
+          childAge: childAge,
+          vadSilenceMs: vadSilenceMs,
+          assemblePcmWav: supportsPcm16WavFinalize,
+          batchTelemetry: <String, dynamic>{
+            ..._batchTelemetry(uploadDrainMs: uploadDrainMs),
+            if (capture.recordingSampleRate != null)
+              'recordingSampleRate': capture.recordingSampleRate,
+          },
+        );
+      } catch (error) {
+        final missing = _missingSequences(error);
+        if (missing.isEmpty || recoveryRound >= _maxMissingRecoveryRounds) {
+          rethrow;
+        }
+        final chunks = <_RetainedTransportChunk>[];
+        for (final sequence in missing) {
+          final chunk = _retainedChunks[sequence];
+          if (chunk == null) {
+            rethrow;
+          }
+          chunks.add(chunk);
+        }
+        _missingChunkCount += missing.length;
+        for (final chunk in chunks) {
+          _scheduleUpload(chunk, recovery: true);
+        }
+        await _drainPendingUploads();
+      }
+    }
+    throw const ConversationApiException(
+      'Không thể khôi phục audio chunk bị thiếu.',
+      errorCode: 'AUDIO_CHUNKS_MISSING',
     );
   }
 
@@ -1115,55 +1431,65 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     }
 
     if (!supportsPcm16WavFinalize) {
-      _scheduleUpload(
+      _scheduleNewUpload(
         sequence: 0,
         bytes: streamHeaderBytes!,
         filename: 'header.wav',
       );
     }
     final uploadDrainStopwatch = Stopwatch()..start();
-    await Future.wait<void>(_pendingUploads);
+    await _drainPendingUploads();
     uploadDrainStopwatch.stop();
 
-    return _repository._finalizeAudioSession(
-      clientId: await _repository._clientId,
-      audioSessionId: audioSessionId,
+    final result = await _finalizeWithMissingRecovery(
       capture: capture,
       context: context,
       childAge: childAge,
       vadSilenceMs: vadSilenceMs,
-      assemblePcmWav: supportsPcm16WavFinalize,
-      batchTelemetry: <String, dynamic>{
-        'batchTransport': 'streamed_pcm16_chunks',
-        'chunkIntervalMs': pcmChunkDurationMs * _sourceChunksPerTransportUpload,
-        'sourceChunkIntervalMs': pcmChunkDurationMs,
-        'audioChunkCount': _sourceChunkCount,
-        'transportChunkCount': _transportChunkCount,
-        'maxConcurrentChunkUploads': _maxConcurrentUploads,
-        'uploadedAudioBytes': _audioByteCount,
-        if (capture.recordingSampleRate != null)
-          'recordingSampleRate': capture.recordingSampleRate,
-        'wavHeaderStrategy': supportsPcm16WavFinalize
-            ? 'finalize_metadata'
-            : 'uploaded_chunk',
-        'sessionCreateMs': sessionCreateMs,
-        'uploadDrainAfterStopMs': uploadDrainStopwatch.elapsedMilliseconds,
-      },
+      uploadDrainMs: uploadDrainStopwatch.elapsedMilliseconds,
     );
+    _retainedChunks.clear();
+    _retainedAudioBytes = 0;
+    return result;
   }
 
   @override
-  Future<void> discard() async {
+  Future<void> discard({String reason = 'unspecified'}) async {
     if (_discarded) {
       return;
     }
     _discarded = true;
     _closed = true;
-    await Future.wait<void>(
-      _pendingUploads.map((upload) => upload.catchError((Object _) {})),
+    _transportBuffer.takeBytes();
+    _retainedChunks.clear();
+    _retainedAudioBytes = 0;
+    final uploads = List<Future<void>>.of(_pendingUploads);
+    _pendingUploads.clear();
+    unawaited(
+      Future.wait<void>(
+        uploads.map((upload) => upload.catchError((Object _) {})),
+      ),
     );
-    await _repository._discardAudioSession(audioSessionId);
+    await _repository._discardAudioSession(
+      audioSessionId,
+      uploadToken: uploadToken,
+      reason: reason,
+    );
   }
+}
+
+class _RetainedTransportChunk {
+  _RetainedTransportChunk({
+    required this.sequence,
+    required Uint8List bytes,
+    required this.filename,
+  }) : bytes = Uint8List.fromList(bytes),
+       sha256 = crypto.sha256.convert(bytes).toString();
+
+  final int sequence;
+  final Uint8List bytes;
+  final String filename;
+  final String sha256;
 }
 
 class ConversationApiException
@@ -1172,6 +1498,8 @@ class ConversationApiException
     this.message, {
     this.statusCode,
     this.errorCode,
+    this.details,
+    this.retryAfter,
   });
 
   @override
@@ -1179,6 +1507,8 @@ class ConversationApiException
   final int? statusCode;
   @override
   final String? errorCode;
+  final Map<String, dynamic>? details;
+  final Duration? retryAfter;
 
   @override
   String toString() => message;
@@ -1198,4 +1528,20 @@ bool _isRetryableConversationRequest(Object error) {
       statusCode == 429 ||
       (statusCode == 409 && error.errorCode == 'RATE_LIMITED') ||
       (statusCode != null && statusCode >= 500);
+}
+
+final math.Random _conversationRetryRandom = math.Random();
+
+Duration _conversationRetryDelay({
+  required Object? error,
+  required int attempt,
+  required int baseMs,
+}) {
+  if (error is ConversationApiException && error.retryAfter != null) {
+    return error.retryAfter!;
+  }
+  final exponentialCap = math.min(2500, baseMs * (1 << (attempt - 1)));
+  return Duration(
+    milliseconds: _conversationRetryRandom.nextInt(exponentialCap + 1),
+  );
 }

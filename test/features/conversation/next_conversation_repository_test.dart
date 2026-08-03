@@ -266,6 +266,7 @@ void main() {
             'channelCount': 1,
             'bitsPerSample': 16,
             'pcmByteLength': 16000,
+            'chunkCount': 1,
           });
           finalized = true;
           return http.Response(
@@ -507,6 +508,145 @@ void main() {
     ]);
     await repository.dispose();
   });
+
+  test(
+    'uses scoped checksum headers and resends only missing chunks',
+    () async {
+      final chunkAttempts = <int, int>{};
+      var finalizeAttempts = 0;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            final audio = body['audio'] as Map<String, dynamic>;
+            expect(body['protocolVersion'], 2);
+            expect(audio['encoding'], 'pcm_s16le');
+            expect(audio['sourceChunkDurationMs'], 200);
+            expect(audio['maxDurationMs'], 12000);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_v2-test',
+                'uploadToken': 'scoped-token',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'chunkChecksumSha256': true,
+                  'missingChunkRecovery': true,
+                  'scopedUploadToken': true,
+                  'uploadProtocolVersion': 2,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            final body = latin1.decode(request.bodyBytes);
+            final match = RegExp(
+              r'name="sequence"\r\n\r\n(\d+)',
+            ).firstMatch(body);
+            final sequence = int.parse(match!.group(1)!);
+            chunkAttempts.update(
+              sequence,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+            final checksum = request.headers['x-chunk-sha256'];
+            expect(request.headers['authorization'], 'Bearer scoped-token');
+            expect(
+              request.headers['idempotency-key'],
+              'chunk:audio_v2-test:$sequence',
+            );
+            expect(checksum, matches(RegExp(r'^[a-f0-9]{64}$')));
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'uploaded': true,
+                'sequence': sequence,
+                'sha256': checksum,
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeAttempts += 1;
+            expect(request.headers['authorization'], 'Bearer scoped-token');
+            if (finalizeAttempts == 1) {
+              return http.Response(
+                jsonEncode(<String, dynamic>{
+                  'error': <String, dynamic>{
+                    'code': 'AUDIO_CHUNKS_MISSING',
+                    'message': 'Audio session thiếu chunk.',
+                    'details': <String, dynamic>{
+                      'missingSequences': <int>[0],
+                    },
+                  },
+                }),
+                409,
+                headers: const <String, String>{
+                  'content-type': 'application/json; charset=utf-8',
+                },
+              );
+            }
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            final benchmark = body['benchmark'] as Map<String, dynamic>;
+            expect(benchmark['missingChunkCount'], 1);
+            expect(benchmark['recoveryUploadCount'], 1);
+            expect(benchmark['scopedUploadToken'], isTrue);
+            expect((body['pcm16Wav'] as Map<String, dynamic>)['chunkCount'], 1);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_recovered',
+                'sessionId': 'sess_recovered',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 500,
+                  'llmMs': 0,
+                  'ttsMs': 1,
+                  'timeToFirstAudioMs': 520,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      upload.addAudioChunk(Uint8List.fromList(List<int>.filled(8000, 1)));
+      final result = await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 500),
+          inputLabel: 'Mic điện thoại',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
+          streamedAudioBytes: 8000,
+          recordingSampleRate: 24000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+
+      expect(chunkAttempts, <int, int>{0: 2});
+      expect(finalizeAttempts, 2);
+      expect(result.conversationId, 'conv_recovered');
+      await repository.dispose();
+    },
+  );
 
   test('does not retry a permanent chunk upload error', () async {
     var chunkAttempts = 0;

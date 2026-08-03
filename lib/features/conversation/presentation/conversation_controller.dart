@@ -574,7 +574,9 @@ class ConversationController extends ChangeNotifier {
       final previousBatchUpload = _batchChunkUpload;
       _batchChunkUpload = null;
       if (previousBatchUpload != null) {
-        await previousBatchUpload.discard().catchError((Object _) {});
+        await previousBatchUpload
+            .discard(reason: 'superseded')
+            .catchError((Object _) {});
       }
       await _realtimeChunkSubscription?.cancel();
       _realtimeChunkSubscription = null;
@@ -979,6 +981,7 @@ class ConversationController extends ChangeNotifier {
         debugPrint('Adaptive Web audio stream failed: $error');
       },
     );
+    upload.schedulePromotion();
 
     try {
       await chunkedInput.startChunked();
@@ -1014,7 +1017,6 @@ class ConversationController extends ChangeNotifier {
     _silenceTimer?.cancel();
     _silenceTimer = null;
     if (firstSpeechFrame) {
-      _adaptiveWebUpload?.schedulePromotion();
       _scheduleOfflineFallback();
     }
   }
@@ -1160,7 +1162,9 @@ class ConversationController extends ChangeNotifier {
         final batchUpload = _batchChunkUpload;
         _batchChunkUpload = null;
         if (batchUpload != null) {
-          await batchUpload.discard().catchError((Object _) {});
+          await batchUpload
+              .discard(reason: 'recording_too_short')
+              .catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
         transientMessage = 'Hãy nói lâu hơn một chút nhé.';
@@ -1205,7 +1209,9 @@ class ConversationController extends ChangeNotifier {
         final batchUpload = _batchChunkUpload;
         _batchChunkUpload = null;
         if (batchUpload != null) {
-          await batchUpload.discard().catchError((Object _) {});
+          await batchUpload
+              .discard(reason: 'no_speech')
+              .catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
         transientMessage = _noisyRecording
@@ -1494,7 +1500,9 @@ class ConversationController extends ChangeNotifier {
       return upload;
     } catch (error) {
       debugPrint('Cannot prepare buffered Batch Chunks fallback: $error');
-      await upload?.discard().catchError((Object _) {});
+      await upload
+          ?.discard(reason: 'fallback_prepare_failed')
+          .catchError((Object _) {});
       return null;
     }
   }
@@ -1511,8 +1519,14 @@ class ConversationController extends ChangeNotifier {
         vadSilenceMs: vadSilenceMs,
       );
     } catch (error) {
+      await upload.discard(reason: 'finalize_failed').catchError((Object _) {});
+      if (_shouldSkipWavFallback(error)) {
+        debugPrint(
+          'Batch chunk request was rejected permanently; skipping WAV fallback.',
+        );
+        rethrow;
+      }
       debugPrint('Batch chunk finalize failed; uploading WAV fallback: $error');
-      await upload.discard().catchError((Object _) {});
       transientMessage =
           'Mạng chunk không ổn định; đã chuyển sang gửi file WAV dự phòng.';
       notifyListeners();
@@ -1521,8 +1535,36 @@ class ConversationController extends ChangeNotifier {
         context: context,
         childAge: _childAge,
         vadSilenceMs: vadSilenceMs,
+        fallbackReason: _batchFallbackReason(error),
       );
     }
+  }
+
+  bool _shouldSkipWavFallback(Object error) {
+    if (error is! CodedConversationException) {
+      return false;
+    }
+    return switch (error.errorCode) {
+      'ASR_LOW_CONFIDENCE' ||
+      'AUDIO_SESSION_UNAUTHORIZED' ||
+      'AUDIO_SESSION_INVALID' ||
+      'AUDIO_UPLOAD_LIMIT' ||
+      'AUDIO_CHUNK_CONFLICT' ||
+      'AUDIO_CHUNK_CHECKSUM_INVALID' ||
+      'AUDIO_CHUNK_CHECKSUM_MISMATCH' ||
+      'AUDIO_CHUNK_IDEMPOTENCY_INVALID' ||
+      'AUDIO_CHUNK_ACK_MISMATCH' => true,
+      _ => false,
+    };
+  }
+
+  String _batchFallbackReason(Object error) {
+    if (error is CodedConversationException && error.errorCode != null) {
+      return error.errorCode!.toLowerCase();
+    }
+    return error is TimeoutException
+        ? 'batch_timeout'
+        : 'batch_transport_failure';
   }
 
   Future<void> playResult({bool reportLatency = false}) async {
@@ -1790,7 +1832,11 @@ class ConversationController extends ChangeNotifier {
     unawaited(_offlineIntentHypothesisSubscription?.cancel());
     final batchUpload = _batchChunkUpload;
     if (batchUpload != null) {
-      unawaited(batchUpload.discard().catchError((Object _) {}));
+      unawaited(
+        batchUpload
+            .discard(reason: 'controller_dispose')
+            .catchError((Object _) {}),
+      );
     }
     final adaptiveWebUpload = _adaptiveWebUpload;
     if (adaptiveWebUpload != null) {
@@ -1888,14 +1934,14 @@ class _AdaptiveWebChunkUpload {
     return session;
   }
 
-  Future<void> discard() async {
+  Future<void> discard({String reason = 'adaptive_cancelled'}) async {
     _promotionTimer?.cancel();
     _acceptingChunks = false;
     _bufferedChunks.clear();
     final session = _session;
     _session = null;
     if (session != null) {
-      await session.discard().catchError((Object _) {});
+      await session.discard(reason: reason).catchError((Object _) {});
     }
   }
 }

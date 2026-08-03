@@ -3161,73 +3161,73 @@
                   "number": 1,
                   "english": "One, two — clap, clap!",
                   "karaokeStartMs": 0,
-                  "karaokeEndMs": 2080
+                  "karaokeEndMs": 2260
                 },
                 {
                   "number": 2,
                   "english": "Three, four — tap, tap!",
-                  "karaokeStartMs": 2560,
-                  "karaokeEndMs": 4400
+                  "karaokeStartMs": 2640,
+                  "karaokeEndMs": 4480
                 },
                 {
                   "number": 3,
                   "english": "Five, six — turn around!",
-                  "karaokeStartMs": 4900,
-                  "karaokeEndMs": 6680
+                  "karaokeStartMs": 4820,
+                  "karaokeEndMs": 6900
                 },
                 {
                   "number": 4,
                   "english": "Seven, eight — touch the ground!",
-                  "karaokeStartMs": 7300,
-                  "karaokeEndMs": 9180
+                  "karaokeStartMs": 7200,
+                  "karaokeEndMs": 9380
                 },
                 {
                   "number": 5,
                   "english": "Count with me!",
-                  "karaokeStartMs": 9700,
-                  "karaokeEndMs": 10440
+                  "karaokeStartMs": 9980,
+                  "karaokeEndMs": 10560
                 },
                 {
                   "number": 6,
                   "english": "One, two, three!",
-                  "karaokeStartMs": 10940,
-                  "karaokeEndMs": 11580
+                  "karaokeStartMs": 10980,
+                  "karaokeEndMs": 11680
                 },
                 {
                   "number": 7,
                   "english": "Count with me!",
-                  "karaokeStartMs": 12040,
-                  "karaokeEndMs": 12880
+                  "karaokeStartMs": 12180,
+                  "karaokeEndMs": 13040
                 },
                 {
                   "number": 8,
                   "english": "Happy as can be!",
-                  "karaokeStartMs": 13260,
-                  "karaokeEndMs": 14400
+                  "karaokeStartMs": 13460,
+                  "karaokeEndMs": 14480
                 },
                 {
                   "number": 9,
                   "english": "Count with me!",
-                  "karaokeStartMs": 14580,
-                  "karaokeEndMs": 15300
+                  "karaokeStartMs": 14700,
+                  "karaokeEndMs": 15400
                 },
                 {
                   "number": 10,
                   "english": "One, two, three!",
-                  "karaokeStartMs": 15520,
-                  "karaokeEndMs": 16420
+                  "karaokeStartMs": 15720,
+                  "karaokeEndMs": 16500
                 },
                 {
                   "number": 11,
                   "english": "Count with me!",
-                  "karaokeStartMs": 16620,
-                  "karaokeEndMs": 17720
+                  "karaokeStartMs": 17100,
+                  "karaokeEndMs": 17900
                 },
                 {
                   "number": 12,
                   "english": "Happy as can be!",
-                  "karaokeStartMs": 18040,
-                  "karaokeEndMs": 19220
+                  "karaokeStartMs": 18180,
+                  "karaokeEndMs": 19380
                 }
               ],
               "sentences": [
@@ -3659,98 +3659,338 @@
                 {
                   "number": 1,
                   "english": "Wake up, wake up!",
-                  "karaokeStartMs": 1880,
-                  "karaokeEndMs": 6740
+                  "karaokeStartMs": 3240,
+                  "karaokeEndMs": 5160
                 },
                 {
                   "number": 2,
                   "english": "Start the day!",
-                  "karaokeStartMs": 7320,
-                  "karaokeEndMs": 9420
+                  "karaokeStartMs": 5420,
+                  "karaokeEndMs": 6760
                 },
                 {
                   "number": 3,
-                  "english": "Wash my face",
-                  "karaokeStartMs": 10100,
-                  "karaokeEndMs": 12080
+                  "english": "Wash my face,",
+                  "karaokeStartMs": 7220,
+                  "karaokeEndMs": 8640
                 },
                 {
                   "number": 4,
                   "english": "On my way!",
-                  "karaokeStartMs": 12080,
-                  "karaokeEndMs": 14540
+                  "karaokeStartMs": 9240,
+                  "karaokeEndMs": 10220
                 },
                 {
                   "number": 5,
-                  "english": "My day, my day",
-                  "karaokeStartMs": 15180,
-                  "karaokeEndMs": 17180
+                  "english": "My shoes go on,",
+                  "karaokeStartMs": 10720,
+                  "karaokeEndMs": 12100
                 },
                 {
                   "number": 6,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 17180,
-                  "karaokeEndMs": 19700
+                  "english": "My bag is packed.",
+                  "karaokeStartMs": 12220,
+                  "karaokeEndMs": 13620
                 },
                 {
                   "number": 7,
-                  "english": "My day, my day",
-                  "karaokeStartMs": 19700,
-                  "karaokeEndMs": 22460
+                  "english": "I check the clock,",
+                  "karaokeStartMs": 14220,
+                  "karaokeEndMs": 15380
                 },
                 {
                   "number": 8,
-                  "english": "Hip, hip, hooray!",
-                  "karaokeStartMs": 22460,
-                  "karaokeEndMs": 25060
+                  "english": "Then I’m back on track.",
+                  "karaokeStartMs": 15500,
+                  "karaokeEndMs": 17140
                 },
                 {
                   "number": 9,
-                  "english": "Wake up, wake up!",
-                  "karaokeStartMs": 25400,
-                  "karaokeEndMs": 27600
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 17660,
+                  "karaokeEndMs": 19180
                 },
                 {
                   "number": 10,
-                  "english": "Start the day!",
-                  "karaokeStartMs": 28000,
-                  "karaokeEndMs": 29980
+                  "english": "I’m ready now.",
+                  "karaokeStartMs": 19340,
+                  "karaokeEndMs": 20860
                 },
                 {
                   "number": 11,
-                  "english": "Wash my face",
-                  "karaokeStartMs": 30860,
-                  "karaokeEndMs": 32940
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 21280,
+                  "karaokeEndMs": 22740
                 },
                 {
                   "number": 12,
-                  "english": "On my way!",
-                  "karaokeStartMs": 32940,
-                  "karaokeEndMs": 35460
+                  "english": "Show me how.",
+                  "karaokeStartMs": 23100,
+                  "karaokeEndMs": 24320
                 },
                 {
                   "number": 13,
-                  "english": "My day, my day",
-                  "karaokeStartMs": 35750,
-                  "karaokeEndMs": 38100
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 24880,
+                  "karaokeEndMs": 26300
                 },
                 {
                   "number": 14,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 38790,
-                  "karaokeEndMs": 40580
+                  "english": "Learn and play.",
+                  "karaokeStartMs": 26560,
+                  "karaokeEndMs": 27860
                 },
                 {
                   "number": 15,
-                  "english": "My day, my day",
-                  "karaokeStartMs": 40580,
-                  "karaokeEndMs": 43580
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 28260,
+                  "karaokeEndMs": 29720
                 },
                 {
                   "number": 16,
                   "english": "Hip, hip, hooray!",
-                  "karaokeStartMs": 43580,
-                  "karaokeEndMs": 45900
+                  "karaokeStartMs": 29980,
+                  "karaokeEndMs": 31500
+                },
+                {
+                  "number": 17,
+                  "english": "Wake up, wake up!",
+                  "karaokeStartMs": 31780,
+                  "karaokeEndMs": 33360
+                },
+                {
+                  "number": 18,
+                  "english": "Let’s begin!",
+                  "karaokeStartMs": 33820,
+                  "karaokeEndMs": 34920
+                },
+                {
+                  "number": 19,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 34920,
+                  "karaokeEndMs": 36900
+                },
+                {
+                  "number": 20,
+                  "english": "I’m all in!",
+                  "karaokeStartMs": 36900,
+                  "karaokeEndMs": 38540
+                },
+                {
+                  "number": 21,
+                  "english": "Brush my teeth,",
+                  "karaokeStartMs": 38540,
+                  "karaokeEndMs": 40380
+                },
+                {
+                  "number": 22,
+                  "english": "Tie both shoes.",
+                  "karaokeStartMs": 40860,
+                  "karaokeEndMs": 42220
+                },
+                {
+                  "number": 23,
+                  "english": "Pick my book,",
+                  "karaokeStartMs": 42220,
+                  "karaokeEndMs": 43700
+                },
+                {
+                  "number": 24,
+                  "english": "And choose what to do.",
+                  "karaokeStartMs": 43700,
+                  "karaokeEndMs": 45560
+                },
+                {
+                  "number": 25,
+                  "english": "I see the sun,",
+                  "karaokeStartMs": 45560,
+                  "karaokeEndMs": 47200
+                },
+                {
+                  "number": 26,
+                  "english": "I hear the swan—",
+                  "karaokeStartMs": 47380,
+                  "karaokeEndMs": 48620
+                },
+                {
+                  "number": 27,
+                  "english": "Oops, I mean birds,",
+                  "karaokeStartMs": 49160,
+                  "karaokeEndMs": 50900
+                },
+                {
+                  "number": 28,
+                  "english": "And I sing along.",
+                  "karaokeStartMs": 50900,
+                  "karaokeEndMs": 52370
+                },
+                {
+                  "number": 29,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 52580,
+                  "karaokeEndMs": 54460
+                },
+                {
+                  "number": 30,
+                  "english": "I’m ready now.",
+                  "karaokeStartMs": 54460,
+                  "karaokeEndMs": 56180
+                },
+                {
+                  "number": 31,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 56180,
+                  "karaokeEndMs": 58080
+                },
+                {
+                  "number": 32,
+                  "english": "Show me how.",
+                  "karaokeStartMs": 58080,
+                  "karaokeEndMs": 59720
+                },
+                {
+                  "number": 33,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 59720,
+                  "karaokeEndMs": 61560
+                },
+                {
+                  "number": 34,
+                  "english": "Learn and play.",
+                  "karaokeStartMs": 61560,
+                  "karaokeEndMs": 63200
+                },
+                {
+                  "number": 35,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 63200,
+                  "karaokeEndMs": 65060
+                },
+                {
+                  "number": 36,
+                  "english": "Hip, hip, hooray!",
+                  "karaokeStartMs": 65060,
+                  "karaokeEndMs": 66800
+                },
+                {
+                  "number": 37,
+                  "english": "Wake up, wake up!",
+                  "karaokeStartMs": 67240,
+                  "karaokeEndMs": 68600
+                },
+                {
+                  "number": 38,
+                  "english": "Let’s begin!",
+                  "karaokeStartMs": 68600,
+                  "karaokeEndMs": 70140
+                },
+                {
+                  "number": 39,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 70140,
+                  "karaokeEndMs": 72180
+                },
+                {
+                  "number": 40,
+                  "english": "I’m all in!",
+                  "karaokeStartMs": 72180,
+                  "karaokeEndMs": 73860
+                },
+                {
+                  "number": 41,
+                  "english": "Big deep breath,",
+                  "karaokeStartMs": 73860,
+                  "karaokeEndMs": 75580
+                },
+                {
+                  "number": 42,
+                  "english": "One two three.",
+                  "karaokeStartMs": 75580,
+                  "karaokeEndMs": 77360
+                },
+                {
+                  "number": 43,
+                  "english": "Hands up high,",
+                  "karaokeStartMs": 77360,
+                  "karaokeEndMs": 79240
+                },
+                {
+                  "number": 44,
+                  "english": "That’s the key.",
+                  "karaokeStartMs": 79240,
+                  "karaokeEndMs": 80880
+                },
+                {
+                  "number": 45,
+                  "english": "Spin around,",
+                  "karaokeStartMs": 80880,
+                  "karaokeEndMs": 82800
+                },
+                {
+                  "number": 46,
+                  "english": "Clap with me.",
+                  "karaokeStartMs": 82800,
+                  "karaokeEndMs": 84260
+                },
+                {
+                  "number": 47,
+                  "english": "My day is bright,",
+                  "karaokeStartMs": 84260,
+                  "karaokeEndMs": 86000
+                },
+                {
+                  "number": 48,
+                  "english": "As bright can be.",
+                  "karaokeStartMs": 86000,
+                  "karaokeEndMs": 88020
+                },
+                {
+                  "number": 49,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 88020,
+                  "karaokeEndMs": 89820
+                },
+                {
+                  "number": 50,
+                  "english": "Learn and play.",
+                  "karaokeStartMs": 89820,
+                  "karaokeEndMs": 91380
+                },
+                {
+                  "number": 51,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 91380,
+                  "karaokeEndMs": 93280
+                },
+                {
+                  "number": 52,
+                  "english": "Hip, hip, hooray!",
+                  "karaokeStartMs": 93280,
+                  "karaokeEndMs": 95000
+                },
+                {
+                  "number": 53,
+                  "english": "Wake up, wake up!",
+                  "karaokeStartMs": 95400,
+                  "karaokeEndMs": 96820
+                },
+                {
+                  "number": 54,
+                  "english": "Let’s begin!",
+                  "karaokeStartMs": 96820,
+                  "karaokeEndMs": 98340
+                },
+                {
+                  "number": 55,
+                  "english": "My day, my day,",
+                  "karaokeStartMs": 98340,
+                  "karaokeEndMs": 100460
+                },
+                {
+                  "number": 56,
+                  "english": "I’m all in!",
+                  "karaokeStartMs": 100770,
+                  "karaokeEndMs": 102120
                 }
               ],
               "sentences": [
@@ -4069,50 +4309,266 @@
                 {
                   "number": 1,
                   "english": "Sunny day — hat on!",
-                  "karaokeStartMs": 1960,
-                  "karaokeEndMs": 4600
+                  "karaokeStartMs": 3100,
+                  "karaokeEndMs": 6200
                 },
                 {
                   "number": 2,
                   "english": "Rainy day — coat on!",
-                  "karaokeStartMs": 5180,
-                  "karaokeEndMs": 7340
+                  "karaokeStartMs": 7040,
+                  "karaokeEndMs": 9900
                 },
                 {
                   "number": 3,
                   "english": "Cold today — zip up!",
-                  "karaokeStartMs": 7800,
-                  "karaokeEndMs": 9820
+                  "karaokeStartMs": 11520,
+                  "karaokeEndMs": 13300
                 },
                 {
                   "number": 4,
                   "english": "Hot today — T-shirt on!",
-                  "karaokeStartMs": 10380,
-                  "karaokeEndMs": 12420
+                  "karaokeStartMs": 15240,
+                  "karaokeEndMs": 17260
                 },
                 {
                   "number": 5,
                   "english": "What should I wear?",
-                  "karaokeStartMs": 13280,
-                  "karaokeEndMs": 14340
+                  "karaokeStartMs": 18260,
+                  "karaokeEndMs": 20260
                 },
                 {
                   "number": 6,
                   "english": "Look and see!",
-                  "karaokeStartMs": 15980,
-                  "karaokeEndMs": 16900
+                  "karaokeStartMs": 20500,
+                  "karaokeEndMs": 21960
                 },
                 {
                   "number": 7,
                   "english": "What should I wear?",
-                  "karaokeStartMs": 18160,
-                  "karaokeEndMs": 19620
+                  "karaokeStartMs": 21960,
+                  "karaokeEndMs": 24060
                 },
                 {
                   "number": 8,
                   "english": "Right for me!",
-                  "karaokeStartMs": 21060,
-                  "karaokeEndMs": 21960
+                  "karaokeStartMs": 24720,
+                  "karaokeEndMs": 25720
+                },
+                {
+                  "number": 9,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 25980,
+                  "karaokeEndMs": 27820
+                },
+                {
+                  "number": 10,
+                  "english": "Look and see!",
+                  "karaokeStartMs": 28340,
+                  "karaokeEndMs": 29600
+                },
+                {
+                  "number": 11,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 29800,
+                  "karaokeEndMs": 31620
+                },
+                {
+                  "number": 12,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 32360,
+                  "karaokeEndMs": 33540
+                },
+                {
+                  "number": 13,
+                  "english": "Sunny day — hat on!",
+                  "karaokeStartMs": 33720,
+                  "karaokeEndMs": 36420
+                },
+                {
+                  "number": 14,
+                  "english": "Rainy day — coat on!",
+                  "karaokeStartMs": 37260,
+                  "karaokeEndMs": 40540
+                },
+                {
+                  "number": 15,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 41260,
+                  "karaokeEndMs": 44780
+                },
+                {
+                  "number": 16,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 44780,
+                  "karaokeEndMs": 47460
+                },
+                {
+                  "number": 17,
+                  "english": "Puddle day — boots on!",
+                  "karaokeStartMs": 47460,
+                  "karaokeEndMs": 51480
+                },
+                {
+                  "number": 18,
+                  "english": "Windy day — scarf on!",
+                  "karaokeStartMs": 51480,
+                  "karaokeEndMs": 56440
+                },
+                {
+                  "number": 19,
+                  "english": "Snow today — mittens!",
+                  "karaokeStartMs": 56440,
+                  "karaokeEndMs": 59320
+                },
+                {
+                  "number": 20,
+                  "english": "Mud today — old shoes on!",
+                  "karaokeStartMs": 59320,
+                  "karaokeEndMs": 62940
+                },
+                {
+                  "number": 21,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 62940,
+                  "karaokeEndMs": 65640
+                },
+                {
+                  "number": 22,
+                  "english": "Look and see!",
+                  "karaokeStartMs": 65860,
+                  "karaokeEndMs": 67260
+                },
+                {
+                  "number": 23,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 67340,
+                  "karaokeEndMs": 69420
+                },
+                {
+                  "number": 24,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 70100,
+                  "karaokeEndMs": 71220
+                },
+                {
+                  "number": 25,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 71220,
+                  "karaokeEndMs": 73180
+                },
+                {
+                  "number": 26,
+                  "english": "Look and see!",
+                  "karaokeStartMs": 73180,
+                  "karaokeEndMs": 74940
+                },
+                {
+                  "number": 27,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 74940,
+                  "karaokeEndMs": 77020
+                },
+                {
+                  "number": 28,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 77020,
+                  "karaokeEndMs": 78760
+                },
+                {
+                  "number": 29,
+                  "english": "Sunny day — hat on!",
+                  "karaokeStartMs": 78760,
+                  "karaokeEndMs": 83000
+                },
+                {
+                  "number": 30,
+                  "english": "Rainy day — coat on!",
+                  "karaokeStartMs": 83000,
+                  "karaokeEndMs": 86720
+                },
+                {
+                  "number": 31,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 86860,
+                  "karaokeEndMs": 90240
+                },
+                {
+                  "number": 32,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 91180,
+                  "karaokeEndMs": 93440
+                },
+                {
+                  "number": 33,
+                  "english": "Check the sky now",
+                  "karaokeStartMs": 94060,
+                  "karaokeEndMs": 96220
+                },
+                {
+                  "number": 34,
+                  "english": "Check my feet",
+                  "karaokeStartMs": 96220,
+                  "karaokeEndMs": 97580
+                },
+                {
+                  "number": 35,
+                  "english": "Soft or warm or splashy",
+                  "karaokeStartMs": 97860,
+                  "karaokeEndMs": 101920
+                },
+                {
+                  "number": 36,
+                  "english": "All set and neat",
+                  "karaokeStartMs": 101920,
+                  "karaokeEndMs": 104380
+                },
+                {
+                  "number": 37,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 104920,
+                  "karaokeEndMs": 107220
+                },
+                {
+                  "number": 38,
+                  "english": "Look and see!",
+                  "karaokeStartMs": 107520,
+                  "karaokeEndMs": 108980
+                },
+                {
+                  "number": 39,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 108980,
+                  "karaokeEndMs": 111180
+                },
+                {
+                  "number": 40,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 111780,
+                  "karaokeEndMs": 112820
+                },
+                {
+                  "number": 41,
+                  "english": "Sunny day — hat on!",
+                  "karaokeStartMs": 112820,
+                  "karaokeEndMs": 115820
+                },
+                {
+                  "number": 42,
+                  "english": "Rainy day — coat on!",
+                  "karaokeStartMs": 117060,
+                  "karaokeEndMs": 119580
+                },
+                {
+                  "number": 43,
+                  "english": "What should I wear?",
+                  "karaokeStartMs": 119580,
+                  "karaokeEndMs": 123640
+                },
+                {
+                  "number": 44,
+                  "english": "Right for me!",
+                  "karaokeStartMs": 125280,
+                  "karaokeEndMs": 126900
                 }
               ],
               "sentences": [
@@ -5049,99 +5505,375 @@
               "karaokeLines": [
                 {
                   "number": 1,
-                  "english": "Wake up, get dressed!",
-                  "karaokeStartMs": 1700,
-                  "karaokeEndMs": 3660
+                  "english": "Wake up, get dressed",
+                  "karaokeStartMs": 12580,
+                  "karaokeEndMs": 14640
                 },
                 {
                   "number": 2,
                   "english": "Start the day",
-                  "karaokeStartMs": 4340,
-                  "karaokeEndMs": 5180
+                  "karaokeStartMs": 14920,
+                  "karaokeEndMs": 15980
                 },
                 {
                   "number": 3,
                   "english": "Pack my bag",
-                  "karaokeStartMs": 5180,
-                  "karaokeEndMs": 6860
+                  "karaokeStartMs": 16660,
+                  "karaokeEndMs": 17600
                 },
                 {
                   "number": 4,
-                  "english": "On my way!",
-                  "karaokeStartMs": 6860,
-                  "karaokeEndMs": 8420
+                  "english": "On my way",
+                  "karaokeStartMs": 17980,
+                  "karaokeEndMs": 18860
                 },
                 {
                   "number": 5,
-                  "english": "Go, go, go!",
-                  "karaokeStartMs": 8840,
-                  "karaokeEndMs": 10260
+                  "english": "Tie my shoes up tight",
+                  "karaokeStartMs": 19200,
+                  "karaokeEndMs": 20420
                 },
                 {
                   "number": 6,
-                  "english": "Busy day",
-                  "karaokeStartMs": 10660,
-                  "karaokeEndMs": 11560
+                  "english": "Grab my lunch",
+                  "karaokeStartMs": 20740,
+                  "karaokeEndMs": 21840
                 },
                 {
                   "number": 7,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 11560,
-                  "karaokeEndMs": 13160
+                  "english": "I’m ready now",
+                  "karaokeStartMs": 22080,
+                  "karaokeEndMs": 23400
                 },
                 {
                   "number": 8,
-                  "english": "All the way!",
-                  "karaokeStartMs": 13160,
-                  "karaokeEndMs": 14880
+                  "english": "In a rush",
+                  "karaokeStartMs": 23760,
+                  "karaokeEndMs": 24820
                 },
                 {
                   "number": 9,
-                  "english": "Wake up, get dressed!",
-                  "karaokeStartMs": 15480,
-                  "karaokeEndMs": 16580
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 24820,
+                  "karaokeEndMs": 26460
                 },
                 {
                   "number": 10,
-                  "english": "Start the day",
-                  "karaokeStartMs": 17180,
-                  "karaokeEndMs": 18180
+                  "english": "Busy day",
+                  "karaokeStartMs": 26880,
+                  "karaokeEndMs": 27800
                 },
                 {
                   "number": 11,
-                  "english": "Pack my bag",
-                  "karaokeStartMs": 18180,
-                  "karaokeEndMs": 19980
+                  "english": "Learn and play",
+                  "karaokeStartMs": 27800,
+                  "karaokeEndMs": 29420
                 },
                 {
                   "number": 12,
-                  "english": "On my way!",
-                  "karaokeStartMs": 19980,
-                  "karaokeEndMs": 21420
+                  "english": "All the way",
+                  "karaokeStartMs": 29420,
+                  "karaokeEndMs": 30980
                 },
                 {
                   "number": 13,
-                  "english": "Go, go, go!",
-                  "karaokeStartMs": 21980,
-                  "karaokeEndMs": 23100
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 30980,
+                  "karaokeEndMs": 32340
                 },
                 {
                   "number": 14,
                   "english": "Busy day",
-                  "karaokeStartMs": 23660,
-                  "karaokeEndMs": 24540
+                  "karaokeStartMs": 32760,
+                  "karaokeEndMs": 33840
                 },
                 {
                   "number": 15,
-                  "english": "Learn and play",
-                  "karaokeStartMs": 24540,
-                  "karaokeEndMs": 26380
+                  "english": "Pack my bag",
+                  "karaokeStartMs": 33840,
+                  "karaokeEndMs": 35380
                 },
                 {
                   "number": 16,
-                  "english": "All the way!",
-                  "karaokeStartMs": 26380,
-                  "karaokeEndMs": 27980
+                  "english": "On my way",
+                  "karaokeStartMs": 35380,
+                  "karaokeEndMs": 36880
+                },
+                {
+                  "number": 17,
+                  "english": "go, go, go",
+                  "karaokeStartMs": 36880,
+                  "karaokeEndMs": 38960
+                },
+                {
+                  "number": 18,
+                  "english": "busy day",
+                  "karaokeStartMs": 39340,
+                  "karaokeEndMs": 40780
+                },
+                {
+                  "number": 19,
+                  "english": "Notebook, crayons",
+                  "karaokeStartMs": 42800,
+                  "karaokeEndMs": 44360
+                },
+                {
+                  "number": 20,
+                  "english": "Socks in blue",
+                  "karaokeStartMs": 44420,
+                  "karaokeEndMs": 45540
+                },
+                {
+                  "number": 21,
+                  "english": "Zip that zipper",
+                  "karaokeStartMs": 45540,
+                  "karaokeEndMs": 47120
+                },
+                {
+                  "number": 22,
+                  "english": "Almost through",
+                  "karaokeStartMs": 47120,
+                  "karaokeEndMs": 48520
+                },
+                {
+                  "number": 23,
+                  "english": "Bell rings loud",
+                  "karaokeStartMs": 48520,
+                  "karaokeEndMs": 50060
+                },
+                {
+                  "number": 24,
+                  "english": "I hear the call",
+                  "karaokeStartMs": 50360,
+                  "karaokeEndMs": 51520
+                },
+                {
+                  "number": 25,
+                  "english": "Smile so big",
+                  "karaokeStartMs": 51520,
+                  "karaokeEndMs": 53080
+                },
+                {
+                  "number": 26,
+                  "english": "I’ve got it all",
+                  "karaokeStartMs": 53120,
+                  "karaokeEndMs": 54580
+                },
+                {
+                  "number": 27,
+                  "english": "Hold my water",
+                  "karaokeStartMs": 54580,
+                  "karaokeEndMs": 56080
+                },
+                {
+                  "number": 28,
+                  "english": "Take my coat",
+                  "karaokeStartMs": 56220,
+                  "karaokeEndMs": 57380
+                },
+                {
+                  "number": 29,
+                  "english": "Step outside",
+                  "karaokeStartMs": 57380,
+                  "karaokeEndMs": 58860
+                },
+                {
+                  "number": 30,
+                  "english": "Here I go",
+                  "karaokeStartMs": 59060,
+                  "karaokeEndMs": 60700
+                },
+                {
+                  "number": 31,
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 60700,
+                  "karaokeEndMs": 62000
+                },
+                {
+                  "number": 32,
+                  "english": "Busy day",
+                  "karaokeStartMs": 62400,
+                  "karaokeEndMs": 63300
+                },
+                {
+                  "number": 33,
+                  "english": "Learn and play",
+                  "karaokeStartMs": 63300,
+                  "karaokeEndMs": 64900
+                },
+                {
+                  "number": 34,
+                  "english": "All the way",
+                  "karaokeStartMs": 64900,
+                  "karaokeEndMs": 66380
+                },
+                {
+                  "number": 35,
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 66380,
+                  "karaokeEndMs": 67860
+                },
+                {
+                  "number": 36,
+                  "english": "Busy day",
+                  "karaokeStartMs": 68200,
+                  "karaokeEndMs": 69340
+                },
+                {
+                  "number": 37,
+                  "english": "Pack my bag",
+                  "karaokeStartMs": 69340,
+                  "karaokeEndMs": 70880
+                },
+                {
+                  "number": 38,
+                  "english": "On my way",
+                  "karaokeStartMs": 70880,
+                  "karaokeEndMs": 72280
+                },
+                {
+                  "number": 39,
+                  "english": "go, go, go",
+                  "karaokeStartMs": 72280,
+                  "karaokeEndMs": 74480
+                },
+                {
+                  "number": 40,
+                  "english": "busy day",
+                  "karaokeStartMs": 74780,
+                  "karaokeEndMs": 76140
+                },
+                {
+                  "number": 41,
+                  "english": "One more breath",
+                  "karaokeStartMs": 78020,
+                  "karaokeEndMs": 79660
+                },
+                {
+                  "number": 42,
+                  "english": "One more grin",
+                  "karaokeStartMs": 79840,
+                  "karaokeEndMs": 81040
+                },
+                {
+                  "number": 43,
+                  "english": "I can do it",
+                  "karaokeStartMs": 81040,
+                  "karaokeEndMs": 82840
+                },
+                {
+                  "number": 44,
+                  "english": "Let’s begin",
+                  "karaokeStartMs": 82920,
+                  "karaokeEndMs": 83980
+                },
+                {
+                  "number": 45,
+                  "english": "Friends and fun",
+                  "karaokeStartMs": 83980,
+                  "karaokeEndMs": 85600
+                },
+                {
+                  "number": 46,
+                  "english": "Here I come",
+                  "karaokeStartMs": 85600,
+                  "karaokeEndMs": 87080
+                },
+                {
+                  "number": 47,
+                  "english": "Morning shines",
+                  "karaokeStartMs": 87080,
+                  "karaokeEndMs": 88920
+                },
+                {
+                  "number": 48,
+                  "english": "We’re on the run",
+                  "karaokeStartMs": 89460,
+                  "karaokeEndMs": 91080
+                },
+                {
+                  "number": 49,
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 92820,
+                  "karaokeEndMs": 94480
+                },
+                {
+                  "number": 50,
+                  "english": "Busy day",
+                  "karaokeStartMs": 94940,
+                  "karaokeEndMs": 95820
+                },
+                {
+                  "number": 51,
+                  "english": "Learn and play",
+                  "karaokeStartMs": 95820,
+                  "karaokeEndMs": 97460
+                },
+                {
+                  "number": 52,
+                  "english": "All the way",
+                  "karaokeStartMs": 97460,
+                  "karaokeEndMs": 98960
+                },
+                {
+                  "number": 53,
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 98960,
+                  "karaokeEndMs": 100400
+                },
+                {
+                  "number": 54,
+                  "english": "Busy day",
+                  "karaokeStartMs": 100800,
+                  "karaokeEndMs": 101800
+                },
+                {
+                  "number": 55,
+                  "english": "Pack my bag",
+                  "karaokeStartMs": 101800,
+                  "karaokeEndMs": 103560
+                },
+                {
+                  "number": 56,
+                  "english": "On my way",
+                  "karaokeStartMs": 103560,
+                  "karaokeEndMs": 104860
+                },
+                {
+                  "number": 57,
+                  "english": "Go, go, go",
+                  "karaokeStartMs": 104860,
+                  "karaokeEndMs": 106260
+                },
+                {
+                  "number": 58,
+                  "english": "Busy day",
+                  "karaokeStartMs": 106620,
+                  "karaokeEndMs": 107760
+                },
+                {
+                  "number": 59,
+                  "english": "Learn and play",
+                  "karaokeStartMs": 107760,
+                  "karaokeEndMs": 109300
+                },
+                {
+                  "number": 60,
+                  "english": "All the way",
+                  "karaokeStartMs": 109300,
+                  "karaokeEndMs": 111000
+                },
+                {
+                  "number": 61,
+                  "english": "pack my bag",
+                  "karaokeStartMs": 111000,
+                  "karaokeEndMs": 113260
+                },
+                {
+                  "number": 62,
+                  "english": "on my way",
+                  "karaokeStartMs": 114120,
+                  "karaokeEndMs": 116120
                 }
               ],
               "sentences": [
@@ -5438,116 +6170,134 @@
                 {
                   "number": 1,
                   "english": "Do you like soccer?",
-                  "karaokeStartMs": 0,
-                  "karaokeEndMs": 2460
+                  "karaokeStartMs": 1200,
+                  "karaokeEndMs": 3120
                 },
                 {
                   "number": 2,
                   "english": "Yes, I do!",
-                  "karaokeStartMs": 3260,
+                  "karaokeStartMs": 3600,
                   "karaokeEndMs": 4780
                 },
                 {
                   "number": 3,
                   "english": "Do you like to swim?",
-                  "karaokeStartMs": 5440,
-                  "karaokeEndMs": 6980
+                  "karaokeStartMs": 5540,
+                  "karaokeEndMs": 6620
                 },
                 {
                   "number": 4,
                   "english": "I do too!",
-                  "karaokeStartMs": 7980,
-                  "karaokeEndMs": 9300
+                  "karaokeStartMs": 7220,
+                  "karaokeEndMs": 8280
                 },
                 {
                   "number": 5,
-                  "english": "Play together",
-                  "karaokeStartMs": 9920,
-                  "karaokeEndMs": 11420
+                  "english": "Play together, you and me",
+                  "karaokeStartMs": 9180,
+                  "karaokeEndMs": 12060
                 },
                 {
                   "number": 6,
-                  "english": "You and me",
-                  "karaokeStartMs": 11420,
-                  "karaokeEndMs": 13720
+                  "english": "Run and jump, one, two, three!",
+                  "karaokeStartMs": 15780,
+                  "karaokeEndMs": 19200
                 },
                 {
                   "number": 7,
-                  "english": "Run and jump",
-                  "karaokeStartMs": 13720,
-                  "karaokeEndMs": 15920
+                  "english": "Do you like soccer?",
+                  "karaokeStartMs": 21100,
+                  "karaokeEndMs": 24720
                 },
                 {
                   "number": 8,
-                  "english": "One, two, three!",
-                  "karaokeStartMs": 15920,
-                  "karaokeEndMs": 18240
+                  "english": "Yes, I do!",
+                  "karaokeStartMs": 25500,
+                  "karaokeEndMs": 26460
                 },
                 {
                   "number": 9,
-                  "english": "You and me",
-                  "karaokeStartMs": 18980,
-                  "karaokeEndMs": 20520
+                  "english": "Do you like to swim?",
+                  "karaokeStartMs": 27260,
+                  "karaokeEndMs": 28440
                 },
                 {
                   "number": 10,
-                  "english": "Run and jump",
-                  "karaokeStartMs": 20520,
-                  "karaokeEndMs": 22640
+                  "english": "I do too!",
+                  "karaokeStartMs": 29040,
+                  "karaokeEndMs": 29980
                 },
                 {
                   "number": 11,
-                  "english": "One, two, three!",
-                  "karaokeStartMs": 22640,
-                  "karaokeEndMs": 26180
+                  "english": "Play together, you and me",
+                  "karaokeStartMs": 30160,
+                  "karaokeEndMs": 33840
                 },
                 {
                   "number": 12,
-                  "english": "Do you like soccer?",
-                  "karaokeStartMs": 27100,
-                  "karaokeEndMs": 29540
+                  "english": "Play together, you and me",
+                  "karaokeStartMs": 33840,
+                  "karaokeEndMs": 37620
                 },
                 {
                   "number": 13,
-                  "english": "Yes, I do!",
-                  "karaokeStartMs": 29540,
-                  "karaokeEndMs": 31660
+                  "english": "Run and jump, one, two, three!",
+                  "karaokeStartMs": 37620,
+                  "karaokeEndMs": 41080
                 },
                 {
                   "number": 14,
-                  "english": "Do you like to swim?",
-                  "karaokeStartMs": 32260,
-                  "karaokeEndMs": 33820
+                  "english": "Run and jump, one, two, three!",
+                  "karaokeStartMs": 41080,
+                  "karaokeEndMs": 44900
                 },
                 {
                   "number": 15,
-                  "english": "I do too!",
-                  "karaokeStartMs": 34840,
-                  "karaokeEndMs": 36260
+                  "english": "You and me",
+                  "karaokeStartMs": 44900,
+                  "karaokeEndMs": 46760
                 },
                 {
                   "number": 16,
-                  "english": "Play together",
-                  "karaokeStartMs": 37040,
-                  "karaokeEndMs": 38300
+                  "english": "You and me",
+                  "karaokeStartMs": 46800,
+                  "karaokeEndMs": 48580
                 },
                 {
                   "number": 17,
-                  "english": "You and me",
-                  "karaokeStartMs": 39340,
-                  "karaokeEndMs": 40580
+                  "english": "One, two",
+                  "karaokeStartMs": 48580,
+                  "karaokeEndMs": 50280
                 },
                 {
                   "number": 18,
-                  "english": "Run and jump",
-                  "karaokeStartMs": 41620,
-                  "karaokeEndMs": 42760
+                  "english": "One, two, three!",
+                  "karaokeStartMs": 50500,
+                  "karaokeEndMs": 52260
                 },
                 {
                   "number": 19,
-                  "english": "One, two, three!",
-                  "karaokeStartMs": 43780,
-                  "karaokeEndMs": 46260
+                  "english": "Play together, you and me",
+                  "karaokeStartMs": 52260,
+                  "karaokeEndMs": 55800
+                },
+                {
+                  "number": 20,
+                  "english": "Play together, you and me",
+                  "karaokeStartMs": 55800,
+                  "karaokeEndMs": 59340
+                },
+                {
+                  "number": 21,
+                  "english": "Run and jump, one, two, three!",
+                  "karaokeStartMs": 59340,
+                  "karaokeEndMs": 62880
+                },
+                {
+                  "number": 22,
+                  "english": "Run and jump, one, two, three!",
+                  "karaokeStartMs": 63360,
+                  "karaokeEndMs": 66520
                 }
               ],
               "sentences": [
