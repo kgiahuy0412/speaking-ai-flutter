@@ -174,6 +174,7 @@ void main() {
         expect(body, contains('android_test_device'));
         expect(body, contains('name="audio"; filename="utterance.wav"'));
         expect(body, contains('direct_multipart'));
+        expect(body, contains('"clientVadApplied":true'));
         return http.Response(
           jsonEncode(<String, dynamic>{
             'conversationId': 'conv_direct',
@@ -251,6 +252,7 @@ void main() {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           final benchmark = body['benchmark'] as Map<String, dynamic>;
           expect(body['mimeType'], 'audio/wav');
+          expect(benchmark['clientVadApplied'], isTrue);
           expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
           expect(benchmark['audioChunkCount'], 2);
           expect(benchmark['transportChunkCount'], 1);
@@ -401,6 +403,11 @@ void main() {
         (finalizeBody!['benchmark']
             as Map<String, dynamic>)['wavHeaderStrategy'],
         'uploaded_chunk',
+      );
+      expect(
+        (finalizeBody!['benchmark']
+            as Map<String, dynamic>)['clientVadApplied'],
+        isTrue,
       );
       await repository.dispose();
     },
@@ -633,6 +640,87 @@ void main() {
     expect(finalizeAttempts, 1);
     await repository.dispose();
   });
+
+  test(
+    'preserves ASR_LOW_CONFIDENCE from finalize for the child retry prompt',
+    () async {
+      var finalizeAttempts = 0;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_unclear_speech',
+                'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeAttempts += 1;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'error': <String, dynamic>{
+                  'code': 'ASR_LOW_CONFIDENCE',
+                  'message':
+                      'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.',
+                },
+              }),
+              422,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      upload.addAudioChunk(Uint8List(8000));
+
+      await expectLater(
+        upload.finalize(
+          capture: AudioCapture(
+            filePath: 'unclear.wav',
+            mimeType: 'audio/wav',
+            duration: const Duration(milliseconds: 500),
+            inputLabel: 'Mic điện thoại',
+            isBluetoothInput: false,
+            initialNoiseRms: null,
+            streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 8000),
+            streamedAudioBytes: 8000,
+            recordingSampleRate: 24000,
+          ),
+          context: PracticeContext.home,
+          childAge: 6,
+          vadSilenceMs: 700,
+        ),
+        throwsA(
+          isA<ConversationApiException>()
+              .having((error) => error.statusCode, 'statusCode', 422)
+              .having(
+                (error) => error.errorCode,
+                'errorCode',
+                'ASR_LOW_CONFIDENCE',
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                contains('đưa micro lại gần'),
+              ),
+        ),
+      );
+
+      expect(finalizeAttempts, 1);
+      await repository.dispose();
+    },
+  );
 
   test('discards an unfinished chunk session', () async {
     var discarded = false;

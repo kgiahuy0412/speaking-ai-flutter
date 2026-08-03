@@ -134,6 +134,7 @@ class NextConversationRepository
       audioInputLabel: capture.inputLabel,
       bluetoothAudioInput: capture.isBluetoothInput,
       initialNoiseRms: capture.initialNoiseRms,
+      clientVadApplied: true,
     );
     final request =
         http.MultipartRequest('POST', _config.resolve('/api/conversation'))
@@ -196,6 +197,7 @@ class NextConversationRepository
       audioInputLabel: capture.inputLabel,
       bluetoothAudioInput: capture.isBluetoothInput,
       initialNoiseRms: capture.initialNoiseRms,
+      clientVadApplied: true,
     );
     final uri = _config.resolve('/api/audio-sessions/$audioSessionId/finalize');
     final body = jsonEncode(<String, dynamic>{

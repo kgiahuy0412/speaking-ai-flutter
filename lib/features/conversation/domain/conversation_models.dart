@@ -327,6 +327,7 @@ class ConversationBenchmark {
     required this.audioInputLabel,
     required this.bluetoothAudioInput,
     required this.initialNoiseRms,
+    this.clientVadApplied = false,
   });
 
   final int utteranceDurationMs;
@@ -335,6 +336,7 @@ class ConversationBenchmark {
   final String audioInputLabel;
   final bool bluetoothAudioInput;
   final double? initialNoiseRms;
+  final bool clientVadApplied;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'device': 'mobile',
@@ -344,6 +346,7 @@ class ConversationBenchmark {
     'requestedAsrMode': requestedAsrMode.apiValue,
     'audioInputLabel': audioInputLabel,
     'bluetoothAudioInput': bluetoothAudioInput,
+    'clientVadApplied': clientVadApplied,
     if (initialNoiseRms != null) 'initialNoiseRms': initialNoiseRms,
   };
 }
