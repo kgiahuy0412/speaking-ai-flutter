@@ -184,6 +184,7 @@ class _AccessibleRepository implements ConversationRepository {
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async => _result;
 
   @override

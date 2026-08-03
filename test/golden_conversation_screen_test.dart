@@ -323,6 +323,7 @@ class _PreviewRepository implements ConversationRepository {
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async => _previewResult;
 
   @override

@@ -581,6 +581,79 @@ void main() {
   );
 
   test(
+    'Web low-confidence Batch result does not upload the WAV a second time',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2],
+      );
+      final repository = _FallbackRepository();
+      repository.batchSession.finalizeError = const _LowConfidenceFailure();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(milliseconds: 20),
+      );
+
+      await controller.startRecording();
+      await _emitDetectedSpeech(input);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.finalized, isTrue);
+      expect(repository.batchSession.discarded, isTrue);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.phase, ConversationPhase.error);
+      expect(
+        controller.errorMessage,
+        'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.',
+      );
+      controller.dispose();
+    },
+  );
+
+  test('Web technical Batch failure retains the WAV fallback', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[1, 2],
+    );
+    final repository = _FallbackRepository();
+    repository.batchSession.finalizeError = StateError('network failed');
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: const Duration(milliseconds: 20),
+    );
+
+    await controller.startRecording();
+    await _emitDetectedSpeech(input);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.batchStarted, 1);
+    expect(repository.batchSession.finalized, isTrue);
+    expect(repository.batchSession.discarded, isTrue);
+    expect(repository.fullFileUploads, 1);
+    expect(repository.batchFallbackReason, 'batch_transport_failure');
+    expect(controller.result?.conversationId, 'file-result');
+    expect(controller.transientMessage, contains('WAV dự phòng'));
+    controller.dispose();
+  });
+
+  test(
     'processing status advances through ASR, translation, and audio',
     () async {
       final input = _FakeChunkedInput(
@@ -642,7 +715,7 @@ void main() {
   );
 
   test(
-    'Web manual stop does not upload audio without detected speech',
+    'Web starts Batch immediately then discards it without detected speech',
     () async {
       final input = _FakeChunkedInput(
         available: true,
@@ -658,18 +731,23 @@ void main() {
         childAge: 6,
         initialAsrMode: AsrMode.batchChunks,
         webRuntimeOverride: true,
-        adaptiveWebUploadDelay: const Duration(milliseconds: 20),
       );
 
       await controller.startRecording();
       await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      expect(repository.batchStarted, 1);
+      expect(repository.batchSession.chunks, <List<int>>[
+        <int>[0, 0, 0, 0],
+      ]);
+
       await controller.stopRecording(manual: true);
 
-      expect(repository.batchStarted, 0);
+      expect(repository.batchSession.discarded, isTrue);
       expect(repository.fullFileUploads, 0);
       expect(controller.result, isNull);
       expect(controller.phase, ConversationPhase.idle);
-      expect(controller.transientMessage, contains('chưa nghe thấy giọng nói'));
+      expect(controller.transientMessage, contains('chưa nghe rõ'));
       controller.dispose();
     },
   );
@@ -1219,6 +1297,8 @@ class _ExpectedRealtimeFailure implements Exception {
 class _RecordingBatchSession implements BatchChunkUploadSession {
   final List<List<int>> chunks = <List<int>>[];
   bool finalized = false;
+  bool discarded = false;
+  Object? finalizeError;
   AudioCapture? capture;
 
   @override
@@ -1232,14 +1312,32 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async {
     finalized = true;
     this.capture = capture;
+    final error = finalizeError;
+    if (error != null) {
+      throw error;
+    }
     return _result('batch-result');
   }
 
   @override
-  Future<void> discard() async {}
+  Future<void> discard({String reason = 'unspecified'}) async {
+    discarded = true;
+  }
+}
+
+class _LowConfidenceFailure implements Exception, CodedConversationException {
+  const _LowConfidenceFailure();
+
+  @override
+  String get message =>
+      'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.';
+
+  @override
+  String get errorCode => 'ASR_LOW_CONFIDENCE';
 }
 
 class _FallbackRepository
@@ -1265,6 +1363,7 @@ class _FallbackRepository
   int realtimeStarted = 0;
   int batchStarted = 0;
   int fullFileUploads = 0;
+  String? batchFallbackReason;
   StreamingSpeechCapture? streamingCapture;
   AudioCapture? audioCapture;
 
@@ -1323,8 +1422,10 @@ class _FallbackRepository
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async {
     fullFileUploads += 1;
+    batchFallbackReason = fallbackReason;
     audioCapture = capture;
     final completer = audioResultCompleter;
     if (completer != null) {

@@ -18,6 +18,7 @@ abstract interface class ConversationRepository {
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   });
 
   Future<ConversationResult> processStreamingText({
@@ -64,7 +65,7 @@ abstract interface class BatchChunkUploadSession {
     required int vadSilenceMs,
   });
 
-  Future<void> discard();
+  Future<void> discard({String reason = 'unspecified'});
 }
 
 abstract interface class ChunkedConversationRepository {

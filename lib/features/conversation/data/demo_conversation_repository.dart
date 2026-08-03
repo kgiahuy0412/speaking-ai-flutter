@@ -17,6 +17,7 @@ class DemoConversationRepository implements ConversationRepository {
     required PracticeContext context,
     required int childAge,
     required int vadSilenceMs,
+    String? fallbackReason,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 900));
     final phrase = _nextPhrase();

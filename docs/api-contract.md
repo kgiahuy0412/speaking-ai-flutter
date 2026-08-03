@@ -70,27 +70,91 @@ text được gửi một lần vào `POST /api/conversation` với:
 
 ## Batch Chunks/WAV dự phòng
 
+Web/Safari tạo session song song với lúc mở microphone, giữ chunk PCM16 200 ms
+ngay từ đầu và ghép 5 source chunk thành mỗi request transport khoảng 1.000 ms.
+Nếu VAD không xác nhận giọng nói, client hủy session và backend xóa chunk tạm.
+
 ### 1. Tạo audio session
 
 `POST /api/audio-sessions`
 
 ```json
 {
-  "audioSessionId": "audio_..."
+  "protocolVersion": 2,
+  "audio": {
+    "encoding": "pcm_s16le",
+    "requestedSampleRate": 24000,
+    "channelCount": 1,
+    "bitsPerSample": 16,
+    "sourceChunkDurationMs": 200,
+    "maxDurationMs": 12000
+  }
 }
 ```
+
+```json
+{
+  "audioSessionId": "audio_v2-...",
+  "uploadToken": "short-lived-hmac-token",
+  "expiresAt": "2026-08-03T12:15:00.000Z",
+  "capabilities": {
+    "pcm16WavFinalize": true,
+    "chunkChecksumSha256": true,
+    "missingChunkRecovery": true,
+    "scopedUploadToken": true,
+    "uploadProtocolVersion": 2,
+    "sessionTtlSeconds": 900
+  }
+}
+```
+
+Backend vẫn trả session protocol 1 khi chưa cấu hình token để APK/Web cũ không
+bị gãy. Sau khi bản mới đã phát hành, production bật
+`AUDIO_UPLOAD_REQUIRE_SCOPED_TOKEN=true`.
 
 ### 2. Upload audio
 
 `POST /api/audio-sessions/{audioSessionId}/chunks`
 
+Headers:
+
+```http
+Authorization: Bearer {uploadToken}
+Idempotency-Key: chunk:{audioSessionId}:{sequence}
+X-Chunk-SHA256: {sha256-hex}
+```
+
 `multipart/form-data`:
 
-- `sequence`: `1..N` cho PCM16 và `0` cho WAV header;
-- `audio`: các chunk PCM16 mono 24 kHz khoảng 200 ms.
+- `sequence`: `0..N-1` cho PCM16 khi backend hỗ trợ `pcm16WavFinalize`;
+- `audio`: transport chunk PCM16 mono khoảng 1.000 ms.
 
-Luồng này chỉ tự bật khi Realtime không sẵn sàng. Backend ghép thành WAV hợp lệ
-và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
+Backend lưu theo `(audioSessionId, sequence)`, không ghép theo thứ tự request đến.
+Retry cùng sequence và checksum trả thành công với `duplicate=true`; cùng sequence
+nhưng nội dung khác trả `AUDIO_CHUNK_CONFLICT`.
+
+```json
+{
+  "uploaded": true,
+  "sequence": 3,
+  "sha256": "...",
+  "duplicate": false,
+  "totalBytes": 128000,
+  "chunkCount": 4
+}
+```
+
+Hủy phiên:
+
+```http
+DELETE /api/audio-sessions/{audioSessionId}/chunks
+Authorization: Bearer {uploadToken}
+X-Discard-Reason: no_speech
+```
+
+DELETE không đợi các upload đang retry. Backend xóa/đánh dấu phiên kết thúc và
+từ chối chunk đến muộn. Session bị bỏ quên tự hết hạn sau TTL 15 phút; tiến trình
+cleanup nền chạy định kỳ 5 phút.
 
 ### 3. Finalize và chạy pipeline
 
@@ -102,6 +166,13 @@ và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
   "childAge": 6,
   "asrMode": "batch_chunks",
   "mimeType": "audio/wav",
+  "pcm16Wav": {
+    "sampleRate": 48000,
+    "channelCount": 1,
+    "bitsPerSample": 16,
+    "pcmByteLength": 192000,
+    "chunkCount": 2
+  },
   "benchmark": {
     "device": "mobile",
     "browser": "flutter_android",
@@ -112,14 +183,42 @@ và gọi OpenAI ASR đúng một lần; không chạy song song với Realtime.
     "bluetoothAudioInput": false,
     "initialNoiseRms": 0.013,
     "batchTransport": "streamed_pcm16_chunks",
-    "chunkIntervalMs": 200,
-    "audioChunkCount": 9,
+    "chunkIntervalMs": 1000,
+    "sourceChunkIntervalMs": 200,
+    "audioChunkCount": 10,
+    "transportChunkCount": 2,
     "uploadedAudioBytes": 72000,
     "sessionCreateMs": 28,
-    "uploadDrainAfterStopMs": 34
+    "firstChunkAckMs": 186,
+    "chunkUploadP50Ms": 74,
+    "chunkUploadP95Ms": 119,
+    "chunkRetryCount": 0,
+    "missingChunkCount": 0,
+    "recoveryUploadCount": 0,
+    "uploadDrainAfterStopMs": 34,
+    "retryStrategy": "exponential_full_jitter_retry_after"
   }
 }
 ```
+
+Finalize dùng header `Idempotency-Key: finalize:{audioSessionId}`. Khi thiếu
+sequence, backend trả lỗi có cấu trúc để client chỉ gửi lại chunk thiếu:
+
+```json
+{
+  "error": {
+    "code": "AUDIO_CHUNKS_MISSING",
+    "message": "Audio session thiếu chunk.",
+    "details": { "missingSequences": [3, 7] }
+  }
+}
+```
+
+Client thử khôi phục tối đa 2 vòng. `429` tôn trọng `Retry-After`; timeout, `408`,
+`425` và `5xx` dùng exponential backoff có full jitter. Lỗi ngữ nghĩa hoặc lỗi
+vĩnh viễn như `ASR_LOW_CONFIDENCE`, token sai, metadata sai và checksum conflict
+không upload lại toàn bộ WAV. WAV chỉ còn là lớp dự phòng cho lỗi transport không
+thể khôi phục.
 
 Response tiếp tục dùng `ConversationResponse` hiện tại:
 
