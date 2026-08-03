@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_guide_audio_library.dart';
@@ -1501,7 +1502,7 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
                             );
                           },
                           child: Image.asset(
-                            'assets/images/mascot-robot.png',
+                            MascotAssets.wave,
                             fit: BoxFit.contain,
                             filterQuality: FilterQuality.high,
                           ),
@@ -1566,7 +1567,7 @@ class _LessonCoachHint extends StatelessWidget {
             width: 58,
             height: 58,
             child: Image.asset(
-              'assets/images/mascot-robot.png',
+              MascotAssets.speak,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
             ),
@@ -1943,7 +1944,7 @@ class _CompletionSheetState extends State<_CompletionSheet>
                 width: mascotSize,
                 height: mascotSize,
                 child: Image.asset(
-                  'assets/images/mascot-robot.png',
+                  MascotAssets.sing,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
                 ),

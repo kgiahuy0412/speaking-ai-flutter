@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
@@ -33,6 +34,8 @@ class TopicListeningScreen extends StatefulWidget {
 }
 
 class _TopicListeningScreenState extends State<TopicListeningScreen> {
+  static const double _contentMaxWidth = 760;
+
   late int _selectedCatalogIndex;
   late final Future<ListeningContentCatalog> _contentFuture;
   ListeningContentCatalog? _contentCatalog;
@@ -69,20 +72,24 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         backgroundColor: Colors.transparent,
         body: LearningScenery(
           imageAlignment: Alignment.topCenter,
-          overlayOpacity: 0.12,
+          overlayOpacity: 0.16,
           child: SafeArea(
             bottom: false,
             child: CustomScrollView(
               key: const Key('topic-listening-screen'),
               slivers: <Widget>[
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  sliver: SliverToBoxAdapter(child: _buildHeader(context)),
+                SliverToBoxAdapter(
+                  child: _CenteredSection(
+                    maxWidth: _contentMaxWidth,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: _buildHeader(context),
+                  ),
                 ),
                 SliverToBoxAdapter(child: _buildAgeSelector()),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                  sliver: SliverToBoxAdapter(
+                SliverToBoxAdapter(
+                  child: _CenteredSection(
+                    maxWidth: _contentMaxWidth,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                     child: _ContinueLearningCard(
                       topic: _catalog.topics[_catalog.continueTopicIndex],
                       progress: _topicProgress(_catalog.continueTopicIndex),
@@ -93,17 +100,20 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                  sliver: SliverToBoxAdapter(
+                SliverToBoxAdapter(
+                  child: _CenteredSection(
+                    maxWidth: _contentMaxWidth,
+                    padding: const EdgeInsets.fromLTRB(20, 26, 20, 4),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
                         Expanded(
                           child: Text(
-                            context.tr('Chủ đề của con', '孩子的主题'),
+                            context.tr('Hành trình của con', '孩子的学习旅程'),
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                         ),
+                        const SizedBox(width: 12),
                         Text(
                           context.tr(
                             '${_catalog.topics.length} chủ đề',
@@ -111,51 +121,25 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                           ),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
-                                color: AppColors.muted,
-                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink.withValues(alpha: 0.78),
+                                fontWeight: FontWeight.w700,
+                                shadows: _journeyTextShadows,
                               ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                  sliver: SliverLayoutBuilder(
-                    builder: (context, constraints) {
-                      final crossAxisCount = constraints.crossAxisExtent >= 720
-                          ? 4
-                          : constraints.crossAxisExtent >= 520
-                          ? 3
-                          : 2;
-                      final textScale = MediaQuery.textScalerOf(
-                        context,
-                      ).scale(1);
-                      final compactTwoColumnGrid =
-                          crossAxisCount == 2 &&
-                          (constraints.crossAxisExtent < 340 ||
-                              textScale > 1.1);
-                      return SliverGrid(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => _TopicCard(
-                            key: ValueKey('topic-${_catalog.id}-$index'),
-                            topic: _catalog.topics[index],
-                            progress: _topicProgress(index),
-                            onPressed: () =>
-                                _openTopic(_catalog.topics[index], index),
-                          ),
-                          childCount: _catalog.topics.length,
-                        ),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: crossAxisCount == 2
-                              ? (compactTwoColumnGrid ? 0.76 : 0.93)
-                              : 0.96,
-                        ),
-                      );
-                    },
+                SliverToBoxAdapter(
+                  child: _CenteredSection(
+                    maxWidth: _contentMaxWidth,
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 30),
+                    child: _TopicJourney(
+                      catalogId: _catalog.id,
+                      topics: _catalog.topics,
+                      progressFor: _topicProgress,
+                      onTopicPressed: _openTopic,
+                    ),
                   ),
                 ),
               ],
@@ -197,29 +181,25 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           ),
         ),
         const SizedBox(width: 10),
-        SizedBox(
-          width: 48,
-          height: 48,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: const Color(0xF8FFFDF9),
-              shape: BoxShape.circle,
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: AppColors.ink.withValues(alpha: 0.12),
-                  blurRadius: 16,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Image.asset(
-                'assets/images/mascot-robot.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
+        Container(
+          width: 50,
+          height: 50,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xF8FFFDF9),
+            shape: BoxShape.circle,
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.ink.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 7),
               ),
-            ),
+            ],
+          ),
+          child: Image.asset(
+            MascotAssets.avatar,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
           ),
         ),
       ],
@@ -227,28 +207,33 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   }
 
   Widget _buildAgeSelector() {
-    return SizedBox(
-      height: 66,
-      child: ListView.separated(
-        key: const Key('topic-age-selector'),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-        scrollDirection: Axis.horizontal,
-        itemCount: listeningCatalogs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final catalog = listeningCatalogs[index];
-          return _AgeChip(
-            key: ValueKey('age-${catalog.id}'),
-            label: context.tr(
-              '${catalog.startAge}–${catalog.endAge}'
-                  '${index == _selectedCatalogIndex ? ' tuổi' : ''}',
-              '${catalog.startAge}–${catalog.endAge}'
-                  '${index == _selectedCatalogIndex ? ' 岁' : ''}',
-            ),
-            selected: index == _selectedCatalogIndex,
-            onPressed: () => setState(() => _selectedCatalogIndex = index),
-          );
-        },
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+    return _CenteredSection(
+      maxWidth: _contentMaxWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: SizedBox(
+        height: 70 + ((textScale - 1) * 20),
+        child: ListView.separated(
+          key: const Key('topic-age-selector'),
+          padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
+          scrollDirection: Axis.horizontal,
+          itemCount: listeningCatalogs.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 2),
+          itemBuilder: (context, index) {
+            final catalog = listeningCatalogs[index];
+            return _AgeTab(
+              key: ValueKey('age-${catalog.id}'),
+              label: context.tr(
+                '${catalog.startAge}–${catalog.endAge}'
+                    '${index == _selectedCatalogIndex ? ' tuổi' : ''}',
+                '${catalog.startAge}–${catalog.endAge}'
+                    '${index == _selectedCatalogIndex ? ' 岁' : ''}',
+              ),
+              selected: index == _selectedCatalogIndex,
+              onPressed: () => setState(() => _selectedCatalogIndex = index),
+            );
+          },
+        ),
       ),
     );
   }
@@ -270,9 +255,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _contentCatalog = catalog;
-      });
+      setState(() => _contentCatalog = catalog);
     } catch (_) {
       // The topic catalog remains usable while lesson content is unavailable.
     }
@@ -281,9 +264,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _lessonProgress = progress;
-      });
+      setState(() => _lessonProgress = progress);
     } catch (_) {
       // A fresh device simply starts without local lesson progress.
     }
@@ -306,8 +287,10 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       );
       if (content == null || content.lessons.isEmpty) {
         final topic = _catalog.topics[topicIndex];
-        final completed = topic.completed.clamp(0, topic.total);
-        return _TopicProgress(completed: completed, total: topic.total);
+        return _TopicProgress(
+          completed: topic.completed.clamp(0, topic.total),
+          total: topic.total,
+        );
       }
       final completed = content.lessons.where((lesson) {
         return (_lessonProgress[lesson.id] ?? 0) >= lesson.sentences.length;
@@ -350,7 +333,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         ),
       );
       await _reloadProgress();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) {
         return;
       }
@@ -368,8 +351,30 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   }
 }
 
-class _AgeChip extends StatelessWidget {
-  const _AgeChip({
+class _CenteredSection extends StatelessWidget {
+  const _CenteredSection({
+    required this.maxWidth,
+    required this.padding,
+    required this.child,
+  });
+
+  final double maxWidth;
+  final EdgeInsets padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(padding: padding, child: child),
+      ),
+    );
+  }
+}
+
+class _AgeTab extends StatelessWidget {
+  const _AgeTab({
     required this.label,
     required this.selected,
     required this.onPressed,
@@ -386,24 +391,47 @@ class _AgeChip extends StatelessWidget {
       selected: selected,
       button: true,
       child: Material(
-        color: selected ? AppColors.indigo : const Color(0xF8FFFDF9),
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 48),
+            constraints: BoxConstraints(minWidth: selected ? 78 : 62),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 11),
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.white : AppColors.ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (selected)
+                    const Icon(
+                      Icons.star_rounded,
+                      size: 15,
+                      color: AppColors.indigo,
+                    )
+                  else
+                    const SizedBox(height: 15),
+                  const SizedBox(height: 1),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: selected ? AppColors.indigo : AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: selected ? 54 : 0,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.indigo,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -427,24 +455,24 @@ class _ContinueLearningCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xF8FFFDF9),
+      color: const Color(0xECFFFDF9),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-        side: const BorderSide(color: Color(0xCCFFFFFF), width: 1.4),
+        borderRadius: BorderRadius.circular(26),
+        side: const BorderSide(color: Color(0x99FFFFFF), width: 1.2),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: const Key('continue-listening-card'),
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 15, 16, 15),
+          padding: const EdgeInsets.fromLTRB(13, 12, 15, 12),
           child: Row(
             children: <Widget>[
               SizedBox(
-                width: 88,
-                height: 88,
+                width: 74,
+                height: 74,
                 child: Image.asset(
-                  'assets/images/mascot-robot.png',
+                  MascotAssets.listen,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
                 ),
@@ -458,10 +486,10 @@ class _ContinueLearningCard extends StatelessWidget {
                       context.tr('Tiếp tục học', '继续学习'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.indigo,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       '${context.tr(topic.titleVi, topic.titleZh)} · '
                       '${context.tr('Bài', '第')} ${progress.nextLesson}/${progress.total}',
@@ -469,19 +497,23 @@ class _ContinueLearningCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: <Widget>[
-                        Expanded(child: _ProgressBar(value: progress.fraction)),
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.play_circle_fill_rounded,
-                          color: AppColors.indigo,
-                          size: 42,
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 9),
+                    _ProgressBar(value: progress.fraction),
                   ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: AppColors.indigo,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 30,
                 ),
               ),
             ],
@@ -492,132 +524,362 @@ class _ContinueLearningCard extends StatelessWidget {
   }
 }
 
-class _TopicCard extends StatelessWidget {
-  const _TopicCard({
-    required this.topic,
-    required this.progress,
-    required this.onPressed,
-    super.key,
+typedef _TopicProgressResolver = _TopicProgress Function(int index);
+typedef _TopicPressed = Future<void> Function(ListeningTopic topic, int index);
+
+class _TopicJourney extends StatelessWidget {
+  const _TopicJourney({
+    required this.catalogId,
+    required this.topics,
+    required this.progressFor,
+    required this.onTopicPressed,
   });
 
+  final String catalogId;
+  final List<ListeningTopic> topics;
+  final _TopicProgressResolver progressFor;
+  final _TopicPressed onTopicPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
+        final rowHeight = 150.0 + ((textScale - 1) * 124);
+        final sideWidth = (width * 0.34).clamp(110.0, 190.0).toDouble();
+        final imageSize = (sideWidth - 16).clamp(88.0, 124.0).toDouble();
+        const checkpointWidth = 40.0;
+
+        return SizedBox(
+          height: rowHeight * topics.length,
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    key: const Key('topic-journey-path'),
+                    painter: _JourneyPathPainter(
+                      itemCount: topics.length,
+                      rowHeight: rowHeight,
+                      checkpointInset: sideWidth + (checkpointWidth / 2),
+                    ),
+                  ),
+                ),
+              ),
+              Column(
+                children: List<Widget>.generate(topics.length, (index) {
+                  final topic = topics[index];
+                  final progress = progressFor(index);
+                  return SizedBox(
+                    height: rowHeight,
+                    child: _JourneyTopicStop(
+                      topicKey: ValueKey('topic-$catalogId-$index'),
+                      topic: topic,
+                      progress: progress,
+                      imageSize: imageSize,
+                      sideWidth: sideWidth,
+                      checkpointWidth: checkpointWidth,
+                      imageOnLeft: index.isEven,
+                      showStartButton: index == 0,
+                      onPressed: () => onTopicPressed(topic, index),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _JourneyTopicStop extends StatelessWidget {
+  const _JourneyTopicStop({
+    required this.topicKey,
+    required this.topic,
+    required this.progress,
+    required this.imageSize,
+    required this.sideWidth,
+    required this.checkpointWidth,
+    required this.imageOnLeft,
+    required this.showStartButton,
+    required this.onPressed,
+  });
+
+  final Key topicKey;
   final ListeningTopic topic;
   final _TopicProgress progress;
+  final double imageSize;
+  final double sideWidth;
+  final double checkpointWidth;
+  final bool imageOnLeft;
+  final bool showStartButton;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final title = context.tr(topic.titleVi, topic.titleZh);
+    final image = SizedBox(
+      width: sideWidth,
+      child: Align(
+        alignment: imageOnLeft ? Alignment.centerRight : Alignment.centerLeft,
+        child: _TopicCircleImage(key: topicKey, topic: topic, size: imageSize),
+      ),
+    );
+    final checkpoint = SizedBox(
+      width: checkpointWidth,
+      child: _JourneyCheckpoint(completed: progress.fraction >= 1),
+    );
+    final details = Expanded(
+      child: _TopicDetails(
+        title: title,
+        progress: progress,
+        alignRight: !imageOnLeft,
+        showStartButton: showStartButton,
+        onPressed: onPressed,
+      ),
+    );
+
     return Semantics(
       button: true,
       label: '$title, ${progress.completed}/${progress.total}',
       child: Material(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: Color(0xB3FFFFFF), width: 1.2),
-        ),
-        elevation: 4,
-        shadowColor: const Color(0x22142451),
-        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: topic.background,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: <Color>[
-                        topic.background,
-                        Color.alphaBlend(
-                          topic.foreground.withValues(alpha: 0.08),
-                          topic.background,
-                        ),
-                      ],
-                    ),
-                  ),
-                  child: Stack(
-                    children: <Widget>[
-                      if (topic.imagePath != null)
-                        Positioned.fill(
-                          child: Image.asset(
-                            topic.imagePath!,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
-                            filterQuality: FilterQuality.medium,
-                          ),
-                        )
-                      else
-                        Center(
-                          child: Container(
-                            width: 78,
-                            height: 78,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.82),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              topic.icon,
-                              size: 46,
-                              color: topic.foreground,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontSize: 16),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      context.tr(
-                        '${progress.total} bài học',
-                        '${progress.total} 课',
-                      ),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.muted,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: <Widget>[
-                        Expanded(child: _ProgressBar(value: progress.fraction)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${progress.completed}/${progress.total}',
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          borderRadius: BorderRadius.circular(32),
+          splashColor: AppColors.indigo.withValues(alpha: 0.12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: imageOnLeft
+                  ? <Widget>[image, checkpoint, details]
+                  : <Widget>[details, checkpoint, image],
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _TopicCircleImage extends StatelessWidget {
+  const _TopicCircleImage({required this.topic, required this.size, super.key});
+
+  final ListeningTopic topic;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.ink.withValues(alpha: 0.13),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: ColoredBox(
+          color: topic.background,
+          child: topic.imagePath == null
+              ? Icon(topic.icon, size: size * 0.48, color: topic.foreground)
+              : Image.asset(
+                  topic.imagePath!,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  filterQuality: FilterQuality.high,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyCheckpoint extends StatelessWidget {
+  const _JourneyCheckpoint({required this.completed});
+
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: completed ? AppColors.success : AppColors.indigo,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 3),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: AppColors.indigo.withValues(alpha: 0.22),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Icon(
+          completed ? Icons.check_rounded : Icons.star_rounded,
+          color: Colors.white,
+          size: 19,
+        ),
+      ),
+    );
+  }
+}
+
+class _TopicDetails extends StatelessWidget {
+  const _TopicDetails({
+    required this.title,
+    required this.progress,
+    required this.alignRight,
+    required this.showStartButton,
+    required this.onPressed,
+  });
+
+  final String title;
+  final _TopicProgress progress;
+  final bool alignRight;
+  final bool showStartButton;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final alignment = alignRight
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
+    final textAlignment = alignRight ? TextAlign.right : TextAlign.left;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: alignment,
+        children: <Widget>[
+          Text(
+            title,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlignment,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: AppColors.ink,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              shadows: _journeyTextShadows,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            context.tr(
+              '${progress.total} bài học · ${progress.completed}/${progress.total}',
+              '${progress.total} 课 · ${progress.completed}/${progress.total}',
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlignment,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.ink.withValues(alpha: 0.78),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              shadows: _journeyTextShadows,
+            ),
+          ),
+          if (showStartButton) ...<Widget>[
+            const SizedBox(height: 8),
+            FilledButton(
+              key: const Key('start-first-topic'),
+              onPressed: onPressed,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(86, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+              child: Text(context.tr('Bắt đầu', '开始')),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+const _journeyTextShadows = <Shadow>[
+  Shadow(color: Colors.white, blurRadius: 2),
+  Shadow(color: Colors.white, blurRadius: 7),
+  Shadow(color: Colors.white, offset: Offset(0, 1), blurRadius: 3),
+];
+
+class _JourneyPathPainter extends CustomPainter {
+  const _JourneyPathPainter({
+    required this.itemCount,
+    required this.rowHeight,
+    required this.checkpointInset,
+  });
+
+  final int itemCount;
+  final double rowHeight;
+  final double checkpointInset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (itemCount < 2) {
+      return;
+    }
+
+    Offset pointFor(int index) => Offset(
+      index.isEven ? checkpointInset : size.width - checkpointInset,
+      rowHeight * (index + 0.5),
+    );
+
+    final path = Path();
+    var current = pointFor(0);
+    path.moveTo(current.dx, current.dy);
+    for (var index = 1; index < itemCount; index++) {
+      final next = pointFor(index);
+      final middleY = (current.dy + next.dy) / 2;
+      path.cubicTo(current.dx, middleY, next.dx, middleY, next.dx, next.dy);
+      current = next;
+    }
+
+    final haloPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.74)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, haloPaint);
+
+    final dashPaint = Paint()
+      ..color = AppColors.indigo.withValues(alpha: 0.92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.8
+      ..strokeCap = StrokeCap.round;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + 8).clamp(0, metric.length).toDouble();
+        canvas.drawPath(metric.extractPath(distance, end), dashPaint);
+        distance += 14;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_JourneyPathPainter oldDelegate) {
+    return itemCount != oldDelegate.itemCount ||
+        rowHeight != oldDelegate.rowHeight ||
+        checkpointInset != oldDelegate.checkpointInset;
   }
 }
 
@@ -642,9 +904,9 @@ class _ProgressBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(99),
       child: LinearProgressIndicator(
         value: value.clamp(0, 1),
-        minHeight: 7,
+        minHeight: 6,
         backgroundColor: AppColors.lavenderBorder,
-        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
+        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.indigo),
       ),
     );
   }

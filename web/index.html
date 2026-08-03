@@ -44,6 +44,20 @@
   </style>
 </head>
 <body>
+  <script>
+    window.innotrikVoicePromptSpeak = function (text, locale) {
+      if (!('speechSynthesis' in window) || !text) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = locale || 'vi-VN';
+      utterance.rate = 0.92;
+      utterance.pitch = 1.05;
+      window.speechSynthesis.speak(utterance);
+    };
+    window.innotrikVoicePromptStop = function () {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

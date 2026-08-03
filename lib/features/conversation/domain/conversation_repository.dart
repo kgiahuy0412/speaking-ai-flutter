@@ -5,6 +5,11 @@ import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import 'conversation_models.dart';
 
+abstract interface class CodedConversationException {
+  String get message;
+  String? get errorCode;
+}
+
 abstract interface class ConversationRepository {
   Future<void> warmAudioCache();
 

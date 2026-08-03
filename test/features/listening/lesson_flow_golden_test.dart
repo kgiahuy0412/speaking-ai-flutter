@@ -106,7 +106,7 @@ void main() {
     );
     await _precache(tester, find.byType(LessonIntroScreen), const <AssetImage>[
       AssetImage('assets/images/lesson-intro-stage.webp'),
-      AssetImage('assets/images/mascot-robot.png'),
+      AssetImage('assets/images/mascot/penguin-wave.png'),
     ]);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 700));
@@ -140,7 +140,7 @@ void main() {
       tester,
       find.byType(LessonPracticeScreen),
       const <AssetImage>[
-        AssetImage('assets/images/learning-train-field-background.webp'),
+        AssetImage('assets/images/learning-penguin-field-background.webp'),
       ],
     );
     await tester.pumpAndSettle();
@@ -172,7 +172,7 @@ void main() {
     await _precache(
       tester,
       find.byType(LessonPracticeScreen),
-      const <AssetImage>[AssetImage('assets/images/mascot-robot.png')],
+      const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
     );
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
@@ -205,7 +205,7 @@ void main() {
     await _precache(
       tester,
       find.byType(LessonPracticeScreen),
-      const <AssetImage>[AssetImage('assets/images/mascot-robot.png')],
+      const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
     );
     await tester.pump();
     final recordButton = find.byKey(const Key('record-lesson-sentence'));
@@ -236,7 +236,7 @@ void main() {
       ),
     );
     await _precache(tester, find.byType(LessonReviewScreen), const <AssetImage>[
-      AssetImage('assets/images/mascot-robot-pointing.png'),
+      AssetImage('assets/images/mascot/penguin-speak.png'),
     ]);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -270,7 +270,7 @@ void main() {
       ),
     );
     await _precache(tester, find.byType(LessonReviewScreen), const <AssetImage>[
-      AssetImage('assets/images/mascot-robot-pointing.png'),
+      AssetImage('assets/images/mascot/penguin-speak.png'),
     ]);
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -312,7 +312,7 @@ void main() {
     await _precache(
       tester,
       find.byType(LessonPracticeScreen),
-      const <AssetImage>[AssetImage('assets/images/mascot-robot.png')],
+      const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
     );
     await tester.pumpAndSettle();
 

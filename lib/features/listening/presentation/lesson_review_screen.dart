@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
@@ -668,7 +669,7 @@ class _ReviewPlayControl extends StatefulWidget {
     required this.tooltip,
   });
 
-  static const _mascotAsset = 'assets/images/mascot-robot-pointing.png';
+  static const _mascotAsset = MascotAssets.speak;
 
   final int index;
   final bool playing;

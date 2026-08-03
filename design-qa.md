@@ -274,6 +274,51 @@ final result: passed
 
 ---
 
+# Design QA — Hành trình luyện nghe theo chủ đề
+
+## Bằng chứng
+
+- Nguồn thiết kế được chọn: `C:/Users/Windows/.codex/generated_images/019fb5fc-945a-7330-bd0d-b6ad15b55359/exec-fd883c65-d221-40f5-bdb8-491074a964b4.png` — 852 × 1846 px, tương ứng khung logic 426 × 923 ở DPR 2.
+- Bản Flutter Web: `.codex/design-qa/topic-listening-web-426x923.png` — 426 × 922 px tại viewport logic 426 × 923, DPR 1.
+- Bản Web màn hình rộng: `.codex/design-qa/topic-listening-web-1280x900.png` — nội dung giới hạn 760 px và căn giữa trong viewport rộng.
+- Trạng thái mở chủ đề: `.codex/design-qa/topic-first-open-426x923.png`.
+- So sánh cùng một đầu vào: `.codex/design-qa/topic-listening-comparison.png`; ảnh nguồn được thu về đúng 426 × 923 trước khi đặt cạnh bản Web.
+- Golden Flutter: `test/goldens/topic-listening-426x923.png` — 426 × 923 logical px.
+
+## Trạng thái và hành vi đã kiểm tra
+
+- Nhóm tuổi 6–7 được chọn; thẻ “Tiếp tục học”, 10 chủ đề, thanh điều hướng và đường cong hành trình cùng hiển thị.
+- Chọn nhóm 3–5 thay đúng danh mục, ảnh chủ đề và bài tiếp tục.
+- Chạm chủ đề đầu tiên mở danh sách bài học đúng chủ đề; nút quay lại trở về đúng vị trí hành trình.
+- Web console không có lỗi hoặc cảnh báo trong luồng đã kiểm tra.
+
+## Đánh giá fidelity
+
+- Bố cục: giữ đúng nhịp header → nhóm tuổi → tiếp tục học → hành trình; các điểm dừng xen kẽ hai bên và nối bằng Bézier mềm, không dùng đường thẳng cứng.
+- Typography: tiêu đề và metadata có độ tương phản cao hơn sau vòng sửa thứ hai; bóng chữ trắng giúp nội dung đọc được trên nền phong cảnh mà không thêm nhiều khung AI.
+- Màu sắc và hình ảnh: giữ nền phong cảnh mùa hè hiện có của sản phẩm, ảnh chủ đề thật, indigo cho đường đi/checkpoint và bề mặt trắng mờ cho thẻ tiếp tục học.
+- Responsive: 426 × 923 không tràn hoặc che nút; màn hình rộng giữ chiều rộng nội dung tối đa 760 px và thanh điều hướng căn giữa.
+- Accessibility: điểm chạm lớn, nội dung cuộn được, widget test bao phủ text scale 200% và compact phone.
+
+## Lịch sử so sánh
+
+- Pass 1: phát hiện metadata và số lượng chủ đề hơi chìm trên vùng núi/tàu (P2 về độ tương phản).
+- Fix: đổi metadata sang màu ink đậm hơn, tăng font weight và tinh chỉnh bóng chữ trắng; không thêm hộp nền mới.
+- Pass 2: so sánh cùng khung 426 × 923 cho thấy không còn P0, P1 hoặc P2 cần xử lý. Việc dùng nền tàu và mascot hiện có thay vì nền minh họa trong mock là lựa chọn giữ nhận diện sản phẩm, không làm thay đổi cấu trúc hành trình.
+
+## Xác minh kỹ thuật
+
+- `flutter analyze`: qua, không có issue.
+- 9/9 test của `topic_listening_screen_test.dart`: qua.
+- Golden riêng của màn topic listening: qua khi chạy độc lập.
+- `flutter build web --release`: qua.
+- `flutter build apk --release`: qua, APK 82.5 MB.
+- Lần chạy toàn bộ suite trước vòng polish có 13 test lỗi trong `core_audio_streaming_fallback_test.dart`; đây là nhóm timing/fallback audio có sẵn và không thuộc các file giao diện hành trình.
+
+final result: passed
+
+---
+
 # Design QA — Summer train visual system
 
 ## Evidence
@@ -372,62 +417,38 @@ final result: passed
 
 final result: passed
 
-## Nhãn “Bẩm để học” phía trên robot
-
-- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-08851615-66a6-47c1-be9a-11ac70da5eee.png` — 444 × 149 px.
-- Rendered implementation: `build/design-qa/implementation-a.png` — Android emulator at 1080 × 2400 physical px, density 2.75, approximately 393 × 873 logical px.
-- Focused comparison: `build/design-qa/comparison.png` — source and first-card crop normalized to 880 px width on one 1760 × 600 board.
-- State: nhóm tuổi 6–7, chủ đề “Tên và tuổi của con”, bài “Tên của con”, trang “Nghe tổng quan”, idle state, hint at full opacity.
-- Full-view evidence: the label sits above the first robot without covering the sentence, play control, neighboring cards, or bottom actions; all five cards remain visible.
-- Focused evidence: the original robot, play control, card border, number badge, typography and alignment remain intact. The first card grows only enough to contain the requested label.
-- Fonts and typography: app typography, bold optical weight, compact 11 px label and single-line copy are preserved.
-- Spacing and layout rhythm: the label clears the robot antenna and does not overlap the sentence or play button.
-- Colors and visual tokens: white surface, lavender border, indigo copy and soft indigo shadow reuse existing tokens.
-- Image quality and asset fidelity: the existing transparent robot asset remains sharp and undistorted.
-- Copy and content: “Bẩm để học” appears once, above the first robot.
-- Interaction: the label ignores pointer input; opacity alternates every 700 ms with a 250 ms ease transition; the play button remains usable.
-- Findings: no actionable P0, P1 or P2 differences.
-- Comparison history: pass 1 had no P0/P1/P2 finding, so no post-capture visual correction was required.
-- Follow-up polish: P3 — the first card is intentionally taller than the source so the added label stays readable.
-
-final result: passed
-
-## Nền trắng cho nút “Câu trước”
-
-- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-d29b5964-56f0-4851-9416-2ca5f3aac206.png` — 229 × 115 px.
-- Rendered implementation: `build/design-qa/implementation-white-previous-button.png` — Android emulator at 1080 × 2400 physical px, density 2.75, approximately 393 × 873 logical px.
-- Focused comparison: `build/design-qa/comparison-white-previous-button.png` — source button crop 225 × 75 px and implementation crop 471 × 162 px, each normalized to 800 px width on one 1600 × 360 board.
-- State: nhóm tuổi 6–7, bài “Tên của con”, câu 2/5, màn hình luyện câu trước khi ghi âm.
-- Full-view evidence: the white previous button remains fully visible over the grass background, aligns with the filled “Tiếp tục” action and does not affect the recording card or bottom navigation.
-- Focused evidence: the button keeps its rounded outline, indigo back icon and label while replacing the transparent grass-filled interior with a solid white surface.
-- Fonts and typography: Roboto weight, size and single-line “Câu trước” copy remain unchanged.
-- Spacing and layout rhythm: button height, radius, icon-to-label gap and two-column alignment remain unchanged.
-- Colors and visual tokens: white background provides the requested contrast; indigo foreground and lavender outline remain consistent with the existing app palette.
-- Image quality and asset fidelity: the grass background is untouched and remains visible around the button with no generated or substituted asset.
-- Copy and content: no copy changed.
-- Interaction: enabled and disabled styles both retain a white surface; navigation behavior is unchanged and covered by tests.
-- Findings: no actionable P0, P1 or P2 differences.
-- Comparison history: pass 1 had no P0/P1/P2 finding, so no post-capture visual correction was required.
-
-final result: passed
-
 ---
 
-## Khoảng cách phụ đề karaoke 30 px
+# Design QA — Bỏ mascot VoiceHero và tăng độ cong hành trình
 
-- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-277f83cc-bcbc-4699-a412-bc954ab94f04.png` — 480 x 986 px.
-- Implementation screenshot: `test/features/listening/goldens/song-karaoke-390x844.png` — 390 x 844 logical px, deviceScaleFactor 1.
-- Combined comparison: `C:\Users\DELL\AppData\Local\Temp\song-karaoke-spacing-design-qa.png`.
-- State: karaoke screen with an active English lyric and its matching Vietnamese subtitle.
-- Full-view evidence: the source and implementation use different song copy and viewport sizes, so comparison is limited to the requested lyric spacing. Header, scenery, typography hierarchy, player card, and controls remain unchanged.
-- Focused evidence: the Vietnamese subtitle is separated from the active English lyric by a 30-logical-pixel spacer. A widget geometry assertion verifies the rendered gap is exactly 30 logical pixels.
-- Fonts and typography: unchanged; sizes, weights, line heights, highlighting, and responsive wrapping are preserved.
-- Spacing and layout rhythm: the subtitle gap changed from 12 px on compact layouts and 20 px on wider layouts to 30 px on both mobile and web.
-- Colors and visual tokens: unchanged.
-- Image quality and asset fidelity: background and robot assets are unchanged.
-- Copy and content: active English lyric and matching Vietnamese subtitle remain unchanged.
-- Findings: no actionable P0, P1, or P2 differences remain for the requested spacing change.
-- Comparison history: the initial implementation used a 12/20 px responsive gap; it was replaced with a constant 30 px gap and verified by the updated golden plus exact widget geometry test.
-- Follow-up polish: the longer Vietnamese subtitle wraps naturally on the 390 px test viewport; this is expected responsive behavior.
+## Bằng chứng
+
+- Nguồn VoiceHero: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-16183f2a-2577-44f0-b214-1d7222af8b15.png` — 904 × 296 px, trạng thái idle có chim cánh cụt ở góc trái.
+- Bản VoiceHero sau chỉnh sửa: `.codex/design-qa/conversation-no-penguin-426x923.png` — ảnh Web tại viewport 426 × 923 CSS px, DPR 1.
+- Nguồn hành trình: `C:/Users/Windows/.codex/generated_images/019fb5fc-945a-7330-bd0d-b6ad15b55359/exec-fd883c65-d221-40f5-bdb8-491074a964b4.png` — 852 × 1846 px, chuẩn hóa về 426 × 923.
+- Bản hành trình sau chỉnh sửa: `.codex/design-qa/topic-more-curved-426x923.png` — 426 × 923 CSS px, DPR 1.
+- So sánh cùng một đầu vào: `.codex/design-qa/penguin-removal-and-curve-comparison.png`.
+- Trạng thái: giao tiếp idle và danh mục luyện nghe nhóm 6–7 tuổi.
+
+## So sánh và phát hiện
+
+- VoiceHero không còn chim cánh cụt hoặc khoảng chồng hình ở góc trái; nội dung, bề mặt, icon trạng thái, waveform và CTA giữ nguyên.
+- Mỗi chặng chủ đề nay dùng hai cubic Bézier nối tiếp với tangent liên tục. Phần giữa uốn rõ hơn và đoạn vào checkpoint vẫn tròn, không xuất hiện góc gãy.
+- Font, hierarchy, màu indigo, bề mặt trắng mờ, ảnh chủ đề và copy không thay đổi ngoài phạm vi yêu cầu.
+- Viewport 426 × 923 không có overflow; các checkpoint, đường nét và thanh điều hướng vẫn đọc được trên nền phong cảnh.
+- Không cần focused crop riêng: vùng VoiceHero đã được so sánh ở kích thước component, còn đường đi chiếm phần lớn full-view 426 × 923.
+- Không còn P0, P1 hoặc P2 cần xử lý.
+
+## Lịch sử
+
+- Pass 1: mascot được gỡ khỏi mọi trạng thái VoiceHero; không để lại asset reference hoặc semantic label thừa.
+- Pass 2: đường cubic đơn được thay bằng hai cubic Bézier liên tục cho mỗi chặng; ảnh Web sau build xác nhận độ cong sâu hơn và không tạo gãy nét.
+
+## Xác minh
+
+- `flutter analyze`: qua, không có issue.
+- 12 test chức năng liên quan VoiceHero và topic listening: qua.
+- 4 golden của conversation/topic listening: qua sau khi cập nhật đúng thay đổi hình ảnh.
+- Web console: không có error hoặc warning trong hai màn đã kiểm tra.
 
 final result: passed

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-const learningSceneryAsset =
-    'assets/images/learning-train-field-background.webp';
+import 'mascot_assets.dart';
+
+const learningSceneryAsset = MascotAssets.scenery;
 
 /// Shared visual frame for the communication and listening journeys.
 ///
