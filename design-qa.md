@@ -410,3 +410,24 @@ final result: passed
 - Comparison history: pass 1 had no P0/P1/P2 finding, so no post-capture visual correction was required.
 
 final result: passed
+
+---
+
+## Khoảng cách phụ đề karaoke 30 px
+
+- Source visual truth: `C:\Users\DELL\AppData\Local\Temp\codex-clipboard-277f83cc-bcbc-4699-a412-bc954ab94f04.png` — 480 x 986 px.
+- Implementation screenshot: `test/features/listening/goldens/song-karaoke-390x844.png` — 390 x 844 logical px, deviceScaleFactor 1.
+- Combined comparison: `C:\Users\DELL\AppData\Local\Temp\song-karaoke-spacing-design-qa.png`.
+- State: karaoke screen with an active English lyric and its matching Vietnamese subtitle.
+- Full-view evidence: the source and implementation use different song copy and viewport sizes, so comparison is limited to the requested lyric spacing. Header, scenery, typography hierarchy, player card, and controls remain unchanged.
+- Focused evidence: the Vietnamese subtitle is separated from the active English lyric by a 30-logical-pixel spacer. A widget geometry assertion verifies the rendered gap is exactly 30 logical pixels.
+- Fonts and typography: unchanged; sizes, weights, line heights, highlighting, and responsive wrapping are preserved.
+- Spacing and layout rhythm: the subtitle gap changed from 12 px on compact layouts and 20 px on wider layouts to 30 px on both mobile and web.
+- Colors and visual tokens: unchanged.
+- Image quality and asset fidelity: background and robot assets are unchanged.
+- Copy and content: active English lyric and matching Vietnamese subtitle remain unchanged.
+- Findings: no actionable P0, P1, or P2 differences remain for the requested spacing change.
+- Comparison history: the initial implementation used a 12/20 px responsive gap; it was replaced with a constant 30 px gap and verified by the updated golden plus exact widget geometry test.
+- Follow-up polish: the longer Vietnamese subtitle wraps naturally on the 390 px test viewport; this is expected responsive behavior.
+
+final result: passed
