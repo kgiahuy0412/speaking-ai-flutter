@@ -6,7 +6,7 @@ import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
-import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
+import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -38,7 +38,7 @@ void main() {
             ),
             child: child!,
           ),
-          home: ConversationScreen(
+          home: HomeLearningShell(
             controller: controller,
             config: AppConfig(
               backendBaseUri: Uri.parse('https://api.example.com'),
@@ -60,13 +60,13 @@ void main() {
       );
       expect(find.byTooltip('Cài đặt'), findsOneWidget);
 
-      final topicShortcut = find.byKey(const Key('topic-listening-shortcut'));
+      final topicShortcut = find.byKey(const Key('topic-listening-edge-tab'));
       await tester.ensureVisible(topicShortcut);
       await tester.tapAt(
         tester.getTopLeft(topicShortcut) + const Offset(20, 20),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Luyện nghe theo chủ đề'), findsOneWidget);
+      expect(find.text('Chủ đề'), findsOneWidget);
       expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
       expect(tester.takeException(), isNull);
 

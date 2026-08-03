@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -99,141 +100,134 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       language: widget.language,
       child: Scaffold(
         key: const Key('lesson-intro-screen'),
-        body: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            Image.asset(
-              'assets/images/lesson-intro-stage.webp',
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
-            ),
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight - 30,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Column(
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                IconButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  icon: const Icon(Icons.arrow_back_rounded),
-                                  tooltip: context.tr('Quay lại', '返回'),
-                                ),
-                                const Spacer(),
-                                TextButton(
-                                  key: const Key('skip-lesson-intro'),
-                                  onPressed: _openOverview,
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: Colors.white.withValues(
-                                      alpha: 0.9,
-                                    ),
-                                    foregroundColor: AppColors.ink,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 12,
-                                    ),
+        backgroundColor: Colors.transparent,
+        body: LearningScenery(
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - 30,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.arrow_back_rounded),
+                                tooltip: context.tr('Quay lại', '返回'),
+                              ),
+                              const Spacer(),
+                              TextButton(
+                                key: const Key('skip-lesson-intro'),
+                                onPressed: _openOverview,
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.9,
                                   ),
-                                  child: Text(context.tr('Bỏ qua', '跳过')),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            ScaleTransition(
-                              scale: _animationController,
-                              child: SizedBox(
-                                width: 220,
-                                height: 238,
-                                child: Transform.scale(
-                                  scale: 1.42,
-                                  child: Image.asset(
-                                    MascotAssets.wave,
-                                    fit: BoxFit.contain,
-                                    filterQuality: FilterQuality.high,
+                                  foregroundColor: AppColors.ink,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 12,
                                   ),
+                                ),
+                                child: Text(context.tr('Bỏ qua', '跳过')),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ScaleTransition(
+                            scale: _animationController,
+                            child: SizedBox(
+                              width: 220,
+                              height: 238,
+                              child: Transform.scale(
+                                scale: 1.42,
+                                child: Image.asset(
+                                  MascotAssets.wave,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
                                 ),
                               ),
                             ),
-                            Transform.translate(
-                              offset: const Offset(0, -18),
-                              child: Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  22,
-                                  20,
-                                  22,
-                                  20,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.94),
-                                  borderRadius: BorderRadius.circular(26),
-                                  boxShadow: const <BoxShadow>[
-                                    BoxShadow(
-                                      color: Color(0x24142451),
-                                      blurRadius: 24,
-                                      offset: Offset(0, 10),
+                          ),
+                          Transform.translate(
+                            offset: const Offset(0, -18),
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(
+                                22,
+                                20,
+                                22,
+                                20,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.94),
+                                borderRadius: BorderRadius.circular(26),
+                                boxShadow: const <BoxShadow>[
+                                  BoxShadow(
+                                    color: Color(0x24142451),
+                                    blurRadius: 24,
+                                    offset: Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                widget.lesson.intro,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      fontSize: 18,
+                                      height: 1.48,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                  ],
-                                ),
-                                child: Text(
-                                  widget.lesson.intro,
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        fontSize: 18,
-                                        height: 1.48,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
                               ),
                             ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.graphic_eq_rounded,
+                          ),
+                          const Spacer(),
+                          const Icon(
+                            Icons.graphic_eq_rounded,
+                            color: AppColors.indigo,
+                            size: 72,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _introPlaybackFailed
+                                ? context.tr(
+                                    'Không thể phát lời mở đầu. Con hãy bấm Bỏ qua để tiếp tục.',
+                                    '无法播放开场介绍，请点击跳过继续。',
+                                  )
+                                : context.tr(
+                                    'Đang phát lời mở đầu…',
+                                    '正在播放开场介绍…',
+                                  ),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: AppColors.indigoDark),
+                          ),
+                          const SizedBox(height: 14),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                              value: _introPlaybackFailed ? 0 : null,
+                              minHeight: 7,
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.55,
+                              ),
                               color: AppColors.indigo,
-                              size: 72,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _introPlaybackFailed
-                                  ? context.tr(
-                                      'Không thể phát lời mở đầu. Con hãy bấm Bỏ qua để tiếp tục.',
-                                      '无法播放开场介绍，请点击跳过继续。',
-                                    )
-                                  : context.tr(
-                                      'Đang phát lời mở đầu…',
-                                      '正在播放开场介绍…',
-                                    ),
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: AppColors.indigoDark),
-                            ),
-                            const SizedBox(height: 14),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(99),
-                              child: LinearProgressIndicator(
-                                value: _introPlaybackFailed ? 0 : null,
-                                minHeight: 7,
-                                backgroundColor: Colors.white.withValues(
-                                  alpha: 0.55,
-                                ),
-                                color: AppColors.indigo,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
         ),
       ),
     );

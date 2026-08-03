@@ -24,7 +24,7 @@ import '../features/conversation/data/next_conversation_repository.dart';
 import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
-import '../features/conversation/presentation/conversation_screen.dart';
+import '../features/home/presentation/home_learning_shell.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 
@@ -188,7 +188,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       home: AndroidUpdateGate(
         config: _config,
         child: PwaInstallGate(
-          child: ConversationScreen(controller: _controller, config: _config),
+          child: HomeLearningShell(controller: _controller, config: _config),
         ),
       ),
     );

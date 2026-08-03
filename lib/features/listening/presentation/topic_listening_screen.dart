@@ -108,23 +108,32 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
                         Expanded(
+                          flex: 3,
                           child: Text(
                             context.tr('Hành trình của con', '孩子的学习旅程'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Text(
-                          context.tr(
-                            '${_catalog.topics.length} chủ đề',
-                            '${_catalog.topics.length} 个主题',
+                        Flexible(
+                          flex: 2,
+                          child: Text(
+                            context.tr(
+                              '${_catalog.topics.length} chủ đề',
+                              '${_catalog.topics.length} 个主题',
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.ink.withValues(alpha: 0.78),
+                                  fontWeight: FontWeight.w700,
+                                  shadows: _journeyTextShadows,
+                                ),
                           ),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: AppColors.ink.withValues(alpha: 0.78),
-                                fontWeight: FontWeight.w700,
-                                shadows: _journeyTextShadows,
-                              ),
                         ),
                       ],
                     ),
@@ -172,8 +181,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            context.tr('Luyện nghe theo chủ đề', '按主题练听力'),
-            maxLines: 2,
+            context.tr('Chủ đề', '主题'),
+            maxLines: 1,
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -546,7 +555,7 @@ class _TopicJourney extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
-        final rowHeight = 150.0 + ((textScale - 1) * 124);
+        final rowHeight = 150.0 + ((textScale - 1) * 150);
         final sideWidth = (width * 0.34).clamp(110.0, 190.0).toDouble();
         final imageSize = (sideWidth - 16).clamp(88.0, 124.0).toDouble();
         const checkpointWidth = 40.0;

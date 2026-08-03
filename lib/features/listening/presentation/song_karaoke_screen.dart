@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
-import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
@@ -15,6 +14,8 @@ bool shouldUseSongKaraoke({
   required ListeningLessonContent lesson,
 }) => startAge >= 6 && lesson.type == ListeningLessonType.song;
 
+const songKaraokeBackgroundAsset = 'assets/images/song-karaoke-sunrise.webp';
+
 class SongKaraokeScreen extends StatefulWidget {
   const SongKaraokeScreen({
     required this.language,
@@ -23,7 +24,7 @@ class SongKaraokeScreen extends StatefulWidget {
     required this.practiceBuilder,
     required this.topicTitle,
     this.autoPlayDelay = const Duration(seconds: 3),
-    this.backgroundAsset = learningSceneryAsset,
+    this.backgroundAsset = songKaraokeBackgroundAsset,
     super.key,
   });
 

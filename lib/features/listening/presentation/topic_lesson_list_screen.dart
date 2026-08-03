@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
@@ -65,100 +66,49 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       language: widget.language,
       child: Scaffold(
         key: const Key('topic-lesson-list-screen'),
-        body: SafeArea(
-          bottom: false,
-          child: FutureBuilder<Map<String, int>>(
-            future: _progressFuture,
-            builder: (context, snapshot) {
-              final progress = snapshot.data ?? const <String, int>{};
-              return CustomScrollView(
-                slivers: <Widget>[
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                    sliver: SliverToBoxAdapter(child: _Header(onBack: _goBack)),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: _TopicHero(widget: widget),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                    sliver: SliverToBoxAdapter(
-                      child: Row(
-                        children: <Widget>[
-                          const Icon(
-                            Icons.auto_awesome_rounded,
-                            color: AppColors.periwinkle,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              context.tr('Hành trình học', '学习旅程'),
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.star_rounded,
-                            color: Color(0xFFFFC75B),
-                            size: 23,
-                          ),
-                        ],
+        backgroundColor: Colors.transparent,
+        body: LearningScenery(
+          child: SafeArea(
+            bottom: false,
+            child: FutureBuilder<Map<String, int>>(
+              future: _progressFuture,
+              builder: (context, snapshot) {
+                final progress = snapshot.data ?? const <String, int>{};
+                return CustomScrollView(
+                  slivers: <Widget>[
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _Header(onBack: _goBack),
                       ),
                     ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                    sliver: SliverList.separated(
-                      itemCount: widget.content.lessons.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final lesson = widget.content.lessons[index];
-                        final completed = (progress[lesson.id] ?? 0).clamp(
-                          0,
-                          lesson.sentences.length,
-                        );
-                        return _LessonPathCard(
-                          key: ValueKey('lesson-${lesson.id}'),
-                          lesson: lesson,
-                          completedSentences: completed,
-                          isLast: index == widget.content.lessons.length - 1,
-                          onPressed: () => _startLesson(
-                            lesson,
-                            reviewFromBeginning:
-                                lesson.sentences.isNotEmpty &&
-                                completed >= lesson.sentences.length,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (widget.content.songs.isNotEmpty) ...<Widget>[
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _TopicHero(widget: widget),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
                       sliver: SliverToBoxAdapter(
                         child: Row(
                           children: <Widget>[
                             const Icon(
-                              Icons.music_note_rounded,
-                              color: AppColors.coral,
+                              Icons.auto_awesome_rounded,
+                              color: AppColors.periwinkle,
+                              size: 22,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                context.tr('Bài hát & chant', '歌曲与节奏歌'),
+                                context.tr('Hành trình học', '学习旅程'),
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                             ),
-                            Text(
-                              context.tr(
-                                '${widget.content.songs.length} bài',
-                                '${widget.content.songs.length} 首',
-                              ),
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.muted),
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFFFC75B),
+                              size: 23,
                             ),
                           ],
                         ),
@@ -167,33 +117,90 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                       sliver: SliverList.separated(
-                        itemCount: widget.content.songs.length,
+                        itemCount: widget.content.lessons.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          final song = widget.content.songs[index];
-                          final completed = (progress[song.id] ?? 0).clamp(
+                          final lesson = widget.content.lessons[index];
+                          final completed = (progress[lesson.id] ?? 0).clamp(
                             0,
-                            song.sentences.length,
+                            lesson.sentences.length,
                           );
                           return _LessonPathCard(
-                            key: ValueKey('song-${song.id}'),
-                            lesson: song,
+                            key: ValueKey('lesson-${lesson.id}'),
+                            lesson: lesson,
                             completedSentences: completed,
-                            isLast: index == widget.content.songs.length - 1,
+                            isLast: index == widget.content.lessons.length - 1,
                             onPressed: () => _startLesson(
-                              song,
+                              lesson,
                               reviewFromBeginning:
-                                  song.sentences.isNotEmpty &&
-                                  completed >= song.sentences.length,
+                                  lesson.sentences.isNotEmpty &&
+                                  completed >= lesson.sentences.length,
                             ),
                           );
                         },
                       ),
                     ),
+                    if (widget.content.songs.isNotEmpty) ...<Widget>[
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                        sliver: SliverToBoxAdapter(
+                          child: Row(
+                            children: <Widget>[
+                              const Icon(
+                                Icons.music_note_rounded,
+                                color: AppColors.coral,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  context.tr('Bài hát & chant', '歌曲与节奏歌'),
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                              ),
+                              Text(
+                                context.tr(
+                                  '${widget.content.songs.length} bài',
+                                  '${widget.content.songs.length} 首',
+                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                        sliver: SliverList.separated(
+                          itemCount: widget.content.songs.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final song = widget.content.songs[index];
+                            final completed = (progress[song.id] ?? 0).clamp(
+                              0,
+                              song.sentences.length,
+                            );
+                            return _LessonPathCard(
+                              key: ValueKey('song-${song.id}'),
+                              lesson: song,
+                              completedSentences: completed,
+                              isLast: index == widget.content.songs.length - 1,
+                              onPressed: () => _startLesson(
+                                song,
+                                reviewFromBeginning:
+                                    song.sentences.isNotEmpty &&
+                                    completed >= song.sentences.length,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         bottomNavigationBar: ListeningNavigationBar(

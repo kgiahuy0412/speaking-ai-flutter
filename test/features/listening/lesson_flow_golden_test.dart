@@ -105,7 +105,7 @@ void main() {
       ),
     );
     await _precache(tester, find.byType(LessonIntroScreen), const <AssetImage>[
-      AssetImage('assets/images/lesson-intro-stage.webp'),
+      AssetImage('assets/images/learning-minimal-sky-background.png'),
       AssetImage('assets/images/mascot/penguin-wave.png'),
     ]);
     await tester.pump();
@@ -140,7 +140,7 @@ void main() {
       tester,
       find.byType(LessonPracticeScreen),
       const <AssetImage>[
-        AssetImage('assets/images/learning-penguin-field-background.webp'),
+        AssetImage('assets/images/learning-minimal-sky-background.png'),
       ],
     );
     await tester.pumpAndSettle();

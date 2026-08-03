@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_theme.dart';
+import '../../../../app/mascot_assets.dart';
 import '../../../../l10n/display_language.dart';
 import '../../domain/conversation_models.dart';
 
@@ -22,132 +23,113 @@ class VoiceHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRecording = phase == ConversationPhase.recording;
     final accent = isRecording ? AppColors.coral : AppColors.indigo;
-    final animationDuration = MediaQuery.disableAnimationsOf(context)
+    final compact = MediaQuery.sizeOf(context).height < 900;
+    final motionDuration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 240);
+        : const Duration(milliseconds: 120);
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(top: 18),
-          child: AnimatedContainer(
-            duration: animationDuration,
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.fromLTRB(22, 30, 22, 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isRecording
-                    ? const <Color>[Color(0xFFFFF7F5), AppColors.coralSoft]
-                    : const <Color>[Color(0xFAFFFDF8), Color(0xF5FFFDF7)],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(46),
-                topRight: Radius.circular(46),
-                bottomLeft: Radius.circular(38),
-                bottomRight: Radius.circular(46),
-              ),
-              border: Border.all(
-                color: isRecording
-                    ? AppColors.coral.withValues(alpha: 0.45)
-                    : Colors.white.withValues(alpha: 0.82),
-                width: 2,
-              ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.1),
-                  blurRadius: 30,
-                  offset: const Offset(0, 14),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560),
+      child: Column(
+        children: <Widget>[
+          AnimatedScale(
+            duration: motionDuration,
+            scale: isRecording ? 0.96 + (amplitude * 0.08) : 1,
+            child: SizedBox(
+              height: compact ? 158 : 178,
+              child: Transform.scale(
+                scale: 1.28,
+                child: Image.asset(
+                  MascotAssets.listen,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                 ),
-              ],
+              ),
             ),
-            child: Column(
-              children: <Widget>[
-                Icon(
-                  _statusIcon,
-                  color: accent,
-                  size: 34,
-                  semanticLabel: _statusLabel(context),
-                ),
-                const SizedBox(height: 4),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _statusLabel(context),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: accent,
-                      fontSize: 25,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _supportingText(context),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.muted,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(
-                  height: 66,
-                  child: Center(
-                    child: phase == ConversationPhase.processing
-                        ? const SizedBox.square(
-                            dimension: 50,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 5,
-                              color: AppColors.indigo,
-                            ),
-                          )
-                        : AnimatedScale(
-                            duration: MediaQuery.disableAnimationsOf(context)
-                                ? Duration.zero
-                                : const Duration(milliseconds: 90),
-                            scale: isRecording ? 0.94 + (amplitude * 0.14) : 1,
-                            child: Transform.scale(
-                              scaleX: 1.75,
-                              child: Icon(
-                                Icons.graphic_eq_rounded,
-                                color: accent.withValues(
-                                  alpha: isRecording ? 0.88 : 0.58,
-                                ),
-                                size: 60,
-                                semanticLabel: context.tr('Mức âm thanh', '音量'),
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-                if (isRecording)
-                  FilledButton.icon(
-                    onPressed: onStop,
-                    icon: const Icon(Icons.stop_rounded),
-                    label: Text(context.tr('Dừng', '停止')),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(132, 48),
-                      backgroundColor: AppColors.coral,
-                      foregroundColor: Colors.white,
-                      elevation: 2,
-                    ),
-                  )
-                else
-                  Text(
-                    _helperText(context),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.muted,
-                      fontSize: 13,
-                    ),
-                  ),
+          ),
+          SizedBox(height: compact ? 2 : 8),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _statusLabel(context),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: isRecording ? AppColors.coral : AppColors.indigoDark,
+                fontSize: compact ? 27 : 31,
+                shadows: const <Shadow>[
+                  Shadow(color: Colors.white, blurRadius: 12),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            _supportingText(context),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.muted,
+              fontSize: compact ? 15 : 17,
+              fontWeight: FontWeight.w600,
+              shadows: const <Shadow>[
+                Shadow(color: Colors.white, blurRadius: 10),
               ],
             ),
           ),
-        ),
-      ],
+          SizedBox(
+            height: compact ? 64 : 72,
+            child: Center(
+              child: phase == ConversationPhase.processing
+                  ? const SizedBox.square(
+                      dimension: 46,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 5,
+                        color: AppColors.indigo,
+                      ),
+                    )
+                  : AnimatedScale(
+                      duration: motionDuration,
+                      scale: isRecording ? 0.94 + (amplitude * 0.14) : 1,
+                      child: Transform.scale(
+                        scaleX: 1.75,
+                        child: Icon(
+                          Icons.graphic_eq_rounded,
+                          color: accent.withValues(
+                            alpha: isRecording ? 0.88 : 0.62,
+                          ),
+                          size: compact ? 54 : 64,
+                          semanticLabel: context.tr('Mức âm thanh', '音量'),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          if (isRecording)
+            FilledButton.icon(
+              onPressed: onStop,
+              icon: const Icon(Icons.stop_rounded),
+              label: Text(context.tr('Dừng', '停止')),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(132, 46),
+                backgroundColor: AppColors.coral,
+                foregroundColor: Colors.white,
+              ),
+            )
+          else
+            Text(
+              _helperText(context),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.muted,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                shadows: const <Shadow>[
+                  Shadow(color: Colors.white, blurRadius: 7),
+                  Shadow(color: Colors.white, blurRadius: 14),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -220,13 +202,5 @@ class VoiceHero extends StatelessWidget {
       '准备好后点击“重试”',
     ),
     ConversationPhase.recording => '',
-  };
-
-  IconData get _statusIcon => switch (phase) {
-    ConversationPhase.idle => Icons.sentiment_very_satisfied_outlined,
-    ConversationPhase.recording => Icons.hearing_rounded,
-    ConversationPhase.processing => Icons.auto_awesome_rounded,
-    ConversationPhase.ready => Icons.check_circle_outline_rounded,
-    ConversationPhase.error => Icons.refresh_rounded,
   };
 }
