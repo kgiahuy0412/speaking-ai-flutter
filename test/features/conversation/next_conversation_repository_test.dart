@@ -90,6 +90,34 @@ void main() {
     await repository.dispose();
   });
 
+  test('rejects legacy Realtime locally without an HTTP request', () async {
+    var requestCount = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        requestCount += 1;
+        return http.Response('{}', 500);
+      }),
+    );
+
+    await expectLater(
+      repository.startRealtimeTranscription(
+        audioInputLabel: 'Mic điện thoại',
+        bluetoothAudioInput: false,
+      ),
+      throwsA(
+        isA<ConversationApiException>().having(
+          (error) => error.message,
+          'message',
+          contains('Cloudflare Batch Chunks'),
+        ),
+      ),
+    );
+    expect(requestCount, 0);
+    await repository.dispose();
+  });
+
   test(
     'sends one final Realtime transcript through the existing pipeline',
     () async {
@@ -185,7 +213,7 @@ void main() {
             'audioUrl': '/api/audio/stream?text=water',
             'processingMode': 'ai',
             'textSource': 'cloudflare',
-            'audioSource': 'openai_tts',
+            'audioSource': 'cloudflare_tts',
             'asrMode': 'batch_chunks',
             'latency': <String, dynamic>{
               'asrMs': 500,

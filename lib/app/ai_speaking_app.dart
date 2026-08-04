@@ -96,6 +96,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
+      // Short web utterances avoid session/chunk setup and use one direct
+      // multipart request. Long recordings still promote after eight seconds
+      // so upload can overlap the rest of the recording.
+      adaptiveWebUploadDelay: kIsWeb
+          ? const Duration(seconds: 8)
+          : Duration.zero,
       initialAsrMode: supportsAndroidNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,

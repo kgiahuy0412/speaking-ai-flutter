@@ -1,6 +1,7 @@
 # API contract Flutter ↔ Next.js
 
-Flutter dùng contract hiện tại, không gọi OpenAI trực tiếp.
+Flutter dùng contract hiện tại và không gọi nhà cung cấp AI trực tiếp. Backend
+chỉ dùng Cloudflare Workers AI cho ASR, dịch và TTS.
 
 ## Khởi động ứng dụng
 
@@ -27,52 +28,17 @@ Response gồm `version`, `sampleRate=24000`, policy confidence/margin/stability
 30–50 intent với câu mẫu, ngữ cảnh, câu tiếng Anh, `audioUrl`. APK dùng danh mục
 này cho recognizer native và cache audio; endpoint không chứa API key.
 
-## Một lượt nói OpenAI Realtime
+## Cloudflare Batch Chunks và fast path WAV
 
-### 1. Xin client secret sống ngắn
+Web/Safari giữ các chunk PCM16 200 ms trong RAM. Nếu người dùng dừng trước 8
+giây, client gửi một request multipart trực tiếp tới `/api/conversation`; cách
+này bỏ qua request tạo session, các request chunk và request finalize. Nếu lượt
+nói dài hơn 8 giây, client tạo session, flush phần đã đệm rồi ghép 5 source chunk
+thành mỗi request transport khoảng 1.000 ms. Nếu VAD không xác nhận giọng nói,
+client hủy session và backend xóa chunk tạm.
 
-`POST /api/realtime/transcription-session`
-
-```json
-{
-  "clientId": "device_...",
-  "bluetoothAudioInput": false
-}
-```
-
-Backend tạo transcription session PCM16 mono 24 kHz, tiếng Việt, manual commit.
-API key chuẩn không rời backend; Flutter chỉ nhận client secret hết hạn nhanh.
-
-### 2. Stream và finalize
-
-Flutter mở WebSocket ngay khi bắt đầu một lượt ghi âm và gửi
-`input_audio_buffer.append` trong lúc nói, sau đó gửi `input_audio_buffer.commit`
-khi Stop. Kết nối không được prewarm ngoài lượt nói. Partial chỉ gọi preview rule/cache; final
-text được gửi một lần vào `POST /api/conversation` với:
-
-```json
-{
-  "context": "home",
-  "childAge": 6,
-  "sourceText": "Con muốn ăn cơm",
-  "asrMode": "openai_realtime",
-  "benchmark": {
-    "requestedAsrMode": "openai_realtime",
-    "asrFirstDeltaMs": 620,
-    "asrFinalAfterStopMs": 180,
-    "realtimeSessionCreateMs": 140,
-    "realtimeWebSocketConnectMs": 95,
-    "realtimeWebSocketOpenAfterRecordingMs": 235,
-    "realtimeChunkDurationMs": 200
-  }
-}
-```
-
-## Batch Chunks/WAV dự phòng
-
-Web/Safari tạo session song song với lúc mở microphone, giữ chunk PCM16 200 ms
-ngay từ đầu và ghép 5 source chunk thành mỗi request transport khoảng 1.000 ms.
-Nếu VAD không xác nhận giọng nói, client hủy session và backend xóa chunk tạm.
+Endpoint legacy `POST /api/realtime/transcription-session` trả HTTP 410. Client
+production cũng chặn chế độ này tại chỗ và không gửi request.
 
 ### 1. Tạo audio session
 
@@ -268,9 +234,9 @@ gửi final text vào cùng pipeline Next.js bằng:
 }
 ```
 
-Normalize, rule/cache, AI fallback, TTS, history và review vẫn chạy ở backend.
-Nếu Android không có dịch vụ nhận diện, Flutter chuyển sang OpenAI Realtime;
-nếu Realtime lỗi mới dùng Batch Chunks/WAV.
+Normalize, rule/cache, Cloudflare text/TTS, history và review vẫn chạy ở backend.
+Nếu Android không có dịch vụ nhận diện, Flutter chuyển thẳng sang Cloudflare
+Batch Chunks/WAV.
 
 ## Telemetry playback
 

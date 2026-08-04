@@ -14,7 +14,9 @@ enum PracticeContext {
 enum AsrMode {
   androidStreaming('android_streaming', 'Chế độ tiêu chuẩn'),
   hfpStreaming('hfp_streaming', 'HFP streaming'),
-  openAiRealtime('openai_realtime', 'Chế độ AI'),
+  // Kept only so older stored records can still be decoded. It is never
+  // selectable and the production repository rejects new sessions.
+  openAiRealtime('openai_realtime', 'Realtime cũ (đã tắt)'),
   bleOfflineIntent('ble_offline_intent', 'BLE offline intent'),
   batchChunks('batch_chunks', 'Cloudflare Batch Chunks'),
   deviceStreaming('device_streaming', 'BLE streaming');
