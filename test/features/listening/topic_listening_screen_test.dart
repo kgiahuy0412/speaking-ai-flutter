@@ -181,10 +181,10 @@ void main() {
     };
     const expectedTimelineLengths = <String, int>{
       'a067_t05_song01': 12,
-      'a067_t07_song01': 56,
-      'a067_t08_song01': 44,
-      'a0810_t03_song01': 62,
-      'a0810_t04_song01': 22,
+      'a067_t07_song01': 16,
+      'a067_t08_song01': 8,
+      'a0810_t03_song01': 16,
+      'a0810_t04_song01': 19,
     };
     const expectedPracticeLengths = <String, int>{
       'a067_t05_song01': 12,
@@ -194,18 +194,18 @@ void main() {
       'a0810_t04_song01': 19,
     };
     const expectedTimelineEnds = <String, int>{
-      'a067_t05_song01': 19380,
-      'a067_t07_song01': 102120,
-      'a067_t08_song01': 126900,
-      'a0810_t03_song01': 116120,
-      'a0810_t04_song01': 66520,
+      'a067_t05_song01': 19220,
+      'a067_t07_song01': 45900,
+      'a067_t08_song01': 21960,
+      'a0810_t03_song01': 27980,
+      'a0810_t04_song01': 46260,
     };
     const expectedAudioBytes = <String, int>{
       'a067_t05_song01': 449304,
-      'a067_t07_song01': 2508624,
-      'a067_t08_song01': 3046416,
-      'a0810_t03_song01': 2909640,
-      'a0810_t04_song01': 1561512,
+      'a067_t07_song01': 1071672,
+      'a067_t08_song01': 536280,
+      'a0810_t03_song01': 690600,
+      'a0810_t04_song01': 1075272,
     };
     const expectedIntros = <String, (String, String, String)>{
       'a067_t05_song01': (
