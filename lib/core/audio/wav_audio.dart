@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
-// The shared streaming/chunk pipeline uses mono PCM16 at 24 kHz.
-const int pcm16SampleRate = 24000;
+// Cloudflare Whisper consumes speech at 16 kHz. Capturing the phone microphone
+// at that rate avoids uploading and base64-encoding 50% more samples than ASR
+// needs while keeping the full speech frequency range used by the model.
+const int pcm16SampleRate = 16000;
 const int pcm16ChannelCount = 1;
 const int pcm16BitsPerSample = 16;
 // A 200 ms frame balances early processing with chunk overhead.

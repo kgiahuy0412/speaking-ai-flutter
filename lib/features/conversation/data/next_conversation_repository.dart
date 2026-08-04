@@ -121,6 +121,7 @@ class NextConversationRepository
       context: context,
       childAge: childAge,
       vadSilenceMs: vadSilenceMs,
+      clientVadApplied: false,
       batchTelemetry: <String, dynamic>{
         'batchFallbackReason': fallbackReason ?? 'direct_upload_failed',
       },
@@ -142,7 +143,10 @@ class NextConversationRepository
       audioInputLabel: capture.inputLabel,
       bluetoothAudioInput: capture.isBluetoothInput,
       initialNoiseRms: capture.initialNoiseRms,
-      clientVadApplied: true,
+      audioProcessing: capture.audioProcessing,
+      // A direct/fallback file still contains the leading and trailing audio.
+      // Let Cloudflare apply its VAD instead of claiming it was client-trimmed.
+      clientVadApplied: false,
     );
     final request =
         http.MultipartRequest('POST', _config.resolve('/api/conversation'))
@@ -198,6 +202,7 @@ class NextConversationRepository
     required int childAge,
     required int vadSilenceMs,
     bool assemblePcmWav = false,
+    bool clientVadApplied = true,
     Map<String, dynamic> batchTelemetry = const <String, dynamic>{},
   }) async {
     final benchmark = ConversationBenchmark(
@@ -207,7 +212,8 @@ class NextConversationRepository
       audioInputLabel: capture.inputLabel,
       bluetoothAudioInput: capture.isBluetoothInput,
       initialNoiseRms: capture.initialNoiseRms,
-      clientVadApplied: true,
+      clientVadApplied: clientVadApplied,
+      audioProcessing: capture.audioProcessing,
     );
     final uri = _config.resolve('/api/audio-sessions/$audioSessionId/finalize');
     final body = jsonEncode(<String, dynamic>{
@@ -1087,7 +1093,9 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     _sessionStopwatch.start();
   }
 
-  static const _sourceChunksPerTransportUpload = 5;
+  // Flush every 800 ms instead of one second so the final upload is less
+  // likely to remain in flight after the child stops speaking.
+  static const _sourceChunksPerTransportUpload = 4;
   static const _maxConcurrentUploads = 2;
   static const _maxMissingRecoveryRounds = 2;
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;

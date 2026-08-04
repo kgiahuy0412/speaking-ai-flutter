@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'pcm_speech_preprocessor.dart';
+
 class AudioCapture {
   const AudioCapture({
     required this.filePath,
@@ -12,6 +14,7 @@ class AudioCapture {
     this.streamedAudioBytes,
     this.recordingSampleRate,
     this.dataBytes,
+    this.audioProcessing,
   });
 
   final String filePath;
@@ -23,6 +26,7 @@ class AudioCapture {
   final Uint8List? streamHeaderBytes;
   final int? streamedAudioBytes;
   final int? recordingSampleRate;
+  final AudioProcessingMetrics? audioProcessing;
 
   /// In-memory payload used by Flutter Web, where a native file path is not
   /// available. Native platforms may also provide it for a retry upload.

@@ -30,12 +30,18 @@ này cho recognizer native và cache audio; endpoint không chứa API key.
 
 ## Cloudflare Batch Chunks và fast path WAV
 
+APK và Web/Safari yêu cầu noise suppression, echo cancellation và auto gain từ
+hệ điều hành/trình duyệt. Luồng PCM16 sau đó đi qua high-pass 80 Hz và noise gate
+thích nghi bảo thủ ở client trước khi được lưu hoặc upload. Noise gate hiệu chỉnh
+300 ms đầu và chỉ giảm tối đa khoảng 7 dB để tránh cắt giọng nhỏ của trẻ.
+
 Web/Safari giữ các chunk PCM16 200 ms trong RAM. Nếu người dùng dừng trước 8
 giây, client gửi một request multipart trực tiếp tới `/api/conversation`; cách
 này bỏ qua request tạo session, các request chunk và request finalize. Nếu lượt
-nói dài hơn 8 giây, client tạo session, flush phần đã đệm rồi ghép 5 source chunk
-thành mỗi request transport khoảng 1.000 ms. Nếu VAD không xác nhận giọng nói,
-client hủy session và backend xóa chunk tạm.
+nói dài hơn 8 giây, client tạo session, flush phần đã đệm rồi ghép 4 source chunk
+thành mỗi request transport khoảng 800 ms. APK mở Batch session song song với
+microphone; speech gate giữ pre-roll 400 ms và post-roll 200 ms. Nếu VAD không
+xác nhận giọng nói, client hủy session và backend xóa chunk tạm.
 
 Endpoint legacy `POST /api/realtime/transcription-session` trả HTTP 410. Client
 production cũng chặn chế độ này tại chỗ và không gửi request.
@@ -49,7 +55,7 @@ production cũng chặn chế độ này tại chỗ và không gửi request.
   "protocolVersion": 2,
   "audio": {
     "encoding": "pcm_s16le",
-    "requestedSampleRate": 24000,
+    "requestedSampleRate": 16000,
     "channelCount": 1,
     "bitsPerSample": 16,
     "sourceChunkDurationMs": 200,
@@ -93,7 +99,7 @@ X-Chunk-SHA256: {sha256-hex}
 `multipart/form-data`:
 
 - `sequence`: `0..N-1` cho PCM16 khi backend hỗ trợ `pcm16WavFinalize`;
-- `audio`: transport chunk PCM16 mono khoảng 1.000 ms.
+- `audio`: transport chunk PCM16 mono khoảng 800 ms.
 
 Backend lưu theo `(audioSessionId, sequence)`, không ghép theo thứ tự request đến.
 Retry cùng sequence và checksum trả thành công với `duplicate=true`; cùng sequence
@@ -149,7 +155,7 @@ cleanup nền chạy định kỳ 5 phút.
     "bluetoothAudioInput": false,
     "initialNoiseRms": 0.013,
     "batchTransport": "streamed_pcm16_chunks",
-    "chunkIntervalMs": 1000,
+    "chunkIntervalMs": 800,
     "sourceChunkIntervalMs": 200,
     "audioChunkCount": 10,
     "transportChunkCount": 2,
@@ -162,7 +168,20 @@ cleanup nền chạy định kỳ 5 phút.
     "missingChunkCount": 0,
     "recoveryUploadCount": 0,
     "uploadDrainAfterStopMs": 34,
-    "retryStrategy": "exponential_full_jitter_retry_after"
+    "retryStrategy": "exponential_full_jitter_retry_after",
+    "platformNoiseSuppressionRequested": true,
+    "platformNoiseSuppressionApplied": true,
+    "platformEchoCancellationRequested": true,
+    "platformEchoCancellationApplied": true,
+    "platformAutoGainRequested": true,
+    "platformAutoGainApplied": true,
+    "pcmHighPassApplied": true,
+    "pcmHighPassCutoffHz": 80.0,
+    "pcmAdaptiveNoiseGateApplied": true,
+    "pcmNoiseFloorDbfs": -48.2,
+    "estimatedSnrDb": 15.6,
+    "pcmClippingRatio": 0.001,
+    "pcmNoiseAttenuationDb": 4.8
   }
 }
 ```

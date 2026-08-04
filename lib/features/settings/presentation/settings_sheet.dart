@@ -85,8 +85,8 @@ class SettingsSheet extends StatelessWidget {
                               : '蓝牙 HFP/SCO 麦克风 • Android 识别',
                         ),
                         AsrMode.openAiRealtime => context.tr(
-                          'PCM16 24 kHz • ASR trực tiếp • Batch dự phòng',
-                          'PCM16 24 kHz • 实时识别 • 分块备用',
+                          'PCM16 16 kHz • ASR trực tiếp • Batch dự phòng',
+                          'PCM16 16 kHz • 实时识别 • 分块备用',
                         ),
                         AsrMode.bleOfflineIntent => context.tr(
                           'BLE • offline fast path • Cloudflare Batch dự phòng',
