@@ -822,7 +822,7 @@ class ConversationController extends ChangeNotifier {
         realtimeSession?.addAudioChunk(bytes);
       },
       onError: (Object error) {
-        debugPrint('OpenAI Realtime audio stream failed: $error');
+        debugPrint('Legacy Realtime audio stream failed: $error');
       },
     );
 
@@ -888,7 +888,7 @@ class ConversationController extends ChangeNotifier {
       _realtimePartialSubscription = session.partialText.listen(
         _onPartialText,
         onError: (Object error) {
-          debugPrint('OpenAI Realtime transcript failed: $error');
+          debugPrint('Legacy Realtime transcript failed: $error');
         },
       );
     } catch (error) {
@@ -902,7 +902,7 @@ class ConversationController extends ChangeNotifier {
       if (!_disposed) {
         notifyListeners();
       }
-      debugPrint('OpenAI Realtime background connection failed: $error');
+      debugPrint('Legacy Realtime background connection failed: $error');
     }
   }
 
@@ -1309,7 +1309,7 @@ class ConversationController extends ChangeNotifier {
           streamingCapture = await realtimeSession.finalize();
         } catch (error) {
           debugPrint(
-            'OpenAI Realtime finalize failed; preparing Batch Chunks fallback: $error',
+            'Legacy Realtime finalize failed; preparing Batch Chunks fallback: $error',
           );
           realtimeFallbackUpload = await _prepareRealtimeBatchFallback();
           transientMessage = realtimeFallbackUpload == null
@@ -1476,7 +1476,7 @@ class ConversationController extends ChangeNotifier {
         '"waitMs":${waitStopwatch.elapsedMilliseconds}}',
       );
     } catch (error) {
-      debugPrint('OpenAI Realtime connection failed while stopping: $error');
+      debugPrint('Legacy Realtime connection failed while stopping: $error');
     } finally {
       waitStopwatch.stop();
     }
@@ -1744,11 +1744,11 @@ class ConversationController extends ChangeNotifier {
     }
     if (nextMode == AsrMode.batchChunks) {
       transientMessage =
-          'Đã chọn Cloudflare Batch Chunks; OpenAI chỉ được backend dùng khi Cloudflare lỗi.';
+          'Đã chọn Cloudflare Batch Chunks; nhận dạng, dịch và phát âm đều dùng Cloudflare.';
     }
     if (nextMode == AsrMode.openAiRealtime) {
       transientMessage =
-          'Chế độ AI hiện chưa được bật. Ứng dụng sẽ dùng xử lý dự phòng.';
+          'Chế độ Realtime cũ đã bị tắt. Ứng dụng chỉ dùng Cloudflare Batch Chunks.';
       notifyListeners();
       return;
     }

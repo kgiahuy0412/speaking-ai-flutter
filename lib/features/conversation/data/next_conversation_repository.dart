@@ -294,50 +294,8 @@ class NextConversationRepository
     required String audioInputLabel,
     required bool bluetoothAudioInput,
   }) async {
-    final sessionStartedAt = DateTime.now();
-    final sessionStopwatch = Stopwatch()..start();
-    final clientId = await _clientId;
-    final response = await _client
-        .post(
-          _config.resolve('/api/realtime/transcription-session'),
-          headers: const <String, String>{'content-type': 'application/json'},
-          body: jsonEncode(<String, dynamic>{
-            'clientId': clientId,
-            'bluetoothAudioInput': bluetoothAudioInput,
-          }),
-        )
-        .timeout(const Duration(seconds: 12));
-    final json = _decodeResponse(response);
-    final clientSecret = json['clientSecret'];
-    final websocketUrl = json['websocketUrl'];
-    final sampleRate = json['sampleRate'];
-
-    if (clientSecret is! String ||
-        clientSecret.isEmpty ||
-        websocketUrl is! String ||
-        websocketUrl.isEmpty ||
-        sampleRate != 24000) {
-      throw const ConversationApiException(
-        'Backend không trả về cấu hình Chế độ AI hợp lệ.',
-      );
-    }
-
-    sessionStopwatch.stop();
-    final websocketStopwatch = Stopwatch()..start();
-    final socket = await connectRealtimeSocket(
-      websocketUrl,
-      headers: <String, String>{'authorization': 'Bearer $clientSecret'},
-    ).timeout(const Duration(seconds: 12));
-    websocketStopwatch.stop();
-
-    return _OpenAiRealtimeTranscriptionSession(
-      socket: socket,
-      audioInputLabel: audioInputLabel,
-      bluetoothAudioInput: bluetoothAudioInput,
-      sessionStartedAt: sessionStartedAt,
-      connectedAt: DateTime.now(),
-      sessionCreateMs: sessionStopwatch.elapsedMilliseconds,
-      websocketConnectMs: websocketStopwatch.elapsedMilliseconds,
+    throw const ConversationApiException(
+      'Chế độ Realtime cũ đã bị tắt. Hãy dùng Cloudflare Batch Chunks.',
     );
   }
 
@@ -814,9 +772,12 @@ class NextConversationRepository
   }
 }
 
-class _OpenAiRealtimeTranscriptionSession
+// Legacy implementation retained only to decode and exercise old records.
+// New production sessions are rejected by startRealtimeTranscription above.
+// ignore: unused_element
+class _LegacyRealtimeTranscriptionSession
     implements RealtimeTranscriptionSession {
-  _OpenAiRealtimeTranscriptionSession({
+  _LegacyRealtimeTranscriptionSession({
     required RealtimeSocket socket,
     required this.audioInputLabel,
     required this.bluetoothAudioInput,

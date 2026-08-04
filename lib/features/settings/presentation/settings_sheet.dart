@@ -204,8 +204,8 @@ class SettingsSheet extends StatelessWidget {
                                     '当意图置信度高时自动用于 BLE',
                                   ),
                                   AsrMode.batchChunks => context.tr(
-                                    'Gửi bản ghi về backend; Cloudflare xử lý trước, OpenAI chỉ dự phòng khi Cloudflare lỗi',
-                                    '将录音发送到后端；优先使用 Cloudflare，仅在 Cloudflare 失败时使用 OpenAI',
+                                    'Gửi bản ghi về backend; Cloudflare xử lý nhận dạng, dịch và phát âm',
+                                    '将录音发送到后端；由 Cloudflare 完成识别、翻译和语音合成',
                                   ),
                                   AsrMode.deviceStreaming => context.tr(
                                     controller.canUseInnotrikBle
