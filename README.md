@@ -2,8 +2,8 @@
 
 Ứng dụng Flutter này là mobile client mới cho backend Next.js hiện tại. Luồng
 AI vẫn chạy hoàn toàn ở backend: ASR tiếng Việt → normalize/rule/cache →
-AI fallback → TTS streaming → history/telemetry. APK không chứa
-`OPENAI_API_KEY`.
+Cloudflare AI → TTS streaming → history/telemetry. APK không chứa khóa API
+của nhà cung cấp AI.
 
 Thiết kế đang triển khai là hướng **Live Conversation**:
 
@@ -55,8 +55,11 @@ thiết bị:
 
 - `PREFER_BLE_STREAMING=true`: ưu tiên mic BLE khi native adapter báo sẵn sàng;
   hiện tại tự dùng micro điện thoại vì adapter INNOTRIK chưa được kích hoạt.
-- `REALTIME_BATCH_FALLBACK=true`: giữ PCM trong bộ đệm cục bộ khi đang dùng
-  Realtime và chỉ gửi Batch Chunks nếu Realtime thất bại.
+- Trên web, câu nói ngắn hơn 8 giây được gửi bằng một request multipart trực
+  tiếp; câu dài hơn mới tự chuyển sang audio-session/chunk upload để tải song
+  song với lúc ghi âm.
+- `REALTIME_BATCH_FALLBACK=true`: giữ PCM trong bộ đệm cục bộ cho các nguồn
+  streaming của thiết bị và chuyển sang Cloudflare Batch Chunks khi cần.
 - `REALTIME_FALLBACK_BUFFER_BYTES=15728640`: giới hạn bộ đệm 15 MiB, chừa phần
   dung lượng cho WAV header trong giới hạn session 16 MiB của backend.
 
@@ -74,22 +77,20 @@ flutter build apk --debug --dart-define-from-file=dart_defines.local.json
 
 - UI native Flutter theo thiết kế đã chọn;
 - Android streaming nhận chữ trực tiếp như web, có partial/final và VAD;
-- OpenAI Realtime ASR bằng PCM16 mono 24 kHz: một WebSocket cho mỗi lượt nói,
-  micro bắt đầu ghi ngay trong khi WebSocket kết nối nền; các chunk đầu được
-  replay đúng thứ tự khi kết nối sẵn sàng, có partial/final và chỉ chạy
-  rule/cache/AI một lần sau Stop;
-- PCM được giữ cục bộ trong khi Realtime chạy; Batch Chunks chỉ được tạo và gửi
-  khi Realtime thất bại, sau đó mới fallback cuối sang WAV nếu batch cũng lỗi;
+- Cloudflare Batch Chunks cho web với fast path một request cho câu ngắn và
+  chunk upload thích ứng cho câu dài;
+- endpoint và client Realtime cũ đã bị vô hiệu hóa; không có đường gọi nhà cung
+  cấp AI thứ hai cho ASR, dịch hoặc TTS;
 - bộ chọn nguồn ưu tiên BLE và tự dùng micro điện thoại khi BLE/native decoder
   chưa sẵn sàng;
 - manifest 34 ý định BLE thông dụng được tải khi mở app và audio tiếng Anh tương
   ứng được cache trên điện thoại; fast path chỉ nhận khi confidence ≥ 0,88,
   cách ứng viên thứ hai ≥ 0,15 và ổn định 3 cập nhật;
-- cổng native cho ASR offline BLE và cơ chế chuyển sớm sang Realtime sau 800 ms
-  nếu chưa chắc chắn; cổng hiện tự báo chưa sẵn sàng cho tới khi cài model tiếng
-  Việt và Opus decoder thật;
-- partial transcript chỉ dò rule/cache và chỉ preload audio đã có, không gọi thêm
-  OpenAI text/TTS trong lúc câu nói còn thay đổi;
+- cổng native cho ASR offline BLE và cơ chế chuyển sang Cloudflare Batch Chunks
+  khi kết quả offline chưa chắc chắn; cổng hiện tự báo chưa sẵn sàng cho tới
+  khi cài model tiếng Việt và Opus decoder thật;
+- partial transcript chỉ dò rule/cache và chỉ preload audio đã có, không gọi
+  thêm Cloudflare text/TTS trong lúc câu nói còn thay đổi;
 - phát MP3/TTS qua Android media route, phù hợp A2DP;
 - tự yêu cầu backend pre-cache audio rule ở background mỗi lần mở app; request
   trả ngay và backend chỉ tạo phần còn thiếu;

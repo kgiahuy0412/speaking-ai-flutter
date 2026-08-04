@@ -12,14 +12,12 @@ flowchart LR
     S["Android SpeechRecognizer\npartial/final vi-VN"] --> C
     B["InnotrikBleAudioInput\nraw Opus (giai đoạn 2)"] --> A
     A --> C["ConversationController\nVAD + state machine"]
-    C --> RT["OpenAI Realtime ASR\nWebSocket theo lượt nói"]
-    RT --> C
     C --> R["ConversationRepository"]
     R --> N["Next.js HTTPS API"]
-    N --> ASR["ASR + normalize"]
+    N --> ASR["Cloudflare ASR + normalize"]
     ASR --> RULE["rule / semantic cache / text cache"]
-    RULE --> AI["AI fallback"]
-    AI --> TTS["TTS stream + audio cache"]
+    RULE --> AI["Cloudflare text"]
+    AI --> TTS["Cloudflare TTS + audio cache"]
     TTS --> PLAY["Android media route\nA2DP nếu đã kết nối"]
     C -. "app startup, background" .-> W["audio cache warm-up"]
     W --> TTS
@@ -56,19 +54,16 @@ Controller chỉ biết interface, nên thay nguồn âm thanh không làm thay 
 
 1. Mặc định Android `SpeechRecognizer` nhận partial/final tiếng Việt và gửi text
    vào cùng pipeline backend như web streaming.
-2. Nếu dịch vụ Android không khả dụng hoặc người dùng chọn OpenAI Realtime,
-   `record` mở micro PCM16 mono 24 kHz và đồng thời tạo client secret, mở
-   WebSocket cho đúng lượt nói. Audio trước lúc kết nối được giữ trong buffer và
-   replay đúng một lần khi WebSocket sẵn sàng; app không tạo session khi chỉ mở màn hình.
+2. Nếu dịch vụ Android không khả dụng, `record` mở micro PCM16 mono 24 kHz và
+   gửi audio qua Cloudflare Batch Chunks ở backend.
 3. Stream dBFS điều khiển hiển thị mức âm và VAD thích nghi. VAD hiệu chỉnh nền ồn trong 300 ms, dùng ngưỡng bắt đầu/kết thúc riêng và bỏ qua tiếng động ngắn hoặc nền ồn ổn định.
 4. Sau khi phát hiện tiếng nói, im lặng liên tục 900 ms sẽ tự dừng theo mặc định; người dùng vẫn có thể chỉnh từ 400–1.600 ms.
 5. Người dùng luôn có thể bấm Dừng.
-6. Partial transcript chỉ dò rule/cache để preload audio đã có. Sau Stop,
-   Realtime commit buffer và final text mới đi qua pipeline backend một lần.
-7. Khi Realtime hoạt động, Flutter giữ một bản PCM giới hạn 15 MiB trong RAM
-   nhưng chưa upload batch. Nếu tạo session thất bại thì batch được bật trước
-   lúc ghi; nếu finalize Realtime thất bại thì buffer mới được replay qua Batch
-   Chunks. Chỉ khi batch cũng lỗi mới upload toàn bộ WAV.
+6. Partial transcript Android chỉ dò rule/cache để preload audio đã có. Sau Stop,
+   final text mới đi qua pipeline backend một lần.
+7. Trên web, câu ngắn hơn 8 giây giữ PCM trong RAM rồi upload WAV bằng một
+   request. Câu dài tự chuyển sang audio session để upload chunks song song với
+   phần ghi âm còn lại. Nếu transport chunk lỗi kỹ thuật, client mới upload WAV.
 8. Backend trả `audioUrl`; `just_audio` phát URL qua Android media route.
 9. Client PATCH lại time-to-first-audio và đánh giá chất lượng.
 
@@ -80,15 +75,15 @@ Controller chỉ biết interface, nên thay nguồn âm thanh không làm thay 
 3. PCM giải mã từ Opus được đưa đồng thời vào bộ đệm cục bộ và recognizer offline.
 4. Chỉ chấp nhận intent khi confidence tối thiểu 0,88, margin tối thiểu 0,15 và
    cùng một intent ổn định 3 lần liên tiếp.
-5. Nếu sau 800 ms từ lúc có giọng nói vẫn chưa chắc chắn, Flutter mở Realtime sớm
-   và replay phần PCM đã đệm. Nếu Realtime lỗi, Batch Chunks/WAV vẫn là lớp cuối.
+5. Nếu kết quả offline chưa chắc chắn, Flutter replay phần PCM đã đệm qua
+   Cloudflare Batch Chunks. WAV là lớp dự phòng khi transport chunks lỗi.
 6. Khi intent offline chắc chắn, transcript đi qua pipeline rule/cache backend với
-   `asrMode=ble_offline_intent`; không phát sinh OpenAI ASR cho lượt đó.
+   `asrMode=ble_offline_intent`; không phát sinh Cloudflare ASR cho lượt đó.
 
 ## Ranh giới bảo mật
 
-- Không có `OPENAI_API_KEY` hoặc secret trong Dart/Android resources.
-- APK chỉ nhận client secret Realtime sống ngắn cho đúng một phiên ASR.
+- Không có khóa Cloudflare hoặc secret nhà cung cấp AI trong Dart/Android resources.
+- APK chỉ gọi API Next.js; backend là bên duy nhất gọi Cloudflare Workers AI.
 - Base URL truyền bằng `--dart-define`; đây là cấu hình, không phải secret.
 - Release manifest chặn HTTP cleartext.
 - Keystore, mật khẩu ký và file cấu hình riêng bị loại khỏi Git.

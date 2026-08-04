@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 
-// OpenAI Realtime PCM input requires mono PCM16 at 24 kHz.
+// The shared streaming/chunk pipeline uses mono PCM16 at 24 kHz.
 const int pcm16SampleRate = 24000;
 const int pcm16ChannelCount = 1;
 const int pcm16BitsPerSample = 16;
-// A 200 ms frame balances early transcript delivery with WebSocket overhead.
-// Keep this within the 150-250 ms range when tuning Realtime latency.
+// A 200 ms frame balances early processing with chunk overhead.
+// Keep this within the 150-250 ms range when tuning streaming latency.
 const int pcmChunkDurationMs = 200;
 
 int pcm16ChunkByteLength({
