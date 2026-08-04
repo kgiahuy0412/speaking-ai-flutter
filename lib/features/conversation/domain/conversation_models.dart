@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/audio/pcm_speech_preprocessor.dart';
+
 enum PracticeContext {
   home('home', 'Ở nhà'),
   school('school', 'Ở trường'),
@@ -330,6 +332,7 @@ class ConversationBenchmark {
     required this.bluetoothAudioInput,
     required this.initialNoiseRms,
     this.clientVadApplied = false,
+    this.audioProcessing,
   });
 
   final int utteranceDurationMs;
@@ -339,6 +342,7 @@ class ConversationBenchmark {
   final bool bluetoothAudioInput;
   final double? initialNoiseRms;
   final bool clientVadApplied;
+  final AudioProcessingMetrics? audioProcessing;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'device': 'mobile',
@@ -350,6 +354,7 @@ class ConversationBenchmark {
     'bluetoothAudioInput': bluetoothAudioInput,
     'clientVadApplied': clientVadApplied,
     if (initialNoiseRms != null) 'initialNoiseRms': initialNoiseRms,
+    if (audioProcessing != null) ...audioProcessing!.toJson(),
   };
 }
 

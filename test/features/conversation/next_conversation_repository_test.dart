@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/config/app_config.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
+import 'package:ai_speaking_flutter_app/core/audio/pcm_speech_preprocessor.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/wav_audio.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/next_conversation_repository.dart';
@@ -202,7 +203,7 @@ void main() {
         expect(body, contains('android_test_device'));
         expect(body, contains('name="audio"; filename="utterance.wav"'));
         expect(body, contains('direct_multipart'));
-        expect(body, contains('"clientVadApplied":true'));
+        expect(body, contains('"clientVadApplied":false'));
         return http.Response(
           jsonEncode(<String, dynamic>{
             'conversationId': 'conv_direct',
@@ -284,11 +285,16 @@ void main() {
           expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
           expect(benchmark['audioChunkCount'], 2);
           expect(benchmark['transportChunkCount'], 1);
-          expect(benchmark['chunkIntervalMs'], 1000);
+          expect(benchmark['chunkIntervalMs'], 800);
           expect(benchmark['sourceChunkIntervalMs'], 200);
           expect(benchmark['maxConcurrentChunkUploads'], 2);
           expect(benchmark['uploadedAudioBytes'], 16000);
           expect(benchmark['wavHeaderStrategy'], 'finalize_metadata');
+          expect(benchmark['platformNoiseSuppressionRequested'], isTrue);
+          expect(benchmark['platformNoiseSuppressionApplied'], isTrue);
+          expect(benchmark['pcmHighPassApplied'], isTrue);
+          expect(benchmark['pcmAdaptiveNoiseGateApplied'], isTrue);
+          expect(benchmark['estimatedSnrDb'], 14.5);
           expect(body['pcm16Wav'], <String, dynamic>{
             'sampleRate': 48000,
             'channelCount': 1,
@@ -340,8 +346,17 @@ void main() {
         initialNoiseRms: null,
         streamHeaderBytes: header,
         streamedAudioBytes: 16000,
-        recordingSampleRate: 48000,
-      ),
+          recordingSampleRate: 48000,
+          audioProcessing: const AudioProcessingMetrics(
+            platformNoiseSuppressionRequested: true,
+            platformEchoCancellationRequested: true,
+            platformAutoGainRequested: true,
+            platformNoiseSuppressionApplied: true,
+            pcmHighPassApplied: true,
+            pcmAdaptiveNoiseGateApplied: true,
+            estimatedSnrDb: 14.5,
+          ),
+        ),
       context: PracticeContext.home,
       childAge: 6,
       vadSilenceMs: 700,

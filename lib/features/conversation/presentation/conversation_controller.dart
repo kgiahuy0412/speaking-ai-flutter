@@ -15,6 +15,7 @@ import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
+import '../domain/speech_gated_batch_upload_session.dart';
 
 class ConversationController extends ChangeNotifier {
   ConversationController({
@@ -148,6 +149,7 @@ class ConversationController extends ChangeNotifier {
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
   BatchChunkUploadSession? _batchChunkUpload;
+  SpeechGatedBatchUploadSession? _batchSpeechGate;
   _AdaptiveWebChunkUpload? _adaptiveWebUpload;
   RealtimeTranscriptionSession? _realtimeSession;
   Future<void>? _realtimeConnectionFuture;
@@ -573,6 +575,7 @@ class ConversationController extends ChangeNotifier {
       }
       final previousBatchUpload = _batchChunkUpload;
       _batchChunkUpload = null;
+      _batchSpeechGate = null;
       if (previousBatchUpload != null) {
         await previousBatchUpload
             .discard(reason: 'superseded')
@@ -917,18 +920,11 @@ class ConversationController extends ChangeNotifier {
       return;
     }
 
-    BatchChunkUploadSession? upload;
-    final bufferedChunks = <Uint8List>[];
+    final gatedUpload = SpeechGatedBatchUploadSession();
+    _batchSpeechGate = gatedUpload;
     try {
       _batchChunkSubscription = chunkedInput.audioChunks.listen(
-        (bytes) {
-          final activeUpload = upload;
-          if (activeUpload == null) {
-            bufferedChunks.add(Uint8List.fromList(bytes));
-            return;
-          }
-          activeUpload.addAudioChunk(bytes);
-        },
+        gatedUpload.addAudioChunk,
         onError: (Object error) {
           debugPrint('Batch audio stream failed: $error');
         },
@@ -937,23 +933,17 @@ class ConversationController extends ChangeNotifier {
       final uploadStart = chunkedRepository.startBatchChunkUpload().then((
         session,
       ) {
-        upload = session;
-        _batchChunkUpload = session;
-        for (final bytes in bufferedChunks) {
-          session.addAudioChunk(bytes);
-        }
-        bufferedChunks.clear();
+        gatedUpload.attachDelegate(session);
+        _batchChunkUpload = gatedUpload;
       });
       await Future.wait<void>(<Future<void>>[inputStart, uploadStart]);
     } catch (error) {
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
       _batchChunkUpload = null;
+      _batchSpeechGate = null;
       await chunkedInput.cancel().catchError((Object _) {});
-      final activeUpload = upload;
-      if (activeUpload != null) {
-        await activeUpload.discard().catchError((Object _) {});
-      }
+      await gatedUpload.discard().catchError((Object _) {});
       transientMessage =
           'Batch Chunks chưa sẵn sàng; đang dùng upload file dự phòng.';
       await _audioInput.start();
@@ -1012,6 +1002,7 @@ class ConversationController extends ChangeNotifier {
     }
     final firstSpeechFrame = !_speechDetected;
     _speechDetected = true;
+    _batchSpeechGate?.markSpeechDetected();
     _noSpeechTimer?.cancel();
     _noSpeechTimer = null;
     _silenceTimer?.cancel();
@@ -1041,11 +1032,13 @@ class ConversationController extends ChangeNotifier {
         _registerSpeechDetection();
       }
       if (activity.voiceActive) {
+        _batchSpeechGate?.markVoiceActive();
         _silenceTimer?.cancel();
         _silenceTimer = null;
       } else if (_speechDetected &&
           !activity.isCalibrating &&
           _silenceTimer == null) {
+        _batchSpeechGate?.markVoiceInactive();
         _silenceTimer = Timer(
           Duration(milliseconds: vadSilenceMs),
           () => unawaited(stopRecording(manual: false)),
@@ -1161,6 +1154,7 @@ class ConversationController extends ChangeNotifier {
         }
         final batchUpload = _batchChunkUpload;
         _batchChunkUpload = null;
+        _batchSpeechGate = null;
         if (batchUpload != null) {
           await batchUpload
               .discard(reason: 'recording_too_short')
@@ -1208,6 +1202,7 @@ class ConversationController extends ChangeNotifier {
         }
         final batchUpload = _batchChunkUpload;
         _batchChunkUpload = null;
+        _batchSpeechGate = null;
         if (batchUpload != null) {
           await batchUpload
               .discard(reason: 'no_speech')
@@ -1330,6 +1325,7 @@ class ConversationController extends ChangeNotifier {
       final batchUpload =
           _batchChunkUpload ?? adaptiveWebUpload ?? realtimeFallbackUpload;
       _batchChunkUpload = null;
+      _batchSpeechGate = null;
       _realtimeFallbackBuffer.clear();
       _usingOfflineIntent = false;
       phase = ConversationPhase.processing;
@@ -1831,6 +1827,7 @@ class ConversationController extends ChangeNotifier {
     unawaited(_realtimePartialSubscription?.cancel());
     unawaited(_offlineIntentHypothesisSubscription?.cancel());
     final batchUpload = _batchChunkUpload;
+    _batchSpeechGate = null;
     if (batchUpload != null) {
       unawaited(
         batchUpload

@@ -5,7 +5,7 @@ import 'package:ai_speaking_flutter_app/core/audio/wav_audio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('builds a valid mono 24 kHz PCM WAV header', () {
+  test('builds a valid mono 16 kHz PCM WAV header', () {
     final header = buildPcm16WavHeader(pcmByteLength: 32000);
     final data = ByteData.sublistView(header);
 
@@ -14,8 +14,8 @@ void main() {
     expect(ascii.decode(header.sublist(8, 12)), 'WAVE');
     expect(data.getUint16(20, Endian.little), 1);
     expect(data.getUint16(22, Endian.little), 1);
-    expect(data.getUint32(24, Endian.little), 24000);
-    expect(data.getUint32(28, Endian.little), 48000);
+    expect(data.getUint32(24, Endian.little), 16000);
+    expect(data.getUint32(28, Endian.little), 32000);
     expect(data.getUint16(34, Endian.little), 16);
     expect(ascii.decode(header.sublist(36, 40)), 'data');
     expect(data.getUint32(40, Endian.little), 32000);

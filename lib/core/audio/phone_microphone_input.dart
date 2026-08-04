@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 
 import 'audio_input.dart';
+import 'pcm_speech_preprocessor.dart';
 import 'recording_storage.dart';
 import 'wav_audio.dart';
 
@@ -26,11 +27,20 @@ class PhoneMicrophoneInput
   StreamSubscription<Uint8List>? _pcmSubscription;
   Completer<void>? _pcmStreamDone;
   Object? _streamError;
+  PcmSpeechPreprocessor? _pcmPreprocessor;
   bool _chunked = false;
   bool _microphonePermissionGranted = false;
   bool _recordConfigListenerRegistered = false;
   int _effectiveSampleRate = pcm16SampleRate;
+  bool? _platformAutoGainApplied;
+  bool? _platformEchoCancellationApplied;
+  bool? _platformNoiseSuppressionApplied;
   InputDevice? _selectedInputDevice;
+
+  static const _androidVoiceRecordConfig = AndroidRecordConfig(
+    audioSource: AndroidAudioSource.voiceCommunication,
+    audioManagerMode: AudioManagerMode.modeInCommunication,
+  );
 
   int get _chunkByteLength =>
       pcm16ChunkByteLength(sampleRate: _effectiveSampleRate);
@@ -119,6 +129,9 @@ class PhoneMicrophoneInput
         if (config.sampleRate > 0) {
           _effectiveSampleRate = config.sampleRate;
         }
+        _platformAutoGainApplied = config.autoGain;
+        _platformEchoCancellationApplied = config.echoCancel;
+        _platformNoiseSuppressionApplied = config.noiseSuppress;
       });
       _recordConfigListenerRegistered = true;
     }
@@ -134,7 +147,7 @@ class PhoneMicrophoneInput
         avAudioSessionMode: AVAudioSessionMode.voiceChat,
         androidAudioAttributes: const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.speech,
-          usage: AndroidAudioUsage.media,
+          usage: AndroidAudioUsage.voiceCommunication,
         ),
         androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
         androidWillPauseWhenDucked: true,
@@ -146,6 +159,13 @@ class PhoneMicrophoneInput
     _startedAt = DateTime.now();
     _initialNoiseRms = null;
     _streamError = null;
+    _pcmPreprocessor = null;
+    // record_web reports adjusted track settings through setOnConfigChanged.
+    // Android exposes support per device but not the final enabled state here,
+    // so keep it unknown instead of claiming an effect was applied.
+    _platformAutoGainApplied = kIsWeb ? true : null;
+    _platformEchoCancellationApplied = kIsWeb ? true : null;
+    _platformNoiseSuppressionApplied = kIsWeb ? true : null;
   }
 
   @override
@@ -161,6 +181,7 @@ class PhoneMicrophoneInput
         autoGain: true,
         echoCancel: true,
         noiseSuppress: true,
+        androidConfig: _androidVoiceRecordConfig,
         device: _selectedInputDevice,
       ),
       path: _currentPath!,
@@ -184,9 +205,11 @@ class PhoneMicrophoneInput
         autoGain: true,
         echoCancel: true,
         noiseSuppress: true,
+        androidConfig: _androidVoiceRecordConfig,
         device: _selectedInputDevice,
       ),
     );
+    _pcmPreprocessor = PcmSpeechPreprocessor(sampleRate: _effectiveSampleRate);
     _pcmSubscription = pcmStream.listen(
       _handlePcmBytes,
       onError: (Object error, StackTrace stackTrace) {
@@ -202,14 +225,15 @@ class PhoneMicrophoneInput
     if (bytes.isEmpty) {
       return;
     }
-    _pcmBytes?.add(bytes);
     _pendingChunkBytes?.add(bytes);
     final pending = _pendingChunkBytes?.takeBytes() ?? Uint8List(0);
     var offset = 0;
     while (pending.length - offset >= _chunkByteLength) {
-      _audioChunkController.add(
+      final processed = _processPcmChunk(
         Uint8List.sublistView(pending, offset, offset + _chunkByteLength),
       );
+      _pcmBytes?.add(processed);
+      _audioChunkController.add(processed);
       offset += _chunkByteLength;
     }
     if (offset < pending.length) {
@@ -220,9 +244,14 @@ class PhoneMicrophoneInput
   void _flushFinalChunk() {
     final finalChunk = _pendingChunkBytes?.takeBytes();
     if (finalChunk != null && finalChunk.isNotEmpty) {
-      _audioChunkController.add(finalChunk);
+      final processed = _processPcmChunk(finalChunk);
+      _pcmBytes?.add(processed);
+      _audioChunkController.add(processed);
     }
   }
+
+  Uint8List _processPcmChunk(Uint8List bytes) =>
+      _pcmPreprocessor?.process(bytes) ?? Uint8List.fromList(bytes);
 
   void _completePcmStream() {
     final completer = _pcmStreamDone;
@@ -258,6 +287,7 @@ class PhoneMicrophoneInput
     Uint8List? streamHeaderBytes;
     int? streamedAudioBytes;
     Uint8List? dataBytes;
+    final audioProcessing = _buildAudioProcessingMetrics();
     var mimeType = 'audio/mp4';
     if (_chunked) {
       final pcmBytes = _pcmBytes?.takeBytes() ?? Uint8List(0);
@@ -289,6 +319,7 @@ class PhoneMicrophoneInput
       streamedAudioBytes: streamedAudioBytes,
       recordingSampleRate: _chunked ? _effectiveSampleRate : null,
       dataBytes: dataBytes,
+      audioProcessing: audioProcessing,
     );
   }
 
@@ -302,7 +333,32 @@ class PhoneMicrophoneInput
     _startedAt = null;
     _pcmBytes = null;
     _pendingChunkBytes = null;
+    _pcmPreprocessor = null;
     _chunked = false;
+  }
+
+  AudioProcessingMetrics _buildAudioProcessingMetrics() {
+    final preprocessor = _pcmPreprocessor;
+    if (preprocessor != null) {
+      return preprocessor.metrics(
+        platformNoiseSuppressionRequested: true,
+        platformEchoCancellationRequested: true,
+        platformAutoGainRequested: true,
+        platformNoiseSuppressionApplied: _platformNoiseSuppressionApplied,
+        platformEchoCancellationApplied: _platformEchoCancellationApplied,
+        platformAutoGainApplied: _platformAutoGainApplied,
+      );
+    }
+    return AudioProcessingMetrics(
+      platformNoiseSuppressionRequested: true,
+      platformEchoCancellationRequested: true,
+      platformAutoGainRequested: true,
+      platformNoiseSuppressionApplied: _platformNoiseSuppressionApplied,
+      platformEchoCancellationApplied: _platformEchoCancellationApplied,
+      platformAutoGainApplied: _platformAutoGainApplied,
+      pcmHighPassApplied: false,
+      pcmAdaptiveNoiseGateApplied: false,
+    );
   }
 
   @override

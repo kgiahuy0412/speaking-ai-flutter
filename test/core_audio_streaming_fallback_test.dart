@@ -505,6 +505,7 @@ void main() {
       expect(controller.phase, ConversationPhase.idle);
       batchCompleter.complete(repository.batchSession);
       await starting;
+      await _emitDetectedSpeech(input);
 
       expect(repository.batchSession.chunks, <List<int>>[
         <int>[1, 2, 3],
