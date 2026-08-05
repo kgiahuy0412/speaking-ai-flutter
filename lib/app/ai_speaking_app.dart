@@ -30,6 +30,7 @@ import '../features/listening/domain/listening_content.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
+import 'mascot_assets.dart';
 import 'startup_splash_screen.dart';
 
 class AiSpeakingApp extends StatefulWidget {
@@ -74,9 +75,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     if (_startupHoldMilliseconds > 0) {
       return Duration(milliseconds: _startupHoldMilliseconds);
     }
-    return kIsWeb
-        ? const Duration(milliseconds: 900)
-        : const Duration(milliseconds: 1150);
+    return const Duration(milliseconds: 1800);
   }
 
   Future<void> _beginStartup() async {
@@ -95,6 +94,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       }),
       _runStartupTask(_loadThemeMode),
       _runStartupTask(_loadVersion),
+      _runStartupTask(_precacheHomeAssets),
     ];
 
     // The first Flutter frame is already visible. Runtime services can now
@@ -112,7 +112,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     final essentialReady = Future.wait<void>(essentialTasks).then<void>((_) {});
     await Future.any<void>(<Future<void>>[
       essentialReady,
-      Future<void>.delayed(const Duration(milliseconds: 900)),
+      Future<void>.delayed(const Duration(milliseconds: 1500)),
     ]);
     // A slow preference store or local asset must not trap the child on the
     // opening screen. The already-started futures keep filling shared caches.
@@ -161,6 +161,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return;
     }
     setState(() => _version = version);
+  }
+
+  Future<void> _precacheHomeAssets() async {
+    await Future.wait<void>(<Future<void>>[
+      precacheImage(const AssetImage(MascotAssets.scenery), context),
+      precacheImage(const AssetImage(MascotAssets.avatar), context),
+    ]);
   }
 
   void _setStartupState({required double progress, required String status}) {
