@@ -129,9 +129,15 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                             textAlign: TextAlign.right,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: AppColors.ink.withValues(alpha: 0.78),
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant
+                                      : AppColors.ink.withValues(alpha: 0.78),
                                   fontWeight: FontWeight.w700,
-                                  shadows: _journeyTextShadows,
+                                  shadows: _journeyTextShadowsFor(context),
                                 ),
                           ),
                         ),
@@ -164,6 +170,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: <Widget>[
         IconButton.filled(
@@ -172,8 +180,10 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           tooltip: context.tr('Quay lại', '返回'),
           style: IconButton.styleFrom(
             minimumSize: const Size.square(52),
-            backgroundColor: const Color(0xF8FFFDF9),
-            foregroundColor: AppColors.ink,
+            backgroundColor: isDark
+                ? colorScheme.surfaceContainerHighest
+                : const Color(0xF8FFFDF9),
+            foregroundColor: isDark ? colorScheme.primary : AppColors.ink,
             elevation: 3,
             shadowColor: const Color(0x24142451),
           ),
@@ -195,7 +205,9 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           height: 50,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xF8FFFDF9),
+            color: isDark
+                ? colorScheme.surfaceContainerHighest
+                : const Color(0xF8FFFDF9),
             shape: BoxShape.circle,
             boxShadow: <BoxShadow>[
               BoxShadow(
@@ -396,6 +408,8 @@ class _AgeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
       selected: selected,
       button: true,
@@ -413,10 +427,10 @@ class _AgeTab extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   if (selected)
-                    const Icon(
+                    Icon(
                       Icons.star_rounded,
                       size: 15,
-                      color: AppColors.indigo,
+                      color: isDark ? colorScheme.primary : AppColors.indigo,
                     )
                   else
                     const SizedBox(height: 15),
@@ -425,7 +439,13 @@ class _AgeTab extends StatelessWidget {
                     label,
                     maxLines: 1,
                     style: TextStyle(
-                      color: selected ? AppColors.indigo : AppColors.ink,
+                      color: selected
+                          ? isDark
+                                ? colorScheme.primary
+                                : AppColors.indigo
+                          : isDark
+                          ? colorScheme.onSurface
+                          : AppColors.ink,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
@@ -463,11 +483,20 @@ class _ContinueLearningCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: const Color(0xECFFFDF9),
+      color: isDark
+          ? colorScheme.surface.withValues(alpha: 0.96)
+          : const Color(0xECFFFDF9),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(26),
-        side: const BorderSide(color: Color(0x99FFFFFF), width: 1.2),
+        side: BorderSide(
+          color: isDark
+              ? colorScheme.outline.withValues(alpha: 0.7)
+              : const Color(0x99FFFFFF),
+          width: 1.2,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -494,7 +523,7 @@ class _ContinueLearningCard extends StatelessWidget {
                     Text(
                       context.tr('Tiếp tục học', '继续学习'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.indigo,
+                        color: isDark ? colorScheme.primary : AppColors.indigo,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -682,12 +711,14 @@ class _TopicCircleImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
       height: size,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
         shape: BoxShape.circle,
         boxShadow: <BoxShadow>[
           BoxShadow(
@@ -721,6 +752,8 @@ class _JourneyCheckpoint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Container(
         width: 34,
@@ -728,7 +761,10 @@ class _JourneyCheckpoint extends StatelessWidget {
         decoration: BoxDecoration(
           color: completed ? AppColors.success : AppColors.indigo,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 3),
+          border: Border.all(
+            color: isDark ? colorScheme.surface : Colors.white,
+            width: 3,
+          ),
           boxShadow: <BoxShadow>[
             BoxShadow(
               color: AppColors.indigo.withValues(alpha: 0.22),
@@ -763,6 +799,8 @@ class _TopicDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final alignment = alignRight
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
@@ -779,10 +817,10 @@ class _TopicDetails extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: textAlignment,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.ink,
+              color: isDark ? colorScheme.onSurface : AppColors.ink,
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              shadows: _journeyTextShadows,
+              shadows: _journeyTextShadowsFor(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -795,10 +833,12 @@ class _TopicDetails extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: textAlignment,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.ink.withValues(alpha: 0.78),
+              color: isDark
+                  ? colorScheme.onSurfaceVariant
+                  : AppColors.ink.withValues(alpha: 0.78),
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              shadows: _journeyTextShadows,
+              shadows: _journeyTextShadowsFor(context),
             ),
           ),
           if (showStartButton) ...<Widget>[
@@ -829,6 +869,14 @@ const _journeyTextShadows = <Shadow>[
   Shadow(color: Colors.white, blurRadius: 7),
   Shadow(color: Colors.white, offset: Offset(0, 1), blurRadius: 3),
 ];
+
+List<Shadow> _journeyTextShadowsFor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? const <Shadow>[
+        Shadow(color: Colors.black54, blurRadius: 3),
+        Shadow(color: Colors.black38, blurRadius: 7),
+      ]
+    : _journeyTextShadows;
 
 class _JourneyPathPainter extends CustomPainter {
   const _JourneyPathPainter({

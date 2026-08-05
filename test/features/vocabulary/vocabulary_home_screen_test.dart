@@ -47,6 +47,62 @@ void main() {
     expect(find.text('Apple'), findsOneWidget);
     expect(find.text('Quả táo'), findsOneWidget);
   });
+
+  testWidgets(
+    'translates an unknown Vietnamese word and speaks only its English text',
+    (tester) async {
+      final store = _MemoryVocabularyStore();
+      final voice = _RecordingVoicePromptService();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: DisplayLanguageScope(
+            language: DisplayLanguage.vietnamese,
+            child: VocabularyHomeScreen(
+              isReady: true,
+              store: store,
+              voicePromptService: voice,
+              translator: (input) async {
+                expect(input, 'con mèo');
+                return const VocabularyTranslation(
+                  englishText: 'cat',
+                  vietnameseText: 'con mèo',
+                );
+              },
+              onReturnToConversation: () {},
+              onHistory: () {},
+              onSettings: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('add-vocabulary-button')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('add-vocabulary-field')),
+        'con mèo',
+      );
+      await tester.pump();
+      final confirm = find.byKey(const Key('confirm-add-vocabulary'));
+      await tester.ensureVisible(confirm);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+
+      expect(store.entries, hasLength(1));
+      expect(store.entries.single.word, 'Cat');
+      expect(store.entries.single.meaning, 'Con mèo');
+      expect(find.text('Cat'), findsOneWidget);
+      expect(find.text('Con mèo'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.volume_up_rounded));
+      await tester.pump();
+
+      expect(voice.spokenTexts, <String>['Cat']);
+      expect(voice.locales, <String>['en-US']);
+    },
+  );
 }
 
 class _MemoryVocabularyStore extends VocabularyStore {
@@ -66,6 +122,23 @@ class _FakeVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _RecordingVoicePromptService implements VoicePromptService {
+  final List<String> spokenTexts = <String>[];
+  final List<String> locales = <String>[];
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    spokenTexts.add(text);
+    locales.add(locale);
+  }
 
   @override
   Future<void> stop() async {}

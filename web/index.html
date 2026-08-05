@@ -1,49 +1,167 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="description" content="Trợ lý giao tiếp và luyện nghe tiếng Anh INNOTRIK.">
-  <meta name="theme-color" content="#3F51D9">
-
-  <!-- iOS meta tags & icons -->
+  <meta name="theme-color" content="#EAF4FF">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="INNOTRIK">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
+  <link rel="icon" type="image/png" href="favicon.png">
   <title>INNOTRIK - Trợ lý giao tiếp</title>
   <link rel="manifest" href="manifest.json">
   <style>
+    :root { color-scheme: light; background: #eaf4ff; }
     html, body {
       margin: 0;
+      width: 100%;
       min-height: 100%;
-      background: #F8F7FF;
+      background: #eaf4ff;
       overscroll-behavior: none;
+      font-family: Roboto, "Segoe UI", sans-serif;
+    }
+    #innotrik-bootstrap {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      padding: max(28px, env(safe-area-inset-top)) 28px max(24px, env(safe-area-inset-bottom));
+      background: #eaf4ff;
+      color: #142451;
+      opacity: 1;
+      transition: opacity 220ms ease;
+    }
+    #innotrik-bootstrap.is-hidden { pointer-events: none; opacity: 0; }
+    .bootstrap-content {
+      width: min(100%, 420px);
+      min-height: min(720px, calc(100vh - 56px));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .bootstrap-logo-frame {
+      width: 126px;
+      height: 126px;
+      box-sizing: border-box;
+      padding: 7px;
+      border: 2px solid rgba(255, 255, 255, 0.92);
+      border-radius: 32px;
+      background: #fffdf9;
+      box-shadow: 0 14px 30px rgba(61, 77, 214, 0.14);
+      animation: innotrik-breathe 1.3s ease-in-out infinite alternate;
+    }
+    .bootstrap-logo-frame img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 25px;
+      object-fit: cover;
+    }
+    .bootstrap-title {
+      margin: 28px 0 6px;
+      font-size: 30px;
+      line-height: 1.12;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .bootstrap-subtitle {
+      margin: 0;
+      color: #66718c;
+      font-size: 16px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    .bootstrap-loader {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 86px;
+      padding: 18px 20px 17px;
+      border: 1px solid #d8e7fa;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+    .bootstrap-loader-label {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      text-align: left;
+      font-size: 16px;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+    .bootstrap-spinner {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border: 2px solid #dce4ff;
+      border-top-color: #3d4dd6;
+      border-radius: 50%;
+      animation: innotrik-spin 0.8s linear infinite;
+    }
+    .bootstrap-track {
+      height: 7px;
+      margin-top: 15px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #dde6ff;
+    }
+    .bootstrap-track::after {
+      content: "";
+      display: block;
+      width: 48%;
+      height: 100%;
+      border-radius: inherit;
+      background: #3d4dd6;
+      animation: innotrik-progress 1.2s ease-in-out infinite alternate;
+    }
+    .bootstrap-note {
+      margin: 17px 0 0;
+      color: #66718c;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    @keyframes innotrik-spin { to { transform: rotate(360deg); } }
+    @keyframes innotrik-breathe { to { transform: scale(1.025); } }
+    @keyframes innotrik-progress {
+      from { transform: translateX(-35%); }
+      to { transform: translateX(115%); }
+    }
+    @media (max-height: 650px) {
+      .bootstrap-content { min-height: auto; }
+      .bootstrap-loader { margin-top: 44px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bootstrap-logo-frame, .bootstrap-spinner, .bootstrap-track::after { animation: none; }
     }
   </style>
 </head>
 <body>
+  <div id="innotrik-bootstrap" role="status" aria-live="polite">
+    <main class="bootstrap-content">
+      <div class="bootstrap-logo-frame">
+        <img src="icons/Icon-512.png" alt="Biểu tượng INNOTRIK">
+      </div>
+      <h1 class="bootstrap-title">INNOTRIK</h1>
+      <p class="bootstrap-subtitle">Cùng con nói tiếng Anh mỗi ngày</p>
+      <section class="bootstrap-loader" aria-label="Đang khởi động ứng dụng">
+        <div class="bootstrap-loader-label">
+          <span class="bootstrap-spinner" aria-hidden="true"></span>
+          <span>Đang khởi động ứng dụng...</span>
+        </div>
+        <div class="bootstrap-track" aria-hidden="true"></div>
+      </section>
+      <p class="bootstrap-note">Chỉ chuẩn bị dữ liệu cần thiết.<br>Nội dung còn lại sẽ tiếp tục tải nền.</p>
+    </main>
+  </div>
   <script>
     window.innotrikVoicePromptSpeak = function (text, locale) {
       if (!('speechSynthesis' in window) || !text) return;
@@ -58,14 +176,6 @@
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
   </script>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

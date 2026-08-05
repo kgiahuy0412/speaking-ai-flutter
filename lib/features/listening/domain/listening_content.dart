@@ -252,16 +252,25 @@ Duration? _readDurationMs(Object? value) {
 }
 
 class AssetListeningContentRepository {
+  static const defaultAssetPath = 'assets/data/listening_lessons.json';
+
   AssetListeningContentRepository({
     AssetBundle? bundle,
-    this.assetPath = 'assets/data/listening_lessons.json',
-  }) : _bundle = bundle ?? rootBundle;
+    this.assetPath = defaultAssetPath,
+  }) : _bundle = bundle ?? rootBundle,
+       _usesSharedDefaultCache =
+           bundle == null && assetPath == defaultAssetPath;
 
   final AssetBundle _bundle;
   final String assetPath;
+  final bool _usesSharedDefaultCache;
   Future<ListeningContentCatalog>? _catalogFuture;
+  static Future<ListeningContentCatalog>? _sharedDefaultCatalogFuture;
 
   Future<ListeningContentCatalog> load() {
+    if (_usesSharedDefaultCache) {
+      return _sharedDefaultCatalogFuture ??= _load();
+    }
     return _catalogFuture ??= _load();
   }
 

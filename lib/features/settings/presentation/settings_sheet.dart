@@ -10,9 +10,16 @@ import '../../conversation/presentation/conversation_controller.dart';
 import 'history_sheet.dart';
 
 class SettingsSheet extends StatelessWidget {
-  const SettingsSheet({required this.controller, super.key});
+  const SettingsSheet({
+    required this.controller,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
+    super.key,
+  });
 
   final ConversationController controller;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +51,11 @@ class SettingsSheet extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 18),
+                    _AppearanceSelector(
+                      value: themeMode,
+                      onChanged: onThemeModeChanged,
+                    ),
+                    const SizedBox(height: 24),
                     _SectionLabel(
                       label: context.tr('Ngôn ngữ hiển thị', '显示语言'),
                     ),
@@ -565,6 +577,152 @@ class SettingsSheet extends StatelessWidget {
   }
 }
 
+class _AppearanceSelector extends StatefulWidget {
+  const _AppearanceSelector({required this.value, required this.onChanged});
+
+  final ThemeMode value;
+  final ValueChanged<ThemeMode>? onChanged;
+
+  @override
+  State<_AppearanceSelector> createState() => _AppearanceSelectorState();
+}
+
+class _AppearanceSelectorState extends State<_AppearanceSelector> {
+  late ThemeMode _value = widget.value;
+
+  @override
+  void didUpdateWidget(covariant _AppearanceSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value;
+    }
+  }
+
+  void _select(ThemeMode mode) {
+    if (mode == _value) {
+      return;
+    }
+    setState(() => _value = mode);
+    widget.onChanged?.call(mode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final options = <({ThemeMode mode, IconData icon, String label})>[
+      (
+        mode: ThemeMode.system,
+        icon: Icons.brightness_auto_rounded,
+        label: context.tr('Hệ thống', '跟随系统'),
+      ),
+      (
+        mode: ThemeMode.light,
+        icon: Icons.light_mode_rounded,
+        label: context.tr('Sáng', '浅色'),
+      ),
+      (
+        mode: ThemeMode.dark,
+        icon: Icons.dark_mode_rounded,
+        label: context.tr('Tối', '深色'),
+      ),
+    ];
+    final selectedLabel = options
+        .firstWhere((option) => option.mode == _value)
+        .label;
+
+    return Container(
+      key: const Key('appearance-settings-card'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (MediaQuery.textScalerOf(context).scale(1) >= 1.4)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Icon(Icons.palette_outlined, color: colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        context.tr('Giao diện', '外观'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  selectedLabel,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: <Widget>[
+                Icon(Icons.palette_outlined, color: colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    context.tr('Giao diện', '外观'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Text(
+                  selectedLabel,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: options
+                .map(
+                  (option) => FilterChip(
+                    key: ValueKey<String>('theme-mode-${option.mode.name}'),
+                    avatar: Icon(option.icon, size: 18),
+                    label: Text(option.label),
+                    selected: _value == option.mode,
+                    showCheckmark: false,
+                    onSelected: widget.onChanged == null
+                        ? null
+                        : (_) => _select(option.mode),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            context.tr(
+              'Màu giao diện đổi ngay và được giữ cho lần mở ứng dụng sau.',
+              '外观会立即切换，并在下次打开应用时保留。',
+            ),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel({required this.label});
 
@@ -593,10 +751,11 @@ class _StatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.lavender.withValues(alpha: 0.62),
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -605,7 +764,7 @@ class _StatusTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(icon, color: AppColors.indigo),
+              Icon(icon, color: colorScheme.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -615,7 +774,7 @@ class _StatusTile extends StatelessWidget {
                     Text(
                       detail,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.muted,
+                        color: colorScheme.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
@@ -661,6 +820,7 @@ class _InnotrikStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final connected = status.isConnected;
     final busy = status.isBusy;
     final stateColor = connected
@@ -674,7 +834,12 @@ class _InnotrikStatusCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: BoxDecoration(
-        color: connected ? AppColors.successSoft : const Color(0xFFF8F8FD),
+        color: connected
+            ? Color.alphaBlend(
+                AppColors.success.withValues(alpha: 0.12),
+                colorScheme.surfaceContainer,
+              )
+            : colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: stateColor.withValues(alpha: 0.22)),
       ),
@@ -707,9 +872,9 @@ class _InnotrikStatusCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       detail,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     if (status.packetCount > 0) ...<Widget>[
                       const SizedBox(height: 5),
@@ -842,6 +1007,7 @@ class _HfpStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final connected = status.isConnected;
     final busy = status.isBusy;
     final stateColor = connected
@@ -854,7 +1020,12 @@ class _HfpStatusCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
       decoration: BoxDecoration(
-        color: connected ? AppColors.successSoft : const Color(0xFFF8F8FD),
+        color: connected
+            ? Color.alphaBlend(
+                AppColors.success.withValues(alpha: 0.12),
+                colorScheme.surfaceContainer,
+              )
+            : colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: stateColor.withValues(alpha: 0.22)),
       ),
@@ -882,9 +1053,9 @@ class _HfpStatusCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       _detail(context),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),

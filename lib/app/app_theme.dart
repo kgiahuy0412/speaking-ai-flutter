@@ -17,66 +17,81 @@ abstract final class AppColors {
   static const muted = Color(0xFF66718C);
 }
 
-ThemeData buildAppTheme() {
-  final colorScheme =
-      ColorScheme.fromSeed(
-        seedColor: AppColors.indigo,
-        brightness: Brightness.light,
-        surface: AppColors.surface,
-      ).copyWith(
-        primary: AppColors.indigo,
-        onPrimary: Colors.white,
-        secondary: AppColors.coral,
-        error: const Color(0xFFD92D20),
-        onSurface: AppColors.ink,
-        outline: AppColors.lavenderBorder,
-      );
+ThemeData buildAppTheme() => _buildAppTheme(Brightness.light);
+
+ThemeData buildDarkAppTheme() => _buildAppTheme(Brightness.dark);
+
+ThemeData _buildAppTheme(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  final generatedColorScheme = ColorScheme.fromSeed(
+    seedColor: AppColors.indigo,
+    brightness: brightness,
+    surface: isDark ? const Color(0xFF171F3B) : AppColors.surface,
+  );
+  final colorScheme = generatedColorScheme.copyWith(
+    primary: isDark ? const Color(0xFFAEB5FF) : AppColors.indigo,
+    onPrimary: isDark ? const Color(0xFF17205A) : Colors.white,
+    secondary: isDark ? const Color(0xFFFFA99E) : AppColors.coral,
+    error: isDark ? const Color(0xFFFFB4AB) : const Color(0xFFD92D20),
+    onSurface: isDark ? const Color(0xFFF4F5FF) : AppColors.ink,
+    outline: isDark ? const Color(0xFF596184) : AppColors.lavenderBorder,
+    surfaceContainer: isDark
+        ? const Color(0xFF20294B)
+        : generatedColorScheme.surfaceContainer,
+    surfaceContainerHighest: isDark
+        ? const Color(0xFF2B355A)
+        : generatedColorScheme.surfaceContainerHighest,
+  );
+  final textColor = colorScheme.onSurface;
 
   return ThemeData(
     useMaterial3: true,
+    brightness: brightness,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: AppColors.surface,
+    scaffoldBackgroundColor: isDark
+        ? const Color(0xFF0E1630)
+        : AppColors.surface,
     fontFamily: 'Roboto',
-    textTheme: const TextTheme(
+    textTheme: TextTheme(
       displaySmall: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 32,
         height: 1.1,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
       ),
       headlineMedium: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 27,
         height: 1.18,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.5,
       ),
       titleLarge: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 22,
         height: 1.25,
         fontWeight: FontWeight.w700,
       ),
       titleMedium: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 17,
         height: 1.3,
         fontWeight: FontWeight.w600,
       ),
       bodyLarge: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 17,
         height: 1.45,
         fontWeight: FontWeight.w500,
       ),
       bodyMedium: TextStyle(
-        color: AppColors.ink,
+        color: textColor,
         fontSize: 15,
         height: 1.45,
         fontWeight: FontWeight.w400,
       ),
-      labelLarge: TextStyle(
+      labelLarge: const TextStyle(
         fontSize: 16,
         height: 1.25,
         fontWeight: FontWeight.w700,
@@ -96,7 +111,7 @@ ThemeData buildAppTheme() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(48, 52),
-        side: const BorderSide(color: AppColors.lavenderBorder),
+        side: BorderSide(color: colorScheme.outline),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         textStyle: const TextStyle(
           fontFamily: 'Roboto',
@@ -108,9 +123,32 @@ ThemeData buildAppTheme() {
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         minimumSize: const Size.square(48),
-        backgroundColor: AppColors.lavender,
-        foregroundColor: AppColors.indigoDark,
+        backgroundColor: isDark
+            ? colorScheme.surfaceContainerHighest
+            : AppColors.lavender,
+        foregroundColor: isDark ? colorScheme.primary : AppColors.indigoDark,
         shape: const CircleBorder(),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: colorScheme.surface,
+      modalBackgroundColor: colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      showDragHandle: true,
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colorScheme.onPrimary
+              : colorScheme.onSurface,
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : colorScheme.surfaceContainer,
+        ),
+        side: WidgetStatePropertyAll(BorderSide(color: colorScheme.outline)),
       ),
     ),
   );

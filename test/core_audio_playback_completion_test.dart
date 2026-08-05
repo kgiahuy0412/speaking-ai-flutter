@@ -9,7 +9,7 @@ void main() {
         processingState: ProcessingState.completed,
         position: const Duration(milliseconds: 1600),
         duration: const Duration(milliseconds: 11700),
-        elapsedSinceStart: const Duration(milliseconds: 1600),
+        currentPlaybackStarted: true,
       ),
       isFalse,
     );
@@ -21,7 +21,7 @@ void main() {
         processingState: ProcessingState.completed,
         position: const Duration(milliseconds: 11700),
         duration: const Duration(milliseconds: 11700),
-        elapsedSinceStart: const Duration(milliseconds: 500),
+        currentPlaybackStarted: false,
       ),
       isFalse,
     );
@@ -33,7 +33,7 @@ void main() {
         processingState: ProcessingState.completed,
         position: const Duration(milliseconds: 11600),
         duration: const Duration(milliseconds: 11700),
-        elapsedSinceStart: const Duration(milliseconds: 11600),
+        currentPlaybackStarted: true,
       ),
       isTrue,
     );

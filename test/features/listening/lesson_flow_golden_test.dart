@@ -331,18 +331,71 @@ void main() {
       matchesGoldenFile('goldens/lesson-completion-390x844.png'),
     );
   });
+
+  testWidgets('dark theme keeps lesson intro and review text readable', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final lesson = topicContent.lessons.first;
+
+    await tester.pumpWidget(
+      _GoldenApp(
+        themeMode: ThemeMode.dark,
+        child: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 3,
+          endAge: 5,
+          topic: listeningCatalogs.first.topics.first,
+          lesson: lesson,
+          progressStore: progressStore,
+          mediaService: mediaService,
+          autoAdvance: false,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final introTheme = Theme.of(tester.element(find.text(lesson.intro)));
+    expect(introTheme.brightness, Brightness.dark);
+    expect(
+      tester.widget<Text>(find.text(lesson.intro)).style?.color,
+      introTheme.colorScheme.onSurface,
+    );
+
+    await tester.pumpWidget(
+      _GoldenApp(
+        themeMode: ThemeMode.dark,
+        child: LessonReviewScreen(
+          language: DisplayLanguage.vietnamese,
+          lesson: lesson,
+          mediaService: mediaService,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final firstSentence = find.byKey(const ValueKey('review-sentence-1'));
+    final reviewTheme = Theme.of(tester.element(firstSentence));
+    expect(
+      tester.widget<Text>(firstSentence).style?.color,
+      reviewTheme.colorScheme.onSurface,
+    );
+  });
 }
 
 class _GoldenApp extends StatelessWidget {
-  const _GoldenApp({required this.child});
+  const _GoldenApp({required this.child, this.themeMode = ThemeMode.light});
 
   final Widget child;
+  final ThemeMode themeMode;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      darkTheme: buildDarkAppTheme(),
+      themeMode: themeMode,
       home: child,
     );
   }

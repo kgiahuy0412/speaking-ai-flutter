@@ -27,3 +27,16 @@ class VocabularyEntry {
     );
   }
 }
+
+class VocabularyTranslation {
+  const VocabularyTranslation({
+    required this.englishText,
+    required this.vietnameseText,
+  });
+
+  final String englishText;
+  final String vietnameseText;
+}
+
+typedef VocabularyTranslator =
+    Future<VocabularyTranslation> Function(String input);

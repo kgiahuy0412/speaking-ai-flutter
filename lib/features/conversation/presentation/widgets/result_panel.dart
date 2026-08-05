@@ -13,6 +13,8 @@ class ResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentResult = result;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnimatedContainer(
       duration: MediaQuery.disableAnimationsOf(context)
@@ -22,12 +24,19 @@ class ResultPanel extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 198),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 11),
       decoration: BoxDecoration(
-        color: const Color(0xF8FFFDF9),
+        color: isDark
+            ? colorScheme.surface.withValues(alpha: 0.96)
+            : const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.4),
-        boxShadow: const <BoxShadow>[
+        border: Border.all(
+          color: isDark
+              ? colorScheme.outline.withValues(alpha: 0.65)
+              : const Color(0xCCFFFFFF),
+          width: 1.4,
+        ),
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Color(0x120D1B4C),
+            color: isDark ? Colors.black38 : const Color(0x120D1B4C),
             blurRadius: 24,
             offset: Offset(0, 10),
           ),
@@ -93,6 +102,8 @@ class _TranslationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasText = text?.trim().isNotEmpty ?? false;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,18 +113,24 @@ class _TranslationSection extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: const BoxDecoration(
-                color: AppColors.lavender,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? colorScheme.surfaceContainerHighest
+                    : AppColors.lavender,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.indigo, size: 19),
+              child: Icon(
+                icon,
+                color: isDark ? colorScheme.primary : AppColors.indigo,
+                size: 19,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.indigoDark,
+                  color: isDark ? colorScheme.primary : AppColors.indigoDark,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -127,7 +144,9 @@ class _TranslationSection extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 44),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: AppColors.lavenderSoft,
+            color: isDark
+                ? colorScheme.surfaceContainer
+                : AppColors.lavenderSoft,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Align(
@@ -140,7 +159,13 @@ class _TranslationSection extends StatelessWidget {
                 hasText ? text! : placeholder,
                 key: ValueKey<String>(text ?? placeholder),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: hasText ? AppColors.ink : AppColors.muted,
+                  color: hasText
+                      ? isDark
+                            ? colorScheme.onSurface
+                            : AppColors.ink
+                      : isDark
+                      ? colorScheme.onSurfaceVariant
+                      : AppColors.muted,
                   fontWeight: hasText ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
@@ -157,17 +182,24 @@ class _TranslationConnector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       height: 22,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          const Divider(color: AppColors.lavenderBorder, height: 1),
+          Divider(
+            color: isDark
+                ? colorScheme.outlineVariant
+                : AppColors.lavenderBorder,
+            height: 1,
+          ),
           Container(
             width: 24,
             height: 24,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: isDark ? colorScheme.surface : Colors.white,
               shape: BoxShape.circle,
             ),
             child: const Icon(

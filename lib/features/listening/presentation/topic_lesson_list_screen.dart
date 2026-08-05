@@ -272,6 +272,8 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: <Widget>[
         IconButton(
@@ -283,11 +285,16 @@ class _Header extends StatelessWidget {
         Container(
           width: 48,
           height: 48,
-          decoration: const BoxDecoration(
-            color: AppColors.lavender,
+          decoration: BoxDecoration(
+            color: isDark
+                ? colorScheme.surfaceContainerHighest
+                : AppColors.lavender,
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.person_rounded, color: AppColors.indigo),
+          child: Icon(
+            Icons.person_rounded,
+            color: isDark ? colorScheme.primary : AppColors.indigo,
+          ),
         ),
       ],
     );
@@ -302,6 +309,8 @@ class _TopicHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = widget.content;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -358,7 +367,9 @@ class _TopicHero extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
-            color: AppColors.lavenderSoft,
+            color: isDark
+                ? colorScheme.surfaceContainer
+                : AppColors.lavenderSoft,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
@@ -367,9 +378,9 @@ class _TopicHero extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-                    const Icon(
+                    Icon(
                       Icons.menu_book_rounded,
-                      color: AppColors.indigo,
+                      color: isDark ? colorScheme.primary : AppColors.indigo,
                       size: 22,
                     ),
                     const SizedBox(width: 6),
@@ -380,8 +391,8 @@ class _TopicHero extends StatelessWidget {
                           '${content.lessons.length} 节小课',
                         ),
                         maxLines: 1,
-                        style: const TextStyle(
-                          color: AppColors.ink,
+                        style: TextStyle(
+                          color: isDark ? colorScheme.onSurface : AppColors.ink,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -390,17 +401,21 @@ class _TopicHero extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(
+              SizedBox(
                 height: 22,
-                child: VerticalDivider(color: AppColors.lavenderBorder),
+                child: VerticalDivider(
+                  color: isDark
+                      ? colorScheme.outlineVariant
+                      : AppColors.lavenderBorder,
+                ),
               ),
               Expanded(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-                    const Icon(
+                    Icon(
                       Icons.chat_bubble_outline_rounded,
-                      color: AppColors.indigo,
+                      color: isDark ? colorScheme.primary : AppColors.indigo,
                       size: 21,
                     ),
                     const SizedBox(width: 6),
@@ -411,8 +426,8 @@ class _TopicHero extends StatelessWidget {
                           '${content.sentenceCount} 句',
                         ),
                         maxLines: 1,
-                        style: const TextStyle(
-                          color: AppColors.ink,
+                        style: TextStyle(
+                          color: isDark ? colorScheme.onSurface : AppColors.ink,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -445,6 +460,8 @@ class _LessonPathCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final total = lesson.sentences.length;
     final progress = total == 0 ? 0.0 : completedSentences / total;
     final completed = total > 0 && completedSentences >= total;
@@ -452,10 +469,14 @@ class _LessonPathCard extends StatelessWidget {
       button: true,
       label: 'Bài ${lesson.number}, ${lesson.titleVi}',
       child: Material(
-        color: AppColors.lavenderSoft,
+        color: isDark
+            ? colorScheme.surface.withValues(alpha: 0.96)
+            : AppColors.lavenderSoft,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: AppColors.lavenderBorder),
+          side: BorderSide(
+            color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -565,8 +586,10 @@ class _LessonPathCard extends StatelessWidget {
                           const SizedBox(width: 10),
                           Text(
                             '$completedSentences/$total',
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: isDark
+                                  ? colorScheme.onSurfaceVariant
+                                  : AppColors.muted,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -614,15 +637,21 @@ class _Metadata extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 17, color: AppColors.muted),
+        Icon(
+          icon,
+          size: 17,
+          color: isDark ? colorScheme.onSurfaceVariant : AppColors.muted,
+        ),
         const SizedBox(width: 4),
         Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.muted,
+            color: isDark ? colorScheme.onSurfaceVariant : AppColors.muted,
             fontSize: 13,
           ),
         ),

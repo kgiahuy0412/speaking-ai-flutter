@@ -18,11 +18,15 @@ class ConversationScreen extends StatelessWidget {
   const ConversationScreen({
     required this.controller,
     required this.config,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
     super.key,
   });
 
   final ConversationController controller;
   final AppConfig config;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +115,11 @@ class ConversationScreen extends StatelessWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => SettingsSheet(controller: controller),
+      builder: (_) => SettingsSheet(
+        controller: controller,
+        themeMode: themeMode,
+        onThemeModeChanged: onThemeModeChanged,
+      ),
     );
   }
 

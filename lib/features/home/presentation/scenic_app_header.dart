@@ -18,6 +18,8 @@ class ScenicAppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),
@@ -30,9 +32,14 @@ class ScenicAppHeader extends StatelessWidget {
                 height: 56,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.88),
+                  color: isDark
+                      ? colorScheme.surfaceContainerHighest
+                      : Colors.white.withValues(alpha: 0.88),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(
+                    color: isDark ? colorScheme.outline : Colors.white,
+                    width: 2,
+                  ),
                   boxShadow: const <BoxShadow>[
                     BoxShadow(
                       color: Color(0x1A142451),
@@ -61,7 +68,9 @@ class ScenicAppHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
-                            color: AppColors.indigoDark,
+                            color: isDark
+                                ? colorScheme.primary
+                                : AppColors.indigoDark,
                             fontSize: 27,
                             letterSpacing: -0.5,
                           ),
@@ -135,6 +144,8 @@ class _HeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return IconButton.filledTonal(
       onPressed: onPressed,
       icon: Icon(icon),
@@ -142,8 +153,10 @@ class _HeaderAction extends StatelessWidget {
       style: IconButton.styleFrom(
         minimumSize: const Size.square(48),
         maximumSize: const Size.square(48),
-        foregroundColor: AppColors.indigoDark,
-        backgroundColor: Colors.white.withValues(alpha: 0.84),
+        foregroundColor: isDark ? colorScheme.primary : AppColors.indigoDark,
+        backgroundColor: isDark
+            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.9)
+            : Colors.white.withValues(alpha: 0.84),
         shadowColor: const Color(0x24142451),
         elevation: 2,
       ),

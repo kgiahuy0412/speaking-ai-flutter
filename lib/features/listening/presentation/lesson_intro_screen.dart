@@ -73,7 +73,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         return;
       }
       await _openOverview();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Lesson intro playback failed for ${widget.lesson.id} ($uri): $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       _showIntroPlaybackFailure();
     }
   }
@@ -96,6 +100,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return DisplayLanguageScope(
       language: widget.language,
       child: Scaffold(
@@ -126,10 +133,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 key: const Key('skip-lesson-intro'),
                                 onPressed: _openOverview,
                                 style: TextButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.9,
-                                  ),
-                                  foregroundColor: AppColors.ink,
+                                  backgroundColor: isDark
+                                      ? colorScheme.surfaceContainerHighest
+                                      : Colors.white.withValues(alpha: 0.9),
+                                  foregroundColor: isDark
+                                      ? colorScheme.onSurface
+                                      : AppColors.ink,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
                                     vertical: 12,
@@ -165,25 +174,34 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 20,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.94),
+                                color: isDark
+                                    ? colorScheme.surfaceContainer.withValues(
+                                        alpha: 0.96,
+                                      )
+                                    : Colors.white.withValues(alpha: 0.94),
                                 borderRadius: BorderRadius.circular(26),
-                                boxShadow: const <BoxShadow>[
+                                border: isDark
+                                    ? Border.all(color: colorScheme.outline)
+                                    : null,
+                                boxShadow: <BoxShadow>[
                                   BoxShadow(
-                                    color: Color(0x24142451),
+                                    color: isDark
+                                        ? Colors.black.withValues(alpha: 0.28)
+                                        : const Color(0x24142451),
                                     blurRadius: 24,
-                                    offset: Offset(0, 10),
+                                    offset: const Offset(0, 10),
                                   ),
                                 ],
                               ),
                               child: Text(
                                 widget.lesson.intro,
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      fontSize: 18,
-                                      height: 1.48,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: colorScheme.onSurface,
+                                  fontSize: 18,
+                                  height: 1.48,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -205,8 +223,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                     '正在播放开场介绍…',
                                   ),
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: AppColors.indigoDark),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: isDark
+                                  ? colorScheme.primary
+                                  : AppColors.indigoDark,
+                            ),
                           ),
                           const SizedBox(height: 14),
                           ClipRRect(
@@ -214,10 +235,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                             child: LinearProgressIndicator(
                               value: _introPlaybackFailed ? 0 : null,
                               minHeight: 7,
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.55,
-                              ),
-                              color: AppColors.indigo,
+                              backgroundColor: isDark
+                                  ? colorScheme.surfaceContainerHighest
+                                  : Colors.white.withValues(alpha: 0.55),
+                              color: isDark
+                                  ? colorScheme.primary
+                                  : AppColors.indigo,
                             ),
                           ),
                         ],

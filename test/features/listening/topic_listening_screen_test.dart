@@ -14,9 +14,12 @@ void main() {
     int childAge = 6,
     DisplayLanguage language = DisplayLanguage.vietnamese,
     double textScale = 1,
+    ThemeMode themeMode = ThemeMode.light,
   }) {
     return MaterialApp(
       theme: buildAppTheme(),
+      darkTheme: buildDarkAppTheme(),
+      themeMode: themeMode,
       home: MediaQuery(
         data: MediaQueryData(
           size: const Size(390, 844),
@@ -26,6 +29,23 @@ void main() {
       ),
     );
   }
+
+  testWidgets('dark theme keeps the listening journey text readable', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSubject(themeMode: ThemeMode.dark));
+    await tester.pumpAndSettle();
+
+    final journeyTitle = tester.widget<Text>(find.text('Hành trình của con'));
+    final continueLabel = tester.widget<Text>(find.text('Tiếp tục học'));
+    final theme = Theme.of(
+      tester.element(find.byKey(const Key('topic-listening-screen'))),
+    );
+
+    expect(theme.brightness, Brightness.dark);
+    expect(journeyTitle.style?.color, theme.colorScheme.onSurface);
+    expect(continueLabel.style?.color, theme.colorScheme.primary);
+  });
 
   test('all 50 listening topics have a loadable image asset', () async {
     final topics = listeningCatalogs

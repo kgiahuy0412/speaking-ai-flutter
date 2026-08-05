@@ -42,6 +42,29 @@ void main() {
     expect(buffer.byteLength, 0);
   });
 
+  test('vocabulary translation uses the backend text pipeline', () async {
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+    );
+
+    final translation = await controller.translateVocabulary('con mèo');
+
+    expect(repository.streamingCapture?.sourceText, 'con mèo');
+    expect(repository.streamingCapture?.asrMode, 'text');
+    expect(translation.vietnameseText, 'Con muốn uống nước');
+    expect(translation.englishText, 'Can I have some water?');
+    controller.dispose();
+  });
+
   test('unlocks browser audio before stopping previous playback', () async {
     final events = <String>[];
     final playback = _GesturePlaybackService(events);
