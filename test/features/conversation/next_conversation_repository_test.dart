@@ -346,17 +346,17 @@ void main() {
         initialNoiseRms: null,
         streamHeaderBytes: header,
         streamedAudioBytes: 16000,
-          recordingSampleRate: 48000,
-          audioProcessing: const AudioProcessingMetrics(
-            platformNoiseSuppressionRequested: true,
-            platformEchoCancellationRequested: true,
-            platformAutoGainRequested: true,
-            platformNoiseSuppressionApplied: true,
-            pcmHighPassApplied: true,
-            pcmAdaptiveNoiseGateApplied: true,
-            estimatedSnrDb: 14.5,
-          ),
+        recordingSampleRate: 48000,
+        audioProcessing: const AudioProcessingMetrics(
+          platformNoiseSuppressionRequested: true,
+          platformEchoCancellationRequested: true,
+          platformAutoGainRequested: true,
+          platformNoiseSuppressionApplied: true,
+          pcmHighPassApplied: true,
+          pcmAdaptiveNoiseGateApplied: true,
+          estimatedSnrDb: 14.5,
         ),
+      ),
       context: PracticeContext.home,
       childAge: 6,
       vadSilenceMs: 700,
@@ -367,6 +367,129 @@ void main() {
     expect(result.asrMode, 'batch_chunks');
     await repository.dispose();
   });
+
+  test(
+    'uses 600 ms speculative Web chunks and forwards prefetchId on finalize',
+    () async {
+      final uploadedSequences = <int>[];
+      Map<String, dynamic>? previewBody;
+      Map<String, dynamic>? finalizeBody;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_prefetch',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            final body = latin1.decode(request.bodyBytes);
+            final match = RegExp(
+              r'name="sequence"\r\n\r\n(\d+)',
+            ).firstMatch(body);
+            uploadedSequences.add(int.parse(match!.group(1)!));
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            previewBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_1',
+                'stabilityCount': 1,
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'phrase_rule',
+                'audioUrl': '/api/audio/stream?text=water',
+                'audioSource': 'cloudflare_tts',
+                'snapshotChunkCount': 2,
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_prefetch',
+                'sessionId': 'sess_prefetch',
+                'context': 'home',
+                'vietnameseText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/api/audio/stream?text=water',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cloudflare_tts',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 0,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 25,
+                },
+              }),
+              200,
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      final previewFuture = speculative.speculativePreviews.first;
+      for (var index = 0; index < 6; index += 1) {
+        upload.addAudioChunk(Uint8List(8000));
+      }
+
+      final preview = await previewFuture.timeout(const Duration(seconds: 2));
+      expect(preview.englishText, 'Can I have some water, please?');
+      expect(previewBody?['pcm16Wav'], <String, dynamic>{
+        'sampleRate': 16000,
+        'channelCount': 1,
+        'bitsPerSample': 16,
+        'pcmByteLength': 48000,
+        'chunkCount': 2,
+      });
+
+      await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'prefetch.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 1500),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 48000),
+          streamedAudioBytes: 48000,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+
+      expect(uploadedSequences, <int>[0, 1]);
+      expect(finalizeBody?['prefetchId'], 'prefetch_1');
+      final benchmark = finalizeBody?['benchmark'] as Map<String, dynamic>;
+      expect(benchmark['chunkIntervalMs'], 600);
+      await repository.dispose();
+    },
+  );
 
   test(
     'keeps legacy header upload when backend lacks the capability',

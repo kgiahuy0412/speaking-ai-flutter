@@ -264,10 +264,19 @@ class PhoneMicrophoneInput
   Future<AudioCapture> stop() async {
     final recorderPath = await _recorder.stop();
     if (_chunked) {
+      var streamDrainTimedOut = false;
       await _pcmStreamDone?.future.timeout(
-        const Duration(seconds: 2),
-        onTimeout: () {},
+        kIsWeb ? const Duration(milliseconds: 250) : const Duration(seconds: 2),
+        onTimeout: () {
+          streamDrainTimedOut = true;
+        },
       );
+      if (streamDrainTimedOut) {
+        debugPrint(
+          'PCM stream drain timed out after ${kIsWeb ? 250 : 2000} ms; '
+          'flushing the buffered tail.',
+        );
+      }
       await _pcmSubscription?.cancel();
       _pcmSubscription = null;
       _flushFinalChunk();

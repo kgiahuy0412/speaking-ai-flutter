@@ -20,6 +20,11 @@ class ConversationScreen extends StatelessWidget {
     required this.config,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onStartTutorial,
+    this.speakActionKey,
+    this.resultPanelKey,
+    this.historyButtonKey,
+    this.settingsButtonKey,
     super.key,
   });
 
@@ -27,6 +32,11 @@ class ConversationScreen extends StatelessWidget {
   final AppConfig config;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final VoidCallback? onStartTutorial;
+  final Key? speakActionKey;
+  final Key? resultPanelKey;
+  final Key? historyButtonKey;
+  final Key? settingsButtonKey;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +57,8 @@ class ConversationScreen extends StatelessWidget {
                       isReady: controller.isInputAvailable,
                       onHistory: () => _showHistory(context),
                       onSettings: () => _showSettings(context),
+                      historyButtonKey: historyButtonKey,
+                      settingsButtonKey: settingsButtonKey,
                     ),
                     Expanded(
                       child: Center(
@@ -72,6 +84,7 @@ class ConversationScreen extends StatelessWidget {
                                 ),
                                 SizedBox(height: compact ? 24 : 28),
                                 ResultPanel(
+                                  key: resultPanelKey,
                                   result: controller.result,
                                   onPlay: () =>
                                       unawaited(controller.playResult()),
@@ -95,6 +108,7 @@ class ConversationScreen extends StatelessWidget {
                       ),
                     ),
                     SpeakActionBar(
+                      key: speakActionKey,
                       phase: controller.phase,
                       processingStage: controller.processingStage,
                       onPressed: () => unawaited(controller.onPrimaryAction()),
@@ -119,6 +133,7 @@ class ConversationScreen extends StatelessWidget {
         controller: controller,
         themeMode: themeMode,
         onThemeModeChanged: onThemeModeChanged,
+        onStartTutorial: onStartTutorial,
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import '../../../core/audio/audio_input.dart';
@@ -66,6 +67,24 @@ abstract interface class BatchChunkUploadSession {
   });
 
   Future<void> discard({String reason = 'unspecified'});
+}
+
+/// Optional capability used by low-latency Batch Chunks clients to recognize
+/// a nearly complete utterance while recording is still active. Finalization
+/// remains authoritative and validates the audio tail before reusing it.
+abstract interface class SpeculativeBatchChunkUploadSession {
+  Stream<ConversationPreview> get speculativePreviews;
+
+  void configureSpeculativePreview({
+    required PracticeContext context,
+    required int childAge,
+  });
+
+  void markSpeculativeSpeechDetected();
+
+  void markSpeculativeVoiceActive();
+
+  void markSpeculativeVoiceInactive();
 }
 
 abstract interface class ChunkedConversationRepository {

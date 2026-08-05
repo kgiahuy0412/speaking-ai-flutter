@@ -14,12 +14,14 @@ class SettingsSheet extends StatelessWidget {
     required this.controller,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onStartTutorial,
     super.key,
   });
 
   final ConversationController controller;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final VoidCallback? onStartTutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +282,28 @@ class SettingsSheet extends StatelessWidget {
                       icon: const Icon(Icons.history_rounded),
                       label: Text(context.tr('Xem lịch sử gần đây', '查看最近记录')),
                     ),
+                    if (onStartTutorial != null) ...<Widget>[
+                      const SizedBox(height: 26),
+                      _SectionLabel(label: context.tr('Hỗ trợ', '帮助')),
+                      const SizedBox(height: 10),
+                      _SettingsActionTile(
+                        key: const Key('settings-start-user-tutorial'),
+                        icon: Icons.school_rounded,
+                        title: context.tr('Hướng dẫn sử dụng', '使用指南'),
+                        detail: context.tr(
+                          'Xem lại cách giao tiếp, học từ vựng và luyện nghe theo chủ đề',
+                          '重新查看对话、词汇和主题听力的使用方法',
+                        ),
+                        onTap: () {
+                          final startTutorial = onStartTutorial!;
+                          Navigator.of(context).pop();
+                          Future<void>.delayed(
+                            const Duration(milliseconds: 260),
+                            startTutorial,
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -572,6 +596,76 @@ class SettingsSheet extends StatelessWidget {
             child: Text(context.tr('Đã hiểu', '知道了')),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsActionTile extends StatelessWidget {
+  const _SettingsActionTile({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.onTap,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Material(
+      color: isDark
+          ? theme.colorScheme.surfaceContainerHigh
+          : AppColors.lavenderSoft,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
       ),
     );
   }
