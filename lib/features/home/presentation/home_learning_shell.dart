@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -7,6 +9,8 @@ import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
+import '../../onboarding/application/onboarding_progress_store.dart';
+import '../../onboarding/presentation/user_onboarding_tour.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
@@ -19,6 +23,7 @@ class HomeLearningShell extends StatefulWidget {
     required this.config,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onboardingStore,
     super.key,
   });
 
@@ -26,6 +31,7 @@ class HomeLearningShell extends StatefulWidget {
   final AppConfig config;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final OnboardingProgressStore? onboardingStore;
 
   @override
   State<HomeLearningShell> createState() => _HomeLearningShellState();
@@ -36,11 +42,35 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
   int _page = 0;
   bool _topicPreviewExpanded = false;
   bool _openingTopics = false;
+  bool _tutorialActive = false;
+  int _tutorialStep = 0;
+
+  final GlobalKey _speakActionKey = GlobalKey(
+    debugLabel: 'onboarding-speak-action',
+  );
+  final GlobalKey _resultPanelKey = GlobalKey(
+    debugLabel: 'onboarding-result-panel',
+  );
+  final GlobalKey _vocabularyTabKey = GlobalKey(
+    debugLabel: 'onboarding-vocabulary-tab',
+  );
+  final GlobalKey _topicTabKey = GlobalKey(debugLabel: 'onboarding-topic-tab');
+  final GlobalKey _historyButtonKey = GlobalKey(
+    debugLabel: 'onboarding-history-button',
+  );
+  final GlobalKey _settingsButtonKey = GlobalKey(
+    debugLabel: 'onboarding-settings-button',
+  );
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    if (widget.onboardingStore != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_showTutorialOnFirstUse());
+      });
+    }
   }
 
   @override
@@ -76,6 +106,11 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
                       config: widget.config,
                       themeMode: widget.themeMode,
                       onThemeModeChanged: widget.onThemeModeChanged,
+                      onStartTutorial: _startTutorial,
+                      speakActionKey: _speakActionKey,
+                      resultPanelKey: _resultPanelKey,
+                      historyButtonKey: _historyButtonKey,
+                      settingsButtonKey: _settingsButtonKey,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
@@ -95,31 +130,51 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
                 ),
                 Align(
                   alignment: const Alignment(-1, -0.20),
-                  child: HomeModeRail(
-                    key: const Key('vocabulary-edge-tab'),
-                    edge: HomeRailEdge.left,
-                    label: _page == 0
-                        ? context.tr('Từ vựng', '词汇')
-                        : context.tr('Giao tiếp', '沟通'),
-                    icon: _page == 0
-                        ? Icons.chat_bubble_rounded
-                        : Icons.mic_rounded,
-                    color: AppColors.indigo,
-                    onPressed: _page == 0 ? _showVocabulary : _showConversation,
+                  child: KeyedSubtree(
+                    key: _vocabularyTabKey,
+                    child: HomeModeRail(
+                      key: const Key('vocabulary-edge-tab'),
+                      edge: HomeRailEdge.left,
+                      label: _page == 0
+                          ? context.tr('Từ vựng', '词汇')
+                          : context.tr('Giao tiếp', '沟通'),
+                      icon: _page == 0
+                          ? Icons.chat_bubble_rounded
+                          : Icons.mic_rounded,
+                      color: AppColors.indigo,
+                      onPressed: _page == 0
+                          ? _showVocabulary
+                          : _showConversation,
+                    ),
                   ),
                 ),
                 Align(
                   alignment: const Alignment(1, -0.05),
-                  child: HomeModeRail(
-                    key: const Key('topic-listening-edge-tab'),
-                    edge: HomeRailEdge.right,
-                    label: context.tr('Chủ đề', '主题'),
-                    icon: Icons.headphones_rounded,
-                    color: const Color(0xFF7443D8),
-                    expanded: _topicPreviewExpanded,
-                    onPressed: _openTopicListening,
+                  child: KeyedSubtree(
+                    key: _topicTabKey,
+                    child: HomeModeRail(
+                      key: const Key('topic-listening-edge-tab'),
+                      edge: HomeRailEdge.right,
+                      label: context.tr('Chủ đề', '主题'),
+                      icon: Icons.headphones_rounded,
+                      color: const Color(0xFF7443D8),
+                      expanded: _topicPreviewExpanded,
+                      onPressed: _openTopicListening,
+                    ),
                   ),
                 ),
+                if (_tutorialActive)
+                  Positioned.fill(
+                    child: UserOnboardingTour(
+                      steps: _tutorialSteps,
+                      currentIndex: _tutorialStep,
+                      onPrevious: _tutorialStep == 0
+                          ? null
+                          : _previousTutorialStep,
+                      onNext: _nextTutorialStep,
+                      onSkip: _skipTutorial,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -131,6 +186,188 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
   Duration get _motionDuration => MediaQuery.disableAnimationsOf(context)
       ? Duration.zero
       : const Duration(milliseconds: 420);
+
+  List<UserOnboardingStep> get _tutorialSteps => <UserOnboardingStep>[
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.welcome,
+      title: context.tr('Chào mừng đến với INNOTRIK', '欢迎使用 INNOTRIK'),
+      description: context.tr(
+        'Mình sẽ chỉ cho bạn những khu vực quan trọng để bắt đầu học thật dễ dàng.',
+        '接下来带你快速认识几个重要功能，轻松开始学习。',
+      ),
+      icon: Icons.waving_hand_rounded,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Bắt đầu nói', '开始说话'),
+      description: context.tr(
+        'Chạm nút micro, nói một câu tiếng Việt và INNOTRIK sẽ giúp chuyển sang tiếng Anh.',
+        '点击麦克风，说一句越南语，INNOTRIK 会帮你转换成英语。',
+      ),
+      icon: Icons.mic_rounded,
+      targetKey: _speakActionKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Xem và nghe kết quả', '查看并收听结果'),
+      description: context.tr(
+        'Câu tiếng Việt, bản dịch tiếng Anh và nút nghe lại đều xuất hiện trong khu vực này.',
+        '越南语原句、英语翻译和重播按钮都会显示在这里。',
+      ),
+      icon: Icons.translate_rounded,
+      targetKey: _resultPanelKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Học từ vựng', '学习词汇'),
+      description: context.tr(
+        'Mở kho từ vựng để lưu từ mới, nghe phát âm và luyện tập lại bất cứ lúc nào.',
+        '打开词汇库，保存新词、收听发音，并随时复习。',
+      ),
+      icon: Icons.chat_bubble_rounded,
+      targetKey: _vocabularyTabKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Luyện nghe theo chủ đề', '主题听力练习'),
+      description: context.tr(
+        'Chọn chủ đề phù hợp với độ tuổi để học câu mẫu, luyện nói và nghe bài hát.',
+        '选择适合年龄的主题，学习例句、练习口语并听儿歌。',
+      ),
+      icon: Icons.headphones_rounded,
+      targetKey: _topicTabKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Xem lại lịch sử', '查看历史记录'),
+      description: context.tr(
+        'Những câu đã luyện gần đây được lưu ở đây để bạn có thể xem và nghe lại.',
+        '最近练习过的句子会保存在这里，方便查看和重听。',
+      ),
+      icon: Icons.history_rounded,
+      targetKey: _historyButtonKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.spotlight,
+      title: context.tr('Micro và thiết bị INNOTRIK', '麦克风和 INNOTRIK 设备'),
+      description: context.tr(
+        'Bạn vẫn dùng được micro hiện tại. Mở Cài đặt khi cần đổi giao diện, ngôn ngữ hoặc kết nối micro INNOTRIK qua HFP.',
+        '你可以继续使用当前麦克风；需要切换主题、语言或通过 HFP 连接 INNOTRIK 麦克风时，请打开设置。',
+      ),
+      icon: Icons.settings_outlined,
+      targetKey: _settingsButtonKey,
+    ),
+    UserOnboardingStep(
+      kind: UserOnboardingStepKind.complete,
+      title: context.tr('Bạn đã sẵn sàng!', '你已经准备好了！'),
+      description: context.tr(
+        'Hãy thử nói một câu tiếng Việt để bắt đầu nhé.',
+        '现在说一句越南语开始体验吧。',
+      ),
+      icon: Icons.celebration_rounded,
+    ),
+  ];
+
+  Future<void> _showTutorialOnFirstUse() async {
+    final store = widget.onboardingStore;
+    if (store == null) {
+      return;
+    }
+    try {
+      final shouldShow = await store.shouldShow();
+      if (!shouldShow || !mounted) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 420));
+      if (mounted) {
+        _startTutorial();
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Could not read onboarding progress: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  void _startTutorial() {
+    if (!mounted || _tutorialActive) {
+      return;
+    }
+    if (_page != 0 && _pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
+    setState(() {
+      _page = 0;
+      _tutorialStep = 0;
+      _tutorialActive = true;
+      _topicPreviewExpanded = false;
+    });
+  }
+
+  void _previousTutorialStep() {
+    if (!_tutorialActive || _tutorialStep <= 0) {
+      return;
+    }
+    setState(() => _tutorialStep -= 1);
+    _revealCurrentTutorialTarget();
+  }
+
+  void _nextTutorialStep() {
+    if (!_tutorialActive) {
+      return;
+    }
+    if (_tutorialStep < _tutorialSteps.length - 1) {
+      setState(() => _tutorialStep += 1);
+      _revealCurrentTutorialTarget();
+      return;
+    }
+    unawaited(_finishTutorial(startSpeaking: true));
+  }
+
+  void _skipTutorial() => unawaited(_finishTutorial());
+
+  void _revealCurrentTutorialTarget() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_tutorialActive) {
+        return;
+      }
+      final targetContext =
+          _tutorialSteps[_tutorialStep].targetKey?.currentContext;
+      if (targetContext != null) {
+        unawaited(
+          Scrollable.ensureVisible(
+            targetContext,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            alignment: 0.5,
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _finishTutorial({bool startSpeaking = false}) async {
+    if (mounted) {
+      setState(() {
+        _tutorialActive = false;
+        _tutorialStep = 0;
+      });
+    }
+    if (startSpeaking) {
+      unawaited(widget.controller.onPrimaryAction());
+    }
+    final store = widget.onboardingStore;
+    if (store == null) {
+      return;
+    }
+    try {
+      await store.markSeen();
+    } catch (error, stackTrace) {
+      debugPrint('Could not save onboarding progress: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
 
   void _showVocabulary() {
     _pageController.animateToPage(
@@ -205,6 +442,7 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
         controller: widget.controller,
         themeMode: widget.themeMode,
         onThemeModeChanged: widget.onThemeModeChanged,
+        onStartTutorial: _startTutorial,
       ),
     );
   }

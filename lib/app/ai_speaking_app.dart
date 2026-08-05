@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../config/app_config.dart';
 import '../core/audio/audio_playback_service.dart';
@@ -27,11 +26,14 @@ import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_content.dart';
+import '../features/onboarding/application/onboarding_progress_store.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
 import 'mascot_assets.dart';
 import 'startup_splash_screen.dart';
+
+const appStartupMinimumDuration = Duration(seconds: 1);
 
 class AiSpeakingApp extends StatefulWidget {
   const AiSpeakingApp({super.key});
@@ -52,10 +54,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _themeModeChangedByUser = false;
   bool _startupComplete = false;
   bool _backgroundWorkStarted = false;
-  int _completedStartupTasks = 0;
-  double _startupProgress = 0.08;
-  String _startupStatus = 'Đang mở không gian học...';
-  String _version = '1.0.3';
 
   static const _startupHoldMilliseconds = int.fromEnvironment(
     'STARTUP_SPLASH_MIN_MS',
@@ -75,17 +73,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     if (_startupHoldMilliseconds > 0) {
       return Duration(milliseconds: _startupHoldMilliseconds);
     }
-    return const Duration(milliseconds: 1800);
+    return appStartupMinimumDuration;
   }
 
   Future<void> _beginStartup() async {
     final stopwatch = Stopwatch()..start();
-    _setStartupState(
-      progress: 0.16,
-      status: 'Đang chuẩn bị dữ liệu cần thiết...',
-    );
-
-    final essentialTasks = <Future<void>>[
+    final startupTasks = Future.wait<void>(<Future<void>>[
       _runStartupTask(() async {
         await _clientIdentity.getClientId();
       }),
@@ -93,9 +86,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         await AssetListeningContentRepository().load();
       }),
       _runStartupTask(_loadThemeMode),
-      _runStartupTask(_loadVersion),
       _runStartupTask(_precacheHomeAssets),
-    ];
+    ]);
+    // These tasks fill shared local caches while the logo is visible. They are
+    // deliberately non-blocking and may finish after the home screen appears.
+    unawaited(startupTasks);
 
     // The first Flutter frame is already visible. Runtime services can now
     // initialize without leaving Android or the browser on an empty surface.
@@ -104,29 +99,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return;
     }
     _createRuntime();
-    _setStartupState(
-      progress: _startupProgress < 0.48 ? 0.48 : _startupProgress,
-      status: 'Đang kết nối các tính năng...',
-    );
-
-    final essentialReady = Future.wait<void>(essentialTasks).then<void>((_) {});
-    await Future.any<void>(<Future<void>>[
-      essentialReady,
-      Future<void>.delayed(const Duration(milliseconds: 1500)),
-    ]);
-    // A slow preference store or local asset must not trap the child on the
-    // opening screen. The already-started futures keep filling shared caches.
-    unawaited(essentialReady);
 
     final remaining = _minimumSplashDuration - stopwatch.elapsed;
     if (remaining > Duration.zero) {
       await Future<void>.delayed(remaining);
     }
-    if (!mounted) {
-      return;
-    }
-    _setStartupState(progress: 1, status: 'Sẵn sàng!');
-    await Future<void>.delayed(const Duration(milliseconds: 160));
     if (!mounted) {
       return;
     }
@@ -140,27 +117,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     } catch (error, stackTrace) {
       debugPrint('Startup preload was skipped: $error');
       debugPrintStack(stackTrace: stackTrace);
-    } finally {
-      _completedStartupTasks += 1;
-      if (mounted && !_startupComplete) {
-        final progress = (0.48 + _completedStartupTasks * 0.1)
-            .clamp(0.48, 0.9)
-            .toDouble();
-        _setStartupState(
-          progress: progress,
-          status: 'Đang hoàn tất chuẩn bị...',
-        );
-      }
     }
-  }
-
-  Future<void> _loadVersion() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final version = packageInfo.version.trim();
-    if (!mounted || version.isEmpty || version == _version) {
-      return;
-    }
-    setState(() => _version = version);
   }
 
   Future<void> _precacheHomeAssets() async {
@@ -168,16 +125,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       precacheImage(const AssetImage(MascotAssets.scenery), context),
       precacheImage(const AssetImage(MascotAssets.avatar), context),
     ]);
-  }
-
-  void _setStartupState({required double progress, required String status}) {
-    if (!mounted || _startupComplete) {
-      return;
-    }
-    setState(() {
-      _startupProgress = progress;
-      _startupStatus = status;
-    });
   }
 
   void _createRuntime() {
@@ -222,10 +169,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
-      // Short web utterances avoid session/chunk setup and use one direct
-      // multipart request. Long recordings still promote after eight seconds
-      // so upload can overlap the rest of the recording.
-      adaptiveWebUploadDelay: kIsWeb
+      // iOS browsers all use WebKit. Open their Batch session on the record
+      // gesture so network upload overlaps the entire utterance; keep the
+      // existing adaptive delay for other web platforms.
+      adaptiveWebUploadDelay:
+          kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+          ? Duration.zero
+          : kIsWeb
           ? const Duration(seconds: 8)
           : Duration.zero,
       initialAsrMode: supportsAndroidNativeSpeech
@@ -381,17 +331,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
                   config: _config,
                   themeMode: _themeMode,
                   onThemeModeChanged: _setThemeMode,
+                  onboardingStore:
+                      const SharedPreferencesOnboardingProgressStore(),
                 ),
               ),
             ),
           )
-        : KeyedSubtree(
-            key: const ValueKey('startup-content'),
-            child: StartupSplashScreen(
-              status: _startupStatus,
-              progress: _startupProgress,
-              version: _version,
-            ),
+        : const KeyedSubtree(
+            key: ValueKey('startup-content'),
+            child: StartupSplashScreen(),
           );
 
     return MaterialApp(

@@ -274,6 +274,116 @@ final result: passed
 
 ---
 
+# Design QA — Hướng dẫn sử dụng lần đầu trên APK và Web (2026-08-05)
+
+## Evidence
+
+- Source visual truth: `.codex-tmp/onboarding-reference-audit/contact-sheet.png` — 1000 × 2788 px, extracted from the supplied INNOTRIK onboarding video.
+- Android implementation:
+  - `.codex-tmp/onboarding-design-qa/android-first-launch.png` — 1080 × 2400 physical px, 360 × 800 logical px at DPR 3, including Android system bars.
+  - `.codex-tmp/onboarding-design-qa/android-step-6-fixed.png` — the same viewport with the Settings/HFP spotlight active.
+  - `.codex-tmp/onboarding-design-qa/android-complete.png` — the same viewport at the completion CTA.
+- Browser-rendered implementation:
+  - `.codex-tmp/onboarding-design-qa/web-first-launch-1440x900.png` — 1440 × 900 CSS px at device scale factor 1.
+  - `.codex-tmp/onboarding-design-qa/web-step-6-1440x900.png` — the desktop Settings/HFP spotlight state.
+  - `.codex-tmp/onboarding-design-qa/web-mobile-replay-390x844.png` — 390 × 843 captured px at the narrow Web breakpoint.
+  - `.codex-tmp/onboarding-design-qa/web-dark-tour-390x844.png` — the narrow Web breakpoint in dark mode.
+- Same-input full-view comparison: `.codex-tmp/onboarding-design-qa/onboarding-full-comparison.png` — 2160 × 2400 px.
+- Focused Settings comparison: `.codex-tmp/onboarding-design-qa/onboarding-settings-comparison.png` — 1080 × 1200 px.
+- Density normalization: the source contact sheet and Android capture were each contained in 1080 × 2400 comparison columns. For the focused board, one 250 × 558 source frame and the Android screen were independently scaled into equal 540 × 1200 columns while preserving aspect ratio.
+
+## State and interaction coverage
+
+- First launch opens a branded welcome card over the real home screen.
+- Six spotlight steps cover speaking, translated results, vocabulary, topic listening, history, and Settings/HFP.
+- Back, next, skip, completion, persistence, and manual replay from Settings were exercised on Android.
+- Desktop Web, 390 px Web, light mode, dark mode, reload persistence, and manual replay from Settings were exercised in the in-app browser.
+- The microphone permission prompt appears only after the user taps `Thử nói ngay`; the tour itself does not request it.
+- Browser console check returned no error or warning.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the implementation uses the app's established Roboto hierarchy with heavier child-friendly headings, readable Vietnamese wrapping, stable button labels, and no clipped text at 360 × 800, 390 × 843, or 1440 × 900.
+- Spacing and layout rhythm: spotlight cards choose the opposite vertical region from their targets; the welcome/completion cards remain centered; rounded 28 px surfaces and practical tap targets match the existing home design system.
+- Colors and visual tokens: the source's dimmed page, bright target ring, and high-contrast callout direction are retained with existing indigo/lavender tokens. Light and dark cards use theme surfaces rather than hard-coded light text.
+- Image quality and asset fidelity: existing high-resolution INNOTRIK mascot assets are reused for welcome and completion; no emoji, placeholder, handcrafted SVG, or code-drawn mascot is introduced.
+- Copy and content: Vietnamese and Simplified Chinese copy covers every step. The final Settings step explicitly explains that the current microphone remains usable and HFP is optional through Settings.
+
+## Findings and comparison history
+
+- Pass 1 found one P2 obstruction: on the Settings step, the top-right `Bỏ qua` action covered the highlighted Settings button, weakening the source's clear target-focus relationship.
+- Fix: the skip action now moves to the opposite top corner whenever a highlighted header target occupies the upper-right region.
+- Pass 2 evidence in `onboarding-settings-comparison.png` shows the Settings icon fully exposed with its two-ring spotlight while `Bỏ qua` remains reachable at the upper left. No actionable P0, P1, or P2 issue remains.
+- Accepted P3 difference: the implementation uses a larger explanatory card than the source's small speech bubbles. This is intentional for young learners, Vietnamese wrapping, back/next controls, and consistent APK/Web behavior.
+
+## Verification
+
+- `flutter analyze`: passed with no issues.
+- 49 focused startup, onboarding, home, settings, theme, conversation, accessibility, and golden tests: passed.
+- Android debug install and emulator interaction: passed; no Flutter, framework, fatal, or RenderFlex error was found in the checked runtime logs.
+- Release Web build: passed; local preview returned HTTP 200.
+- Release APK build: passed.
+- Residual test gap: one global concurrent `flutter test` run left a `flutter_tester` process waiting beyond ten minutes. It was stopped, then all suites touched by this feature were rerun serially and passed; this does not leave a visual or functional onboarding finding.
+
+## Implementation checklist
+
+- [x] Show the tour only on first use and persist its version.
+- [x] Allow skip, back, next, completion, and replay from Settings.
+- [x] Focus all six real home controls without routing to duplicate screens.
+- [x] Explain phone/browser microphone fallback and optional INNOTRIK HFP.
+- [x] Support Vietnamese and Simplified Chinese.
+- [x] Support Android APK, responsive Web, light mode, and dark mode.
+- [x] Verify visual comparison, runtime interactions, console, analyzer, tests, and release builds.
+
+final result: passed
+
+---
+
+# Design QA — Startup loading experience (2026-08-05)
+
+## Evidence
+
+- Source visual truth: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-2610f2d6-0c24-44b8-a5d0-233c8f7b3f45.png` — 848 × 1901 physical pixels.
+- Browser-rendered implementation: `.codex-tmp/design-qa/startup-implementation-390x844.png` — Web viewport 390 × 844 CSS pixels, DPR 1.
+- Same-input comparison: `.codex-tmp/design-qa/startup-comparison.png` — the source normalized to 376 × 844 and the implementation retained at 390 × 844.
+- State: initial Web engine bootstrap followed by the Flutter startup screen. The Flutter screen remains visible for at least 1,800 ms, shows “Sẵn sàng!” for 160 ms, and then fades into the app.
+
+## Full-view comparison
+
+- Both views use a sparse vertical hierarchy: centered app icon, product name, short subtitle, one central progress/status surface, and generous breathing room.
+- The red/cat reference was intentionally adapted to the existing INNOTRIK pale-blue palette and current penguin app icon instead of introducing a second brand identity.
+- The status surface explains that only essential data is loaded before entry; non-critical warming continues in the background.
+- The Web HTML bootstrap and Flutter startup screen share the same colors, icon, wording, spacing direction, and motion timing, preventing a blank-canvas flash during engine startup.
+- No focused crop was needed because the icon, title, progress indicator, status copy, and bottom version area are legible in the normalized full-view comparison.
+
+## Fidelity and accessibility
+
+- Typography: bold INNOTRIK wordmark, compact supporting copy, and clear progress hierarchy remain readable on 390 × 844 and 320 × 568 viewports.
+- Spacing: the centered column and compact fallback layout avoid overflow while preserving practical visual rhythm.
+- Colors: `#EAF4FF` background, navy ink, indigo progress, and white translucent surfaces match the app's current design system.
+- Assets: Web reuses `icons/Icon-512.png`; Android/Flutter uses the optimized 512 px `assets/icon/app_icon_splash.png`, avoiding the previous 1.9 MB first-frame decode.
+- Motion: the icon pulse and transition respect reduced-motion preferences. Live startup status is exposed through semantics without adding an interactive blocker.
+- Copy: all visible startup copy is Vietnamese and avoids implying that every dataset must finish before entry.
+
+## Comparison history
+
+- Pass 1 found a P2 issue: the Flutter-stage icon could appear blank briefly because the original 1.9 MB launcher image had not decoded before the transition.
+- Fix: generated a 512 px optimized startup asset for native Flutter and reused the already requested Web manifest icon from browser cache.
+- Pass 2: focused widget tests render the branded state at regular and compact viewports; analyzer, Web release build, and Android release build pass. The final in-app-browser recapture was unavailable under browser URL policy, but the visual structure was unchanged and the asset-loading regression is covered by the optimized resource plus widget/build verification.
+- No actionable P0, P1, or P2 issue remains. The HTML-only bootstrap omits the package version because plugin data is not yet available; the Flutter startup screen displays it immediately afterward (accepted P3).
+
+## Verification
+
+- `flutter analyze --no-pub`: passed with no issues.
+- `test/app/startup_splash_screen_test.dart`: 4 tests passed, covering the 1,800 ms minimum, branded state, compact layout, and shared listening-catalog preload.
+- Release Web build with the Railway backend define: passed.
+- Release APK `1.0.3+5` with the Railway backend define: passed; output size 78.9 MB.
+- Initial browser console inspection: no errors.
+
+final result: passed
+
+---
+
 # Design QA — Compact staggered home edge rails (2026-08-03)
 
 - Source visual truth: `C:/Users/Windows/AppData/Local/Temp/codex-clipboard-c84e2ddb-64af-45b2-a6bb-9772dd54fa3f.png`.

@@ -9,12 +9,16 @@ class ScenicAppHeader extends StatelessWidget {
     required this.isReady,
     required this.onHistory,
     required this.onSettings,
+    this.historyButtonKey,
+    this.settingsButtonKey,
     super.key,
   });
 
   final bool isReady;
   final VoidCallback onHistory;
   final VoidCallback onSettings;
+  final Key? historyButtonKey;
+  final Key? settingsButtonKey;
 
   @override
   Widget build(BuildContext context) {
@@ -113,12 +117,14 @@ class ScenicAppHeader extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               _HeaderAction(
+                key: historyButtonKey,
                 icon: Icons.history_rounded,
                 tooltip: context.tr('Lịch sử gần đây', '最近记录'),
                 onPressed: onHistory,
               ),
               const SizedBox(width: 6),
               _HeaderAction(
+                key: settingsButtonKey,
                 icon: Icons.settings_outlined,
                 tooltip: context.tr('Cài đặt', '设置'),
                 onPressed: onSettings,
@@ -136,6 +142,7 @@ class _HeaderAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    super.key,
   });
 
   final IconData icon;

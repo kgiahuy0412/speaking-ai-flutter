@@ -203,6 +203,7 @@ class NextConversationRepository
     required int vadSilenceMs,
     bool assemblePcmWav = false,
     bool clientVadApplied = true,
+    String? prefetchId,
     Map<String, dynamic> batchTelemetry = const <String, dynamic>{},
   }) async {
     final benchmark = ConversationBenchmark(
@@ -222,6 +223,7 @@ class NextConversationRepository
       'childAge': childAge,
       'asrMode': 'batch_chunks',
       'mimeType': capture.mimeType,
+      'prefetchId': ?prefetchId,
       if (assemblePcmWav)
         'pcm16Wav': <String, dynamic>{
           'sampleRate': capture.recordingSampleRate,
@@ -291,6 +293,7 @@ class NextConversationRepository
       uploadToken: audioSession.uploadToken,
       supportsChunkChecksum: audioSession.supportsChunkChecksum,
       supportsMissingChunkRecovery: audioSession.supportsMissingChunkRecovery,
+      supportsBatchPrefetch: audioSession.supportsBatchPrefetch,
       uploadProtocolVersion: audioSession.uploadProtocolVersion,
     );
   }
@@ -398,6 +401,65 @@ class NextConversationRepository
     );
   }
 
+  Future<_BatchSpeculativePreview?> _previewAudioSession({
+    required String audioSessionId,
+    required String? uploadToken,
+    required PracticeContext context,
+    required int childAge,
+    required int pcmByteLength,
+    required int chunkCount,
+    String? previousPrefetchId,
+  }) async {
+    final response = await _client
+        .post(
+          _config.resolve('/api/audio-sessions/$audioSessionId/preview'),
+          headers: <String, String>{
+            'content-type': 'application/json',
+            if (uploadToken != null) 'Authorization': 'Bearer $uploadToken',
+          },
+          body: jsonEncode(<String, dynamic>{
+            'clientId': await _clientId,
+            'context': context.apiValue,
+            'childAge': childAge,
+            'previousPrefetchId': ?previousPrefetchId,
+            'pcm16Wav': <String, dynamic>{
+              'sampleRate': pcm16SampleRate,
+              'channelCount': pcm16ChannelCount,
+              'bitsPerSample': pcm16BitsPerSample,
+              'pcmByteLength': pcmByteLength,
+              'chunkCount': chunkCount,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    final json = _decodeResponse(response);
+    if (json['eligible'] != true) {
+      return null;
+    }
+    final prefetchId = json['prefetchId'];
+    final englishText = json['englishText'];
+    if (prefetchId is! String ||
+        prefetchId.isEmpty ||
+        englishText is! String ||
+        englishText.trim().isEmpty) {
+      return null;
+    }
+    final rawAudioUrl = json['audioUrl'];
+    return _BatchSpeculativePreview(
+      prefetchId: prefetchId,
+      snapshotChunkCount:
+          (json['snapshotChunkCount'] as num?)?.toInt() ?? chunkCount,
+      preview: ConversationPreview(
+        sourceText: json['sourceText'] as String? ?? '',
+        englishText: englishText,
+        textSource: json['textSource'] as String? ?? 'fallback',
+        audioUri: rawAudioUrl is String && rawAudioUrl.isNotEmpty
+            ? _config.backendBaseUri.resolve(rawAudioUrl)
+            : null,
+      ),
+    );
+  }
+
   Future<_AudioSessionDescriptor> _createAudioSession({
     String encoding = 'pcm_s16le',
   }) async {
@@ -441,6 +503,7 @@ class NextConversationRepository
       supportsChunkChecksum: capabilityMap['chunkChecksumSha256'] == true,
       supportsMissingChunkRecovery:
           capabilityMap['missingChunkRecovery'] == true,
+      supportsBatchPrefetch: capabilityMap['batchPrefetch'] == true,
       uploadProtocolVersion: uploadProtocolVersion is num
           ? uploadProtocolVersion.toInt()
           : 1,
@@ -1064,6 +1127,7 @@ class _AudioSessionDescriptor {
     required this.uploadToken,
     required this.supportsChunkChecksum,
     required this.supportsMissingChunkRecovery,
+    required this.supportsBatchPrefetch,
     required this.uploadProtocolVersion,
   });
 
@@ -1072,10 +1136,24 @@ class _AudioSessionDescriptor {
   final String? uploadToken;
   final bool supportsChunkChecksum;
   final bool supportsMissingChunkRecovery;
+  final bool supportsBatchPrefetch;
   final int uploadProtocolVersion;
 }
 
-class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
+class _BatchSpeculativePreview {
+  const _BatchSpeculativePreview({
+    required this.prefetchId,
+    required this.snapshotChunkCount,
+    required this.preview,
+  });
+
+  final String prefetchId;
+  final int snapshotChunkCount;
+  final ConversationPreview preview;
+}
+
+class _NextBatchChunkUploadSession
+    implements BatchChunkUploadSession, SpeculativeBatchChunkUploadSession {
   _NextBatchChunkUploadSession({
     required NextConversationRepository repository,
     required this.audioSessionId,
@@ -1084,6 +1162,7 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     required this.uploadToken,
     required this.supportsChunkChecksum,
     required this.supportsMissingChunkRecovery,
+    required this.supportsBatchPrefetch,
     required this.uploadProtocolVersion,
   }) : _repository = repository,
        _uploadLanes = List<Future<void>>.generate(
@@ -1093,9 +1172,8 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     _sessionStopwatch.start();
   }
 
-  // Flush every 800 ms instead of one second so the final upload is less
-  // likely to remain in flight after the child stops speaking.
-  static const _sourceChunksPerTransportUpload = 4;
+  static const _defaultSourceChunksPerTransportUpload = 4;
+  static const _webSourceChunksPerTransportUpload = 3;
   static const _maxConcurrentUploads = 2;
   static const _maxMissingRecoveryRounds = 2;
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
@@ -1107,6 +1185,7 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
   final String? uploadToken;
   final bool supportsChunkChecksum;
   final bool supportsMissingChunkRecovery;
+  final bool supportsBatchPrefetch;
   final int uploadProtocolVersion;
   final List<Future<void>> _pendingUploads = <Future<void>>[];
   final List<Future<void>> _uploadLanes;
@@ -1115,9 +1194,12 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       <int, _RetainedTransportChunk>{};
   final List<int> _chunkUploadDurationsMs = <int>[];
   final Stopwatch _sessionStopwatch = Stopwatch();
+  final StreamController<ConversationPreview> _speculativePreviewController =
+      StreamController<ConversationPreview>.broadcast();
   late var _nextSequence = supportsPcm16WavFinalize ? 0 : 1;
   var _nextUploadLane = 0;
   var _sourceChunkCount = 0;
+  var _sourceChunksPerTransportUpload = _defaultSourceChunksPerTransportUpload;
   var _transportChunkCount = 0;
   var _audioByteCount = 0;
   var _retainedAudioBytes = 0;
@@ -1130,6 +1212,60 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
   var _recoveryBufferTruncated = false;
   var _closed = false;
   var _discarded = false;
+  PracticeContext? _speculativeContext;
+  int? _speculativeChildAge;
+  bool _speculativeSpeechDetected = false;
+  bool _speculativeVoiceActive = false;
+  int _speculativeAttemptCount = 0;
+  int _lastSpeculativeAttemptChunkCount = 0;
+  DateTime? _lastSpeculativeAttemptAt;
+  Timer? _speculativePreviewTimer;
+  Future<void>? _speculativePreviewFuture;
+  String? _prefetchId;
+
+  @override
+  Stream<ConversationPreview> get speculativePreviews =>
+      _speculativePreviewController.stream;
+
+  @override
+  void configureSpeculativePreview({
+    required PracticeContext context,
+    required int childAge,
+  }) {
+    if (!supportsBatchPrefetch || _closed) {
+      return;
+    }
+    // This configuration is only called by the adaptive Web manager. Android
+    // Streaming and its Batch fallback retain the established 800 ms chunks.
+    _sourceChunksPerTransportUpload = _webSourceChunksPerTransportUpload;
+    _speculativeContext = context;
+    _speculativeChildAge = childAge;
+    _scheduleSpeculativePreview();
+  }
+
+  @override
+  void markSpeculativeSpeechDetected() {
+    if (!supportsBatchPrefetch || _closed) {
+      return;
+    }
+    _speculativeSpeechDetected = true;
+    _scheduleSpeculativePreview();
+  }
+
+  @override
+  void markSpeculativeVoiceActive() {
+    _speculativeVoiceActive = true;
+  }
+
+  @override
+  void markSpeculativeVoiceInactive() {
+    _speculativeVoiceActive = false;
+    if (!supportsBatchPrefetch || _closed || !_speculativeSpeechDetected) {
+      return;
+    }
+    _flushTransportBuffer();
+    _scheduleSpeculativePreview();
+  }
 
   @override
   void addAudioChunk(Uint8List bytes) {
@@ -1157,6 +1293,107 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       bytes: bytes,
       filename: 'chunk-$sequence.pcm',
     );
+    _scheduleSpeculativePreview();
+  }
+
+  void _scheduleSpeculativePreview() {
+    if (!supportsBatchPrefetch ||
+        _closed ||
+        !_speculativeSpeechDetected ||
+        _speculativeContext == null ||
+        _speculativeChildAge == null ||
+        _speculativeAttemptCount >= 2 ||
+        _transportChunkCount < 2 ||
+        _transportChunkCount <= _lastSpeculativeAttemptChunkCount ||
+        _speculativePreviewFuture != null) {
+      return;
+    }
+
+    const minimumInterval = Duration(milliseconds: 700);
+    final lastAttemptAt = _lastSpeculativeAttemptAt;
+    final delay = lastAttemptAt == null
+        ? Duration.zero
+        : minimumInterval - DateTime.now().difference(lastAttemptAt);
+    if (delay > Duration.zero) {
+      _speculativePreviewTimer ??= Timer(delay, () {
+        _speculativePreviewTimer = null;
+        _scheduleSpeculativePreview();
+      });
+      return;
+    }
+
+    final context = _speculativeContext!;
+    final childAge = _speculativeChildAge!;
+    final snapshotChunkCount = _transportChunkCount;
+    final snapshotByteLength = _retainedAudioBytes;
+    final uploadWatermark = List<Future<void>>.of(_uploadLanes);
+    _speculativeAttemptCount += 1;
+    _lastSpeculativeAttemptChunkCount = snapshotChunkCount;
+    _lastSpeculativeAttemptAt = DateTime.now();
+    final operation = _requestSpeculativePreview(
+      context: context,
+      childAge: childAge,
+      snapshotChunkCount: snapshotChunkCount,
+      snapshotByteLength: snapshotByteLength,
+      uploadWatermark: uploadWatermark,
+    );
+    _speculativePreviewFuture = operation;
+    unawaited(
+      operation
+          .whenComplete(() {
+            if (identical(_speculativePreviewFuture, operation)) {
+              _speculativePreviewFuture = null;
+            }
+            if (!_closed &&
+                (_speculativeVoiceActive ||
+                    _transportChunkCount > _lastSpeculativeAttemptChunkCount)) {
+              _scheduleSpeculativePreview();
+            }
+          })
+          .catchError((Object _) {}),
+    );
+  }
+
+  Future<void> _requestSpeculativePreview({
+    required PracticeContext context,
+    required int childAge,
+    required int snapshotChunkCount,
+    required int snapshotByteLength,
+    required List<Future<void>> uploadWatermark,
+  }) async {
+    try {
+      await Future.wait<void>(uploadWatermark);
+      if (_closed) {
+        return;
+      }
+      final result = await _repository._previewAudioSession(
+        audioSessionId: audioSessionId,
+        uploadToken: uploadToken,
+        context: context,
+        childAge: childAge,
+        pcmByteLength: snapshotByteLength,
+        chunkCount: snapshotChunkCount,
+        previousPrefetchId: _prefetchId,
+      );
+      if (result == null || _closed) {
+        return;
+      }
+      _prefetchId = result.prefetchId;
+      _lastSpeculativeAttemptChunkCount = math.max(
+        _lastSpeculativeAttemptChunkCount,
+        result.snapshotChunkCount,
+      );
+      if (!_speculativePreviewController.isClosed) {
+        _speculativePreviewController.add(result.preview);
+      }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Speculative Batch preview was skipped.',
+        name: 'conversation.batch_prefetch',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   void _scheduleNewUpload({
@@ -1334,6 +1571,7 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
           childAge: childAge,
           vadSilenceMs: vadSilenceMs,
           assemblePcmWav: supportsPcm16WavFinalize,
+          prefetchId: _prefetchId,
           batchTelemetry: <String, dynamic>{
             ..._batchTelemetry(uploadDrainMs: uploadDrainMs),
             if (capture.recordingSampleRate != null)
@@ -1378,6 +1616,17 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
         'Audio session đã được hoàn tất hoặc hủy.',
       );
     }
+    _speculativePreviewTimer?.cancel();
+    _speculativePreviewTimer = null;
+    final speculativePreview = _speculativePreviewFuture;
+    if (_prefetchId == null && speculativePreview != null) {
+      try {
+        await speculativePreview.timeout(const Duration(milliseconds: 250));
+      } on TimeoutException {
+        // Finalization remains authoritative. Never make stop latency depend
+        // on a speculative request that did not finish while the child spoke.
+      }
+    }
     _closed = true;
     _flushTransportBuffer();
     final streamedAudioBytes = capture.streamedAudioBytes;
@@ -1410,16 +1659,21 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     await _drainPendingUploads();
     uploadDrainStopwatch.stop();
 
-    final result = await _finalizeWithMissingRecovery(
-      capture: capture,
-      context: context,
-      childAge: childAge,
-      vadSilenceMs: vadSilenceMs,
-      uploadDrainMs: uploadDrainStopwatch.elapsedMilliseconds,
-    );
-    _retainedChunks.clear();
-    _retainedAudioBytes = 0;
-    return result;
+    try {
+      return await _finalizeWithMissingRecovery(
+        capture: capture,
+        context: context,
+        childAge: childAge,
+        vadSilenceMs: vadSilenceMs,
+        uploadDrainMs: uploadDrainStopwatch.elapsedMilliseconds,
+      );
+    } finally {
+      _retainedChunks.clear();
+      _retainedAudioBytes = 0;
+      if (!_speculativePreviewController.isClosed) {
+        await _speculativePreviewController.close();
+      }
+    }
   }
 
   @override
@@ -1429,6 +1683,8 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
     }
     _discarded = true;
     _closed = true;
+    _speculativePreviewTimer?.cancel();
+    _speculativePreviewTimer = null;
     _transportBuffer.takeBytes();
     _retainedChunks.clear();
     _retainedAudioBytes = 0;
@@ -1444,6 +1700,9 @@ class _NextBatchChunkUploadSession implements BatchChunkUploadSession {
       uploadToken: uploadToken,
       reason: reason,
     );
+    if (!_speculativePreviewController.isClosed) {
+      await _speculativePreviewController.close();
+    }
   }
 }
 

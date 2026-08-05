@@ -129,6 +129,7 @@ class ConversationController extends ChangeNotifier {
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
+  StreamSubscription<ConversationPreview>? _batchPreviewSubscription;
   StreamSubscription<Uint8List>? _realtimeChunkSubscription;
   StreamSubscription<String>? _realtimePartialSubscription;
   StreamSubscription<OfflineIntentHypothesis>?
@@ -623,6 +624,8 @@ class ConversationController extends ChangeNotifier {
       _preferredPlaybackUri = null;
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
+      await _batchPreviewSubscription?.cancel();
+      _batchPreviewSubscription = null;
       final previousAdaptiveWebUpload = _adaptiveWebUpload;
       _adaptiveWebUpload = null;
       if (previousAdaptiveWebUpload != null) {
@@ -1019,7 +1022,14 @@ class ConversationController extends ChangeNotifier {
       repository: chunkedRepository,
       promotionDelay: _adaptiveWebUploadDelay,
     );
+    upload.configureSpeculativePreview(context: context, childAge: _childAge);
     _adaptiveWebUpload = upload;
+    _batchPreviewSubscription = upload.speculativePreviews.listen(
+      _onSpeculativeBatchPreview,
+      onError: (Object error) {
+        debugPrint('Speculative Web preview failed: $error');
+      },
+    );
     _batchChunkSubscription = chunkedInput.audioChunks.listen(
       upload.addAudioChunk,
       onError: (Object error) {
@@ -1033,6 +1043,8 @@ class ConversationController extends ChangeNotifier {
     } catch (_) {
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
+      await _batchPreviewSubscription?.cancel();
+      _batchPreviewSubscription = null;
       _adaptiveWebUpload = null;
       await upload.discard();
       rethrow;
@@ -1058,6 +1070,7 @@ class ConversationController extends ChangeNotifier {
     final firstSpeechFrame = !_speechDetected;
     _speechDetected = true;
     _batchSpeechGate?.markSpeechDetected();
+    _adaptiveWebUpload?.markSpeculativeSpeechDetected();
     _noSpeechTimer?.cancel();
     _noSpeechTimer = null;
     _silenceTimer?.cancel();
@@ -1088,12 +1101,14 @@ class ConversationController extends ChangeNotifier {
       }
       if (activity.voiceActive) {
         _batchSpeechGate?.markVoiceActive();
+        _adaptiveWebUpload?.markSpeculativeVoiceActive();
         _silenceTimer?.cancel();
         _silenceTimer = null;
       } else if (_speechDetected &&
           !activity.isCalibrating &&
           _silenceTimer == null) {
         _batchSpeechGate?.markVoiceInactive();
+        _adaptiveWebUpload?.markSpeculativeVoiceInactive();
         _silenceTimer = Timer(
           Duration(milliseconds: vadSilenceMs),
           () => unawaited(stopRecording(manual: false)),
@@ -1133,6 +1148,24 @@ class ConversationController extends ChangeNotifier {
         ),
       );
     });
+  }
+
+  void _onSpeculativeBatchPreview(ConversationPreview preview) {
+    if (!_isWebRuntime ||
+        phase != ConversationPhase.recording ||
+        preview.englishText.trim().isEmpty) {
+      return;
+    }
+    _preview = preview;
+    final audioUri = preview.audioUri;
+    if (audioUri != null) {
+      _preferredPlaybackUri = audioUri;
+      unawaited(
+        _playbackService.preload(audioUri).catchError((Object error) {
+          debugPrint('Speculative Web audio preload was skipped: $error');
+        }),
+      );
+    }
   }
 
   Future<void> _loadPartialPreview(
@@ -1302,12 +1335,20 @@ class ConversationController extends ChangeNotifier {
           );
         }
       } else {
-        audioCapture = await _audioInput.stop();
         final adaptiveUpload = _adaptiveWebUpload;
         _adaptiveWebUpload = null;
+        adaptiveUpload?.markSpeculativeVoiceInactive();
+        final promotionReady = adaptiveUpload?.waitUntilPromoted();
+        final audioStop = _audioInput.stop();
+        audioCapture = await audioStop;
+        if (promotionReady != null) {
+          await promotionReady;
+        }
         if (adaptiveUpload != null) {
           adaptiveWebUpload = await adaptiveUpload.stopAndTakeSession();
         }
+        await _batchPreviewSubscription?.cancel();
+        _batchPreviewSubscription = null;
         if (_usingHfpRoute && !supportsBrowserHfp) {
           audioCapture = AudioCapture(
             filePath: audioCapture.filePath,
@@ -1878,6 +1919,7 @@ class ConversationController extends ChangeNotifier {
     _processingStageTimer?.cancel();
     unawaited(_amplitudeSubscription?.cancel());
     unawaited(_batchChunkSubscription?.cancel());
+    unawaited(_batchPreviewSubscription?.cancel());
     unawaited(_realtimeChunkSubscription?.cancel());
     unawaited(_realtimePartialSubscription?.cancel());
     unawaited(_offlineIntentHypothesisSubscription?.cancel());
@@ -1923,11 +1965,60 @@ class _AdaptiveWebChunkUpload {
   final ChunkedConversationRepository repository;
   final Duration promotionDelay;
   final List<Uint8List> _bufferedChunks = <Uint8List>[];
+  final StreamController<ConversationPreview> _previewController =
+      StreamController<ConversationPreview>.broadcast();
 
   Timer? _promotionTimer;
   Future<void>? _promotionFuture;
   BatchChunkUploadSession? _session;
+  StreamSubscription<ConversationPreview>? _previewSubscription;
+  PracticeContext? _previewContext;
+  int? _previewChildAge;
+  bool _speechDetected = false;
+  bool _voiceActive = false;
   bool _acceptingChunks = true;
+
+  Stream<ConversationPreview> get speculativePreviews =>
+      _previewController.stream;
+
+  void configureSpeculativePreview({
+    required PracticeContext context,
+    required int childAge,
+  }) {
+    _previewContext = context;
+    _previewChildAge = childAge;
+    final speculative = _session is SpeculativeBatchChunkUploadSession
+        ? _session! as SpeculativeBatchChunkUploadSession
+        : null;
+    speculative?.configureSpeculativePreview(
+      context: context,
+      childAge: childAge,
+    );
+  }
+
+  void markSpeculativeSpeechDetected() {
+    _speechDetected = true;
+    final speculative = _session is SpeculativeBatchChunkUploadSession
+        ? _session! as SpeculativeBatchChunkUploadSession
+        : null;
+    speculative?.markSpeculativeSpeechDetected();
+  }
+
+  void markSpeculativeVoiceActive() {
+    _voiceActive = true;
+    final speculative = _session is SpeculativeBatchChunkUploadSession
+        ? _session! as SpeculativeBatchChunkUploadSession
+        : null;
+    speculative?.markSpeculativeVoiceActive();
+  }
+
+  void markSpeculativeVoiceInactive() {
+    _voiceActive = false;
+    final speculative = _session is SpeculativeBatchChunkUploadSession
+        ? _session! as SpeculativeBatchChunkUploadSession
+        : null;
+    speculative?.markSpeculativeVoiceInactive();
+  }
 
   void addAudioChunk(Uint8List bytes) {
     if (!_acceptingChunks || bytes.isEmpty) {
@@ -1942,9 +2033,37 @@ class _AdaptiveWebChunkUpload {
   }
 
   void schedulePromotion() {
-    _promotionTimer ??= Timer(promotionDelay, () {
+    if (_promotionFuture != null || _promotionTimer != null) {
+      return;
+    }
+    if (promotionDelay == Duration.zero) {
       _promotionFuture = _promoteToChunkUpload();
-    });
+      return;
+    }
+    _promotionTimer = Timer(promotionDelay, _startPromotionNow);
+  }
+
+  void _startPromotionNow() {
+    _promotionTimer?.cancel();
+    _promotionTimer = null;
+    _promotionFuture ??= _promoteToChunkUpload();
+  }
+
+  Future<void> waitUntilPromoted() async {
+    if (!_acceptingChunks || _session != null) {
+      return;
+    }
+    _startPromotionNow();
+    final promotion = _promotionFuture;
+    if (promotion == null) {
+      return;
+    }
+    try {
+      await promotion.timeout(const Duration(milliseconds: 350));
+    } on TimeoutException {
+      // The WAV fallback remains available. Promotion may finish later and
+      // will discard its session if stop has already sealed this manager.
+    }
   }
 
   Future<void> _promoteToChunkUpload() async {
@@ -1955,6 +2074,37 @@ class _AdaptiveWebChunkUpload {
         return;
       }
       _session = session;
+      final speculative = session is SpeculativeBatchChunkUploadSession
+          ? session as SpeculativeBatchChunkUploadSession
+          : null;
+      final previewContext = _previewContext;
+      final previewChildAge = _previewChildAge;
+      if (speculative != null &&
+          previewContext != null &&
+          previewChildAge != null) {
+        speculative.configureSpeculativePreview(
+          context: previewContext,
+          childAge: previewChildAge,
+        );
+        if (_speechDetected) {
+          speculative.markSpeculativeSpeechDetected();
+        }
+        if (_voiceActive) {
+          speculative.markSpeculativeVoiceActive();
+        }
+        _previewSubscription = speculative.speculativePreviews.listen(
+          (preview) {
+            if (_acceptingChunks && !_previewController.isClosed) {
+              _previewController.add(preview);
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!_previewController.isClosed) {
+              _previewController.addError(error, stackTrace);
+            }
+          },
+        );
+      }
       for (final bytes in _bufferedChunks) {
         session.addAudioChunk(bytes);
       }
@@ -1967,20 +2117,13 @@ class _AdaptiveWebChunkUpload {
   }
 
   Future<BatchChunkUploadSession?> stopAndTakeSession() async {
-    _promotionTimer?.cancel();
-    final promotion = _promotionFuture;
-    if (promotion != null && _session == null) {
-      try {
-        await promotion.timeout(const Duration(milliseconds: 900));
-      } on TimeoutException {
-        _acceptingChunks = false;
-        _bufferedChunks.clear();
-        return null;
-      }
-    }
-
     _acceptingChunks = false;
     _bufferedChunks.clear();
+    await _previewSubscription?.cancel();
+    _previewSubscription = null;
+    if (!_previewController.isClosed) {
+      await _previewController.close();
+    }
     final session = _session;
     _session = null;
     return session;
@@ -1990,6 +2133,11 @@ class _AdaptiveWebChunkUpload {
     _promotionTimer?.cancel();
     _acceptingChunks = false;
     _bufferedChunks.clear();
+    await _previewSubscription?.cancel();
+    _previewSubscription = null;
+    if (!_previewController.isClosed) {
+      await _previewController.close();
+    }
     final session = _session;
     _session = null;
     if (session != null) {
