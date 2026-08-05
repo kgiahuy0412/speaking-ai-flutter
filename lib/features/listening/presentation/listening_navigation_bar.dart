@@ -14,8 +14,12 @@ class ListeningNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final backgroundColor = isDark ? colorScheme.surface : Colors.white;
     return ColoredBox(
-      color: Colors.white,
+      color: backgroundColor,
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -27,8 +31,10 @@ class ListeningNavigationBar extends StatelessWidget {
                 key: const Key('listening-bottom-navigation'),
                 selectedIndex: 1,
                 height: 70,
-                backgroundColor: Colors.white,
-                indicatorColor: const Color(0xFFF2F1FF),
+                backgroundColor: backgroundColor,
+                indicatorColor: isDark
+                    ? colorScheme.surfaceContainerHighest
+                    : const Color(0xFFF2F1FF),
                 onDestinationSelected: (index) {
                   if (index == 0) {
                     onCommunication();

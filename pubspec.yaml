@@ -30,6 +30,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/icon/app_icon.png
     - assets/data/listening_lessons.json
     - assets/audio/A-3-5/GUIDE_RECORD/
     - assets/audio/A-3-5/GUIDE_PRAISE/

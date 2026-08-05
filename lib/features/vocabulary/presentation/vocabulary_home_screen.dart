@@ -18,6 +18,7 @@ class VocabularyHomeScreen extends StatefulWidget {
     required this.onSettings,
     this.store = const VocabularyStore(),
     this.voicePromptService,
+    this.translator,
     super.key,
   });
 
@@ -27,6 +28,7 @@ class VocabularyHomeScreen extends StatefulWidget {
   final VoidCallback onSettings;
   final VocabularyStore store;
   final VoicePromptService? voicePromptService;
+  final VocabularyTranslator? translator;
 
   @override
   State<VocabularyHomeScreen> createState() => _VocabularyHomeScreenState();
@@ -39,6 +41,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   List<VocabularyEntry> _entries = const <VocabularyEntry>[];
   bool _loading = true;
   bool _deleteMode = false;
+  bool _translating = false;
 
   @override
   void initState() {
@@ -104,7 +107,11 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
                             ),
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  color: AppColors.indigoDark,
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Theme.of(context).colorScheme.primary
+                                      : AppColors.indigoDark,
                                   fontWeight: FontWeight.w800,
                                   shadows: const <Shadow>[
                                     Shadow(color: Colors.white, blurRadius: 8),
@@ -134,6 +141,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   }
 
   Widget _buildTitleRow(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: <Widget>[
         Expanded(
@@ -144,7 +152,9 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
               context.tr('Từ vựng của con', '孩子的词汇'),
               maxLines: 1,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: AppColors.indigoDark,
+                color: isDark
+                    ? Theme.of(context).colorScheme.primary
+                    : AppColors.indigoDark,
                 fontSize: 25,
                 shadows: const <Shadow>[
                   Shadow(color: Colors.white, blurRadius: 10),
@@ -155,8 +165,16 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
         ),
         IconButton.filled(
           key: const Key('add-vocabulary-button'),
-          onPressed: _showAddDialog,
-          icon: const Icon(Icons.add_rounded),
+          onPressed: _translating ? null : _showAddDialog,
+          icon: _translating
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : const Icon(Icons.add_rounded),
           tooltip: context.tr('Thêm từ vựng', '添加词汇'),
           style: IconButton.styleFrom(
             minimumSize: const Size.square(46),
@@ -178,7 +196,11 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
           style: IconButton.styleFrom(
             minimumSize: const Size.square(46),
             maximumSize: const Size.square(46),
-            backgroundColor: Colors.white.withValues(alpha: 0.86),
+            backgroundColor: isDark
+                ? Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.9)
+                : Colors.white.withValues(alpha: 0.86),
             foregroundColor: _deleteMode ? AppColors.coral : AppColors.indigo,
           ),
         ),
@@ -187,20 +209,27 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   }
 
   Widget _buildSearchField(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: _searchController,
       decoration: InputDecoration(
         hintText: context.tr('Tìm từ vựng…', '搜索词汇…'),
         prefixIcon: const Icon(Icons.search_rounded),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.88),
+        fillColor: isDark
+            ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.92)
+            : Colors.white.withValues(alpha: 0.88),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.9)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Theme.of(context).colorScheme.outline.withValues(alpha: 0.7)
+                : Colors.white.withValues(alpha: 0.9),
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
       ),
@@ -211,6 +240,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     BuildContext context,
     List<VocabularyEntry> entries,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_loading) {
       return const SizedBox(
         height: 330,
@@ -224,7 +254,12 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: scenicPanelDecoration(
         radius: 28,
-        color: const Color(0xEFFFFDF9),
+        color: isDark
+            ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.94)
+            : const Color(0xEFFFFDF9),
+        borderColor: isDark
+            ? Theme.of(context).colorScheme.outline.withValues(alpha: 0.55)
+            : const Color(0x66FFFFFF),
       ),
       child: entries.isEmpty
           ? Center(
@@ -345,48 +380,130 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
       return;
     }
 
-    final translated = _translateVocabulary(normalized);
-    final entry = VocabularyEntry(
-      id: '${DateTime.now().microsecondsSinceEpoch}',
-      word: translated.$1,
-      meaning: translated.$2,
-      addedAt: DateTime.now(),
-    );
-    final entries = <VocabularyEntry>[entry, ..._entries];
-    await widget.store.write(entries);
-    if (!mounted) {
-      return;
+    setState(() => _translating = true);
+    try {
+      final translated = await _translateVocabulary(normalized);
+      final entry = VocabularyEntry(
+        id: '${DateTime.now().microsecondsSinceEpoch}',
+        word: translated.englishText,
+        meaning: translated.vietnameseText,
+        addedAt: DateTime.now(),
+      );
+      final entries = <VocabularyEntry>[entry, ..._entries];
+      await widget.store.write(entries);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entries = entries;
+        _deleteMode = false;
+        _searchController.clear();
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Chưa dịch được từ này. Con kiểm tra mạng rồi thử lại nhé.',
+              '暂时无法翻译这个词，请检查网络后重试。',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _translating = false);
+      }
     }
-    setState(() {
-      _entries = entries;
-      _deleteMode = false;
-      _searchController.clear();
-    });
   }
 
-  (String, String) _translateVocabulary(String input) {
-    const pairs = <String, (String, String)>{
-      'apple': ('Apple', 'Quả táo'),
-      'quả táo': ('Apple', 'Quả táo'),
-      'family': ('Family', 'Gia đình'),
-      'gia đình': ('Family', 'Gia đình'),
-      'school': ('School', 'Trường học'),
-      'trường học': ('School', 'Trường học'),
-      'happy': ('Happy', 'Vui vẻ'),
-      'vui vẻ': ('Happy', 'Vui vẻ'),
-      'hello': ('Hello', 'Xin chào'),
-      'xin chào': ('Hello', 'Xin chào'),
-      'thank you': ('Thank you', 'Cảm ơn'),
-      'cảm ơn': ('Thank you', 'Cảm ơn'),
+  Future<VocabularyTranslation> _translateVocabulary(String input) async {
+    const pairs = <String, VocabularyTranslation>{
+      'apple': VocabularyTranslation(
+        englishText: 'Apple',
+        vietnameseText: 'Quả táo',
+      ),
+      'quả táo': VocabularyTranslation(
+        englishText: 'Apple',
+        vietnameseText: 'Quả táo',
+      ),
+      'family': VocabularyTranslation(
+        englishText: 'Family',
+        vietnameseText: 'Gia đình',
+      ),
+      'gia đình': VocabularyTranslation(
+        englishText: 'Family',
+        vietnameseText: 'Gia đình',
+      ),
+      'school': VocabularyTranslation(
+        englishText: 'School',
+        vietnameseText: 'Trường học',
+      ),
+      'trường học': VocabularyTranslation(
+        englishText: 'School',
+        vietnameseText: 'Trường học',
+      ),
+      'happy': VocabularyTranslation(
+        englishText: 'Happy',
+        vietnameseText: 'Vui vẻ',
+      ),
+      'vui vẻ': VocabularyTranslation(
+        englishText: 'Happy',
+        vietnameseText: 'Vui vẻ',
+      ),
+      'hello': VocabularyTranslation(
+        englishText: 'Hello',
+        vietnameseText: 'Xin chào',
+      ),
+      'xin chào': VocabularyTranslation(
+        englishText: 'Hello',
+        vietnameseText: 'Xin chào',
+      ),
+      'thank you': VocabularyTranslation(
+        englishText: 'Thank you',
+        vietnameseText: 'Cảm ơn',
+      ),
+      'cảm ơn': VocabularyTranslation(
+        englishText: 'Thank you',
+        vietnameseText: 'Cảm ơn',
+      ),
     };
     final normalized = input.toLowerCase();
     final known = pairs[normalized];
     if (known != null) {
       return known;
     }
-    final word = '${input[0].toUpperCase()}${input.substring(1)}';
-    return (word, context.tr('Từ mới của con', '孩子的新词'));
+
+    final translator = widget.translator;
+    if (translator == null) {
+      throw StateError('Không có dịch vụ dịch từ vựng.');
+    }
+    final translated = await translator(input);
+    final englishText = _capitalize(translated.englishText.trim());
+    final vietnameseText = _capitalize(
+      translated.vietnameseText.trim().isEmpty
+          ? input
+          : translated.vietnameseText.trim(),
+    );
+    if (englishText.isEmpty || _containsVietnameseCharacters(englishText)) {
+      throw StateError('Bản dịch tiếng Anh không hợp lệ.');
+    }
+    return VocabularyTranslation(
+      englishText: englishText,
+      vietnameseText: vietnameseText,
+    );
   }
+
+  String _capitalize(String value) =>
+      value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}';
+
+  bool _containsVietnameseCharacters(String value) => RegExp(
+    r'[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]',
+    caseSensitive: false,
+  ).hasMatch(value);
 }
 
 class _VocabularyRow extends StatelessWidget {

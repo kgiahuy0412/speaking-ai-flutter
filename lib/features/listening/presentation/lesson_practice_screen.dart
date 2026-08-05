@@ -925,6 +925,9 @@ class _LessonHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
       child: Row(
@@ -935,17 +938,24 @@ class _LessonHeader extends StatelessWidget {
             tooltip: context.tr('Quay lại', '返回'),
             style: IconButton.styleFrom(
               minimumSize: const Size.square(52),
-              backgroundColor: const Color(0xF8FFFDF9),
-              foregroundColor: AppColors.ink,
+              backgroundColor: isDark
+                  ? colorScheme.surfaceContainerHighest
+                  : const Color(0xF8FFFDF9),
+              foregroundColor: isDark ? colorScheme.onSurface : AppColors.ink,
             ),
           ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xF8FFFDF9),
+              color: isDark
+                  ? colorScheme.surfaceContainer
+                  : const Color(0xF8FFFDF9),
               borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: const Color(0xCCFFFFFF), width: 1.3),
+              border: Border.all(
+                color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
+                width: 1.3,
+              ),
               boxShadow: const <BoxShadow>[
                 BoxShadow(
                   color: Color(0x22142451),
@@ -956,8 +966,8 @@ class _LessonHeader extends StatelessWidget {
             ),
             child: Text(
               context.tr('Câu $current/$total', '第 $current/$total 句'),
-              style: const TextStyle(
-                color: AppColors.ink,
+              style: TextStyle(
+                color: isDark ? colorScheme.onSurface : AppColors.ink,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -968,8 +978,13 @@ class _LessonHeader extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xF8FFFDF9),
-              border: Border.all(color: const Color(0xCCFFFFFF), width: 1.3),
+              color: isDark
+                  ? colorScheme.surfaceContainer
+                  : const Color(0xF8FFFDF9),
+              border: Border.all(
+                color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
+                width: 1.3,
+              ),
             ),
             child: const Icon(Icons.star_rounded, color: Color(0xFFFFC75B)),
           ),
@@ -998,6 +1013,9 @@ class _SentenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final englishSize = sentence.english.length > 55
         ? 28.0
         : sentence.english.length > 30
@@ -1008,9 +1026,14 @@ class _SentenceCard extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 300),
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
       decoration: BoxDecoration(
-        color: const Color(0xF8FFFDF9),
+        color: isDark
+            ? colorScheme.surfaceContainer.withValues(alpha: 0.97)
+            : const Color(0xF8FFFDF9),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.4),
+        border: Border.all(
+          color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
+          width: 1.4,
+        ),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x10142451),
@@ -1026,8 +1049,15 @@ class _SentenceCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 color: lessonType == ListeningLessonType.song
-                    ? const Color(0xFFFFF1F5)
-                    : AppColors.lavenderSoft,
+                    ? (isDark
+                          ? Color.alphaBlend(
+                              colorScheme.error.withValues(alpha: 0.12),
+                              colorScheme.surfaceContainerHighest,
+                            )
+                          : const Color(0xFFFFF1F5))
+                    : (isDark
+                          ? colorScheme.surfaceContainerHighest
+                          : AppColors.lavenderSoft),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
@@ -1053,8 +1083,10 @@ class _SentenceCard extends StatelessWidget {
                             '${sentence.voice.isEmpty ? 'Lượt thoại' : sentence.voice} · $current/$total',
                             '${sentence.voice.isEmpty ? '对话角色' : sentence.voice} · $current/$total',
                           ),
-                    style: const TextStyle(
-                      color: AppColors.indigoDark,
+                    style: TextStyle(
+                      color: isDark
+                          ? colorScheme.onSurface
+                          : AppColors.indigoDark,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1067,7 +1099,7 @@ class _SentenceCard extends StatelessWidget {
             sentence.english,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.ink,
+              color: isDark ? colorScheme.onSurface : AppColors.ink,
               fontSize: englishSize,
               height: 1.15,
               fontWeight: FontWeight.w700,
@@ -1078,8 +1110,8 @@ class _SentenceCard extends StatelessWidget {
           Text(
             sentence.vietnamese,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppColors.indigo,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: isDark ? colorScheme.primary : AppColors.indigo,
               fontSize: 22,
             ),
           ),
@@ -1100,9 +1132,17 @@ class _SentenceCard extends StatelessWidget {
                   label: Text(context.tr('Nghe mẫu', '听示范')),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
-                    backgroundColor: AppColors.lavenderSoft,
-                    foregroundColor: AppColors.indigoDark,
-                    side: const BorderSide(color: AppColors.lavenderBorder),
+                    backgroundColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : AppColors.lavenderSoft,
+                    foregroundColor: isDark
+                        ? colorScheme.primary
+                        : AppColors.indigoDark,
+                    side: BorderSide(
+                      color: isDark
+                          ? colorScheme.outline
+                          : AppColors.lavenderBorder,
+                    ),
                   ),
                 ),
               ),
@@ -1115,9 +1155,17 @@ class _SentenceCard extends StatelessWidget {
                   label: Text(context.tr('Nghe tiếng Việt', '听越南语')),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
-                    backgroundColor: const Color(0xFFFFF6EE),
-                    foregroundColor: AppColors.indigoDark,
-                    side: const BorderSide(color: Color(0xFFFFD8C4)),
+                    backgroundColor: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : const Color(0xFFFFF6EE),
+                    foregroundColor: isDark
+                        ? colorScheme.primary
+                        : AppColors.indigoDark,
+                    side: BorderSide(
+                      color: isDark
+                          ? colorScheme.outline
+                          : const Color(0xFFFFD8C4),
+                    ),
                   ),
                 ),
               ),
@@ -1545,14 +1593,22 @@ class _LessonCoachHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       constraints: const BoxConstraints(minHeight: 64),
       padding: const EdgeInsets.fromLTRB(8, 6, 18, 6),
       decoration: BoxDecoration(
-        color: const Color(0xF2FFFDF9),
+        color: isDark
+            ? colorScheme.surfaceContainer.withValues(alpha: 0.96)
+            : const Color(0xF2FFFDF9),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xCCFFFFFF), width: 1.2),
+        border: Border.all(
+          color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
+          width: 1.2,
+        ),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Color(0x1F142451),
@@ -1576,8 +1632,8 @@ class _LessonCoachHint extends StatelessWidget {
           Expanded(
             child: Text(
               context.tr('Nghe mẫu rồi đọc lại thật rõ nhé!', '先听示范，再清楚地跟读吧！'),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.ink,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: isDark ? colorScheme.onSurface : AppColors.ink,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1611,6 +1667,9 @@ class _PostRecordingActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final actions = <Widget>[
       _CompactAction(
         icon: Icons.volume_up_rounded,
@@ -1657,8 +1716,12 @@ class _PostRecordingActions extends StatelessWidget {
             key: const Key('previous-lesson-sentence'),
             onPressed: busy ? null : onPrevious,
             style: TextButton.styleFrom(
-              backgroundColor: Colors.white,
-              disabledBackgroundColor: Colors.white.withValues(alpha: 0.72),
+              backgroundColor: isDark
+                  ? colorScheme.surfaceContainer
+                  : Colors.white,
+              disabledBackgroundColor: isDark
+                  ? colorScheme.surfaceContainer.withValues(alpha: 0.72)
+                  : Colors.white.withValues(alpha: 0.72),
             ),
             icon: const Icon(Icons.arrow_back_rounded),
             label: Text(context.tr('Câu trước', '上一句')),
@@ -1697,9 +1760,18 @@ class _CompactAction extends StatelessWidget {
       icon: Icon(icon, size: 20),
       label: Text(label, textAlign: TextAlign.center, maxLines: 2),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.indigo,
-        backgroundColor: const Color(0xF2FFFDF9),
-        side: const BorderSide(color: Color(0xCCFFFFFF), width: 1.2),
+        foregroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).colorScheme.primary
+            : AppColors.indigo,
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).colorScheme.surfaceContainer
+            : const Color(0xF2FFFDF9),
+        side: BorderSide(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.outline
+              : const Color(0xCCFFFFFF),
+          width: 1.2,
+        ),
       ),
     );
   }
@@ -1722,6 +1794,9 @@ class _LessonNavigationActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return Row(
       children: <Widget>[
         Expanded(
@@ -1730,10 +1805,16 @@ class _LessonNavigationActions extends StatelessWidget {
             onPressed: current == 0 || busy ? null : onPrevious,
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(62),
-              foregroundColor: AppColors.indigo,
-              backgroundColor: Colors.white,
-              disabledBackgroundColor: Colors.white.withValues(alpha: 0.72),
-              side: const BorderSide(color: AppColors.lavenderBorder),
+              foregroundColor: isDark ? colorScheme.primary : AppColors.indigo,
+              backgroundColor: isDark
+                  ? colorScheme.surfaceContainer
+                  : Colors.white,
+              disabledBackgroundColor: isDark
+                  ? colorScheme.surfaceContainer.withValues(alpha: 0.72)
+                  : Colors.white.withValues(alpha: 0.72),
+              side: BorderSide(
+                color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
+              ),
               textStyle: const TextStyle(
                 fontFamily: 'Roboto',
                 fontSize: 16,
@@ -1785,6 +1866,9 @@ class _RecordingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final seconds = duration?.inSeconds.clamp(0, 99);
     final durationLabel = seconds == null
         ? context.tr('Đã lưu', '已保存')
@@ -1793,17 +1877,19 @@ class _RecordingCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: AppColors.lavenderSoft,
+        color: isDark ? colorScheme.surfaceContainer : AppColors.lavenderSoft,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.lavenderBorder),
+        border: Border.all(
+          color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             context.tr('Bản ghi của con', '孩子的录音'),
-            style: const TextStyle(
-              color: AppColors.ink,
+            style: TextStyle(
+              color: isDark ? colorScheme.onSurface : AppColors.ink,
               fontWeight: FontWeight.w700,
             ),
           ),

@@ -330,6 +330,61 @@ class ConversationController extends ChangeNotifier {
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
 
+  Future<({String englishText, String vietnameseText})> translateVocabulary(
+    String sourceText,
+  ) async {
+    final normalized = sourceText.trim();
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(
+        sourceText,
+        'sourceText',
+        'Từ không được trống.',
+      );
+    }
+    if (isBusy) {
+      throw StateError('Hãy hoàn tất lượt giao tiếp trước khi thêm từ vựng.');
+    }
+
+    try {
+      final preview = await _repository.previewStreamingText(
+        sourceText: normalized,
+        context: context,
+        childAge: _childAge,
+      );
+      final previewEnglish = preview?.englishText.trim() ?? '';
+      if (previewEnglish.isNotEmpty) {
+        return (englishText: previewEnglish, vietnameseText: normalized);
+      }
+    } catch (error) {
+      debugPrint('Vocabulary preview failed; using full translation: $error');
+    }
+
+    final result = await _repository.processStreamingText(
+      capture: StreamingSpeechCapture(
+        sourceText: normalized,
+        duration: Duration.zero,
+        inputLabel: 'Nhập từ vựng',
+        confidence: 1,
+        firstResultMs: 0,
+        finalAfterStopMs: 0,
+        asrMode: 'text',
+      ),
+      context: context,
+      childAge: _childAge,
+      vadSilenceMs: vadSilenceMs,
+    );
+    final englishText = result.englishText.trim();
+    if (englishText.isEmpty) {
+      throw StateError('Backend không trả về bản dịch tiếng Anh.');
+    }
+    return (
+      englishText: englishText,
+      vietnameseText: result.vietnameseText.trim().isEmpty
+          ? normalized
+          : result.vietnameseText.trim(),
+    );
+  }
+
   Future<void> onPrimaryAction() async {
     if (phase == ConversationPhase.recording) {
       final userGesturePlayback = _playbackService;

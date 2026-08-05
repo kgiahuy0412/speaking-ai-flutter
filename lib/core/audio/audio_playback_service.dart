@@ -288,16 +288,22 @@ class JustAudioPlaybackService
           .map((_) {});
     }
     final expectedDuration = _player.duration;
-    final subscribedAt = DateTime.now();
-    return _player.processingStateStream
-        .where(
-          (state) => isPlaybackAtSourceEnd(
-            processingState: state,
+    var currentPlaybackStarted =
+        _player.processingState != ProcessingState.completed &&
+        (_player.playing || _player.position > Duration.zero);
+    return _player.playerStateStream
+        .where((state) {
+          if (state.playing &&
+              state.processingState != ProcessingState.completed) {
+            currentPlaybackStarted = true;
+          }
+          return isPlaybackAtSourceEnd(
+            processingState: state.processingState,
             position: _player.position,
             duration: expectedDuration ?? _player.duration,
-            elapsedSinceStart: DateTime.now().difference(subscribedAt),
-          ),
-        )
+            currentPlaybackStarted: currentPlaybackStarted,
+          );
+        })
         .map((_) {});
   }
 
@@ -445,16 +451,16 @@ bool isPlaybackAtSourceEnd({
   required ProcessingState processingState,
   required Duration position,
   required Duration? duration,
-  required Duration elapsedSinceStart,
+  required bool currentPlaybackStarted,
 }) {
   if (processingState != ProcessingState.completed ||
+      !currentPlaybackStarted ||
       duration == null ||
       duration <= Duration.zero) {
     return false;
   }
   const tolerance = Duration(milliseconds: 200);
-  return position >= duration - tolerance &&
-      elapsedSinceStart >= duration - tolerance;
+  return position >= duration - tolerance;
 }
 
 class PlaybackException implements Exception {

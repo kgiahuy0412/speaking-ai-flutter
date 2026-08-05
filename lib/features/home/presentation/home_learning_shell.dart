@@ -9,6 +9,7 @@ import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
+import '../../vocabulary/domain/vocabulary_entry.dart';
 import '../../vocabulary/presentation/vocabulary_home_screen.dart';
 import 'home_mode_rail.dart';
 
@@ -16,11 +17,15 @@ class HomeLearningShell extends StatefulWidget {
   const HomeLearningShell({
     required this.controller,
     required this.config,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
     super.key,
   });
 
   final ConversationController controller;
   final AppConfig config;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   State<HomeLearningShell> createState() => _HomeLearningShellState();
@@ -69,9 +74,19 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
                     ConversationScreen(
                       controller: widget.controller,
                       config: widget.config,
+                      themeMode: widget.themeMode,
+                      onThemeModeChanged: widget.onThemeModeChanged,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
+                      translator: (input) async {
+                        final translation = await widget.controller
+                            .translateVocabulary(input);
+                        return VocabularyTranslation(
+                          englishText: translation.englishText,
+                          vietnameseText: translation.vietnameseText,
+                        );
+                      },
                       onReturnToConversation: _showConversation,
                       onHistory: _showHistory,
                       onSettings: _showSettings,
@@ -186,7 +201,11 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => SettingsSheet(controller: widget.controller),
+      builder: (_) => SettingsSheet(
+        controller: widget.controller,
+        themeMode: widget.themeMode,
+        onThemeModeChanged: widget.onThemeModeChanged,
+      ),
     );
   }
 

@@ -141,7 +141,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
                         _message!,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.muted,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : AppColors.muted,
                         ),
                       ),
                     ),
@@ -165,6 +167,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
       : context.tr('Nghe tổng quan', '整体听一遍');
 
   Widget _buildOverviewActions(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return Row(
       children: <Widget>[
         Expanded(
@@ -186,15 +191,15 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
               minimumSize: const Size.fromHeight(60),
               padding: const EdgeInsets.symmetric(horizontal: 8),
               backgroundColor: _autoPlayActive
-                  ? AppColors.indigo
-                  : Colors.white,
+                  ? (isDark ? colorScheme.primary : AppColors.indigo)
+                  : (isDark ? colorScheme.surfaceContainer : Colors.white),
               foregroundColor: _autoPlayActive
-                  ? Colors.white
-                  : AppColors.indigo,
+                  ? (isDark ? colorScheme.onPrimary : Colors.white)
+                  : (isDark ? colorScheme.primary : AppColors.indigo),
               side: BorderSide(
                 color: _autoPlayActive
-                    ? AppColors.indigo
-                    : AppColors.lavenderBorder,
+                    ? (isDark ? colorScheme.primary : AppColors.indigo)
+                    : (isDark ? colorScheme.outline : AppColors.lavenderBorder),
                 width: 1.5,
               ),
               textStyle: const TextStyle(
@@ -249,6 +254,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Widget _buildLearnedActions(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final primaryAction = widget.hasNextLesson
         ? LessonReviewAction.nextLesson
         : LessonReviewAction.returnToListening;
@@ -275,9 +283,10 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(60),
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              foregroundColor: AppColors.indigo,
-              side: const BorderSide(
-                color: AppColors.lavenderBorder,
+              foregroundColor: isDark ? colorScheme.primary : AppColors.indigo,
+              backgroundColor: isDark ? colorScheme.surfaceContainer : null,
+              side: BorderSide(
+                color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
                 width: 1.5,
               ),
               textStyle: const TextStyle(
@@ -529,15 +538,31 @@ class _ReviewSentenceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final statusAccent = switch (recordingStatus) {
       _ReviewRecordingStatus.recorded => AppColors.success,
-      _ReviewRecordingStatus.unrecorded => AppColors.coral,
-      null => AppColors.indigo,
+      _ReviewRecordingStatus.unrecorded =>
+        isDark ? colorScheme.error : AppColors.coral,
+      null => isDark ? colorScheme.primary : AppColors.indigo,
     };
     final tileColor = switch (recordingStatus) {
-      _ReviewRecordingStatus.recorded => AppColors.successSoft,
-      _ReviewRecordingStatus.unrecorded => AppColors.coralSoft,
-      null => Colors.white,
+      _ReviewRecordingStatus.recorded =>
+        isDark
+            ? Color.alphaBlend(
+                AppColors.success.withValues(alpha: 0.13),
+                colorScheme.surfaceContainer,
+              )
+            : AppColors.successSoft,
+      _ReviewRecordingStatus.unrecorded =>
+        isDark
+            ? Color.alphaBlend(
+                colorScheme.error.withValues(alpha: 0.12),
+                colorScheme.surfaceContainer,
+              )
+            : AppColors.coralSoft,
+      null => isDark ? colorScheme.surfaceContainer : Colors.white,
     };
     final statusBorder = switch (recordingStatus) {
       _ReviewRecordingStatus.recorded => AppColors.success.withValues(
@@ -546,7 +571,7 @@ class _ReviewSentenceTile extends StatelessWidget {
       _ReviewRecordingStatus.unrecorded => AppColors.coral.withValues(
         alpha: 0.48,
       ),
-      null => AppColors.lavenderBorder,
+      null => isDark ? colorScheme.outline : AppColors.lavenderBorder,
     };
 
     return AnimatedContainer(
@@ -567,7 +592,9 @@ class _ReviewSentenceTile extends StatelessWidget {
         children: <Widget>[
           CircleAvatar(
             backgroundColor: recordingStatus == null
-                ? AppColors.lavenderSoft
+                ? (isDark
+                      ? colorScheme.surfaceContainerHighest
+                      : AppColors.lavenderSoft)
                 : statusAccent.withValues(alpha: 0.1),
             foregroundColor: statusAccent,
             child: Text('${index + 1}'),
@@ -580,7 +607,8 @@ class _ReviewSentenceTile extends StatelessWidget {
                 Text(
                   sentence.english,
                   key: ValueKey('review-sentence-${index + 1}'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -589,9 +617,11 @@ class _ReviewSentenceTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     sentence.voice,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? colorScheme.onSurfaceVariant
+                          : AppColors.muted,
+                    ),
                   ),
                 ],
                 if (recordingStatus != null) ...<Widget>[
@@ -711,6 +741,9 @@ class _ReviewPlayControlState extends State<_ReviewPlayControl> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final button = _ReviewPlayButton(
       key: ValueKey('review-sentence-play-${widget.index + 1}'),
       playing: widget.playing,
@@ -759,9 +792,15 @@ class _ReviewPlayControlState extends State<_ReviewPlayControl> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark
+                        ? colorScheme.surfaceContainerHighest
+                        : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.lavenderBorder),
+                    border: Border.all(
+                      color: isDark
+                          ? colorScheme.outline
+                          : AppColors.lavenderBorder,
+                    ),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: AppColors.indigo.withValues(alpha: 0.14),
@@ -774,8 +813,10 @@ class _ReviewPlayControlState extends State<_ReviewPlayControl> {
                     context.tr('Bẩm để học', '点击学习'),
                     maxLines: 1,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.indigoDark,
+                    style: TextStyle(
+                      color: isDark
+                          ? colorScheme.onSurface
+                          : AppColors.indigoDark,
                       fontSize: 11,
                       height: 1.1,
                       fontWeight: FontWeight.w800,
@@ -805,6 +846,9 @@ class _ReviewPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return Tooltip(
       message: tooltip,
       child: Semantics(
@@ -820,12 +864,16 @@ class _ReviewPlayButton extends StatelessWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFE7C2),
+                color: isDark
+                    ? colorScheme.surfaceContainerHighest
+                    : const Color(0xFFFFE7C2),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: playing
                       ? AppColors.periwinkle
-                      : const Color(0xFFFFD49A),
+                      : (isDark
+                            ? colorScheme.outline
+                            : const Color(0xFFFFD49A)),
                   width: playing ? 1.5 : 1,
                 ),
                 boxShadow: <BoxShadow>[
@@ -842,7 +890,7 @@ class _ReviewPlayButton extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? colorScheme.surface : Colors.white,
                     shape: BoxShape.circle,
                     boxShadow: <BoxShadow>[
                       BoxShadow(
@@ -857,7 +905,7 @@ class _ReviewPlayButton extends StatelessWidget {
                     playing
                         ? Icons.graphic_eq_rounded
                         : Icons.play_arrow_rounded,
-                    color: AppColors.indigoDark,
+                    color: isDark ? colorScheme.primary : AppColors.indigoDark,
                     size: 29,
                   ),
                 ),

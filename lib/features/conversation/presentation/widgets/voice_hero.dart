@@ -21,6 +21,8 @@ class VoiceHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isRecording = phase == ConversationPhase.recording;
     final accent = isRecording ? AppColors.coral : AppColors.indigo;
     final compact = MediaQuery.sizeOf(context).height < 900;
@@ -54,10 +56,17 @@ class VoiceHero extends StatelessWidget {
               _statusLabel(context),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: isRecording ? AppColors.coral : AppColors.indigoDark,
+                color: isRecording
+                    ? AppColors.coral
+                    : isDark
+                    ? colorScheme.primary
+                    : AppColors.indigoDark,
                 fontSize: compact ? 27 : 31,
-                shadows: const <Shadow>[
-                  Shadow(color: Colors.white, blurRadius: 12),
+                shadows: <Shadow>[
+                  Shadow(
+                    color: isDark ? Colors.black54 : Colors.white,
+                    blurRadius: 12,
+                  ),
                 ],
               ),
             ),
@@ -67,11 +76,14 @@ class VoiceHero extends StatelessWidget {
             _supportingText(context),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.muted,
+              color: isDark ? colorScheme.onSurfaceVariant : AppColors.muted,
               fontSize: compact ? 15 : 17,
               fontWeight: FontWeight.w600,
-              shadows: const <Shadow>[
-                Shadow(color: Colors.white, blurRadius: 10),
+              shadows: <Shadow>[
+                Shadow(
+                  color: isDark ? Colors.black54 : Colors.white,
+                  blurRadius: 10,
+                ),
               ],
             ),
           ),
@@ -119,12 +131,18 @@ class VoiceHero extends StatelessWidget {
               _helperText(context),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.muted,
+                color: isDark ? colorScheme.onSurfaceVariant : AppColors.muted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                shadows: const <Shadow>[
-                  Shadow(color: Colors.white, blurRadius: 7),
-                  Shadow(color: Colors.white, blurRadius: 14),
+                shadows: <Shadow>[
+                  Shadow(
+                    color: isDark ? Colors.black54 : Colors.white,
+                    blurRadius: 7,
+                  ),
+                  Shadow(
+                    color: isDark ? Colors.black54 : Colors.white,
+                    blurRadius: 14,
+                  ),
                 ],
               ),
             ),

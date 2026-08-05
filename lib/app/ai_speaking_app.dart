@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../config/app_config.dart';
 import '../core/audio/audio_playback_service.dart';
@@ -25,8 +26,11 @@ import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
+import '../features/listening/domain/listening_content.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
+import 'app_theme_mode.dart';
+import 'startup_splash_screen.dart';
 
 class AiSpeakingApp extends StatefulWidget {
   const AiSpeakingApp({super.key});
@@ -37,33 +41,148 @@ class AiSpeakingApp extends StatefulWidget {
 
 class _AiSpeakingAppState extends State<AiSpeakingApp> {
   late final AppConfig _config;
-  late final ConversationController _controller;
-  late final DeviceAudioCache _deviceAudioCache;
+  ConversationController? _controller;
+  DeviceAudioCache? _deviceAudioCache;
+  ConversationRepository? _repository;
   final ClientIdentity _clientIdentity = ClientIdentity();
+  final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
   DeviceRegistrationService? _deviceRegistrationService;
+  ThemeMode _themeMode = ThemeMode.system;
+  bool _themeModeChangedByUser = false;
+  bool _startupComplete = false;
+  bool _backgroundWorkStarted = false;
+  int _completedStartupTasks = 0;
+  double _startupProgress = 0.08;
+  String _startupStatus = 'Đang mở không gian học...';
+  String _version = '1.0.3';
+
+  static const _startupHoldMilliseconds = int.fromEnvironment(
+    'STARTUP_SPLASH_MIN_MS',
+    defaultValue: 0,
+  );
 
   @override
   void initState() {
     super.initState();
     _config = AppConfig.fromEnvironment();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_beginStartup());
+    });
+  }
+
+  Duration get _minimumSplashDuration {
+    if (_startupHoldMilliseconds > 0) {
+      return Duration(milliseconds: _startupHoldMilliseconds);
+    }
+    return kIsWeb
+        ? const Duration(milliseconds: 900)
+        : const Duration(milliseconds: 1150);
+  }
+
+  Future<void> _beginStartup() async {
+    final stopwatch = Stopwatch()..start();
+    _setStartupState(
+      progress: 0.16,
+      status: 'Đang chuẩn bị dữ liệu cần thiết...',
+    );
+
+    final essentialTasks = <Future<void>>[
+      _runStartupTask(() async {
+        await _clientIdentity.getClientId();
+      }),
+      _runStartupTask(() async {
+        await AssetListeningContentRepository().load();
+      }),
+      _runStartupTask(_loadThemeMode),
+      _runStartupTask(_loadVersion),
+    ];
+
+    // The first Flutter frame is already visible. Runtime services can now
+    // initialize without leaving Android or the browser on an empty surface.
+    await Future<void>.delayed(const Duration(milliseconds: 32));
+    if (!mounted) {
+      return;
+    }
+    _createRuntime();
+    _setStartupState(
+      progress: _startupProgress < 0.48 ? 0.48 : _startupProgress,
+      status: 'Đang kết nối các tính năng...',
+    );
+
+    final essentialReady = Future.wait<void>(essentialTasks).then<void>((_) {});
+    await Future.any<void>(<Future<void>>[
+      essentialReady,
+      Future<void>.delayed(const Duration(milliseconds: 900)),
+    ]);
+    // A slow preference store or local asset must not trap the child on the
+    // opening screen. The already-started futures keep filling shared caches.
+    unawaited(essentialReady);
+
+    final remaining = _minimumSplashDuration - stopwatch.elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
+    if (!mounted) {
+      return;
+    }
+    _setStartupState(progress: 1, status: 'Sẵn sàng!');
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+    if (!mounted) {
+      return;
+    }
+    setState(() => _startupComplete = true);
+    _startBackgroundWork();
+  }
+
+  Future<void> _runStartupTask(Future<void> Function() task) async {
+    try {
+      await task();
+    } catch (error, stackTrace) {
+      debugPrint('Startup preload was skipped: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      _completedStartupTasks += 1;
+      if (mounted && !_startupComplete) {
+        final progress = (0.48 + _completedStartupTasks * 0.1)
+            .clamp(0.48, 0.9)
+            .toDouble();
+        _setStartupState(
+          progress: progress,
+          status: 'Đang hoàn tất chuẩn bị...',
+        );
+      }
+    }
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final version = packageInfo.version.trim();
+    if (!mounted || version.isEmpty || version == _version) {
+      return;
+    }
+    setState(() => _version = version);
+  }
+
+  void _setStartupState({required double progress, required String status}) {
+    if (!mounted || _startupComplete) {
+      return;
+    }
+    setState(() {
+      _startupProgress = progress;
+      _startupStatus = status;
+    });
+  }
+
+  void _createRuntime() {
     final ConversationRepository repository = _config.useDemoBackend
         ? const DemoConversationRepository()
         : NextConversationRepository(
             config: _config,
             clientIdProvider: _clientIdentity.getClientId,
           );
-    _deviceAudioCache = DeviceAudioCache();
+    final deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-    if (supportsAndroidNativeSpeech && !_config.useDemoBackend) {
-      final registrationService = DeviceRegistrationService(
-        config: _config,
-        clientIdProvider: _clientIdentity.getClientId,
-        hardwareProvider: const AndroidDeviceHardwareReader().read,
-      );
-      _deviceRegistrationService = registrationService;
-      unawaited(_registerDevice(registrationService));
-    }
     final innotrikInput = InnotrikBleAudioInput(
       enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
     );
@@ -76,7 +195,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         : MethodChannelHfpAudioControl(
             enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
           );
-    _controller = ConversationController(
+    final controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
         fallback: phoneMicrophoneInput,
@@ -85,7 +204,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           ? AndroidStreamingSpeechInput()
           : null,
       hfpAudioControl: hfpAudioControl,
-      playbackService: JustAudioPlaybackService(cache: _deviceAudioCache),
+      playbackService: JustAudioPlaybackService(cache: deviceAudioCache),
       voicePromptService: createVoicePromptService(),
       repository: repository,
       offlineIntentRecognizer: supportsAndroidNativeSpeech
@@ -106,9 +225,64 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
     );
-    if (!kIsWeb) {
-      unawaited(_warmRecentAudioWhenIdle(repository, _deviceAudioCache));
+    _repository = repository;
+    _deviceAudioCache = deviceAudioCache;
+    _controller = controller;
+  }
+
+  void _startBackgroundWork() {
+    if (_backgroundWorkStarted) {
+      return;
     }
+    _backgroundWorkStarted = true;
+    final repository = _repository;
+    final controller = _controller;
+    final deviceAudioCache = _deviceAudioCache;
+    if (repository == null || controller == null || deviceAudioCache == null) {
+      return;
+    }
+    final supportsAndroidNativeSpeech =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    if (supportsAndroidNativeSpeech && !_config.useDemoBackend) {
+      final registrationService = DeviceRegistrationService(
+        config: _config,
+        clientIdProvider: _clientIdentity.getClientId,
+        hardwareProvider: const AndroidDeviceHardwareReader().read,
+      );
+      _deviceRegistrationService = registrationService;
+      unawaited(_registerDevice(registrationService));
+    }
+    if (!kIsWeb) {
+      unawaited(
+        _warmRecentAudioWhenIdle(repository, deviceAudioCache, controller),
+      );
+    }
+  }
+
+  Future<void> _loadThemeMode() async {
+    final storedMode = await _themeModeStore.read();
+    if (!mounted || _themeModeChangedByUser || storedMode == _themeMode) {
+      return;
+    }
+    setState(() => _themeMode = storedMode);
+  }
+
+  void _setThemeMode(ThemeMode mode) {
+    _themeModeChangedByUser = true;
+    if (mode == _themeMode) {
+      unawaited(
+        _themeModeStore.write(mode).catchError((Object error) {
+          debugPrint('Cannot persist app theme mode: $error');
+        }),
+      );
+      return;
+    }
+    setState(() => _themeMode = mode);
+    unawaited(
+      _themeModeStore.write(mode).catchError((Object error) {
+        debugPrint('Cannot persist app theme mode: $error');
+      }),
+    );
   }
 
   Future<void> _registerDevice(
@@ -126,9 +300,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   Future<void> _warmRecentAudioWhenIdle(
     ConversationRepository repository,
     DeviceAudioCache deviceCache,
+    ConversationController controller,
   ) async {
     await Future<void>.delayed(const Duration(seconds: 10));
-    while (mounted && _controller.isBusy) {
+    while (mounted && controller.isBusy) {
       await Future<void>.delayed(const Duration(seconds: 2));
     }
     if (!mounted) {
@@ -179,23 +354,52 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     _deviceRegistrationService?.dispose();
-    _deviceAudioCache.dispose();
+    _deviceAudioCache?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    final appContent = _startupComplete && controller != null
+        ? KeyedSubtree(
+            key: const ValueKey('app-content'),
+            child: AndroidUpdateGate(
+              config: _config,
+              child: PwaInstallGate(
+                child: HomeLearningShell(
+                  controller: controller,
+                  config: _config,
+                  themeMode: _themeMode,
+                  onThemeModeChanged: _setThemeMode,
+                ),
+              ),
+            ),
+          )
+        : KeyedSubtree(
+            key: const ValueKey('startup-content'),
+            child: StartupSplashScreen(
+              status: _startupStatus,
+              progress: _startupProgress,
+              version: _version,
+            ),
+          );
+
     return MaterialApp(
       title: 'Trợ lý giao tiếp',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: AndroidUpdateGate(
-        config: _config,
-        child: PwaInstallGate(
-          child: HomeLearningShell(controller: _controller, config: _config),
-        ),
+      darkTheme: buildDarkAppTheme(),
+      themeMode: _themeMode,
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 320),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) =>
+            FadeTransition(opacity: animation, child: child),
+        child: appContent,
       ),
     );
   }

@@ -23,6 +23,7 @@ class LearningScenery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
@@ -39,9 +40,18 @@ class LearningScenery extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: <Color>[
-                  Colors.white.withValues(alpha: overlayOpacity),
-                  Colors.transparent,
-                  const Color(0xFFFFFDF7).withValues(alpha: 0.08),
+                  if (isDark)
+                    const Color(0xFF091126).withValues(alpha: 0.72)
+                  else
+                    Colors.white.withValues(alpha: overlayOpacity),
+                  if (isDark)
+                    const Color(0xFF0E1630).withValues(alpha: 0.48)
+                  else
+                    Colors.transparent,
+                  if (isDark)
+                    const Color(0xFF0A1127).withValues(alpha: 0.78)
+                  else
+                    const Color(0xFFFFFDF7).withValues(alpha: 0.08),
                 ],
                 stops: const <double>[0, 0.48, 1],
               ),
