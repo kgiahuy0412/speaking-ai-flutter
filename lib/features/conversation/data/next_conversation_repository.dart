@@ -1177,6 +1177,8 @@ class _NextBatchChunkUploadSession
   static const _maxConcurrentUploads = 2;
   static const _maxMissingRecoveryRounds = 2;
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
+  static const _maxSpeculativeAttempts = 4;
+  static const _speculativeFinalizeGrace = Duration(milliseconds: 750);
 
   final NextConversationRepository _repository;
   final String audioSessionId;
@@ -1217,6 +1219,7 @@ class _NextBatchChunkUploadSession
   bool _speculativeSpeechDetected = false;
   bool _speculativeVoiceActive = false;
   int _speculativeAttemptCount = 0;
+  int _speculativeTransientRetryCount = 0;
   int _lastSpeculativeAttemptChunkCount = 0;
   DateTime? _lastSpeculativeAttemptAt;
   Timer? _speculativePreviewTimer;
@@ -1302,7 +1305,7 @@ class _NextBatchChunkUploadSession
         !_speculativeSpeechDetected ||
         _speculativeContext == null ||
         _speculativeChildAge == null ||
-        _speculativeAttemptCount >= 2 ||
+        _speculativeAttemptCount >= _maxSpeculativeAttempts ||
         _transportChunkCount < 2 ||
         _transportChunkCount <= _lastSpeculativeAttemptChunkCount ||
         _speculativePreviewFuture != null) {
@@ -1387,6 +1390,18 @@ class _NextBatchChunkUploadSession
         _speculativePreviewController.add(result.preview);
       }
     } catch (error, stackTrace) {
+      if (_isRetryableConversationRequest(error) && !_closed) {
+        // A timeout, 429 or provider 5xx should not consume the small
+        // speculative budget. Allow the same uploaded snapshot to retry after
+        // the normal minimum interval; content-quality failures still wait
+        // for more speech before another attempt.
+        _speculativeAttemptCount = math.max(0, _speculativeAttemptCount - 1);
+        _speculativeTransientRetryCount += 1;
+        _lastSpeculativeAttemptChunkCount = math.min(
+          _lastSpeculativeAttemptChunkCount,
+          math.max(0, snapshotChunkCount - 1),
+        );
+      }
       developer.log(
         'Speculative Batch preview was skipped.',
         name: 'conversation.batch_prefetch',
@@ -1534,6 +1549,9 @@ class _NextBatchChunkUploadSession
     'chunkRetryCount': _chunkRetryCount,
     'missingChunkCount': _missingChunkCount,
     'recoveryUploadCount': _recoveryUploadCount,
+    'batchPrefetchAttemptCount': _speculativeAttemptCount,
+    'batchPrefetchTransientRetryCount': _speculativeTransientRetryCount,
+    'batchPrefetchReady': _prefetchId != null,
     if (_firstChunkAckMs != null) 'firstChunkAckMs': _firstChunkAckMs,
     if (_percentile(50) != null) 'chunkUploadP50Ms': _percentile(50),
     if (_percentile(95) != null) 'chunkUploadP95Ms': _percentile(95),
@@ -1621,7 +1639,7 @@ class _NextBatchChunkUploadSession
     final speculativePreview = _speculativePreviewFuture;
     if (_prefetchId == null && speculativePreview != null) {
       try {
-        await speculativePreview.timeout(const Duration(milliseconds: 250));
+        await speculativePreview.timeout(_speculativeFinalizeGrace);
       } on TimeoutException {
         // Finalization remains authoritative. Never make stop latency depend
         // on a speculative request that did not finish while the child spoke.

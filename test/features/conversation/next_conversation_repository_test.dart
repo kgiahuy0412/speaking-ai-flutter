@@ -492,6 +492,83 @@ void main() {
   );
 
   test(
+    'retries a transient speculative preview on the same PCM snapshot',
+    () async {
+      var previewCalls = 0;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_prefetch_retry',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            previewCalls += 1;
+            if (previewCalls == 1) {
+              return http.Response(
+                jsonEncode(<String, dynamic>{
+                  'error': <String, dynamic>{
+                    'code': 'PROVIDER_UNAVAILABLE',
+                    'message': 'Cloudflare is temporarily unavailable.',
+                  },
+                }),
+                503,
+              );
+            }
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_after_retry',
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'phrase_rule',
+                'audioUrl': '/api/audio/stream?text=water',
+                'snapshotChunkCount': 2,
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/discard')) {
+            return http.Response('{}', 200);
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      final previewFuture = speculative.speculativePreviews.first;
+      for (var index = 0; index < 6; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+
+      final preview = await previewFuture.timeout(const Duration(seconds: 3));
+      expect(preview.englishText, 'Can I have some water, please?');
+      expect(previewCalls, 2);
+      await upload.discard();
+      await repository.dispose();
+    },
+  );
+
+  test(
     'keeps legacy header upload when backend lacks the capability',
     () async {
       final uploadedSequences = <int>[];
