@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 
 import 'audio_input.dart';
 import 'pcm_speech_preprocessor.dart';
+import 'pcm16_resampler.dart';
 import 'recording_storage.dart';
 import 'wav_audio.dart';
 
@@ -28,10 +29,12 @@ class PhoneMicrophoneInput
   Completer<void>? _pcmStreamDone;
   Object? _streamError;
   PcmSpeechPreprocessor? _pcmPreprocessor;
+  Pcm16MonoResampler? _pcmResampler;
   bool _chunked = false;
   bool _microphonePermissionGranted = false;
   bool _recordConfigListenerRegistered = false;
   int _effectiveSampleRate = pcm16SampleRate;
+  int _outputSampleRate = pcm16SampleRate;
   bool? _platformAutoGainApplied;
   bool? _platformEchoCancellationApplied;
   bool? _platformNoiseSuppressionApplied;
@@ -160,6 +163,7 @@ class PhoneMicrophoneInput
     _initialNoiseRms = null;
     _streamError = null;
     _pcmPreprocessor = null;
+    _pcmResampler = null;
     // record_web reports adjusted track settings through setOnConfigChanged.
     // Android exposes support per device but not the final enabled state here,
     // so keep it unknown instead of claiming an effect was applied.
@@ -209,7 +213,17 @@ class PhoneMicrophoneInput
         device: _selectedInputDevice,
       ),
     );
-    _pcmPreprocessor = PcmSpeechPreprocessor(sampleRate: _effectiveSampleRate);
+    // Safari commonly exposes its AudioContext at 44.1/48 kHz even when the
+    // requested microphone rate is 16 kHz. Normalize Web PCM once here so
+    // upload chunks, speculative preview and final WAV all share 16 kHz.
+    _outputSampleRate = kIsWeb ? pcm16SampleRate : _effectiveSampleRate;
+    if (_effectiveSampleRate != _outputSampleRate) {
+      _pcmResampler = Pcm16MonoResampler(
+        sourceSampleRate: _effectiveSampleRate,
+        targetSampleRate: _outputSampleRate,
+      );
+    }
+    _pcmPreprocessor = PcmSpeechPreprocessor(sampleRate: _outputSampleRate);
     _pcmSubscription = pcmStream.listen(
       _handlePcmBytes,
       onError: (Object error, StackTrace stackTrace) {
@@ -229,11 +243,9 @@ class PhoneMicrophoneInput
     final pending = _pendingChunkBytes?.takeBytes() ?? Uint8List(0);
     var offset = 0;
     while (pending.length - offset >= _chunkByteLength) {
-      final processed = _processPcmChunk(
+      _processAndEmitPcmChunk(
         Uint8List.sublistView(pending, offset, offset + _chunkByteLength),
       );
-      _pcmBytes?.add(processed);
-      _audioChunkController.add(processed);
       offset += _chunkByteLength;
     }
     if (offset < pending.length) {
@@ -244,14 +256,30 @@ class PhoneMicrophoneInput
   void _flushFinalChunk() {
     final finalChunk = _pendingChunkBytes?.takeBytes();
     if (finalChunk != null && finalChunk.isNotEmpty) {
-      final processed = _processPcmChunk(finalChunk);
-      _pcmBytes?.add(processed);
-      _audioChunkController.add(processed);
+      _processAndEmitPcmChunk(finalChunk);
+    }
+    final resampledTail = _pcmResampler?.flush();
+    if (resampledTail != null && resampledTail.isNotEmpty) {
+      _preprocessAndEmitPcmChunk(resampledTail);
     }
   }
 
-  Uint8List _processPcmChunk(Uint8List bytes) =>
-      _pcmPreprocessor?.process(bytes) ?? Uint8List.fromList(bytes);
+  void _processAndEmitPcmChunk(Uint8List bytes) {
+    final normalized =
+        _pcmResampler?.process(bytes) ?? Uint8List.fromList(bytes);
+    if (normalized.isNotEmpty) {
+      _preprocessAndEmitPcmChunk(normalized);
+    }
+  }
+
+  void _preprocessAndEmitPcmChunk(Uint8List bytes) {
+    final processed = _pcmPreprocessor?.process(bytes) ?? bytes;
+    if (processed.isEmpty) {
+      return;
+    }
+    _pcmBytes?.add(processed);
+    _audioChunkController.add(processed);
+  }
 
   void _completePcmStream() {
     final completer = _pcmStreamDone;
@@ -306,7 +334,7 @@ class PhoneMicrophoneInput
       streamedAudioBytes = pcmBytes.length;
       streamHeaderBytes = buildPcm16WavHeader(
         pcmByteLength: streamedAudioBytes,
-        sampleRate: _effectiveSampleRate,
+        sampleRate: _outputSampleRate,
       );
       final wavBytes = Uint8List.fromList(<int>[
         ...streamHeaderBytes,
@@ -326,7 +354,7 @@ class PhoneMicrophoneInput
       initialNoiseRms: _initialNoiseRms,
       streamHeaderBytes: streamHeaderBytes,
       streamedAudioBytes: streamedAudioBytes,
-      recordingSampleRate: _chunked ? _effectiveSampleRate : null,
+      recordingSampleRate: _chunked ? _outputSampleRate : null,
       dataBytes: dataBytes,
       audioProcessing: audioProcessing,
     );
@@ -343,6 +371,7 @@ class PhoneMicrophoneInput
     _pcmBytes = null;
     _pendingChunkBytes = null;
     _pcmPreprocessor = null;
+    _pcmResampler = null;
     _chunked = false;
   }
 

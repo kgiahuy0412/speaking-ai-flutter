@@ -1207,6 +1207,7 @@ class ConversationController extends ChangeNotifier {
     _offlineFallbackTimer = null;
     await _amplitudeSubscription?.cancel();
     _stoppedAt = DateTime.now();
+    _AdaptiveWebChunkUpload? stoppedAdaptiveWebUpload;
 
     try {
       final startedAt = _recordingStartedAt;
@@ -1337,6 +1338,7 @@ class ConversationController extends ChangeNotifier {
       } else {
         final adaptiveUpload = _adaptiveWebUpload;
         _adaptiveWebUpload = null;
+        stoppedAdaptiveWebUpload = adaptiveUpload;
         adaptiveUpload?.markSpeculativeVoiceInactive();
         final promotionReady = adaptiveUpload?.waitUntilPromoted();
         final audioStop = _audioInput.stop();
@@ -1347,8 +1349,6 @@ class ConversationController extends ChangeNotifier {
         if (adaptiveUpload != null) {
           adaptiveWebUpload = await adaptiveUpload.stopAndTakeSession();
         }
-        await _batchPreviewSubscription?.cancel();
-        _batchPreviewSubscription = null;
         if (_usingHfpRoute && !supportsBrowserHfp) {
           audioCapture = AudioCapture(
             filePath: audioCapture.filePath,
@@ -1473,6 +1473,10 @@ class ConversationController extends ChangeNotifier {
         resultFuture,
       ]);
       final nextResult = processing[1]! as ConversationResult;
+      await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
+      stoppedAdaptiveWebUpload = null;
+      await _batchPreviewSubscription?.cancel();
+      _batchPreviewSubscription = null;
       final preview = _preview;
       if (preview?.audioUri != null &&
           preview!.englishText.trim() == nextResult.englishText.trim()) {
@@ -1527,6 +1531,9 @@ class ConversationController extends ChangeNotifier {
     } catch (error) {
       _handleConversationError(error);
     } finally {
+      await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
+      await _batchPreviewSubscription?.cancel();
+      _batchPreviewSubscription = null;
       final adaptiveWebUpload = _adaptiveWebUpload;
       _adaptiveWebUpload = null;
       if (adaptiveWebUpload != null) {
@@ -1673,6 +1680,7 @@ class ConversationController extends ChangeNotifier {
     }
 
     try {
+      final playbackRequestedAt = DateTime.now();
       PlaybackStartMetrics? gestureMetrics;
       final gesturePlayback = _playbackService;
       if (!reportLatency &&
@@ -1685,7 +1693,7 @@ class ConversationController extends ChangeNotifier {
       if (reportLatency && _stoppedAt != null) {
         _reportPlaybackStarted(
           currentResult: currentResult,
-          startedAt: DateTime.now(),
+          startedAt: playbackRequestedAt.add(metrics.startedAfterRequest),
           metrics: metrics,
         );
       }
@@ -2119,14 +2127,17 @@ class _AdaptiveWebChunkUpload {
   Future<BatchChunkUploadSession?> stopAndTakeSession() async {
     _acceptingChunks = false;
     _bufferedChunks.clear();
+    final session = _session;
+    _session = null;
+    return session;
+  }
+
+  Future<void> finishPreviewForwarding() async {
     await _previewSubscription?.cancel();
     _previewSubscription = null;
     if (!_previewController.isClosed) {
       await _previewController.close();
     }
-    final session = _session;
-    _session = null;
-    return session;
   }
 
   Future<void> discard({String reason = 'adaptive_cancelled'}) async {
