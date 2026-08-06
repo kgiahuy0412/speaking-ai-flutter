@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -34,7 +35,7 @@ void main() {
         'clientId': 'android_test_device',
         'context': 'all',
         'background': true,
-        'limit': 200,
+        'limit': 1500,
       });
 
       return http.Response(
@@ -564,6 +565,337 @@ void main() {
       expect(preview.englishText, 'Can I have some water, please?');
       expect(previewCalls, 2);
       await upload.discard();
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'sends finalize immediately without waiting for terminal preview',
+    () async {
+      Map<String, dynamic>? finalizeBody;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_terminal_prefetch',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            await Future<void>.delayed(const Duration(milliseconds: 900));
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_terminal',
+                'stabilityCount': 1,
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'cloudflare',
+                'audioUrl': '/api/audio/stream?text=water',
+                'audioSource': 'cloudflare_tts',
+                'snapshotChunkCount': 2,
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_terminal_prefetch',
+                'sessionId': 'sess_terminal_prefetch',
+                'context': 'home',
+                'vietnameseText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/api/audio/stream?text=water',
+                'processingMode': 'ai',
+                'textSource': 'cloudflare',
+                'audioSource': 'cloudflare_tts',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 0,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 25,
+                },
+              }),
+              200,
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      for (var index = 0; index < 4; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      speculative.markSpeculativeVoiceInactive();
+
+      final finalizeStopwatch = Stopwatch()..start();
+      await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'terminal-prefetch.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 800),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 25600),
+          streamedAudioBytes: 25600,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+      finalizeStopwatch.stop();
+
+      expect(finalizeBody?['prefetchId'], isNull);
+      expect(finalizeStopwatch.elapsedMilliseconds, lessThan(700));
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'promotes the same regular snapshot to terminal without duplicate ASR',
+    () async {
+      final previewBodies = <Map<String, dynamic>>[];
+      var previewCalls = 0;
+      final releaseRegularPreview = Completer<void>();
+      final terminalPreviewStarted = Completer<void>();
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_terminal_snapshot',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            previewCalls += 1;
+            final callIndex = previewCalls;
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            previewBodies.add(body);
+            if (body['terminal'] == true) {
+              if (!terminalPreviewStarted.isCompleted) {
+                terminalPreviewStarted.complete();
+              }
+            } else {
+              await releaseRegularPreview.future;
+            }
+            final pcm = body['pcm16Wav'] as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_terminal_$callIndex',
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'phrase_rule',
+                'audioUrl': '/api/audio/cache/terminal.mp3',
+                'audioSource': 'cache',
+                'snapshotChunkCount': pcm['chunkCount'],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/discard')) {
+            return http.Response('{}', 200);
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      final preview = speculative.speculativePreviews.first;
+
+      for (var index = 0; index < 6; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      // The regular request already owns transport chunk 2. Terminal must
+      // still send terminal=true for that exact snapshot so backend can join
+      // the existing ASR -> translation -> audio flight.
+      speculative.requestTerminalSpeculativePreview();
+
+      await terminalPreviewStarted.future.timeout(
+        const Duration(milliseconds: 500),
+      );
+      final terminalResult = await preview.timeout(const Duration(seconds: 3));
+      // stop() asks once more after the recorder flush. With no renewed voice,
+      // that request must preserve the early terminal instead of replacing it.
+      speculative.requestTerminalSpeculativePreview();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      releaseRegularPreview.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(previewBodies, hasLength(2));
+      expect(previewBodies.first['terminal'], isFalse);
+      expect(previewBodies.last['terminal'], isTrue);
+      expect(terminalResult.audioUri?.path, '/api/audio/cache/terminal.mp3');
+      expect(
+        (previewBodies.first['pcm16Wav'] as Map<String, dynamic>)['chunkCount'],
+        2,
+      );
+      expect(
+        (previewBodies.last['pcm16Wav'] as Map<String, dynamic>)['chunkCount'],
+        2,
+      );
+      await upload.discard();
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'keeps late preview HTTP work alive without delaying finalize',
+    () async {
+      Map<String, dynamic>? finalizeBody;
+      final finalizeStarted = Completer<void>();
+      final previewRequestCompleted = Completer<void>();
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_late_prefetch',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            await Future<void>.delayed(const Duration(milliseconds: 1700));
+            if (!previewRequestCompleted.isCompleted) {
+              previewRequestCompleted.complete();
+            }
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_late',
+                'stabilityCount': 1,
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'cloudflare',
+                'audioUrl': '/api/audio/stream?text=late-water',
+                'audioSource': 'cloudflare_tts',
+                'snapshotChunkCount': 2,
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            if (!finalizeStarted.isCompleted) {
+              finalizeStarted.complete();
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 900));
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_late_prefetch',
+                'sessionId': 'sess_late_prefetch',
+                'context': 'home',
+                'vietnameseText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/api/audio/stream?text=late-water',
+                'processingMode': 'ai',
+                'textSource': 'cloudflare',
+                'audioSource': 'cloudflare_tts',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 0,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 25,
+                },
+              }),
+              200,
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      for (var index = 0; index < 4; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      speculative.markSpeculativeVoiceInactive();
+      // _AdaptiveWebChunkUpload normally sends this after 300 ms of stable
+      // silence; the repository test triggers that boundary explicitly.
+      speculative.requestTerminalSpeculativePreview();
+
+      final finalizeFuture = upload.finalize(
+        capture: AudioCapture(
+          filePath: 'late-prefetch.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 800),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 25600),
+          streamedAudioBytes: 25600,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+
+      await finalizeFuture;
+      expect(finalizeStarted.isCompleted, isTrue);
+      await previewRequestCompleted.future.timeout(const Duration(seconds: 3));
+      // The request started before the client received the late prefetch ID.
+      // Backend finalize now joins this preview by audioSessionId.
+      expect(finalizeBody?['prefetchId'], isNull);
       await repository.dispose();
     },
   );
@@ -1146,6 +1478,11 @@ void main() {
         final latency = body['latency'] as Map<String, dynamic>;
         expect(latency['audioLoadMs'], 42);
         expect(latency['audioFromDeviceCache'], isTrue);
+        expect(latency['responseToPlaybackMs'], 85);
+        expect(latency['audioPreloadLoadedData'], isTrue);
+        expect(latency['audioPreloadCanPlay'], isFalse);
+        expect(latency['audioPreloadLoadedDataMs'], 310);
+        expect(latency['audioPreloadCanPlayMs'], isNull);
         expect(latency.containsKey('ttsFirstByteMs'), isFalse);
         return http.Response(
           jsonEncode(<String, dynamic>{'conversation': <String, dynamic>{}}),
@@ -1160,6 +1497,10 @@ void main() {
       timeToFirstAudioMs: 650,
       audioLoadMs: 42,
       audioFromDeviceCache: true,
+      responseToPlaybackMs: 85,
+      audioPreloadLoadedData: true,
+      audioPreloadCanPlay: false,
+      audioPreloadLoadedDataMs: 310,
     );
     await repository.dispose();
   });

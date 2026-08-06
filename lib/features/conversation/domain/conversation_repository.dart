@@ -45,6 +45,11 @@ abstract interface class ConversationRepository {
     required int timeToFirstAudioMs,
     required int audioLoadMs,
     required bool audioFromDeviceCache,
+    int? responseToPlaybackMs,
+    bool? audioPreloadLoadedData,
+    bool? audioPreloadCanPlay,
+    int? audioPreloadLoadedDataMs,
+    int? audioPreloadCanPlayMs,
   });
 
   Future<List<ConversationHistoryItem>> fetchHistory();
@@ -85,6 +90,10 @@ abstract interface class SpeculativeBatchChunkUploadSession {
   void markSpeculativeVoiceActive();
 
   void markSpeculativeVoiceInactive();
+
+  /// Captures the newest uploaded PCM snapshot after the recorder has stopped.
+  /// This preview is allowed to finish alongside authoritative finalization.
+  void requestTerminalSpeculativePreview();
 }
 
 abstract interface class ChunkedConversationRepository {

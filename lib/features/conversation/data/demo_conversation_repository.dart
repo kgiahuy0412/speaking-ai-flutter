@@ -76,6 +76,11 @@ class DemoConversationRepository implements ConversationRepository {
     required int timeToFirstAudioMs,
     required int audioLoadMs,
     required bool audioFromDeviceCache,
+    int? responseToPlaybackMs,
+    bool? audioPreloadLoadedData,
+    bool? audioPreloadCanPlay,
+    int? audioPreloadLoadedDataMs,
+    int? audioPreloadCanPlayMs,
   }) async {}
 
   @override

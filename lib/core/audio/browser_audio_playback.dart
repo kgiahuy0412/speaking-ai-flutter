@@ -4,6 +4,11 @@ abstract interface class BrowserAudioPlayback {
   Stream<Duration?> get durationStream;
   Duration get position;
   Duration? get duration;
+  bool hasPreloadedSource(Uri uri);
+  bool hasLoadedPreloadedSource(Uri uri);
+  bool hasReadyPreloadedSource(Uri uri);
+  Duration? preloadedSourceLoadedAfter(Uri uri);
+  Duration? preloadedSourceReadyAfter(Uri uri);
 
   Future<void> unlockForUserGesture();
   Future<void> preload(Uri uri);

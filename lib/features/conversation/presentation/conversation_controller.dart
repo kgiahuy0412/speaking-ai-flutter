@@ -142,6 +142,7 @@ class ConversationController extends ChangeNotifier {
   Timer? _processingStageTimer;
   DateTime? _recordingStartedAt;
   DateTime? _stoppedAt;
+  DateTime? _responseReceivedAt;
   bool _stopInProgress = false;
   bool _speechDetected = false;
   bool _noisyRecording = false;
@@ -1152,7 +1153,8 @@ class ConversationController extends ChangeNotifier {
 
   void _onSpeculativeBatchPreview(ConversationPreview preview) {
     if (!_isWebRuntime ||
-        phase != ConversationPhase.recording ||
+        (phase != ConversationPhase.recording &&
+            phase != ConversationPhase.processing) ||
         preview.englishText.trim().isEmpty) {
       return;
     }
@@ -1207,6 +1209,7 @@ class ConversationController extends ChangeNotifier {
     _offlineFallbackTimer = null;
     await _amplitudeSubscription?.cancel();
     _stoppedAt = DateTime.now();
+    _responseReceivedAt = null;
     _AdaptiveWebChunkUpload? stoppedAdaptiveWebUpload;
 
     try {
@@ -1346,6 +1349,10 @@ class ConversationController extends ChangeNotifier {
         if (promotionReady != null) {
           await promotionReady;
         }
+        // PhoneMicrophoneInput.stop() has now emitted its final PCM frame.
+        // Snapshot it before sealing the adaptive upload so prefetch covers the
+        // real end of the utterance rather than the earlier VAD transition.
+        adaptiveUpload?.requestTerminalSpeculativePreview();
         if (adaptiveUpload != null) {
           adaptiveWebUpload = await adaptiveUpload.stopAndTakeSession();
         }
@@ -1473,10 +1480,12 @@ class ConversationController extends ChangeNotifier {
         resultFuture,
       ]);
       final nextResult = processing[1]! as ConversationResult;
-      await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
-      stoppedAdaptiveWebUpload = null;
-      await _batchPreviewSubscription?.cancel();
-      _batchPreviewSubscription = null;
+      _responseReceivedAt = DateTime.now();
+      // Do not wait for a late preview HTTP request before starting Safari
+      // playback. The forwarding stream stays alive through finalize, so any
+      // already-delivered terminal preview can still supply the exact
+      // preloaded HTMLAudioElement source below. Cleanup happens only after
+      // playback has started (or in finally on error).
       final preview = _preview;
       if (preview?.audioUri != null &&
           preview!.englishText.trim() == nextResult.englishText.trim()) {
@@ -1526,6 +1535,10 @@ class ConversationController extends ChangeNotifier {
           (nextResult.audioUri != null || _preferredPlaybackUri != null)) {
         await playResult(reportLatency: true);
       }
+      await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
+      stoppedAdaptiveWebUpload = null;
+      await _batchPreviewSubscription?.cancel();
+      _batchPreviewSubscription = null;
       phase = ConversationPhase.ready;
       notifyListeners();
     } catch (error) {
@@ -1716,6 +1729,10 @@ class ConversationController extends ChangeNotifier {
       0,
       startedAt.difference(stoppedAt).inMilliseconds,
     );
+    final responseReceivedAt = _responseReceivedAt;
+    final responseToPlaybackMs = responseReceivedAt == null
+        ? null
+        : math.max(0, startedAt.difference(responseReceivedAt).inMilliseconds);
     debugPrint(
       jsonEncode(<String, dynamic>{
         'event': 'playback_latency_client',
@@ -1723,6 +1740,12 @@ class ConversationController extends ChangeNotifier {
         'audioStartedAfterStopMs': firstAudioMs,
         'audioLoadMs': metrics.audioLoadDuration.inMilliseconds,
         'audioFromDeviceCache': metrics.fromDeviceCache,
+        'responseToPlaybackMs': responseToPlaybackMs,
+        'audioPreloadLoadedData': metrics.preloadedSourceLoaded,
+        'audioPreloadCanPlay': metrics.preloadedSourceReady,
+        'audioPreloadLoadedDataMs':
+            metrics.preloadLoadedDuration?.inMilliseconds,
+        'audioPreloadCanPlayMs': metrics.preloadReadyDuration?.inMilliseconds,
       }),
     );
     unawaited(
@@ -1731,6 +1754,11 @@ class ConversationController extends ChangeNotifier {
         timeToFirstAudioMs: firstAudioMs,
         audioLoadMs: metrics.audioLoadDuration.inMilliseconds,
         audioFromDeviceCache: metrics.fromDeviceCache,
+        responseToPlaybackMs: responseToPlaybackMs,
+        audioPreloadLoadedData: metrics.preloadedSourceLoaded,
+        audioPreloadCanPlay: metrics.preloadedSourceReady,
+        audioPreloadLoadedDataMs: metrics.preloadLoadedDuration?.inMilliseconds,
+        audioPreloadCanPlayMs: metrics.preloadReadyDuration?.inMilliseconds,
       ),
     );
   }
@@ -1740,6 +1768,11 @@ class ConversationController extends ChangeNotifier {
     required int timeToFirstAudioMs,
     required int audioLoadMs,
     required bool audioFromDeviceCache,
+    int? responseToPlaybackMs,
+    bool? audioPreloadLoadedData,
+    bool? audioPreloadCanPlay,
+    int? audioPreloadLoadedDataMs,
+    int? audioPreloadCanPlayMs,
   }) async {
     try {
       await _repository.patchPlaybackLatency(
@@ -1747,6 +1780,11 @@ class ConversationController extends ChangeNotifier {
         timeToFirstAudioMs: timeToFirstAudioMs,
         audioLoadMs: audioLoadMs,
         audioFromDeviceCache: audioFromDeviceCache,
+        responseToPlaybackMs: responseToPlaybackMs,
+        audioPreloadLoadedData: audioPreloadLoadedData,
+        audioPreloadCanPlay: audioPreloadCanPlay,
+        audioPreloadLoadedDataMs: audioPreloadLoadedDataMs,
+        audioPreloadCanPlayMs: audioPreloadCanPlayMs,
       );
     } catch (error) {
       debugPrint('Không thể gửi telemetry phát audio: $error');
@@ -1976,7 +2014,10 @@ class _AdaptiveWebChunkUpload {
   final StreamController<ConversationPreview> _previewController =
       StreamController<ConversationPreview>.broadcast();
 
+  static const _terminalPreviewDelay = Duration(milliseconds: 300);
+
   Timer? _promotionTimer;
+  Timer? _terminalPreviewTimer;
   Future<void>? _promotionFuture;
   BatchChunkUploadSession? _session;
   StreamSubscription<ConversationPreview>? _previewSubscription;
@@ -1984,6 +2025,7 @@ class _AdaptiveWebChunkUpload {
   int? _previewChildAge;
   bool _speechDetected = false;
   bool _voiceActive = false;
+  bool _terminalPreviewPending = false;
   bool _acceptingChunks = true;
 
   Stream<ConversationPreview> get speculativePreviews =>
@@ -2014,6 +2056,9 @@ class _AdaptiveWebChunkUpload {
 
   void markSpeculativeVoiceActive() {
     _voiceActive = true;
+    _terminalPreviewTimer?.cancel();
+    _terminalPreviewTimer = null;
+    _terminalPreviewPending = false;
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
         : null;
@@ -2026,6 +2071,37 @@ class _AdaptiveWebChunkUpload {
         ? _session! as SpeculativeBatchChunkUploadSession
         : null;
     speculative?.markSpeculativeVoiceInactive();
+    if (!_acceptingChunks || !_speechDetected) {
+      return;
+    }
+    _terminalPreviewTimer?.cancel();
+    _terminalPreviewTimer = Timer(_terminalPreviewDelay, () {
+      _terminalPreviewTimer = null;
+      if (!_acceptingChunks || _voiceActive || !_speechDetected) {
+        return;
+      }
+      _terminalPreviewPending = true;
+      final terminalSession = _session is SpeculativeBatchChunkUploadSession
+          ? _session! as SpeculativeBatchChunkUploadSession
+          : null;
+      if (terminalSession != null) {
+        _terminalPreviewPending = false;
+        terminalSession.requestTerminalSpeculativePreview();
+      }
+    });
+  }
+
+  void requestTerminalSpeculativePreview() {
+    _terminalPreviewTimer?.cancel();
+    _terminalPreviewTimer = null;
+    _terminalPreviewPending = true;
+    final speculative = _session is SpeculativeBatchChunkUploadSession
+        ? _session! as SpeculativeBatchChunkUploadSession
+        : null;
+    if (speculative != null) {
+      _terminalPreviewPending = false;
+      speculative.requestTerminalSpeculativePreview();
+    }
   }
 
   void addAudioChunk(Uint8List bytes) {
@@ -2102,7 +2178,7 @@ class _AdaptiveWebChunkUpload {
         }
         _previewSubscription = speculative.speculativePreviews.listen(
           (preview) {
-            if (_acceptingChunks && !_previewController.isClosed) {
+            if (!_previewController.isClosed) {
               _previewController.add(preview);
             }
           },
@@ -2117,6 +2193,10 @@ class _AdaptiveWebChunkUpload {
         session.addAudioChunk(bytes);
       }
       _bufferedChunks.clear();
+      if (_terminalPreviewPending && !_voiceActive && speculative != null) {
+        _terminalPreviewPending = false;
+        speculative.requestTerminalSpeculativePreview();
+      }
     } catch (error) {
       debugPrint(
         'Adaptive Web chunk upload was skipped; keeping WAV fallback: $error',
@@ -2125,6 +2205,8 @@ class _AdaptiveWebChunkUpload {
   }
 
   Future<BatchChunkUploadSession?> stopAndTakeSession() async {
+    _terminalPreviewTimer?.cancel();
+    _terminalPreviewTimer = null;
     _acceptingChunks = false;
     _bufferedChunks.clear();
     final session = _session;
@@ -2142,6 +2224,8 @@ class _AdaptiveWebChunkUpload {
 
   Future<void> discard({String reason = 'adaptive_cancelled'}) async {
     _promotionTimer?.cancel();
+    _terminalPreviewTimer?.cancel();
+    _terminalPreviewTimer = null;
     _acceptingChunks = false;
     _bufferedChunks.clear();
     await _previewSubscription?.cancel();
