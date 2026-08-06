@@ -18,11 +18,15 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _endedListener = ((web.Event _) => _emitPlaying(false)).toJS;
     _timeUpdateListener = ((web.Event _) => _onTimeUpdate()).toJS;
     _durationChangeListener = ((web.Event _) => _emitDuration()).toJS;
+    _loadedDataListener = ((web.Event _) => _markPreloadLoaded()).toJS;
+    _canPlayListener = ((web.Event _) => _markPreloadReady()).toJS;
     _errorListener = ((web.Event _) => _emitPlaying(false)).toJS;
     _element.addEventListener('ended', _endedListener);
     _element.addEventListener('timeupdate', _timeUpdateListener);
     _element.addEventListener('durationchange', _durationChangeListener);
     _element.addEventListener('loadedmetadata', _durationChangeListener);
+    _element.addEventListener('loadeddata', _loadedDataListener);
+    _element.addEventListener('canplay', _canPlayListener);
     _element.addEventListener('error', _errorListener);
     _setSource(Uri.parse(_silentWarmUpAudio));
   }
@@ -41,8 +45,14 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   late final JSFunction _endedListener;
   late final JSFunction _timeUpdateListener;
   late final JSFunction _durationChangeListener;
+  late final JSFunction _loadedDataListener;
+  late final JSFunction _canPlayListener;
   late final JSFunction _errorListener;
   Uri? _sourceUri;
+  Uri? _preloadedSourceUri;
+  DateTime? _preloadRequestedAt;
+  DateTime? _preloadLoadedAt;
+  DateTime? _preloadReadyAt;
   bool _unlocked = false;
   bool _playing = false;
   bool _disposed = false;
@@ -77,6 +87,49 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   Duration? get duration {
     final seconds = _element.duration;
     return seconds.isFinite && seconds > 0 ? _secondsToDuration(seconds) : null;
+  }
+
+  @override
+  bool hasPreloadedSource(Uri uri) =>
+      _sourceUri == uri && _preloadedSourceUri == uri;
+
+  @override
+  bool hasLoadedPreloadedSource(Uri uri) =>
+      hasPreloadedSource(uri) && _preloadLoadedAt != null;
+
+  @override
+  bool hasReadyPreloadedSource(Uri uri) =>
+      hasPreloadedSource(uri) && _preloadReadyAt != null;
+
+  @override
+  Duration? preloadedSourceLoadedAfter(Uri uri) =>
+      hasLoadedPreloadedSource(uri) && _preloadRequestedAt != null
+      ? _preloadLoadedAt!.difference(_preloadRequestedAt!)
+      : null;
+
+  @override
+  Duration? preloadedSourceReadyAfter(Uri uri) =>
+      hasReadyPreloadedSource(uri) && _preloadRequestedAt != null
+      ? _preloadReadyAt!.difference(_preloadRequestedAt!)
+      : null;
+
+  void _markPreloadLoaded() {
+    if (_disposed ||
+        _preloadedSourceUri == null ||
+        _preloadedSourceUri != _sourceUri) {
+      return;
+    }
+    _preloadLoadedAt ??= DateTime.now();
+  }
+
+  void _markPreloadReady() {
+    _markPreloadLoaded();
+    if (_disposed ||
+        _preloadedSourceUri == null ||
+        _preloadedSourceUri != _sourceUri) {
+      return;
+    }
+    _preloadReadyAt ??= DateTime.now();
   }
 
   void _emitPlaying(bool value) {
@@ -181,7 +234,18 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     if (_disposed) {
       return;
     }
+    if (_preloadedSourceUri != uri) {
+      _preloadRequestedAt = DateTime.now();
+      _preloadLoadedAt = null;
+      _preloadReadyAt = null;
+    }
+    _preloadedSourceUri = uri;
     _setSource(uri);
+    // Safari may already have buffered a cached response before event handlers
+    // observe the transition. readyState 2 is HAVE_CURRENT_DATA and 3 is
+    // HAVE_FUTURE_DATA (the threshold used by the `canplay` event).
+    if (_element.readyState >= 2) _markPreloadLoaded();
+    if (_element.readyState >= 3) _markPreloadReady();
   }
 
   @override
@@ -190,6 +254,15 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
       throw StateError('Browser audio player is disposed.');
     }
 
+    final reusingPreloadedSource = hasPreloadedSource(uri);
+    if (!reusingPreloadedSource) {
+      _preloadedSourceUri = null;
+      _preloadRequestedAt = null;
+      _preloadLoadedAt = null;
+      _preloadReadyAt = null;
+    }
+    // _setSource deliberately does not call load() again for the URI retained
+    // by preload. This keeps Safari attached to the same in-flight response.
     _setSource(uri);
     _rewindIfCompleted();
     // Mark the attempt before calling play(). Very short guide clips can reach
@@ -228,9 +301,16 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.removeEventListener('timeupdate', _timeUpdateListener);
     _element.removeEventListener('durationchange', _durationChangeListener);
     _element.removeEventListener('loadedmetadata', _durationChangeListener);
+    _element.removeEventListener('loadeddata', _loadedDataListener);
+    _element.removeEventListener('canplay', _canPlayListener);
     _element.removeEventListener('error', _errorListener);
     _element.removeAttribute('src');
     _element.load();
+    _sourceUri = null;
+    _preloadedSourceUri = null;
+    _preloadRequestedAt = null;
+    _preloadLoadedAt = null;
+    _preloadReadyAt = null;
     await Future.wait<void>(<Future<void>>[
       _playingController.close(),
       _positionController.close(),

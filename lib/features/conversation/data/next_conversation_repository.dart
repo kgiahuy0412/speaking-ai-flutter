@@ -72,7 +72,10 @@ class NextConversationRepository
             'clientId': clientId,
             'context': 'all',
             'background': true,
-            'limit': 200,
+            // Warm all reviewed/product rules used by the current corpus, not
+            // only the first screenful. Persistent storage makes later starts
+            // cheap because already-generated audio becomes a cache hit.
+            'limit': 1500,
           }),
         )
         .timeout(const Duration(seconds: 12));
@@ -408,6 +411,7 @@ class NextConversationRepository
     required int childAge,
     required int pcmByteLength,
     required int chunkCount,
+    required bool terminal,
     String? previousPrefetchId,
   }) async {
     final response = await _client
@@ -421,6 +425,7 @@ class NextConversationRepository
             'clientId': await _clientId,
             'context': context.apiValue,
             'childAge': childAge,
+            'terminal': terminal,
             'previousPrefetchId': ?previousPrefetchId,
             'pcm16Wav': <String, dynamic>{
               'sampleRate': pcm16SampleRate,
@@ -646,6 +651,11 @@ class NextConversationRepository
     required int timeToFirstAudioMs,
     required int audioLoadMs,
     required bool audioFromDeviceCache,
+    int? responseToPlaybackMs,
+    bool? audioPreloadLoadedData,
+    bool? audioPreloadCanPlay,
+    int? audioPreloadLoadedDataMs,
+    int? audioPreloadCanPlayMs,
   }) async {
     final clientId = await _clientId;
     final body = jsonEncode(<String, dynamic>{
@@ -657,6 +667,11 @@ class NextConversationRepository
         'browserAudioStartedMs': timeToFirstAudioMs,
         'timeToFirstAudioMs': timeToFirstAudioMs,
         'audioStartedAfterStopMs': timeToFirstAudioMs,
+        'responseToPlaybackMs': ?responseToPlaybackMs,
+        'audioPreloadLoadedData': ?audioPreloadLoadedData,
+        'audioPreloadCanPlay': ?audioPreloadCanPlay,
+        'audioPreloadLoadedDataMs': ?audioPreloadLoadedDataMs,
+        'audioPreloadCanPlayMs': ?audioPreloadCanPlayMs,
       },
     });
     Object? lastError;
@@ -1178,7 +1193,7 @@ class _NextBatchChunkUploadSession
   static const _maxMissingRecoveryRounds = 2;
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
   static const _maxSpeculativeAttempts = 4;
-  static const _speculativeFinalizeGrace = Duration(milliseconds: 750);
+  static const _maxRegularSpeculativeAttempts = 3;
 
   final NextConversationRepository _repository;
   final String audioSessionId;
@@ -1213,6 +1228,7 @@ class _NextBatchChunkUploadSession
   String? _lastUploadErrorCode;
   var _recoveryBufferTruncated = false;
   var _closed = false;
+  var _finalizing = false;
   var _discarded = false;
   PracticeContext? _speculativeContext;
   int? _speculativeChildAge;
@@ -1220,10 +1236,21 @@ class _NextBatchChunkUploadSession
   bool _speculativeVoiceActive = false;
   int _speculativeAttemptCount = 0;
   int _speculativeTransientRetryCount = 0;
+  int _terminalSpeculativeAttemptCount = 0;
+  DateTime? _speculativeVoiceInactiveAt;
+  int? _terminalPreviewStartedAfterVoiceInactiveMs;
+  int? _terminalPreviewStartedAtSessionMs;
+  int? _finalizeStartedAtSessionMs;
   int _lastSpeculativeAttemptChunkCount = 0;
+  int _lastTerminalSpeculativeAttemptChunkCount = 0;
   DateTime? _lastSpeculativeAttemptAt;
   Timer? _speculativePreviewTimer;
   Future<void>? _speculativePreviewFuture;
+  Future<void>? _terminalSpeculativePreviewFuture;
+  bool _terminalSpeculativePreviewRequested = false;
+  bool _terminalPreviewCoversLatestSpeech = false;
+  int _latestAcceptedPreviewChunkCount = 0;
+  bool _latestAcceptedPreviewWasTerminal = false;
   String? _prefetchId;
 
   @override
@@ -1235,7 +1262,7 @@ class _NextBatchChunkUploadSession
     required PracticeContext context,
     required int childAge,
   }) {
-    if (!supportsBatchPrefetch || _closed) {
+    if (!supportsBatchPrefetch || _closed || _finalizing) {
       return;
     }
     // This configuration is only called by the adaptive Web manager. Android
@@ -1248,7 +1275,7 @@ class _NextBatchChunkUploadSession
 
   @override
   void markSpeculativeSpeechDetected() {
-    if (!supportsBatchPrefetch || _closed) {
+    if (!supportsBatchPrefetch || _closed || _finalizing) {
       return;
     }
     _speculativeSpeechDetected = true;
@@ -1258,21 +1285,60 @@ class _NextBatchChunkUploadSession
   @override
   void markSpeculativeVoiceActive() {
     _speculativeVoiceActive = true;
+    _speculativeVoiceInactiveAt = null;
+    // A voice-active frame after an earlier terminal snapshot means that
+    // snapshot can no longer represent the end of the utterance. Pure silence
+    // chunks do not clear this flag, so stop() will preserve useful early work.
+    _terminalPreviewCoversLatestSpeech = false;
+    if (!_finalizing) {
+      _terminalSpeculativePreviewRequested = false;
+    }
   }
 
   @override
   void markSpeculativeVoiceInactive() {
+    if (_speculativeVoiceActive || _speculativeVoiceInactiveAt == null) {
+      _speculativeVoiceInactiveAt = DateTime.now();
+    }
     _speculativeVoiceActive = false;
-    if (!supportsBatchPrefetch || _closed || !_speculativeSpeechDetected) {
+    if (!supportsBatchPrefetch ||
+        _closed ||
+        _finalizing ||
+        !_speculativeSpeechDetected) {
       return;
     }
-    _flushTransportBuffer();
-    _scheduleSpeculativePreview();
+    // Upload the speech-end bytes now, but reserve this snapshot for the
+    // delayed terminal request. Scheduling a regular preview here used to
+    // consume the same chunkCount and made the terminal request a no-op.
+    _flushTransportBuffer(schedulePreview: false);
+  }
+
+  @override
+  void requestTerminalSpeculativePreview() {
+    _speculativeVoiceActive = false;
+    if (!supportsBatchPrefetch ||
+        _closed ||
+        !_speculativeSpeechDetected ||
+        _speculativeContext == null ||
+        _speculativeChildAge == null) {
+      return;
+    }
+    if (_terminalPreviewCoversLatestSpeech) {
+      // Recorder stop can append one final silence-only PCM frame. Keep the
+      // terminal pipeline that already started during VAD silence; backend tail
+      // validation decides whether that earlier snapshot remains authoritative.
+      return;
+    }
+    _terminalSpeculativePreviewRequested = true;
+    _speculativePreviewTimer?.cancel();
+    _speculativePreviewTimer = null;
+    _flushTransportBuffer(schedulePreview: false);
+    _scheduleSpeculativePreview(terminal: true);
   }
 
   @override
   void addAudioChunk(Uint8List bytes) {
-    if (_closed || bytes.isEmpty) {
+    if (_closed || _finalizing || bytes.isEmpty) {
       return;
     }
     final immutableBytes = Uint8List.fromList(bytes);
@@ -1280,11 +1346,13 @@ class _NextBatchChunkUploadSession
     _sourceChunkCount += 1;
     _transportBuffer.add(immutableBytes);
     if (_sourceChunkCount % _sourceChunksPerTransportUpload == 0) {
-      _flushTransportBuffer();
+      // Once VAD has entered silence, continue uploading bytes without letting
+      // a regular preview steal the snapshot reserved for terminal prefetch.
+      _flushTransportBuffer(schedulePreview: _speculativeVoiceActive);
     }
   }
 
-  void _flushTransportBuffer() {
+  void _flushTransportBuffer({bool schedulePreview = true}) {
     if (_transportBuffer.length == 0) {
       return;
     }
@@ -1296,31 +1364,50 @@ class _NextBatchChunkUploadSession
       bytes: bytes,
       filename: 'chunk-$sequence.pcm',
     );
-    _scheduleSpeculativePreview();
+    if (schedulePreview) {
+      _scheduleSpeculativePreview();
+    }
   }
 
-  void _scheduleSpeculativePreview() {
+  void _scheduleSpeculativePreview({bool terminal = false}) {
+    final terminalAttempt = terminal || _terminalSpeculativePreviewRequested;
+    final activePreviewFuture = terminalAttempt
+        ? _terminalSpeculativePreviewFuture
+        : _speculativePreviewFuture;
     if (!supportsBatchPrefetch ||
         _closed ||
+        (_finalizing && !terminalAttempt) ||
         !_speculativeSpeechDetected ||
         _speculativeContext == null ||
         _speculativeChildAge == null ||
-        _speculativeAttemptCount >= _maxSpeculativeAttempts ||
+        (terminalAttempt
+            ? _speculativeAttemptCount >= _maxSpeculativeAttempts
+            : _speculativeAttemptCount >= _maxRegularSpeculativeAttempts) ||
         _transportChunkCount < 2 ||
-        _transportChunkCount <= _lastSpeculativeAttemptChunkCount ||
-        _speculativePreviewFuture != null) {
+        activePreviewFuture != null) {
+      return;
+    }
+
+    if (_transportChunkCount < _lastSpeculativeAttemptChunkCount) {
+      return;
+    }
+    if (_transportChunkCount == _lastSpeculativeAttemptChunkCount &&
+        (!terminalAttempt ||
+            _transportChunkCount <=
+                _lastTerminalSpeculativeAttemptChunkCount)) {
+      if (terminalAttempt) _terminalSpeculativePreviewRequested = false;
       return;
     }
 
     const minimumInterval = Duration(milliseconds: 700);
     final lastAttemptAt = _lastSpeculativeAttemptAt;
-    final delay = lastAttemptAt == null
+    final delay = terminalAttempt || lastAttemptAt == null
         ? Duration.zero
         : minimumInterval - DateTime.now().difference(lastAttemptAt);
     if (delay > Duration.zero) {
       _speculativePreviewTimer ??= Timer(delay, () {
         _speculativePreviewTimer = null;
-        _scheduleSpeculativePreview();
+        _scheduleSpeculativePreview(terminal: terminalAttempt);
       });
       return;
     }
@@ -1330,6 +1417,20 @@ class _NextBatchChunkUploadSession
     final snapshotChunkCount = _transportChunkCount;
     final snapshotByteLength = _retainedAudioBytes;
     final uploadWatermark = List<Future<void>>.of(_uploadLanes);
+    if (terminalAttempt) {
+      _terminalSpeculativePreviewRequested = false;
+      _terminalSpeculativeAttemptCount += 1;
+      _lastTerminalSpeculativeAttemptChunkCount = snapshotChunkCount;
+      _terminalPreviewCoversLatestSpeech = true;
+      _terminalPreviewStartedAtSessionMs ??=
+          _sessionStopwatch.elapsedMilliseconds;
+      final voiceInactiveAt = _speculativeVoiceInactiveAt;
+      if (voiceInactiveAt != null) {
+        _terminalPreviewStartedAfterVoiceInactiveMs ??= DateTime.now()
+            .difference(voiceInactiveAt)
+            .inMilliseconds;
+      }
+    }
     _speculativeAttemptCount += 1;
     _lastSpeculativeAttemptChunkCount = snapshotChunkCount;
     _lastSpeculativeAttemptAt = DateTime.now();
@@ -1339,18 +1440,32 @@ class _NextBatchChunkUploadSession
       snapshotChunkCount: snapshotChunkCount,
       snapshotByteLength: snapshotByteLength,
       uploadWatermark: uploadWatermark,
+      terminal: terminalAttempt,
     );
-    _speculativePreviewFuture = operation;
+    if (terminalAttempt) {
+      _terminalSpeculativePreviewFuture = operation;
+    } else {
+      _speculativePreviewFuture = operation;
+    }
     unawaited(
       operation
           .whenComplete(() {
-            if (identical(_speculativePreviewFuture, operation)) {
+            if (terminalAttempt) {
+              if (identical(_terminalSpeculativePreviewFuture, operation)) {
+                _terminalSpeculativePreviewFuture = null;
+              }
+            } else if (identical(_speculativePreviewFuture, operation)) {
               _speculativePreviewFuture = null;
             }
             if (!_closed &&
-                (_speculativeVoiceActive ||
-                    _transportChunkCount > _lastSpeculativeAttemptChunkCount)) {
-              _scheduleSpeculativePreview();
+                (_terminalSpeculativePreviewRequested ||
+                    (!_finalizing &&
+                        (_speculativeVoiceActive ||
+                            _transportChunkCount >
+                                _lastSpeculativeAttemptChunkCount)))) {
+              _scheduleSpeculativePreview(
+                terminal: _terminalSpeculativePreviewRequested,
+              );
             }
           })
           .catchError((Object _) {}),
@@ -1363,6 +1478,7 @@ class _NextBatchChunkUploadSession
     required int snapshotChunkCount,
     required int snapshotByteLength,
     required List<Future<void>> uploadWatermark,
+    required bool terminal,
   }) async {
     try {
       await Future.wait<void>(uploadWatermark);
@@ -1376,11 +1492,30 @@ class _NextBatchChunkUploadSession
         childAge: childAge,
         pcmByteLength: snapshotByteLength,
         chunkCount: snapshotChunkCount,
+        terminal: terminal,
         previousPrefetchId: _prefetchId,
       );
       if (result == null || _closed) {
+        if (terminal) {
+          _terminalPreviewCoversLatestSpeech = false;
+          _lastTerminalSpeculativeAttemptChunkCount = math.min(
+            _lastTerminalSpeculativeAttemptChunkCount,
+            math.max(0, snapshotChunkCount - 1),
+          );
+        }
         return;
       }
+      // A slower regular preview may finish after the terminal snapshot. Do
+      // not let that stale response replace the newer prefetch id/audio that
+      // Safari already preloaded.
+      if (result.snapshotChunkCount < _latestAcceptedPreviewChunkCount ||
+          (result.snapshotChunkCount == _latestAcceptedPreviewChunkCount &&
+              _latestAcceptedPreviewWasTerminal &&
+              !terminal)) {
+        return;
+      }
+      _latestAcceptedPreviewChunkCount = result.snapshotChunkCount;
+      _latestAcceptedPreviewWasTerminal = terminal;
       _prefetchId = result.prefetchId;
       _lastSpeculativeAttemptChunkCount = math.max(
         _lastSpeculativeAttemptChunkCount,
@@ -1401,6 +1536,14 @@ class _NextBatchChunkUploadSession
           _lastSpeculativeAttemptChunkCount,
           math.max(0, snapshotChunkCount - 1),
         );
+        if (terminal) {
+          _terminalPreviewCoversLatestSpeech = false;
+          _lastTerminalSpeculativeAttemptChunkCount = math.min(
+            _lastTerminalSpeculativeAttemptChunkCount,
+            math.max(0, snapshotChunkCount - 1),
+          );
+          _terminalSpeculativePreviewRequested = true;
+        }
       }
       developer.log(
         'Speculative Batch preview was skipped.',
@@ -1551,6 +1694,15 @@ class _NextBatchChunkUploadSession
     'recoveryUploadCount': _recoveryUploadCount,
     'batchPrefetchAttemptCount': _speculativeAttemptCount,
     'batchPrefetchTransientRetryCount': _speculativeTransientRetryCount,
+    'batchTerminalPrefetchAttemptCount': _terminalSpeculativeAttemptCount,
+    if (_terminalPreviewStartedAfterVoiceInactiveMs != null)
+      'batchTerminalPreviewStartedAfterSilenceMs':
+          _terminalPreviewStartedAfterVoiceInactiveMs,
+    if (_terminalPreviewStartedAtSessionMs != null &&
+        _finalizeStartedAtSessionMs != null)
+      'batchTerminalPreviewLeadBeforeFinalizeMs':
+          _finalizeStartedAtSessionMs! - _terminalPreviewStartedAtSessionMs!,
+    'batchPrefetchFinalizeWaitMs': 0,
     'batchPrefetchReady': _prefetchId != null,
     if (_firstChunkAckMs != null) 'firstChunkAckMs': _firstChunkAckMs,
     if (_percentile(50) != null) 'chunkUploadP50Ms': _percentile(50),
@@ -1629,55 +1781,52 @@ class _NextBatchChunkUploadSession
     required int childAge,
     required int vadSilenceMs,
   }) async {
-    if (_closed) {
+    if (_closed || _finalizing) {
       throw const ConversationApiException(
         'Audio session đã được hoàn tất hoặc hủy.',
       );
     }
     _speculativePreviewTimer?.cancel();
     _speculativePreviewTimer = null;
-    final speculativePreview = _speculativePreviewFuture;
-    if (_prefetchId == null && speculativePreview != null) {
-      try {
-        await speculativePreview.timeout(_speculativeFinalizeGrace);
-      } on TimeoutException {
-        // Finalization remains authoritative. Never make stop latency depend
-        // on a speculative request that did not finish while the child spoke.
-      }
-    }
-    _closed = true;
-    _flushTransportBuffer();
-    final streamedAudioBytes = capture.streamedAudioBytes;
-    final recordingSampleRate = capture.recordingSampleRate;
-    if (supportsPcm16WavFinalize &&
-        (streamedAudioBytes == null ||
-            streamedAudioBytes <= 0 ||
-            recordingSampleRate == null ||
-            recordingSampleRate <= 0)) {
-      throw const ConversationApiException(
-        'Không tìm thấy metadata PCM của Batch Chunks.',
-      );
-    }
-    final streamHeaderBytes = capture.streamHeaderBytes;
-    if (!supportsPcm16WavFinalize &&
-        (streamHeaderBytes == null || streamHeaderBytes.isEmpty)) {
-      throw const ConversationApiException(
-        'Không tìm thấy WAV header của Batch Chunks.',
-      );
-    }
-
-    if (!supportsPcm16WavFinalize) {
-      _scheduleNewUpload(
-        sequence: 0,
-        bytes: streamHeaderBytes!,
-        filename: 'header.wav',
-      );
-    }
-    final uploadDrainStopwatch = Stopwatch()..start();
-    await _drainPendingUploads();
-    uploadDrainStopwatch.stop();
-
+    // Finalize immediately after the last PCM flush. Any terminal preview
+    // already in flight stays alive and is coordinated by the backend; the
+    // browser never waits locally for a speculative result.
+    _finalizing = true;
+    _finalizeStartedAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
     try {
+      // Stop accepting recorder input, but keep the already-running preview
+      // request and its stream alive until the finalize request completes.
+      _flushTransportBuffer(schedulePreview: false);
+      final streamedAudioBytes = capture.streamedAudioBytes;
+      final recordingSampleRate = capture.recordingSampleRate;
+      if (supportsPcm16WavFinalize &&
+          (streamedAudioBytes == null ||
+              streamedAudioBytes <= 0 ||
+              recordingSampleRate == null ||
+              recordingSampleRate <= 0)) {
+        throw const ConversationApiException(
+          'Không tìm thấy metadata PCM của Batch Chunks.',
+        );
+      }
+      final streamHeaderBytes = capture.streamHeaderBytes;
+      if (!supportsPcm16WavFinalize &&
+          (streamHeaderBytes == null || streamHeaderBytes.isEmpty)) {
+        throw const ConversationApiException(
+          'Không tìm thấy WAV header của Batch Chunks.',
+        );
+      }
+
+      if (!supportsPcm16WavFinalize) {
+        _scheduleNewUpload(
+          sequence: 0,
+          bytes: streamHeaderBytes!,
+          filename: 'header.wav',
+        );
+      }
+      final uploadDrainStopwatch = Stopwatch()..start();
+      await _drainPendingUploads();
+      uploadDrainStopwatch.stop();
+
       return await _finalizeWithMissingRecovery(
         capture: capture,
         context: context,
@@ -1686,6 +1835,8 @@ class _NextBatchChunkUploadSession
         uploadDrainMs: uploadDrainStopwatch.elapsedMilliseconds,
       );
     } finally {
+      _closed = true;
+      _finalizing = false;
       _retainedChunks.clear();
       _retainedAudioBytes = 0;
       if (!_speculativePreviewController.isClosed) {

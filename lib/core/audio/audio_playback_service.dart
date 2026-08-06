@@ -13,11 +13,19 @@ class PlaybackStartMetrics {
     required this.audioLoadDuration,
     required this.startedAfterRequest,
     required this.fromDeviceCache,
+    this.preloadedSourceLoaded = false,
+    this.preloadedSourceReady = false,
+    this.preloadLoadedDuration,
+    this.preloadReadyDuration,
   });
 
   final Duration audioLoadDuration;
   final Duration startedAfterRequest;
   final bool fromDeviceCache;
+  final bool preloadedSourceLoaded;
+  final bool preloadedSourceReady;
+  final Duration? preloadLoadedDuration;
+  final Duration? preloadReadyDuration;
 }
 
 abstract interface class AudioPlaybackService {
@@ -221,6 +229,13 @@ class JustAudioPlaybackService
     }
 
     final requestedAt = DateTime.now();
+    final reusedPreloadedSource = browserPlayback.hasPreloadedSource(uri);
+    final preloadedSourceLoaded = browserPlayback.hasLoadedPreloadedSource(uri);
+    final preloadedSourceReady = browserPlayback.hasReadyPreloadedSource(uri);
+    final preloadLoadedDuration = browserPlayback.preloadedSourceLoadedAfter(
+      uri,
+    );
+    final preloadReadyDuration = browserPlayback.preloadedSourceReadyAfter(uri);
     try {
       // The browser implementation invokes HTMLMediaElement.play() before its
       // first await, preserving Safari's transient activation for this tap.
@@ -231,7 +246,11 @@ class JustAudioPlaybackService
       return PlaybackStartMetrics(
         audioLoadDuration: Duration.zero,
         startedAfterRequest: DateTime.now().difference(requestedAt),
-        fromDeviceCache: false,
+        fromDeviceCache: reusedPreloadedSource,
+        preloadedSourceLoaded: preloadedSourceLoaded,
+        preloadedSourceReady: preloadedSourceReady,
+        preloadLoadedDuration: preloadLoadedDuration,
+        preloadReadyDuration: preloadReadyDuration,
       );
     } catch (error) {
       debugPrint('Direct web playback failed: $error');
@@ -360,6 +379,17 @@ class JustAudioPlaybackService
     final requestedAt = DateTime.now();
     final browserPlayback = _browserPlayback;
     if (browserPlayback != null) {
+      final reusedPreloadedSource = browserPlayback.hasPreloadedSource(uri);
+      final preloadedSourceLoaded = browserPlayback.hasLoadedPreloadedSource(
+        uri,
+      );
+      final preloadedSourceReady = browserPlayback.hasReadyPreloadedSource(uri);
+      final preloadLoadedDuration = browserPlayback.preloadedSourceLoadedAfter(
+        uri,
+      );
+      final preloadReadyDuration = browserPlayback.preloadedSourceReadyAfter(
+        uri,
+      );
       final loadStartedAt = DateTime.now();
       try {
         await browserPlayback.play(uri);
@@ -375,7 +405,13 @@ class JustAudioPlaybackService
       return PlaybackStartMetrics(
         audioLoadDuration: startedAt.difference(loadStartedAt),
         startedAfterRequest: startedAt.difference(requestedAt),
-        fromDeviceCache: false,
+        // On Web this flag means no second network source was assigned after
+        // finalize: the exact HTMLAudioElement preload continued into play().
+        fromDeviceCache: reusedPreloadedSource,
+        preloadedSourceLoaded: preloadedSourceLoaded,
+        preloadedSourceReady: preloadedSourceReady,
+        preloadLoadedDuration: preloadLoadedDuration,
+        preloadReadyDuration: preloadReadyDuration,
       );
     }
 
