@@ -413,6 +413,7 @@ class NextConversationRepository
     required int chunkCount,
     required bool terminal,
     String? previousPrefetchId,
+    Map<String, dynamic>? benchmark,
   }) async {
     final response = await _client
         .post(
@@ -427,6 +428,7 @@ class NextConversationRepository
             'childAge': childAge,
             'terminal': terminal,
             'previousPrefetchId': ?previousPrefetchId,
+            'benchmark': ?benchmark,
             'pcm16Wav': <String, dynamic>{
               'sampleRate': pcm16SampleRate,
               'channelCount': pcm16ChannelCount,
@@ -1209,6 +1211,8 @@ class _NextBatchChunkUploadSession
   final BytesBuilder _transportBuffer = BytesBuilder(copy: false);
   final Map<int, _RetainedTransportChunk> _retainedChunks =
       <int, _RetainedTransportChunk>{};
+  final Map<int, int> _transportChunkByteLengths = <int, int>{};
+  final Set<int> _ackedTransportSequences = <int>{};
   final List<int> _chunkUploadDurationsMs = <int>[];
   final Stopwatch _sessionStopwatch = Stopwatch();
   final StreamController<ConversationPreview> _speculativePreviewController =
@@ -1218,6 +1222,9 @@ class _NextBatchChunkUploadSession
   var _sourceChunkCount = 0;
   var _sourceChunksPerTransportUpload = _defaultSourceChunksPerTransportUpload;
   var _transportChunkCount = 0;
+  late var _nextContiguousAckSequence = supportsPcm16WavFinalize ? 0 : 1;
+  var _contiguousAckedChunkCount = 0;
+  var _contiguousAckedPcmByteLength = 0;
   var _audioByteCount = 0;
   var _retainedAudioBytes = 0;
   var _chunkRetryCount = 0;
@@ -1237,10 +1244,17 @@ class _NextBatchChunkUploadSession
   int _speculativeAttemptCount = 0;
   int _speculativeTransientRetryCount = 0;
   int _terminalSpeculativeAttemptCount = 0;
+  int _terminalDuplicateSuppressed = 0;
+  int _speechGeneration = 0;
+  int _lastTerminalSpeechGeneration = 0;
   DateTime? _speculativeVoiceInactiveAt;
+  int? _vadSilenceAtSessionMs;
+  int? _terminalPreviewRequestedAtSessionMs;
+  int? _terminalPipelineStartedAtSessionMs;
+  int? _terminalUploadWaitMs;
+  int? _terminalSnapshotAckedChunkCount;
+  int? _finalizeRequestSentAtSessionMs;
   int? _terminalPreviewStartedAfterVoiceInactiveMs;
-  int? _terminalPreviewStartedAtSessionMs;
-  int? _finalizeStartedAtSessionMs;
   int _lastSpeculativeAttemptChunkCount = 0;
   int _lastTerminalSpeculativeAttemptChunkCount = 0;
   DateTime? _lastSpeculativeAttemptAt;
@@ -1278,7 +1292,26 @@ class _NextBatchChunkUploadSession
     if (!supportsBatchPrefetch || _closed || _finalizing) {
       return;
     }
+    final firstDetection = !_speculativeSpeechDetected;
     _speculativeSpeechDetected = true;
+    if (firstDetection) {
+      _speechGeneration = 1;
+    } else if (_terminalSpeculativePreviewRequested ||
+        _terminalSpeculativeAttemptCount > 0 ||
+        _terminalSpeculativePreviewFuture != null ||
+        _terminalPreviewCoversLatestSpeech) {
+      // Only an actual VAD speech-start event opens a new terminal generation.
+      // Raw voice-active/noise frames are deliberately insufficient because
+      // they previously caused a silence-only final chunk to launch ASR twice.
+      _speechGeneration += 1;
+      _terminalSpeculativePreviewRequested = false;
+      _terminalPreviewCoversLatestSpeech = false;
+      _terminalPreviewRequestedAtSessionMs = null;
+      _terminalPipelineStartedAtSessionMs = null;
+      _terminalUploadWaitMs = null;
+      _terminalSnapshotAckedChunkCount = null;
+      _terminalPreviewStartedAfterVoiceInactiveMs = null;
+    }
     _scheduleSpeculativePreview();
   }
 
@@ -1286,19 +1319,17 @@ class _NextBatchChunkUploadSession
   void markSpeculativeVoiceActive() {
     _speculativeVoiceActive = true;
     _speculativeVoiceInactiveAt = null;
-    // A voice-active frame after an earlier terminal snapshot means that
-    // snapshot can no longer represent the end of the utterance. Pure silence
-    // chunks do not clear this flag, so stop() will preserve useful early work.
-    _terminalPreviewCoversLatestSpeech = false;
-    if (!_finalizing) {
-      _terminalSpeculativePreviewRequested = false;
-    }
+    _vadSilenceAtSessionMs = null;
+    // Do not invalidate terminal work for a raw voice-active frame. A new
+    // terminal generation is opened by markSpeculativeSpeechDetected(), which
+    // represents a confirmed VAD speech start rather than transient noise.
   }
 
   @override
   void markSpeculativeVoiceInactive() {
     if (_speculativeVoiceActive || _speculativeVoiceInactiveAt == null) {
       _speculativeVoiceInactiveAt = DateTime.now();
+      _vadSilenceAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
     }
     _speculativeVoiceActive = false;
     if (!supportsBatchPrefetch ||
@@ -1323,10 +1354,13 @@ class _NextBatchChunkUploadSession
         _speculativeChildAge == null) {
       return;
     }
+    _terminalPreviewRequestedAtSessionMs ??=
+        _sessionStopwatch.elapsedMilliseconds;
     if (_terminalPreviewCoversLatestSpeech) {
       // Recorder stop can append one final silence-only PCM frame. Keep the
       // terminal pipeline that already started during VAD silence; backend tail
       // validation decides whether that earlier snapshot remains authoritative.
+      _terminalDuplicateSuppressed += 1;
       return;
     }
     _terminalSpeculativePreviewRequested = true;
@@ -1364,39 +1398,58 @@ class _NextBatchChunkUploadSession
       bytes: bytes,
       filename: 'chunk-$sequence.pcm',
     );
-    if (schedulePreview) {
+    if (_terminalSpeculativePreviewRequested && !_speculativeVoiceActive) {
+      // A terminal request can arrive before the second transport chunk is
+      // available. Wake it as soon as the next silence chunk is flushed;
+      // otherwise it would remain pending until recorder.stop().
+      _scheduleSpeculativePreview(terminal: true);
+    } else if (schedulePreview) {
       _scheduleSpeculativePreview();
     }
   }
 
   void _scheduleSpeculativePreview({bool terminal = false}) {
     final terminalAttempt = terminal || _terminalSpeculativePreviewRequested;
+    final availableChunkCount = terminalAttempt
+        ? _contiguousAckedChunkCount
+        : _transportChunkCount;
     final activePreviewFuture = terminalAttempt
         ? _terminalSpeculativePreviewFuture
         : _speculativePreviewFuture;
     if (!supportsBatchPrefetch ||
         _closed ||
         (_finalizing && !terminalAttempt) ||
+        (terminalAttempt && _speculativeVoiceActive) ||
         !_speculativeSpeechDetected ||
         _speculativeContext == null ||
         _speculativeChildAge == null ||
         (terminalAttempt
             ? _speculativeAttemptCount >= _maxSpeculativeAttempts
             : _speculativeAttemptCount >= _maxRegularSpeculativeAttempts) ||
-        _transportChunkCount < 2 ||
+        availableChunkCount < 2 ||
         activePreviewFuture != null) {
       return;
     }
 
-    if (_transportChunkCount < _lastSpeculativeAttemptChunkCount) {
-      return;
-    }
-    if (_transportChunkCount == _lastSpeculativeAttemptChunkCount &&
-        (!terminalAttempt ||
-            _transportChunkCount <=
-                _lastTerminalSpeculativeAttemptChunkCount)) {
-      if (terminalAttempt) _terminalSpeculativePreviewRequested = false;
-      return;
+    if (terminalAttempt) {
+      final hasPreviousTerminal = _lastTerminalSpeculativeAttemptChunkCount > 0;
+      final hasNewAckedSnapshot =
+          availableChunkCount > _lastTerminalSpeculativeAttemptChunkCount;
+      final hasConfirmedNewSpeech =
+          _speechGeneration > _lastTerminalSpeechGeneration;
+      if (hasPreviousTerminal &&
+          !(hasNewAckedSnapshot && hasConfirmedNewSpeech)) {
+        _terminalSpeculativePreviewRequested = false;
+        _terminalDuplicateSuppressed += 1;
+        return;
+      }
+    } else {
+      if (availableChunkCount < _lastSpeculativeAttemptChunkCount) {
+        return;
+      }
+      if (availableChunkCount == _lastSpeculativeAttemptChunkCount) {
+        return;
+      }
     }
 
     const minimumInterval = Duration(milliseconds: 700);
@@ -1414,16 +1467,20 @@ class _NextBatchChunkUploadSession
 
     final context = _speculativeContext!;
     final childAge = _speculativeChildAge!;
-    final snapshotChunkCount = _transportChunkCount;
-    final snapshotByteLength = _retainedAudioBytes;
-    final uploadWatermark = List<Future<void>>.of(_uploadLanes);
+    final snapshotChunkCount = availableChunkCount;
+    final snapshotByteLength = terminalAttempt
+        ? _contiguousAckedPcmByteLength
+        : _retainedAudioBytes;
+    final uploadWatermark = terminalAttempt
+        ? const <Future<void>>[]
+        : List<Future<void>>.of(_uploadLanes);
     if (terminalAttempt) {
       _terminalSpeculativePreviewRequested = false;
       _terminalSpeculativeAttemptCount += 1;
       _lastTerminalSpeculativeAttemptChunkCount = snapshotChunkCount;
+      _lastTerminalSpeechGeneration = _speechGeneration;
+      _terminalSnapshotAckedChunkCount = snapshotChunkCount;
       _terminalPreviewCoversLatestSpeech = true;
-      _terminalPreviewStartedAtSessionMs ??=
-          _sessionStopwatch.elapsedMilliseconds;
       final voiceInactiveAt = _speculativeVoiceInactiveAt;
       if (voiceInactiveAt != null) {
         _terminalPreviewStartedAfterVoiceInactiveMs ??= DateTime.now()
@@ -1432,7 +1489,10 @@ class _NextBatchChunkUploadSession
       }
     }
     _speculativeAttemptCount += 1;
-    _lastSpeculativeAttemptChunkCount = snapshotChunkCount;
+    _lastSpeculativeAttemptChunkCount = math.max(
+      _lastSpeculativeAttemptChunkCount,
+      snapshotChunkCount,
+    );
     _lastSpeculativeAttemptAt = DateTime.now();
     final operation = _requestSpeculativePreview(
       context: context,
@@ -1460,9 +1520,9 @@ class _NextBatchChunkUploadSession
             if (!_closed &&
                 (_terminalSpeculativePreviewRequested ||
                     (!_finalizing &&
-                        (_speculativeVoiceActive ||
-                            _transportChunkCount >
-                                _lastSpeculativeAttemptChunkCount)))) {
+                        _speculativeVoiceActive &&
+                        _transportChunkCount >
+                            _lastSpeculativeAttemptChunkCount))) {
               _scheduleSpeculativePreview(
                 terminal: _terminalSpeculativePreviewRequested,
               );
@@ -1485,6 +1545,17 @@ class _NextBatchChunkUploadSession
       if (_closed) {
         return;
       }
+      if (terminal) {
+        final pipelineStartedAt = _sessionStopwatch.elapsedMilliseconds;
+        _terminalPipelineStartedAtSessionMs ??= pipelineStartedAt;
+        final requestedAt = _terminalPreviewRequestedAtSessionMs;
+        if (requestedAt != null) {
+          _terminalUploadWaitMs ??= math.max(
+            0,
+            pipelineStartedAt - requestedAt,
+          );
+        }
+      }
       final result = await _repository._previewAudioSession(
         audioSessionId: audioSessionId,
         uploadToken: uploadToken,
@@ -1494,14 +1565,29 @@ class _NextBatchChunkUploadSession
         chunkCount: snapshotChunkCount,
         terminal: terminal,
         previousPrefetchId: _prefetchId,
+        benchmark: terminal
+            ? <String, dynamic>{
+                if (_vadSilenceAtSessionMs != null)
+                  'batchVadSilenceAtSessionMs': _vadSilenceAtSessionMs,
+                if (_terminalPreviewRequestedAtSessionMs != null)
+                  'batchTerminalRequestSentAtSessionMs':
+                      _terminalPreviewRequestedAtSessionMs,
+                if (_terminalPipelineStartedAtSessionMs != null)
+                  'batchTerminalPipelineStartedAtSessionMs':
+                      _terminalPipelineStartedAtSessionMs,
+                if (_terminalUploadWaitMs != null)
+                  'batchTerminalUploadWaitMs': _terminalUploadWaitMs,
+                if (_terminalSnapshotAckedChunkCount != null)
+                  'batchTerminalSnapshotAckedChunkCount':
+                      _terminalSnapshotAckedChunkCount,
+                'batchTerminalDuplicateSuppressed':
+                    _terminalDuplicateSuppressed,
+              }
+            : null,
       );
       if (result == null || _closed) {
         if (terminal) {
           _terminalPreviewCoversLatestSpeech = false;
-          _lastTerminalSpeculativeAttemptChunkCount = math.min(
-            _lastTerminalSpeculativeAttemptChunkCount,
-            math.max(0, snapshotChunkCount - 1),
-          );
         }
         return;
       }
@@ -1526,23 +1612,21 @@ class _NextBatchChunkUploadSession
       }
     } catch (error, stackTrace) {
       if (_isRetryableConversationRequest(error) && !_closed) {
-        // A timeout, 429 or provider 5xx should not consume the small
-        // speculative budget. Allow the same uploaded snapshot to retry after
-        // the normal minimum interval; content-quality failures still wait
-        // for more speech before another attempt.
-        _speculativeAttemptCount = math.max(0, _speculativeAttemptCount - 1);
+        // A regular preview may retry a transient provider failure. Terminal
+        // snapshots do not retry: finalize is already the authoritative
+        // fallback and a second terminal used to duplicate Cloudflare work.
         _speculativeTransientRetryCount += 1;
-        _lastSpeculativeAttemptChunkCount = math.min(
-          _lastSpeculativeAttemptChunkCount,
-          math.max(0, snapshotChunkCount - 1),
-        );
         if (terminal) {
+          // Finalize remains the authoritative fallback. Never relaunch the
+          // same terminal snapshot after timeout/429/5xx; this was the source
+          // of duplicate Cloudflare pipelines several seconds apart.
           _terminalPreviewCoversLatestSpeech = false;
-          _lastTerminalSpeculativeAttemptChunkCount = math.min(
-            _lastTerminalSpeculativeAttemptChunkCount,
+        } else {
+          _speculativeAttemptCount = math.max(0, _speculativeAttemptCount - 1);
+          _lastSpeculativeAttemptChunkCount = math.min(
+            _lastSpeculativeAttemptChunkCount,
             math.max(0, snapshotChunkCount - 1),
           );
-          _terminalSpeculativePreviewRequested = true;
         }
       }
       developer.log(
@@ -1564,6 +1648,7 @@ class _NextBatchChunkUploadSession
       bytes: bytes,
       filename: filename,
     );
+    _transportChunkByteLengths[sequence] = bytes.length;
     if (_retainedAudioBytes + bytes.length <= _maxRetainedAudioBytes) {
       _retainedChunks[sequence] = chunk;
       _retainedAudioBytes += bytes.length;
@@ -1605,6 +1690,7 @@ class _NextBatchChunkUploadSession
         uploadStopwatch.stop();
         _chunkUploadDurationsMs.add(uploadStopwatch.elapsedMilliseconds);
         _firstChunkAckMs ??= _sessionStopwatch.elapsedMilliseconds;
+        _markTransportChunkAcked(chunk.sequence);
         return;
       } catch (error) {
         uploadStopwatch.stop();
@@ -1634,6 +1720,23 @@ class _NextBatchChunkUploadSession
     throw ConversationApiException(
       'Không upload được audio chunk ${chunk.sequence}: $lastError',
     );
+  }
+
+  void _markTransportChunkAcked(int sequence) {
+    if (!_ackedTransportSequences.add(sequence)) {
+      return;
+    }
+    while (_ackedTransportSequences.remove(_nextContiguousAckSequence)) {
+      _contiguousAckedPcmByteLength +=
+          _transportChunkByteLengths[_nextContiguousAckSequence] ?? 0;
+      _contiguousAckedChunkCount += 1;
+      _nextContiguousAckSequence += 1;
+    }
+    if (_terminalSpeculativePreviewRequested && !_speculativeVoiceActive) {
+      // The terminal snapshot is defined only by the contiguous chunk prefix
+      // already acknowledged by the backend. No upload-lane drain is needed.
+      _scheduleSpeculativePreview(terminal: true);
+    }
   }
 
   Future<void> _drainPendingUploads() async {
@@ -1695,13 +1798,31 @@ class _NextBatchChunkUploadSession
     'batchPrefetchAttemptCount': _speculativeAttemptCount,
     'batchPrefetchTransientRetryCount': _speculativeTransientRetryCount,
     'batchTerminalPrefetchAttemptCount': _terminalSpeculativeAttemptCount,
+    'batchTerminalDuplicateSuppressed': _terminalDuplicateSuppressed,
+    if (_terminalUploadWaitMs != null)
+      'batchTerminalUploadWaitMs': _terminalUploadWaitMs,
+    if (_terminalSnapshotAckedChunkCount != null)
+      'batchTerminalSnapshotAckedChunkCount': _terminalSnapshotAckedChunkCount,
+    'batchFinalSnapshotChunkCount': _transportChunkCount,
     if (_terminalPreviewStartedAfterVoiceInactiveMs != null)
       'batchTerminalPreviewStartedAfterSilenceMs':
           _terminalPreviewStartedAfterVoiceInactiveMs,
-    if (_terminalPreviewStartedAtSessionMs != null &&
-        _finalizeStartedAtSessionMs != null)
-      'batchTerminalPreviewLeadBeforeFinalizeMs':
-          _finalizeStartedAtSessionMs! - _terminalPreviewStartedAtSessionMs!,
+    if (_vadSilenceAtSessionMs != null)
+      'batchVadSilenceAtSessionMs': _vadSilenceAtSessionMs,
+    if (_terminalPreviewRequestedAtSessionMs != null)
+      'batchTerminalRequestSentAtSessionMs':
+          _terminalPreviewRequestedAtSessionMs,
+    if (_terminalPipelineStartedAtSessionMs != null)
+      'batchTerminalPipelineStartedAtSessionMs':
+          _terminalPipelineStartedAtSessionMs,
+    if (_finalizeRequestSentAtSessionMs != null)
+      'batchFinalizeRequestSentAtSessionMs': _finalizeRequestSentAtSessionMs,
+    if (_terminalPipelineStartedAtSessionMs != null &&
+        _finalizeRequestSentAtSessionMs != null)
+      'batchTerminalPreviewLeadBeforeFinalizeMs': math.max(
+        0,
+        _finalizeRequestSentAtSessionMs! - _terminalPipelineStartedAtSessionMs!,
+      ),
     'batchPrefetchFinalizeWaitMs': 0,
     'batchPrefetchReady': _prefetchId != null,
     if (_firstChunkAckMs != null) 'firstChunkAckMs': _firstChunkAckMs,
@@ -1732,6 +1853,8 @@ class _NextBatchChunkUploadSession
       recoveryRound += 1
     ) {
       try {
+        _finalizeRequestSentAtSessionMs ??=
+            _sessionStopwatch.elapsedMilliseconds;
         return await _repository._finalizeAudioSession(
           clientId: await _repository._clientId,
           audioSessionId: audioSessionId,
@@ -1792,7 +1915,6 @@ class _NextBatchChunkUploadSession
     // already in flight stays alive and is coordinated by the backend; the
     // browser never waits locally for a speculative result.
     _finalizing = true;
-    _finalizeStartedAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
     try {
       // Stop accepting recorder input, but keep the already-running preview
       // request and its stream alive until the finalize request completes.
@@ -1838,6 +1960,8 @@ class _NextBatchChunkUploadSession
       _closed = true;
       _finalizing = false;
       _retainedChunks.clear();
+      _transportChunkByteLengths.clear();
+      _ackedTransportSequences.clear();
       _retainedAudioBytes = 0;
       if (!_speculativePreviewController.isClosed) {
         await _speculativePreviewController.close();
@@ -1856,6 +1980,8 @@ class _NextBatchChunkUploadSession
     _speculativePreviewTimer = null;
     _transportBuffer.takeBytes();
     _retainedChunks.clear();
+    _transportChunkByteLengths.clear();
+    _ackedTransportSequences.clear();
     _retainedAudioBytes = 0;
     final uploads = List<Future<void>>.of(_pendingUploads);
     _pendingUploads.clear();

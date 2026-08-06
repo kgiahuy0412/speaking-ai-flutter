@@ -15,6 +15,19 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   _HtmlAudioElementPlayback() {
     _element.crossOrigin = 'anonymous';
     _element.preload = 'auto';
+    _element.setAttribute('playsinline', '');
+    _element.setAttribute('webkit-playsinline', '');
+    _element.setAttribute('aria-hidden', 'true');
+    // iOS Safari can defer network activity for a detached media element even
+    // with preload=auto. Keep the one unlocked element in the document for its
+    // entire lifetime so terminal prefetch and final playback share the same
+    // response buffer.
+    _element.setAttribute(
+      'style',
+      'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;'
+          'left:-10000px;top:-10000px;',
+    );
+    web.document.body?.appendChild(_element);
     _endedListener = ((web.Event _) => _emitPlaying(false)).toJS;
     _timeUpdateListener = ((web.Event _) => _onTimeUpdate()).toJS;
     _durationChangeListener = ((web.Event _) => _emitDuration()).toJS;
@@ -53,6 +66,8 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   DateTime? _preloadRequestedAt;
   DateTime? _preloadLoadedAt;
   DateTime? _preloadReadyAt;
+  Completer<void>? _preloadLoadedCompleter;
+  Completer<void>? _preloadReadyCompleter;
   bool _unlocked = false;
   bool _playing = false;
   bool _disposed = false;
@@ -120,6 +135,10 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
       return;
     }
     _preloadLoadedAt ??= DateTime.now();
+    final completer = _preloadLoadedCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
   }
 
   void _markPreloadReady() {
@@ -130,6 +149,10 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
       return;
     }
     _preloadReadyAt ??= DateTime.now();
+    final completer = _preloadReadyCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
   }
 
   void _emitPlaying(bool value) {
@@ -176,9 +199,11 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     if (_sourceUri == uri) {
       return;
     }
+    // Publish identity before load(); cached Safari responses may dispatch a
+    // readiness event synchronously from the load call.
+    _sourceUri = uri;
     _element.src = uri.isScheme('asset') ? 'assets${uri.path}' : uri.toString();
     _element.load();
-    _sourceUri = uri;
     if (!_positionController.isClosed) {
       _positionController.add(Duration.zero);
     }
@@ -238,6 +263,8 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
       _preloadRequestedAt = DateTime.now();
       _preloadLoadedAt = null;
       _preloadReadyAt = null;
+      _preloadLoadedCompleter = Completer<void>();
+      _preloadReadyCompleter = Completer<void>();
     }
     _preloadedSourceUri = uri;
     _setSource(uri);
@@ -246,6 +273,18 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     // HAVE_FUTURE_DATA (the threshold used by the `canplay` event).
     if (_element.readyState >= 2) _markPreloadLoaded();
     if (_element.readyState >= 3) _markPreloadReady();
+    final ready = _preloadReadyCompleter;
+    if (ready != null && !ready.isCompleted) {
+      try {
+        // The conversation controller deliberately does not await this future;
+        // it keeps tracking the actual Safari readiness transition while the
+        // backend finalize request is running.
+        await ready.future.timeout(const Duration(milliseconds: 1800));
+      } on TimeoutException {
+        // Playback remains attached to this same in-flight element. A timeout
+        // is diagnostic, not a reason to replace the source and restart I/O.
+      }
+    }
   }
 
   @override
@@ -306,11 +345,14 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
     _element.removeEventListener('error', _errorListener);
     _element.removeAttribute('src');
     _element.load();
+    _element.parentNode?.removeChild(_element);
     _sourceUri = null;
     _preloadedSourceUri = null;
     _preloadRequestedAt = null;
     _preloadLoadedAt = null;
     _preloadReadyAt = null;
+    _preloadLoadedCompleter = null;
+    _preloadReadyCompleter = null;
     await Future.wait<void>(<Future<void>>[
       _playingController.close(),
       _positionController.close(),

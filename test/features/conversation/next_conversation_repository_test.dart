@@ -901,6 +901,277 @@ void main() {
   );
 
   test(
+    'starts a pending terminal preview when the next silence chunk is flushed',
+    () async {
+      final previewBodies = <Map<String, dynamic>>[];
+      final terminalPreviewStarted = Completer<void>();
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_pending_terminal',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            previewBodies.add(body);
+            if (body['terminal'] == true &&
+                !terminalPreviewStarted.isCompleted) {
+              terminalPreviewStarted.complete();
+            }
+            final pcm = body['pcm16Wav'] as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': 'prefetch_pending_terminal',
+                'sourceText': 'Con muon uong nuoc',
+                'englishText': 'Can I have some water, please?',
+                'textSource': 'phrase_rule',
+                'audioUrl': '/api/audio/cache/pending-terminal.mp3',
+                'audioSource': 'cache',
+                'snapshotChunkCount': pcm['chunkCount'],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/discard')) {
+            return http.Response('{}', 200);
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+
+      // Three 200 ms source chunks create only one transport chunk, so the
+      // terminal request must remain pending instead of being discarded.
+      for (var index = 0; index < 3; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      speculative.markSpeculativeVoiceInactive();
+      speculative.requestTerminalSpeculativePreview();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(previewBodies, isEmpty);
+
+      // The next silence transport chunk reaches the backend before stop().
+      for (var index = 0; index < 3; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      await terminalPreviewStarted.future.timeout(
+        const Duration(milliseconds: 500),
+      );
+      expect(previewBodies, hasLength(1));
+      expect(previewBodies.single['terminal'], isTrue);
+      expect(
+        (previewBodies.single['pcm16Wav']
+            as Map<String, dynamic>)['chunkCount'],
+        2,
+      );
+      expect(
+        previewBodies.single['benchmark'],
+        containsPair('batchTerminalPipelineStartedAtSessionMs', isA<int>()),
+      );
+
+      await upload.discard();
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'terminal uses the ACKed snapshot and suppresses a duplicate while the tail uploads',
+    () async {
+      final previewBodies = <Map<String, dynamic>>[];
+      Map<String, dynamic>? finalizeBody;
+      final regularPreviewStarted = Completer<void>();
+      final terminalPreviewStarted = Completer<void>();
+      final thirdUploadStarted = Completer<void>();
+      final releaseThirdUpload = Completer<void>();
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_acked_terminal',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            final body = latin1.decode(request.bodyBytes);
+            final sequence = int.parse(
+              RegExp(
+                r'name="sequence"\r\n\r\n(\d+)',
+              ).firstMatch(body)!.group(1)!,
+            );
+            if (sequence == 2) {
+              if (!thirdUploadStarted.isCompleted) {
+                thirdUploadStarted.complete();
+              }
+              await releaseThirdUpload.future;
+            }
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/preview')) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            previewBodies.add(body);
+            final terminal = body['terminal'] == true;
+            if (terminal) {
+              if (!terminalPreviewStarted.isCompleted) {
+                terminalPreviewStarted.complete();
+              }
+            } else if (!regularPreviewStarted.isCompleted) {
+              regularPreviewStarted.complete();
+            }
+            final pcm = body['pcm16Wav'] as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'eligible': true,
+                'prefetchId': terminal
+                    ? 'prefetch_acked_terminal'
+                    : 'prefetch_acked_regular',
+                'sourceText': 'Con muon di ve sinh',
+                'englishText': 'I need to use the bathroom.',
+                'textSource': 'phrase_rule',
+                'audioUrl': '/api/audio/cache/acked-terminal.mp3',
+                'audioSource': 'cache',
+                'snapshotChunkCount': pcm['chunkCount'],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_acked_terminal',
+                'sessionId': 'sess_acked_terminal',
+                'context': 'home',
+                'vietnameseText': 'Con muon di ve sinh',
+                'englishText': 'I need to use the bathroom.',
+                'audioUrl': '/api/audio/cache/acked-terminal.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 0,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 20,
+                },
+              }),
+              200,
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+
+      for (var index = 0; index < 6; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      await regularPreviewStarted.future.timeout(
+        const Duration(milliseconds: 500),
+      );
+
+      speculative.markSpeculativeVoiceInactive();
+      for (var index = 0; index < 3; index += 1) {
+        upload.addAudioChunk(Uint8List(6400));
+      }
+      await thirdUploadStarted.future.timeout(
+        const Duration(milliseconds: 500),
+      );
+
+      speculative.requestTerminalSpeculativePreview();
+      await terminalPreviewStarted.future.timeout(
+        const Duration(milliseconds: 500),
+      );
+      final terminalBodies = previewBodies
+          .where((body) => body['terminal'] == true)
+          .toList(growable: false);
+      expect(terminalBodies, hasLength(1));
+      expect(
+        (terminalBodies.single['pcm16Wav']
+            as Map<String, dynamic>)['chunkCount'],
+        2,
+      );
+      expect(
+        terminalBodies.single['benchmark'],
+        containsPair('batchTerminalSnapshotAckedChunkCount', 2),
+      );
+
+      // A second stop boundary for the same speech/snapshot must not create a
+      // second terminal HTTP request.
+      speculative.requestTerminalSpeculativePreview();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(
+        previewBodies.where((body) => body['terminal'] == true),
+        hasLength(1),
+      );
+
+      releaseThirdUpload.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(previewBodies, hasLength(2));
+      await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'acked-terminal.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 1800),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 57600),
+          streamedAudioBytes: 57600,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 900,
+      );
+
+      final benchmark = finalizeBody?['benchmark'] as Map<String, dynamic>;
+      expect(benchmark['batchTerminalDuplicateSuppressed'], greaterThan(0));
+      expect(benchmark['batchTerminalSnapshotAckedChunkCount'], 2);
+      expect(benchmark['batchFinalSnapshotChunkCount'], 3);
+      await repository.dispose();
+    },
+  );
+
+  test(
     'keeps legacy header upload when backend lacks the capability',
     () async {
       final uploadedSequences = <int>[];

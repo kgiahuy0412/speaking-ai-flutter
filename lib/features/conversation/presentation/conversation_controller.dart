@@ -2014,7 +2014,7 @@ class _AdaptiveWebChunkUpload {
   final StreamController<ConversationPreview> _previewController =
       StreamController<ConversationPreview>.broadcast();
 
-  static const _terminalPreviewDelay = Duration(milliseconds: 300);
+  static const _terminalPreviewDelay = Duration(milliseconds: 250);
 
   Timer? _promotionTimer;
   Timer? _terminalPreviewTimer;
@@ -2025,6 +2025,8 @@ class _AdaptiveWebChunkUpload {
   int? _previewChildAge;
   bool _speechDetected = false;
   bool _voiceActive = false;
+  DateTime? _voiceInactiveAt;
+  bool _terminalPreviewDispatched = false;
   bool _terminalPreviewPending = false;
   bool _acceptingChunks = true;
 
@@ -2047,6 +2049,12 @@ class _AdaptiveWebChunkUpload {
   }
 
   void markSpeculativeSpeechDetected() {
+    if (_terminalPreviewDispatched || _terminalPreviewPending) {
+      // A confirmed VAD speech-start event, rather than a raw noisy frame,
+      // opens the next terminal generation.
+      _terminalPreviewDispatched = false;
+      _terminalPreviewPending = false;
+    }
     _speechDetected = true;
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
@@ -2055,10 +2063,13 @@ class _AdaptiveWebChunkUpload {
   }
 
   void markSpeculativeVoiceActive() {
+    final resumedAfterSilence = !_voiceActive && _voiceInactiveAt != null;
     _voiceActive = true;
-    _terminalPreviewTimer?.cancel();
-    _terminalPreviewTimer = null;
-    _terminalPreviewPending = false;
+    if (resumedAfterSilence) {
+      _voiceInactiveAt = null;
+      _terminalPreviewTimer?.cancel();
+      _terminalPreviewTimer = null;
+    }
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
         : null;
@@ -2066,20 +2077,31 @@ class _AdaptiveWebChunkUpload {
   }
 
   void markSpeculativeVoiceInactive() {
+    final firstInactiveFrame = _voiceInactiveAt == null;
     _voiceActive = false;
+    _voiceInactiveAt ??= DateTime.now();
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
         : null;
-    speculative?.markSpeculativeVoiceInactive();
+    if (firstInactiveFrame) {
+      speculative?.markSpeculativeVoiceInactive();
+    }
     if (!_acceptingChunks || !_speechDetected) {
       return;
     }
-    _terminalPreviewTimer?.cancel();
+    // stopRecording() calls this method once more while the source is already
+    // silent. Do not reset the early terminal timer at that boundary.
+    if (_terminalPreviewDispatched ||
+        _terminalPreviewPending ||
+        _terminalPreviewTimer != null) {
+      return;
+    }
     _terminalPreviewTimer = Timer(_terminalPreviewDelay, () {
       _terminalPreviewTimer = null;
       if (!_acceptingChunks || _voiceActive || !_speechDetected) {
         return;
       }
+      _terminalPreviewDispatched = true;
       _terminalPreviewPending = true;
       final terminalSession = _session is SpeculativeBatchChunkUploadSession
           ? _session! as SpeculativeBatchChunkUploadSession
@@ -2094,6 +2116,7 @@ class _AdaptiveWebChunkUpload {
   void requestTerminalSpeculativePreview() {
     _terminalPreviewTimer?.cancel();
     _terminalPreviewTimer = null;
+    _terminalPreviewDispatched = true;
     _terminalPreviewPending = true;
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
@@ -2175,6 +2198,8 @@ class _AdaptiveWebChunkUpload {
         }
         if (_voiceActive) {
           speculative.markSpeculativeVoiceActive();
+        } else if (_voiceInactiveAt != null) {
+          speculative.markSpeculativeVoiceInactive();
         }
         _previewSubscription = speculative.speculativePreviews.listen(
           (preview) {
