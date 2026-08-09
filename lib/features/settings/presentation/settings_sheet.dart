@@ -106,6 +106,10 @@ class SettingsSheet extends StatelessWidget {
                           'BLE • offline fast path • Cloudflare Batch dự phòng',
                           'BLE • 离线快速路径 • Cloudflare 分块备用',
                         ),
+                        AsrMode.workerAsrPilot => context.tr(
+                          'PCM16 16 kHz • Worker ASR Pilot • Batch dự phòng',
+                          'PCM16 16 kHz • Worker 识别试验 • 分块备用',
+                        ),
                         AsrMode.batchChunks => context.tr(
                           kIsWeb
                               ? 'PCM16 • truyền trong lúc nói • Cloudflare chính'
@@ -216,6 +220,10 @@ class SettingsSheet extends StatelessWidget {
                                   AsrMode.bleOfflineIntent => context.tr(
                                     'Tự động cho BLE khi ý định có độ tin cậy cao',
                                     '当意图置信度高时自动用于 BLE',
+                                  ),
+                                  AsrMode.workerAsrPilot => context.tr(
+                                    'Gửi PCM trực tiếp tới Worker thử nghiệm; tự động quay lại Batch khi lỗi',
+                                    '将 PCM 直接发送到试验 Worker；失败时自动回退到分块识别',
                                   ),
                                   AsrMode.batchChunks => context.tr(
                                     'Gửi bản ghi về backend; Cloudflare xử lý nhận dạng, dịch và phát âm',

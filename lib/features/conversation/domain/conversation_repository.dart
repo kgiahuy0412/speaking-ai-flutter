@@ -91,9 +91,14 @@ abstract interface class SpeculativeBatchChunkUploadSession {
 
   void markSpeculativeVoiceInactive();
 
+  /// Adds Web-only recorder/VAD timing to the authoritative benchmark. This
+  /// does not influence finalization; it only explains whether an early
+  /// terminal request really preceded a manual or automatic stop.
+  void updateClientTerminalTelemetry(Map<String, dynamic> telemetry);
+
   /// Captures the newest uploaded PCM snapshot after the recorder has stopped.
   /// This preview is allowed to finish alongside authoritative finalization.
-  void requestTerminalSpeculativePreview();
+  void requestTerminalSpeculativePreview({bool atRecorderStop = false});
 }
 
 abstract interface class ChunkedConversationRepository {

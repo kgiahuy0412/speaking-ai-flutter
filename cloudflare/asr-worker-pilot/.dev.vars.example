@@ -1,0 +1,2 @@
+PILOT_API_TOKEN=replace-with-a-long-random-secret
+PILOT_ALLOWED_ORIGIN=https://replace-with-your-pilot-web-origin.example

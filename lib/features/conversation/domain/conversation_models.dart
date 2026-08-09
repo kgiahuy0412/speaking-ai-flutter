@@ -20,6 +20,7 @@ enum AsrMode {
   // selectable and the production repository rejects new sessions.
   openAiRealtime('openai_realtime', 'Realtime cũ (đã tắt)'),
   bleOfflineIntent('ble_offline_intent', 'BLE offline intent'),
+  workerAsrPilot('browser_streaming', 'Cloudflare Worker ASR Pilot'),
   batchChunks('batch_chunks', 'Cloudflare Batch Chunks'),
   deviceStreaming('device_streaming', 'BLE streaming');
 
@@ -31,7 +32,9 @@ enum AsrMode {
   bool get isBackendSupported => true;
 
   bool get isUserSelectable =>
-      this != AsrMode.openAiRealtime && this != AsrMode.bleOfflineIntent;
+      this != AsrMode.openAiRealtime &&
+      this != AsrMode.bleOfflineIntent &&
+      this != AsrMode.workerAsrPilot;
 }
 
 enum ConversationPhase { idle, recording, processing, ready, error }

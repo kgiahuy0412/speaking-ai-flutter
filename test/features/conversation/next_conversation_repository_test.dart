@@ -22,6 +22,14 @@ void main() {
     useDemoBackend: false,
     childAge: 6,
   );
+  final workerPrepareConfig = AppConfig(
+    backendBaseUri: Uri.parse('https://api.example.com'),
+    useDemoBackend: false,
+    childAge: 6,
+    enableWorkerAsrPilot: true,
+    enableWorkerAsrPrepare: true,
+    workerAsrPilotBaseUri: Uri.parse('https://worker.example'),
+  );
 
   test('requests a non-blocking all-context warm-up on app startup', () async {
     final client = MockClient((request) async {
@@ -389,6 +397,9 @@ void main() {
                 },
               }),
               200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
             );
           }
           if (request.url.path.endsWith('/chunks')) {
@@ -414,6 +425,9 @@ void main() {
                 'snapshotChunkCount': 2,
               }),
               200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
             );
           }
           if (request.url.path.endsWith('/finalize')) {
@@ -438,6 +452,9 @@ void main() {
                 },
               }),
               200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
             );
           }
           fail('Unexpected request: ${request.method} ${request.url}');
@@ -488,6 +505,473 @@ void main() {
       expect(finalizeBody?['prefetchId'], 'prefetch_1');
       final benchmark = finalizeBody?['benchmark'] as Map<String, dynamic>;
       expect(benchmark['chunkIntervalMs'], 600);
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'uses scoped Raw PCM Worker ASR and skips backend Batch finalize on success',
+    () async {
+      var workerCalls = 0;
+      var batchFinalizeCalled = false;
+      Map<String, dynamic>? streamingBody;
+      http.Request? workerRequest;
+      final shadowDiscarded = Completer<void>();
+      final workerRequestStarted = Completer<void>();
+      final releaseWorkerResponse = Completer<void>();
+      final repository = NextConversationRepository(
+        config: workerPrepareConfig,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_v2-worker-success',
+                'uploadToken': 'scoped.payload.signature',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'chunkChecksumSha256': true,
+                  'scopedUploadToken': true,
+                  'uploadProtocolVersion': 2,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.host == 'worker.example') {
+            workerCalls += 1;
+            workerRequest = request;
+            if (!workerRequestStarted.isCompleted) {
+              workerRequestStarted.complete();
+            }
+            await releaseWorkerResponse.future;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'transcript': 'Con muốn uống nước',
+                'timing': <String, dynamic>{'asrMs': 430, 'totalMs': 470},
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path.endsWith('/chunks') &&
+              request.method == 'POST') {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path == '/api/conversation') {
+            streamingBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_worker',
+                'sessionId': 'sess_worker',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'browser_streaming',
+                'latency': <String, dynamic>{
+                  'asrMs': 430,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 500,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            batchFinalizeCalled = true;
+            return http.Response('{}', 500);
+          }
+          if (request.url.path.endsWith('/chunks') &&
+              request.method == 'DELETE') {
+            if (!shadowDiscarded.isCompleted) {
+              shadowDiscarded.complete();
+            }
+            return http.Response(
+              jsonEncode(<String, dynamic>{'discarded': true}),
+              200,
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      upload.addAudioChunk(Uint8List(6400));
+      speculative.markSpeculativeVoiceInactive();
+      speculative.requestTerminalSpeculativePreview();
+      await workerRequestStarted.future.timeout(const Duration(seconds: 2));
+      final resultFuture = upload.finalize(
+        capture: AudioCapture(
+          filePath: 'worker-success.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 200),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 6400),
+          streamedAudioBytes: 6400,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+      await Future<void>.delayed(Duration.zero);
+      releaseWorkerResponse.complete();
+      final result = await resultFuture;
+
+      await shadowDiscarded.future.timeout(const Duration(seconds: 2));
+      expect(workerCalls, 1);
+      expect(batchFinalizeCalled, isFalse);
+      expect(workerRequest?.url.path, '/v1/asr/transcribe');
+      expect(
+        workerRequest?.headers['authorization'],
+        'Bearer scoped.payload.signature',
+      );
+      expect(
+        workerRequest?.headers['x-audio-session-id'],
+        'audio_v2-worker-success',
+      );
+      expect(workerRequest?.headers['x-audio-sample-rate'], '16000');
+      expect(workerRequest?.bodyBytes, hasLength(6400));
+      expect(streamingBody?['sourceText'], 'Con muốn uống nước');
+      expect(streamingBody?['asrMode'], 'browser_streaming');
+      final benchmark = streamingBody?['benchmark'] as Map<String, dynamic>;
+      expect(benchmark['requestedAsrMode'], 'browser_streaming');
+      expect(benchmark['workerAsrPilotAsrMs'], 430);
+      expect(benchmark['workerAsrPilotAudioBytes'], 6400);
+      expect(benchmark['workerPrepareSkippedLowLead'], isTrue);
+      expect(benchmark['workerPrepareAbandonedAtFinalize'], isTrue);
+      expect(benchmark['workerPrepareAttempted'], isTrue);
+      expect(result.asrMode, 'browser_streaming');
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'falls back to the existing Batch finalize when Worker quota is exhausted',
+    () async {
+      Map<String, dynamic>? finalizeBody;
+      var workerCalls = 0;
+      final workerFailureSeen = Completer<void>();
+      final repository = NextConversationRepository(
+        config: workerPrepareConfig,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_v2-worker-fallback',
+                'uploadToken': 'scoped.payload.signature',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'chunkChecksumSha256': true,
+                  'scopedUploadToken': true,
+                  'uploadProtocolVersion': 2,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.host == 'worker.example') {
+            workerCalls += 1;
+            if (!workerFailureSeen.isCompleted) {
+              workerFailureSeen.complete();
+            }
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'error': 'workers_ai_quota_exhausted',
+              }),
+              429,
+            );
+          }
+          if (request.url.path.endsWith('/chunks') &&
+              request.method == 'POST') {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            finalizeBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_batch_fallback',
+                'sessionId': 'sess_batch_fallback',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 700,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 750,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      upload.addAudioChunk(Uint8List(6400));
+      speculative.markSpeculativeVoiceInactive();
+      speculative.requestTerminalSpeculativePreview();
+      await workerFailureSeen.future.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(Duration.zero);
+      final result = await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'worker-fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 200),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 6400),
+          streamedAudioBytes: 6400,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
+
+      final benchmark = finalizeBody?['benchmark'] as Map<String, dynamic>;
+      expect(benchmark['workerAsrPilotAttempted'], isTrue);
+      expect(
+        benchmark['workerAsrPilotFallbackCode'],
+        'workers_ai_quota_exhausted',
+      );
+      expect(workerCalls, 1);
+      expect(result.asrMode, 'batch_chunks');
+      await repository.dispose();
+    },
+  );
+
+  test(
+    'prepares Worker transcript during silence and commits without Batch or duplicate ASR',
+    () async {
+      var workerCalls = 0;
+      var prepareCalls = 0;
+      var commitCalls = 0;
+      var batchPreviewCalls = 0;
+      var batchFinalizeCalls = 0;
+      final seenRequests = <String>[];
+      final shadowDiscarded = Completer<void>();
+      final workerRequestStarted = Completer<void>();
+      final releaseWorkerResponse = Completer<void>();
+      String? preparedSnapshotHash;
+      final repository = NextConversationRepository(
+        config: workerPrepareConfig,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          seenRequests.add('${request.method} ${request.url}');
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_worker_prepare_01',
+                'uploadToken': 'scoped.payload.signature',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': true,
+                  'batchPrefetch': true,
+                  'chunkChecksumSha256': true,
+                  'scopedUploadToken': true,
+                  'uploadProtocolVersion': 2,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.host == 'worker.example') {
+            workerCalls += 1;
+            if (!workerRequestStarted.isCompleted) {
+              workerRequestStarted.complete();
+            }
+            await releaseWorkerResponse.future;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'transcript': 'Con muốn uống nước',
+                'timing': <String, dynamic>{'asrMs': 410, 'totalMs': 450},
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path.endsWith('/chunks') &&
+              request.method == 'POST') {
+            return http.Response('{}', 200);
+          }
+          if (request.url.path == '/api/conversation/prepare') {
+            prepareCalls += 1;
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            preparedSnapshotHash = body['snapshotHash'] as String;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'prepareId': 'prep_1234567890abcdef1234567890abcdef',
+                'snapshotHash': preparedSnapshotHash,
+                'result': <String, dynamic>{
+                  'conversationId': 'conv_prepared',
+                  'sessionId': 'audio_worker_prepare_01',
+                  'context': 'home',
+                  'vietnameseText': 'Con muốn uống nước',
+                  'englishText': 'Can I have some water, please?',
+                  'audioUrl': '/generated-audio/water.mp3',
+                  'processingMode': 'rule',
+                  'textSource': 'phrase_rule',
+                  'audioSource': 'cache',
+                  'asrMode': 'browser_streaming',
+                  'latency': <String, dynamic>{
+                    'asrMs': 410,
+                    'llmMs': 0,
+                    'ttsMs': 0,
+                    'timeToFirstAudioMs': 450,
+                  },
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path == '/api/conversation/prepare/commit') {
+            commitCalls += 1;
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['snapshotHash'], preparedSnapshotHash);
+            final benchmark = body['benchmark'] as Map<String, dynamic>;
+            expect(benchmark['workerPreparedCommit'], isTrue);
+            expect(benchmark['workerPrepareJoinedAtFinalize'], isTrue);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_prepared',
+                'sessionId': 'audio_worker_prepare_01',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'browser_streaming',
+                'latency': <String, dynamic>{
+                  'asrMs': 410,
+                  'llmMs': 0,
+                  'ttsMs': 0,
+                  'timeToFirstAudioMs': 450,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path.endsWith('/preview')) {
+            batchPreviewCalls += 1;
+            return http.Response('{}', 500);
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            batchFinalizeCalls += 1;
+            return http.Response('{}', 500);
+          }
+          if (request.url.path.endsWith('/chunks') &&
+              request.method == 'DELETE') {
+            if (!shadowDiscarded.isCompleted) shadowDiscarded.complete();
+            return http.Response('{}', 200);
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
+
+      final upload = await repository.startBatchChunkUpload();
+      final speculative = upload as SpeculativeBatchChunkUploadSession;
+      speculative.configureSpeculativePreview(
+        context: PracticeContext.home,
+        childAge: 6,
+      );
+      speculative.markSpeculativeSpeechDetected();
+      speculative.markSpeculativeVoiceActive();
+      upload.addAudioChunk(Uint8List(6400));
+      speculative.markSpeculativeVoiceInactive();
+      final previewFuture = speculative.speculativePreviews.first;
+      speculative.requestTerminalSpeculativePreview();
+      await workerRequestStarted.future.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 320));
+
+      releaseWorkerResponse.complete();
+      final preview = await previewFuture.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => fail('No prepared preview. Requests: $seenRequests'),
+      );
+
+      final resultFuture = upload.finalize(
+        capture: AudioCapture(
+          filePath: 'worker-prepare.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 200),
+          inputLabel: 'Web mic',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: buildPcm16WavHeader(pcmByteLength: 6400),
+          streamedAudioBytes: 6400,
+          recordingSampleRate: 16000,
+        ),
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 900,
+      );
+      expect(preview.audioUri?.path, '/generated-audio/water.mp3');
+      final result = await resultFuture;
+
+      await shadowDiscarded.future.timeout(const Duration(seconds: 2));
+      expect(result.conversationId, 'conv_prepared');
+      expect(workerCalls, 1);
+      expect(prepareCalls, 1);
+      expect(commitCalls, 1);
+      expect(batchPreviewCalls, 0);
+      expect(batchFinalizeCalls, 0);
       await repository.dispose();
     },
   );

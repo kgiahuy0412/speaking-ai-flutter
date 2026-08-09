@@ -358,6 +358,13 @@ class NextConversationRepository
                     capture.realtimeWebSocketOpenAfterRecordingMs,
               if (capture.realtimeChunkDurationMs != null)
                 'realtimeChunkDurationMs': capture.realtimeChunkDurationMs,
+              if (capture.workerAsrPilotRttMs != null)
+                'workerAsrPilotRttMs': capture.workerAsrPilotRttMs,
+              if (capture.workerAsrPilotAsrMs != null)
+                'workerAsrPilotAsrMs': capture.workerAsrPilotAsrMs,
+              if (capture.workerAsrPilotAudioBytes != null)
+                'workerAsrPilotAudioBytes': capture.workerAsrPilotAudioBytes,
+              if (capture.extraBenchmark != null) ...capture.extraBenchmark!,
             },
           }),
         )
@@ -514,6 +521,219 @@ class NextConversationRepository
       uploadProtocolVersion: uploadProtocolVersion is num
           ? uploadProtocolVersion.toInt()
           : 1,
+    );
+  }
+
+  Future<_WorkerAsrTranscript> _transcribeWorkerAsrPilot({
+    required String audioSessionId,
+    required String uploadToken,
+    required Uint8List pcmBytes,
+    required int snapshotChunkCount,
+  }) async {
+    final workerBaseUri = _config.workerAsrPilotBaseUri;
+    if (!_config.workerAsrPilotReady || workerBaseUri == null) {
+      throw const ConversationApiException(
+        'Worker ASR Pilot chưa được cấu hình.',
+        errorCode: 'WORKER_ASR_PILOT_DISABLED',
+      );
+    }
+    if (pcmBytes.isEmpty) {
+      throw const ConversationApiException(
+        'Worker ASR Pilot chỉ nhận PCM 16 kHz.',
+        errorCode: 'WORKER_ASR_PILOT_PCM_INVALID',
+      );
+    }
+
+    final requestStopwatch = Stopwatch()..start();
+    final response = await _client
+        .post(
+          workerBaseUri.resolve('/v1/asr/transcribe'),
+          headers: <String, String>{
+            'Authorization': 'Bearer $uploadToken',
+            'Content-Type': 'application/octet-stream',
+            'X-Audio-Session-Id': audioSessionId,
+            'X-Snapshot-Chunk-Count': snapshotChunkCount.toString(),
+            'X-Audio-Sample-Rate': pcm16SampleRate.toString(),
+            'X-Audio-Channels': pcm16ChannelCount.toString(),
+            'X-Audio-Encoding': 'pcm_s16le',
+          },
+          body: pcmBytes,
+        )
+        .timeout(const Duration(seconds: 6));
+    requestStopwatch.stop();
+
+    Map<String, dynamic> payload = <String, dynamic>{};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        payload = decoded;
+      }
+    } on FormatException {
+      // The status handling below reports a stable pilot error code.
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final rawCode = payload['error'];
+      throw ConversationApiException(
+        'Worker ASR Pilot trả về lỗi ${response.statusCode}.',
+        statusCode: response.statusCode,
+        errorCode: rawCode is String && rawCode.isNotEmpty
+            ? rawCode
+            : 'WORKER_ASR_PILOT_FAILED',
+      );
+    }
+    final transcript = payload['transcript'];
+    if (transcript is! String || transcript.trim().isEmpty) {
+      throw const ConversationApiException(
+        'Worker ASR Pilot không nhận dạng được câu nói.',
+        statusCode: 422,
+        errorCode: 'WORKER_ASR_PILOT_UNCLEAR',
+      );
+    }
+    final timing = payload['timing'];
+    final asrMs = timing is Map<String, dynamic>
+        ? (timing['asrMs'] as num?)?.round()
+        : null;
+    developer.log(
+      jsonEncode(<String, dynamic>{
+        'event': 'worker_asr_pilot_completed',
+        'audioSessionId': audioSessionId,
+        'snapshotChunkCount': snapshotChunkCount,
+        'audioBytes': pcmBytes.length,
+        'workerRttMs': requestStopwatch.elapsedMilliseconds,
+        'workerAsrMs': asrMs,
+      }),
+      name: 'conversation.worker_asr_pilot',
+    );
+
+    return _WorkerAsrTranscript(
+      sourceText: transcript.trim(),
+      snapshotChunkCount: snapshotChunkCount,
+      snapshotHash: crypto.sha256.convert(pcmBytes).toString(),
+      audioBytes: pcmBytes.length,
+      rttMs: requestStopwatch.elapsedMilliseconds,
+      asrMs: asrMs,
+    );
+  }
+
+  Future<ConversationResult> _processWorkerTranscript({
+    required _WorkerAsrTranscript transcript,
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+    Map<String, dynamic>? extraBenchmark,
+  }) {
+    return processStreamingText(
+      capture: StreamingSpeechCapture(
+        sourceText: transcript.sourceText,
+        duration: capture.duration,
+        inputLabel: capture.inputLabel,
+        confidence: null,
+        firstResultMs: null,
+        finalAfterStopMs: transcript.rttMs,
+        asrMode: AsrMode.workerAsrPilot.apiValue,
+        isBluetoothInput: capture.isBluetoothInput,
+        initialNoiseRms: capture.initialNoiseRms,
+        workerAsrPilotRttMs: transcript.rttMs,
+        workerAsrPilotAsrMs: transcript.asrMs,
+        workerAsrPilotAudioBytes: transcript.audioBytes,
+        extraBenchmark: extraBenchmark,
+      ),
+      context: context,
+      childAge: childAge,
+      vadSilenceMs: vadSilenceMs,
+    );
+  }
+
+  Future<_PreparedWorkerConversation> _prepareWorkerConversation({
+    required String audioSessionId,
+    required _WorkerAsrTranscript transcript,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+    required int workerStartedAtSessionMs,
+  }) async {
+    final response = await _client
+        .post(
+          _config.resolve('/api/conversation/prepare'),
+          headers: const <String, String>{'content-type': 'application/json'},
+          body: jsonEncode(<String, dynamic>{
+            'clientId': await _clientId,
+            'audioSessionId': audioSessionId,
+            'snapshotHash': transcript.snapshotHash,
+            'sourceText': transcript.sourceText,
+            'context': context.apiValue,
+            'childAge': childAge,
+            'asrLatencyMs': transcript.asrMs ?? transcript.rttMs,
+            'benchmark': <String, dynamic>{
+              ...ConversationBenchmark(
+                utteranceDurationMs:
+                    (transcript.audioBytes * 1000) ~/ (pcm16SampleRate * 2),
+                vadSilenceMs: vadSilenceMs,
+                requestedAsrMode: AsrMode.workerAsrPilot,
+                audioInputLabel: 'Web PCM Worker prepare',
+                bluetoothAudioInput: false,
+                initialNoiseRms: null,
+                clientVadApplied: true,
+              ).toJson(),
+              'workerAsrPilotRttMs': transcript.rttMs,
+              if (transcript.asrMs != null)
+                'workerAsrPilotAsrMs': transcript.asrMs,
+              'workerAsrPilotAudioBytes': transcript.audioBytes,
+              'workerStartedAtSessionMs': workerStartedAtSessionMs,
+              'workerPrepareAttempted': true,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 8));
+    final json = _decodeResponse(response);
+    final prepareId = json['prepareId'];
+    final resultJson = json['result'];
+    if (prepareId is! String ||
+        prepareId.isEmpty ||
+        resultJson is! Map<String, dynamic>) {
+      throw const ConversationApiException(
+        'Backend không trả về kết quả chuẩn bị hợp lệ.',
+        errorCode: 'WORKER_PREPARE_INVALID',
+      );
+    }
+    final result = ConversationResult.fromJson(
+      resultJson,
+      backendBaseUri: _config.backendBaseUri,
+    );
+    return _PreparedWorkerConversation(
+      prepareId: prepareId,
+      transcript: transcript,
+      result: result,
+      preview: ConversationPreview(
+        sourceText: result.vietnameseText,
+        englishText: result.englishText,
+        textSource: result.textSource,
+        audioUri: result.audioUri,
+      ),
+    );
+  }
+
+  Future<ConversationResult> _commitPreparedWorkerConversation({
+    required String audioSessionId,
+    required _PreparedWorkerConversation prepared,
+    required Map<String, dynamic> benchmark,
+  }) async {
+    final response = await _client
+        .post(
+          _config.resolve('/api/conversation/prepare/commit'),
+          headers: const <String, String>{'content-type': 'application/json'},
+          body: jsonEncode(<String, dynamic>{
+            'prepareId': prepared.prepareId,
+            'audioSessionId': audioSessionId,
+            'snapshotHash': prepared.transcript.snapshotHash,
+            'benchmark': benchmark,
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
+    return ConversationResult.fromJson(
+      _decodeResponse(response),
+      backendBaseUri: _config.backendBaseUri,
     );
   }
 
@@ -1169,6 +1389,38 @@ class _BatchSpeculativePreview {
   final ConversationPreview preview;
 }
 
+class _WorkerAsrTranscript {
+  const _WorkerAsrTranscript({
+    required this.sourceText,
+    required this.snapshotChunkCount,
+    required this.snapshotHash,
+    required this.audioBytes,
+    required this.rttMs,
+    required this.asrMs,
+  });
+
+  final String sourceText;
+  final int snapshotChunkCount;
+  final String snapshotHash;
+  final int audioBytes;
+  final int rttMs;
+  final int? asrMs;
+}
+
+class _PreparedWorkerConversation {
+  const _PreparedWorkerConversation({
+    required this.prepareId,
+    required this.transcript,
+    required this.result,
+    required this.preview,
+  });
+
+  final String prepareId;
+  final _WorkerAsrTranscript transcript;
+  final ConversationResult result;
+  final ConversationPreview preview;
+}
+
 class _NextBatchChunkUploadSession
     implements BatchChunkUploadSession, SpeculativeBatchChunkUploadSession {
   _NextBatchChunkUploadSession({
@@ -1196,6 +1448,7 @@ class _NextBatchChunkUploadSession
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
   static const _maxSpeculativeAttempts = 4;
   static const _maxRegularSpeculativeAttempts = 3;
+  static const _minimumPreparedWorkerLeadMs = 300;
 
   final NextConversationRepository _repository;
   final String audioSessionId;
@@ -1266,6 +1519,34 @@ class _NextBatchChunkUploadSession
   int _latestAcceptedPreviewChunkCount = 0;
   bool _latestAcceptedPreviewWasTerminal = false;
   String? _prefetchId;
+  bool _workerAsrPilotAttempted = false;
+  String? _workerAsrPilotFallbackCode;
+  int? _workerAsrPilotFallbackMs;
+  final Map<String, Future<_WorkerAsrTranscript>> _workerTranscriptFlights =
+      <String, Future<_WorkerAsrTranscript>>{};
+  _WorkerAsrTranscript? _readyWorkerTranscript;
+  _PreparedWorkerConversation? _readyWorkerPreparation;
+  Future<_PreparedWorkerConversation?>? _workerPrepareFlight;
+  Future<_WorkerAsrTranscript>? _workerActiveTranscriptFlight;
+  int? _workerPrepareSpeechGeneration;
+  int? _workerPrepareStartedAtSessionMs;
+  int? _workerTranscriptReadyAtSessionMs;
+  int? _workerPreparationReadyAtSessionMs;
+  int? _workerFinalizeStartedAtSessionMs;
+  bool _workerPrepareJoinedAtFinalize = false;
+  bool _workerPrepareAbandoned = false;
+  bool _workerPrepareSkippedLowLead = false;
+  bool _workerPrepareAbandonedAtFinalize = false;
+  bool _workerLatePrepareSkipped = false;
+  String? _workerPrepareFailureCode;
+  int _workerPrepareDuplicateSuppressed = 0;
+  int _workerPrepareInvalidated = 0;
+  final Map<String, dynamic> _clientTerminalTelemetry = <String, dynamic>{};
+
+  bool get _usesWorkerPrepare =>
+      _repository._config.workerAsrPrepareReady &&
+      supportsPcm16WavFinalize &&
+      uploadToken != null;
 
   @override
   Stream<ConversationPreview> get speculativePreviews =>
@@ -1276,7 +1557,9 @@ class _NextBatchChunkUploadSession
     required PracticeContext context,
     required int childAge,
   }) {
-    if (!supportsBatchPrefetch || _closed || _finalizing) {
+    if ((!supportsBatchPrefetch && !_usesWorkerPrepare) ||
+        _closed ||
+        _finalizing) {
       return;
     }
     // This configuration is only called by the adaptive Web manager. Android
@@ -1284,12 +1567,16 @@ class _NextBatchChunkUploadSession
     _sourceChunksPerTransportUpload = _webSourceChunksPerTransportUpload;
     _speculativeContext = context;
     _speculativeChildAge = childAge;
-    _scheduleSpeculativePreview();
+    if (!_usesWorkerPrepare) {
+      _scheduleSpeculativePreview();
+    }
   }
 
   @override
   void markSpeculativeSpeechDetected() {
-    if (!supportsBatchPrefetch || _closed || _finalizing) {
+    if ((!supportsBatchPrefetch && !_usesWorkerPrepare) ||
+        _closed ||
+        _finalizing) {
       return;
     }
     final firstDetection = !_speculativeSpeechDetected;
@@ -1299,7 +1586,10 @@ class _NextBatchChunkUploadSession
     } else if (_terminalSpeculativePreviewRequested ||
         _terminalSpeculativeAttemptCount > 0 ||
         _terminalSpeculativePreviewFuture != null ||
-        _terminalPreviewCoversLatestSpeech) {
+        _terminalPreviewCoversLatestSpeech ||
+        _workerPrepareFlight != null ||
+        _readyWorkerTranscript != null ||
+        _readyWorkerPreparation != null) {
       // Only an actual VAD speech-start event opens a new terminal generation.
       // Raw voice-active/noise frames are deliberately insufficient because
       // they previously caused a silence-only final chunk to launch ASR twice.
@@ -1311,8 +1601,24 @@ class _NextBatchChunkUploadSession
       _terminalUploadWaitMs = null;
       _terminalSnapshotAckedChunkCount = null;
       _terminalPreviewStartedAfterVoiceInactiveMs = null;
+      _readyWorkerTranscript = null;
+      _readyWorkerPreparation = null;
+      _workerPrepareSpeechGeneration = null;
+      _workerPrepareStartedAtSessionMs = null;
+      _workerTranscriptReadyAtSessionMs = null;
+      _workerPreparationReadyAtSessionMs = null;
+      _workerPrepareJoinedAtFinalize = false;
+      _workerPrepareAbandoned = false;
+      _workerPrepareSkippedLowLead = false;
+      _workerPrepareAbandonedAtFinalize = false;
+      _workerLatePrepareSkipped = false;
+      _workerPrepareFailureCode = null;
+      _workerActiveTranscriptFlight = null;
+      _workerPrepareInvalidated += 1;
     }
-    _scheduleSpeculativePreview();
+    if (!_usesWorkerPrepare) {
+      _scheduleSpeculativePreview();
+    }
   }
 
   @override
@@ -1332,7 +1638,7 @@ class _NextBatchChunkUploadSession
       _vadSilenceAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
     }
     _speculativeVoiceActive = false;
-    if (!supportsBatchPrefetch ||
+    if ((!supportsBatchPrefetch && !_usesWorkerPrepare) ||
         _closed ||
         _finalizing ||
         !_speculativeSpeechDetected) {
@@ -1345,9 +1651,17 @@ class _NextBatchChunkUploadSession
   }
 
   @override
-  void requestTerminalSpeculativePreview() {
+  void updateClientTerminalTelemetry(Map<String, dynamic> telemetry) {
+    if (_closed || telemetry.isEmpty) {
+      return;
+    }
+    _clientTerminalTelemetry.addAll(telemetry);
+  }
+
+  @override
+  void requestTerminalSpeculativePreview({bool atRecorderStop = false}) {
     _speculativeVoiceActive = false;
-    if (!supportsBatchPrefetch ||
+    if ((!supportsBatchPrefetch && !_usesWorkerPrepare) ||
         _closed ||
         !_speculativeSpeechDetected ||
         _speculativeContext == null ||
@@ -1356,6 +1670,24 @@ class _NextBatchChunkUploadSession
     }
     _terminalPreviewRequestedAtSessionMs ??=
         _sessionStopwatch.elapsedMilliseconds;
+    if (_usesWorkerPrepare) {
+      if (atRecorderStop) {
+        // A terminal request created only after recorder.stop() has no lead to
+        // hide ASR/translation. Let finalize use Worker-only instead of adding
+        // prepare + commit to the critical path.
+        _workerLatePrepareSkipped =
+            _workerPrepareFlight == null &&
+            _readyWorkerTranscript == null &&
+            _readyWorkerPreparation == null;
+        if (!_workerLatePrepareSkipped) {
+          _workerPrepareDuplicateSuppressed += 1;
+        }
+        return;
+      }
+      _flushTransportBuffer(schedulePreview: false);
+      _scheduleWorkerPrepare();
+      return;
+    }
     if (_terminalPreviewCoversLatestSpeech) {
       // Recorder stop can append one final silence-only PCM frame. Keep the
       // terminal pipeline that already started during VAD silence; backend tail
@@ -1368,6 +1700,106 @@ class _NextBatchChunkUploadSession
     _speculativePreviewTimer = null;
     _flushTransportBuffer(schedulePreview: false);
     _scheduleSpeculativePreview(terminal: true);
+  }
+
+  void _scheduleWorkerPrepare() {
+    if (!_usesWorkerPrepare ||
+        _closed ||
+        _finalizing ||
+        _speculativeVoiceActive ||
+        !_speculativeSpeechDetected) {
+      return;
+    }
+    final context = _speculativeContext;
+    final childAge = _speculativeChildAge;
+    final pcmBytes = _retainedPcmForWorkerPilot();
+    if (context == null || childAge == null || pcmBytes == null) {
+      return;
+    }
+    final snapshotHash = crypto.sha256.convert(pcmBytes).toString();
+    final generation = _speechGeneration;
+    if (_workerPrepareSpeechGeneration == generation &&
+        (_readyWorkerTranscript?.snapshotHash == snapshotHash ||
+            _readyWorkerPreparation?.transcript.snapshotHash == snapshotHash ||
+            _workerPrepareFlight != null)) {
+      _workerPrepareDuplicateSuppressed += 1;
+      return;
+    }
+
+    _workerAsrPilotAttempted = true;
+    _workerPrepareSpeechGeneration = generation;
+    _workerPrepareAbandoned = false;
+    _workerPrepareStartedAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
+    final immutablePcm = Uint8List.fromList(pcmBytes);
+    final transcriptFlight = _workerTranscriptFlights.putIfAbsent(
+      snapshotHash,
+      () => _repository._transcribeWorkerAsrPilot(
+        audioSessionId: audioSessionId,
+        uploadToken: uploadToken!,
+        pcmBytes: immutablePcm,
+        snapshotChunkCount: _transportChunkCount,
+      ),
+    );
+    _workerActiveTranscriptFlight = transcriptFlight;
+    final operation = () async {
+      try {
+        final transcript = await transcriptFlight;
+        if (_closed || generation != _speechGeneration) {
+          return null;
+        }
+        _readyWorkerTranscript = transcript;
+        _workerTranscriptReadyAtSessionMs =
+            _sessionStopwatch.elapsedMilliseconds;
+        if (_workerPrepareAbandoned) {
+          return null;
+        }
+        final prepared = await _repository._prepareWorkerConversation(
+          audioSessionId: audioSessionId,
+          transcript: transcript,
+          context: context,
+          childAge: childAge,
+          // The authoritative value is attached during commit. Preparation
+          // does not use this value for rule/translation/TTS decisions.
+          vadSilenceMs: 0,
+          workerStartedAtSessionMs: _workerPrepareStartedAtSessionMs!,
+        );
+        if (_closed || generation != _speechGeneration) {
+          return null;
+        }
+        _readyWorkerPreparation = prepared;
+        _workerPreparationReadyAtSessionMs =
+            _sessionStopwatch.elapsedMilliseconds;
+        if (!_speculativePreviewController.isClosed) {
+          _speculativePreviewController.add(prepared.preview);
+          // Give the controller one event-loop turn to attach Safari's
+          // existing HTMLAudioElement to the streaming URL before the commit
+          // response wins the race back to the client.
+          await Future<void>.delayed(Duration.zero);
+        }
+        return prepared;
+      } catch (error, stackTrace) {
+        if (generation == _speechGeneration) {
+          _workerPrepareFailureCode = error is ConversationApiException
+              ? error.errorCode ?? 'WORKER_ASR_PILOT_FAILED'
+              : error.runtimeType.toString();
+        }
+        developer.log(
+          'Early Worker prepare failed; finalize will use the established fallback.',
+          name: 'conversation.worker_asr_prepare',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        return null;
+      }
+    }();
+    _workerPrepareFlight = operation;
+    unawaited(
+      operation.then<void>((_) {
+        if (identical(_workerPrepareFlight, operation)) {
+          _workerPrepareFlight = null;
+        }
+      }),
+    );
   }
 
   @override
@@ -1403,12 +1835,15 @@ class _NextBatchChunkUploadSession
       // available. Wake it as soon as the next silence chunk is flushed;
       // otherwise it would remain pending until recorder.stop().
       _scheduleSpeculativePreview(terminal: true);
-    } else if (schedulePreview) {
+    } else if (schedulePreview && !_usesWorkerPrepare) {
       _scheduleSpeculativePreview();
     }
   }
 
   void _scheduleSpeculativePreview({bool terminal = false}) {
+    if (_usesWorkerPrepare) {
+      return;
+    }
     final terminalAttempt = terminal || _terminalSpeculativePreviewRequested;
     final availableChunkCount = terminalAttempt
         ? _contiguousAckedChunkCount
@@ -1748,6 +2183,244 @@ class _NextBatchChunkUploadSession
     await Future.wait<void>(pending);
   }
 
+  Uint8List? _retainedPcmForWorkerPilot() {
+    if (!supportsPcm16WavFinalize ||
+        _recoveryBufferTruncated ||
+        _retainedAudioBytes <= 0 ||
+        _retainedAudioBytes != _audioByteCount) {
+      return null;
+    }
+    final chunks = _retainedChunks.values.toList(growable: false)
+      ..sort((left, right) => left.sequence.compareTo(right.sequence));
+    if (chunks.length != _transportChunkCount) {
+      return null;
+    }
+    final builder = BytesBuilder(copy: false);
+    for (var index = 0; index < chunks.length; index += 1) {
+      if (chunks[index].sequence != index) {
+        return null;
+      }
+      builder.add(chunks[index].bytes);
+    }
+    return builder.takeBytes();
+  }
+
+  bool _workerSnapshotStillValid(
+    _WorkerAsrTranscript transcript,
+    Uint8List finalPcm,
+  ) {
+    if (_workerPrepareSpeechGeneration != _speechGeneration ||
+        transcript.audioBytes > finalPcm.length) {
+      return false;
+    }
+    final snapshotBytes = transcript.audioBytes == finalPcm.length
+        ? finalPcm
+        : Uint8List.sublistView(finalPcm, 0, transcript.audioBytes);
+    return crypto.sha256.convert(snapshotBytes).toString() ==
+        transcript.snapshotHash;
+  }
+
+  Map<String, dynamic> _workerFinalBenchmark({
+    required AudioCapture capture,
+    required int vadSilenceMs,
+    required _WorkerAsrTranscript transcript,
+    required bool preparedCommit,
+  }) {
+    final finalizeStartedAt = _workerFinalizeStartedAtSessionMs;
+    final workerStartedAt = _workerPrepareStartedAtSessionMs;
+    final transcriptReadyAt = _workerTranscriptReadyAtSessionMs;
+    final preparationReadyAt = _workerPreparationReadyAtSessionMs;
+    return <String, dynamic>{
+      ...ConversationBenchmark(
+        utteranceDurationMs: capture.duration.inMilliseconds,
+        vadSilenceMs: vadSilenceMs,
+        requestedAsrMode: AsrMode.workerAsrPilot,
+        audioInputLabel: capture.inputLabel,
+        bluetoothAudioInput: capture.isBluetoothInput,
+        initialNoiseRms: capture.initialNoiseRms,
+        clientVadApplied: true,
+        audioProcessing: capture.audioProcessing,
+      ).toJson(),
+      'workerAsrPilotAttempted': true,
+      'workerAsrPilotRttMs': transcript.rttMs,
+      if (transcript.asrMs != null) 'workerAsrPilotAsrMs': transcript.asrMs,
+      'workerAsrPilotAudioBytes': transcript.audioBytes,
+      'workerPrepareAttempted': _workerPrepareSpeechGeneration != null,
+      'workerPreparedCommit': preparedCommit,
+      'workerPrepareJoinedAtFinalize': _workerPrepareJoinedAtFinalize,
+      'workerPrepareSkippedLowLead': _workerPrepareSkippedLowLead,
+      'workerPrepareAbandonedAtFinalize': _workerPrepareAbandonedAtFinalize,
+      'workerLatePrepareSkipped': _workerLatePrepareSkipped,
+      if (_workerPrepareFailureCode != null)
+        'workerPrepareFailureCode': _workerPrepareFailureCode,
+      'workerPrepareDuplicateSuppressed': _workerPrepareDuplicateSuppressed,
+      'workerPrepareInvalidated': _workerPrepareInvalidated,
+      'workerFinalizeStartedAtSessionMs': ?finalizeStartedAt,
+      if (workerStartedAt != null && finalizeStartedAt != null)
+        'workerStartedBeforeStopMs': math.max(
+          0,
+          finalizeStartedAt - workerStartedAt,
+        ),
+      'workerTranscriptReadyAtSessionMs': ?transcriptReadyAt,
+      if (transcriptReadyAt != null && finalizeStartedAt != null)
+        if (transcriptReadyAt <= finalizeStartedAt)
+          'workerTranscriptReadyBeforeStopMs':
+              finalizeStartedAt - transcriptReadyAt
+        else
+          'workerTranscriptReadyAfterStopMs':
+              transcriptReadyAt - finalizeStartedAt,
+      'workerPreparationReadyAtSessionMs': ?preparationReadyAt,
+      if (preparationReadyAt != null && finalizeStartedAt != null)
+        if (preparationReadyAt <= finalizeStartedAt)
+          'workerPreparationReadyBeforeStopMs':
+              finalizeStartedAt - preparationReadyAt
+        else
+          'workerPreparationReadyAfterStopMs':
+              preparationReadyAt - finalizeStartedAt,
+      'workerTailVadEligible': _workerPrepareSpeechGeneration != null,
+      ..._clientTerminalTelemetry,
+    };
+  }
+
+  Future<ConversationResult?> _tryPreparedWorkerCommit({
+    required Uint8List finalPcm,
+    required AudioCapture capture,
+    required int vadSilenceMs,
+  }) async {
+    final prepared = _readyWorkerPreparation;
+    if (prepared == null) {
+      return null;
+    }
+    if (!_workerSnapshotStillValid(prepared.transcript, finalPcm)) {
+      developer.log(
+        jsonEncode(<String, dynamic>{
+          'event': 'worker_prepared_snapshot_rejected',
+          'audioSessionId': audioSessionId,
+          'preparedGeneration': _workerPrepareSpeechGeneration,
+          'currentGeneration': _speechGeneration,
+          'preparedAudioBytes': prepared.transcript.audioBytes,
+          'finalAudioBytes': finalPcm.length,
+        }),
+        name: 'conversation.worker_asr_prepare',
+      );
+      return null;
+    }
+    return _repository._commitPreparedWorkerConversation(
+      audioSessionId: audioSessionId,
+      prepared: prepared,
+      benchmark: _workerFinalBenchmark(
+        capture: capture,
+        vadSilenceMs: vadSilenceMs,
+        transcript: prepared.transcript,
+        preparedCommit: true,
+      ),
+    );
+  }
+
+  Future<ConversationResult?> _tryWorkerAsrPilot({
+    required AudioCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    if (!_repository._config.workerAsrPilotReady || uploadToken == null) {
+      return null;
+    }
+    if (_workerPrepareSpeechGeneration == _speechGeneration &&
+        _workerPrepareFailureCode != null &&
+        _readyWorkerTranscript == null) {
+      // The early terminal Worker already failed for this speech generation.
+      // Go directly to the established Batch fallback instead of charging and
+      // waiting for the same Worker ASR a second time after recorder.stop().
+      _workerAsrPilotFallbackCode = _workerPrepareFailureCode;
+      return null;
+    }
+    final pcmBytes = _retainedPcmForWorkerPilot();
+    if (pcmBytes == null) {
+      _workerAsrPilotFallbackCode = 'WORKER_ASR_PILOT_PCM_UNAVAILABLE';
+      return null;
+    }
+    _workerAsrPilotAttempted = true;
+    final stopwatch = Stopwatch()..start();
+    late final _WorkerAsrTranscript transcript;
+    try {
+      final readyTranscript = _readyWorkerTranscript;
+      final snapshotHash = crypto.sha256.convert(pcmBytes).toString();
+      if (readyTranscript != null &&
+          _workerSnapshotStillValid(readyTranscript, pcmBytes)) {
+        transcript = readyTranscript;
+      } else {
+        final activeTranscript =
+            _workerPrepareSpeechGeneration == _speechGeneration
+            ? _workerActiveTranscriptFlight
+            : null;
+        final earlyTranscript = activeTranscript == null
+            ? null
+            : await activeTranscript;
+        if (earlyTranscript != null &&
+            _workerSnapshotStillValid(earlyTranscript, pcmBytes)) {
+          transcript = earlyTranscript;
+        } else {
+          transcript = await _workerTranscriptFlights.putIfAbsent(
+            snapshotHash,
+            () => _repository._transcribeWorkerAsrPilot(
+              audioSessionId: audioSessionId,
+              uploadToken: uploadToken!,
+              pcmBytes: Uint8List.fromList(pcmBytes),
+              snapshotChunkCount: _transportChunkCount,
+            ),
+          );
+        }
+      }
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      _workerAsrPilotFallbackMs = stopwatch.elapsedMilliseconds;
+      _workerAsrPilotFallbackCode = error is ConversationApiException
+          ? error.errorCode ?? 'WORKER_ASR_PILOT_FAILED'
+          : error.runtimeType.toString();
+      developer.log(
+        'Worker ASR Pilot failed; continuing the existing Batch Chunks finalize.',
+        name: 'conversation.worker_asr_pilot',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+    // ASR succeeded, so a later rule/translation/TTS failure must surface as
+    // that backend error. Re-running full Batch ASR here would add latency and
+    // duplicate Cloudflare work without fixing the actual failing stage.
+    return _repository._processWorkerTranscript(
+      transcript: transcript,
+      capture: capture,
+      context: context,
+      childAge: childAge,
+      vadSilenceMs: vadSilenceMs,
+      extraBenchmark: _workerFinalBenchmark(
+        capture: capture,
+        vadSilenceMs: vadSilenceMs,
+        transcript: transcript,
+        preparedCommit: false,
+      ),
+    );
+  }
+
+  Future<void> _discardShadowSessionAfterWorkerSuccess(
+    Future<void> uploadDrain,
+  ) async {
+    try {
+      await uploadDrain;
+    } catch (_) {
+      // The Worker result is already authoritative. Cleanup is best-effort.
+    }
+    await _repository
+        ._discardAudioSession(
+          audioSessionId,
+          uploadToken: uploadToken,
+          reason: 'worker_asr_pilot_succeeded',
+        )
+        .catchError((Object _) {});
+  }
+
   List<int> _missingSequences(Object error) {
     if (!supportsMissingChunkRecovery ||
         error is! ConversationApiException ||
@@ -1825,6 +2498,11 @@ class _NextBatchChunkUploadSession
       ),
     'batchPrefetchFinalizeWaitMs': 0,
     'batchPrefetchReady': _prefetchId != null,
+    'workerAsrPilotAttempted': _workerAsrPilotAttempted,
+    if (_workerAsrPilotFallbackCode != null)
+      'workerAsrPilotFallbackCode': _workerAsrPilotFallbackCode,
+    if (_workerAsrPilotFallbackMs != null)
+      'workerAsrPilotFallbackMs': _workerAsrPilotFallbackMs,
     if (_firstChunkAckMs != null) 'firstChunkAckMs': _firstChunkAckMs,
     if (_percentile(50) != null) 'chunkUploadP50Ms': _percentile(50),
     if (_percentile(95) != null) 'chunkUploadP95Ms': _percentile(95),
@@ -1838,6 +2516,7 @@ class _NextBatchChunkUploadSession
         : 'uploaded_chunk',
     'sessionCreateMs': sessionCreateMs,
     'uploadDrainAfterStopMs': uploadDrainMs,
+    ..._clientTerminalTelemetry,
   };
 
   Future<ConversationResult> _finalizeWithMissingRecovery({
@@ -1909,6 +2588,7 @@ class _NextBatchChunkUploadSession
         'Audio session đã được hoàn tất hoặc hủy.',
       );
     }
+    _workerFinalizeStartedAtSessionMs ??= _sessionStopwatch.elapsedMilliseconds;
     _speculativePreviewTimer?.cancel();
     _speculativePreviewTimer = null;
     // Finalize immediately after the last PCM flush. Any terminal preview
@@ -1946,7 +2626,73 @@ class _NextBatchChunkUploadSession
         );
       }
       final uploadDrainStopwatch = Stopwatch()..start();
-      await _drainPendingUploads();
+      final uploadDrain = _drainPendingUploads();
+      final finalPcm = _retainedPcmForWorkerPilot();
+      if (_usesWorkerPrepare && finalPcm != null) {
+        try {
+          final activePreparation = _workerPrepareFlight;
+          if (_readyWorkerPreparation == null &&
+              activePreparation != null &&
+              _workerPrepareSpeechGeneration == _speechGeneration) {
+            final workerStartedAt = _workerPrepareStartedAtSessionMs;
+            final workerLeadMs = workerStartedAt == null
+                ? 0
+                : math.max(
+                    0,
+                    _workerFinalizeStartedAtSessionMs! - workerStartedAt,
+                  );
+            if (_workerTranscriptReadyAtSessionMs != null) {
+              // Once ASR has completed, prepare is already doing the same
+              // translation/TTS work that Worker-only would start. Join it to
+              // avoid duplicate backend work.
+              _workerPrepareJoinedAtFinalize = true;
+              await activePreparation;
+            } else {
+              // Never block finalize on an unresolved speculative ASR merely
+              // because it started early. Reuse that same ASR through the
+              // established Worker-only path, and prevent the speculative
+              // flight from adding prepare + commit after ASR completes.
+              _workerPrepareSkippedLowLead =
+                  workerLeadMs < _minimumPreparedWorkerLeadMs;
+              _workerPrepareAbandonedAtFinalize = true;
+              _workerPrepareAbandoned = true;
+            }
+          }
+          if (_readyWorkerPreparation != null) {
+            _workerPrepareJoinedAtFinalize = true;
+          }
+          final preparedResult = await _tryPreparedWorkerCommit(
+            finalPcm: finalPcm,
+            capture: capture,
+            vadSilenceMs: vadSilenceMs,
+          );
+          if (preparedResult != null) {
+            unawaited(_discardShadowSessionAfterWorkerSuccess(uploadDrain));
+            return preparedResult;
+          }
+        } catch (error, stackTrace) {
+          // A prepared commit is only a fast path. The already-established
+          // Worker-only path remains authoritative without a fixed wait.
+          developer.log(
+            'Prepared Worker commit was unavailable; using Worker-only finalize.',
+            name: 'conversation.worker_asr_prepare',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
+      final workerPilot = _tryWorkerAsrPilot(
+        capture: capture,
+        context: context,
+        childAge: childAge,
+        vadSilenceMs: vadSilenceMs,
+      );
+      final workerResult = await workerPilot;
+      if (workerResult != null) {
+        unawaited(_discardShadowSessionAfterWorkerSuccess(uploadDrain));
+        return workerResult;
+      }
+      await uploadDrain;
       uploadDrainStopwatch.stop();
 
       return await _finalizeWithMissingRecovery(

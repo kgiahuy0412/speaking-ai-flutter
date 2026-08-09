@@ -69,6 +69,10 @@ class StreamingSpeechCapture {
     this.realtimeWebSocketConnectMs,
     this.realtimeWebSocketOpenAfterRecordingMs,
     this.realtimeChunkDurationMs,
+    this.workerAsrPilotRttMs,
+    this.workerAsrPilotAsrMs,
+    this.workerAsrPilotAudioBytes,
+    this.extraBenchmark,
   });
 
   final String sourceText;
@@ -84,6 +88,10 @@ class StreamingSpeechCapture {
   final int? realtimeWebSocketConnectMs;
   final int? realtimeWebSocketOpenAfterRecordingMs;
   final int? realtimeChunkDurationMs;
+  final int? workerAsrPilotRttMs;
+  final int? workerAsrPilotAsrMs;
+  final int? workerAsrPilotAudioBytes;
+  final Map<String, dynamic>? extraBenchmark;
 }
 
 abstract interface class StreamingSpeechInput {

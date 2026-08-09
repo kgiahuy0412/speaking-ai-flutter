@@ -380,16 +380,10 @@ class JustAudioPlaybackService
     final browserPlayback = _browserPlayback;
     if (browserPlayback != null) {
       final reusedPreloadedSource = browserPlayback.hasPreloadedSource(uri);
-      final preloadedSourceLoaded = browserPlayback.hasLoadedPreloadedSource(
-        uri,
-      );
-      final preloadedSourceReady = browserPlayback.hasReadyPreloadedSource(uri);
-      final preloadLoadedDuration = browserPlayback.preloadedSourceLoadedAfter(
-        uri,
-      );
-      final preloadReadyDuration = browserPlayback.preloadedSourceReadyAfter(
-        uri,
-      );
+      final preloadedSourceLoadedBeforePlayback = browserPlayback
+          .hasLoadedPreloadedSource(uri);
+      final preloadedSourceReadyBeforePlayback = browserPlayback
+          .hasReadyPreloadedSource(uri);
       final loadStartedAt = DateTime.now();
       try {
         await browserPlayback.play(uri);
@@ -400,6 +394,22 @@ class JustAudioPlaybackService
         );
       }
       final startedAt = DateTime.now();
+      // Safari can dispatch loadeddata/canplay while the play() promise is
+      // pending. Sample readiness again after playback starts so telemetry does
+      // not report a false miss for the exact element that was successfully
+      // buffered and reused.
+      final preloadedSourceLoaded =
+          preloadedSourceLoadedBeforePlayback ||
+          browserPlayback.hasLoadedPreloadedSource(uri);
+      final preloadedSourceReady =
+          preloadedSourceReadyBeforePlayback ||
+          browserPlayback.hasReadyPreloadedSource(uri);
+      final preloadLoadedDuration = browserPlayback.preloadedSourceLoadedAfter(
+        uri,
+      );
+      final preloadReadyDuration = browserPlayback.preloadedSourceReadyAfter(
+        uri,
+      );
       _loadedOriginalUri = uri;
       _loadedResolvedUri = uri;
       return PlaybackStartMetrics(

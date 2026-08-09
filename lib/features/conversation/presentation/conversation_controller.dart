@@ -1200,6 +1200,7 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     _stopInProgress = true;
+    _adaptiveWebUpload?.markStopRequested(manual: manual);
     _partialPreviewTimer?.cancel();
     _previewGeneration += 1;
     _silenceTimer?.cancel();
@@ -2006,7 +2007,9 @@ class _AdaptiveWebChunkUpload {
   _AdaptiveWebChunkUpload({
     required this.repository,
     required this.promotionDelay,
-  });
+  }) {
+    _recordingStopwatch.start();
+  }
 
   final ChunkedConversationRepository repository;
   final Duration promotionDelay;
@@ -2014,7 +2017,12 @@ class _AdaptiveWebChunkUpload {
   final StreamController<ConversationPreview> _previewController =
       StreamController<ConversationPreview>.broadcast();
 
-  static const _terminalPreviewDelay = Duration(milliseconds: 250);
+  static const _terminalPreviewDelay = Duration(milliseconds: 200);
+  static const _pcmStableSilenceDuration = Duration(milliseconds: 50);
+  static const _pcmConfirmedResumeDuration = Duration(milliseconds: 120);
+  static const _pcmConfirmedResumeVariationDb = 3.0;
+  static const _pcmSampleRate = 16000;
+  static const _pcmAnalysisFrameSamples = _pcmSampleRate ~/ 100;
 
   Timer? _promotionTimer;
   Timer? _terminalPreviewTimer;
@@ -2029,6 +2037,22 @@ class _AdaptiveWebChunkUpload {
   bool _terminalPreviewDispatched = false;
   bool _terminalPreviewPending = false;
   bool _acceptingChunks = true;
+  final AdaptiveVoiceActivityDetector _pcmVoiceActivityDetector =
+      AdaptiveVoiceActivityDetector();
+  final Stopwatch _recordingStopwatch = Stopwatch();
+  Duration _pcmElapsed = Duration.zero;
+  Duration _pcmSilenceDuration = Duration.zero;
+  Duration _pcmResumeDuration = Duration.zero;
+  double _pcmResumeMinimumDbfs = 0;
+  double _pcmResumeMaximumDbfs = -100;
+  bool _pcmVoiceInactive = false;
+  int? _pcmSilenceDetectedAtRecordingMs;
+  int? _terminalTimerScheduledAtRecordingMs;
+  int? _terminalRequestedAtRecordingMs;
+  int? _stopRequestedAtRecordingMs;
+  int _terminalTimerCanceledCount = 0;
+  String? _terminalTimerLastCancelReason;
+  String? _stopReason;
 
   Stream<ConversationPreview> get speculativePreviews =>
       _previewController.stream;
@@ -2056,19 +2080,28 @@ class _AdaptiveWebChunkUpload {
       _terminalPreviewPending = false;
     }
     _speechDetected = true;
+    _pcmVoiceActivityDetector.confirmSpeech();
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
         : null;
     speculative?.markSpeculativeSpeechDetected();
   }
 
-  void markSpeculativeVoiceActive() {
+  void markSpeculativeVoiceActive({
+    String resumeReason = 'primary_vad_resume',
+  }) {
     final resumedAfterSilence = !_voiceActive && _voiceInactiveAt != null;
+    if (resumedAfterSilence && resumeReason == 'primary_vad_resume') {
+      // Safari's amplitude callback is useful for the UI/auto-stop timer but a
+      // single post-silence frame is not proof that the child spoke again. Keep
+      // the terminal alive until Raw PCM confirms a varying speech run; that
+      // confirmation calls this method with pcm_confirmed_resume below.
+      return;
+    }
     _voiceActive = true;
     if (resumedAfterSilence) {
       _voiceInactiveAt = null;
-      _terminalPreviewTimer?.cancel();
-      _terminalPreviewTimer = null;
+      _cancelTerminalPreviewTimer(resumeReason);
     }
     final speculative = _session is SpeculativeBatchChunkUploadSession
         ? _session! as SpeculativeBatchChunkUploadSession
@@ -2086,7 +2119,9 @@ class _AdaptiveWebChunkUpload {
     if (firstInactiveFrame) {
       speculative?.markSpeculativeVoiceInactive();
     }
-    if (!_acceptingChunks || !_speechDetected) {
+    if (!_acceptingChunks ||
+        !_speechDetected ||
+        _stopRequestedAtRecordingMs != null) {
       return;
     }
     // stopRecording() calls this method once more while the source is already
@@ -2096,11 +2131,15 @@ class _AdaptiveWebChunkUpload {
         _terminalPreviewTimer != null) {
       return;
     }
+    _terminalTimerScheduledAtRecordingMs ??=
+        _recordingStopwatch.elapsedMilliseconds;
     _terminalPreviewTimer = Timer(_terminalPreviewDelay, () {
       _terminalPreviewTimer = null;
       if (!_acceptingChunks || _voiceActive || !_speechDetected) {
         return;
       }
+      _terminalRequestedAtRecordingMs ??=
+          _recordingStopwatch.elapsedMilliseconds;
       _terminalPreviewDispatched = true;
       _terminalPreviewPending = true;
       final terminalSession = _session is SpeculativeBatchChunkUploadSession
@@ -2113,9 +2152,19 @@ class _AdaptiveWebChunkUpload {
     });
   }
 
+  void markStopRequested({required bool manual}) {
+    _stopRequestedAtRecordingMs ??= _recordingStopwatch.elapsedMilliseconds;
+    _stopReason ??= manual ? 'manual' : 'vad';
+    // A timer that fires while recorder.stop() drains its last frame has no
+    // speculative lead. Cancel it here; the explicit recorder-stop request is
+    // tagged late and therefore cannot add prepare/commit to the critical path.
+    _cancelTerminalPreviewTimer('recorder_stop');
+    _pushClientTerminalTelemetry();
+  }
+
   void requestTerminalSpeculativePreview() {
-    _terminalPreviewTimer?.cancel();
-    _terminalPreviewTimer = null;
+    _cancelTerminalPreviewTimer('recorder_stop_snapshot');
+    _terminalRequestedAtRecordingMs ??= _recordingStopwatch.elapsedMilliseconds;
     _terminalPreviewDispatched = true;
     _terminalPreviewPending = true;
     final speculative = _session is SpeculativeBatchChunkUploadSession
@@ -2123,7 +2172,7 @@ class _AdaptiveWebChunkUpload {
         : null;
     if (speculative != null) {
       _terminalPreviewPending = false;
-      speculative.requestTerminalSpeculativePreview();
+      speculative.requestTerminalSpeculativePreview(atRecorderStop: true);
     }
   }
 
@@ -2131,12 +2180,152 @@ class _AdaptiveWebChunkUpload {
     if (!_acceptingChunks || bytes.isEmpty) {
       return;
     }
+    _analyzePcmVoiceActivity(bytes);
     final session = _session;
     if (session != null) {
       session.addAudioChunk(bytes);
       return;
     }
     _bufferedChunks.add(Uint8List.fromList(bytes));
+  }
+
+  void _analyzePcmVoiceActivity(Uint8List bytes) {
+    final sampleCount = bytes.length ~/ 2;
+    if (sampleCount <= 0) {
+      return;
+    }
+    final data = ByteData.sublistView(bytes);
+    for (
+      var frameStart = 0;
+      frameStart < sampleCount;
+      frameStart += _pcmAnalysisFrameSamples
+    ) {
+      final frameEnd = math.min(
+        sampleCount,
+        frameStart + _pcmAnalysisFrameSamples,
+      );
+      var energy = 0.0;
+      for (
+        var sampleIndex = frameStart;
+        sampleIndex < frameEnd;
+        sampleIndex += 1
+      ) {
+        final sample = data.getInt16(sampleIndex * 2, Endian.little) / 32768.0;
+        energy += sample * sample;
+      }
+      final frameSamples = frameEnd - frameStart;
+      final frameDuration = Duration(
+        microseconds: ((frameSamples * 1000000) / _pcmSampleRate).round(),
+      );
+      _pcmElapsed += frameDuration;
+      final rms = math.sqrt(energy / math.max(1, frameSamples));
+      final dbfs = rms <= 1e-7
+          ? -100.0
+          : (20 * math.log(rms) / math.ln10).clamp(-100.0, 0.0).toDouble();
+      final activity = _pcmVoiceActivityDetector.addSample(
+        dbfs,
+        elapsed: _pcmElapsed,
+      );
+      if (activity.speechStarted && !_speechDetected) {
+        markSpeculativeSpeechDetected();
+      }
+      if (!_speechDetected || activity.isCalibrating) {
+        continue;
+      }
+      if (activity.voiceActive) {
+        _pcmSilenceDuration = Duration.zero;
+        final requiresConfirmedResume =
+            _pcmVoiceInactive || _voiceInactiveAt != null;
+        if (requiresConfirmedResume) {
+          if (_pcmResumeDuration == Duration.zero) {
+            _pcmResumeMinimumDbfs = dbfs;
+            _pcmResumeMaximumDbfs = dbfs;
+          } else {
+            _pcmResumeMinimumDbfs = math.min(_pcmResumeMinimumDbfs, dbfs);
+            _pcmResumeMaximumDbfs = math.max(_pcmResumeMaximumDbfs, dbfs);
+          }
+          _pcmResumeDuration += frameDuration;
+          final resumeVariation = _pcmResumeMaximumDbfs - _pcmResumeMinimumDbfs;
+          if (_pcmResumeDuration < _pcmConfirmedResumeDuration ||
+              resumeVariation < _pcmConfirmedResumeVariationDb) {
+            // Do not let one noisy/reverberant frame cancel an ASR terminal
+            // already scheduled during silence. A real new phrase supplies a
+            // short, varying PCM run and is confirmed below.
+            continue;
+          }
+          _pcmVoiceInactive = false;
+          _resetPcmResumeCandidate();
+          // A confirmed PCM speech resumption invalidates the old terminal
+          // snapshot even when Safari's amplitude callback misses the start.
+          markSpeculativeSpeechDetected();
+          markSpeculativeVoiceActive(resumeReason: 'pcm_confirmed_resume');
+          continue;
+        }
+        _resetPcmResumeCandidate();
+        if (!_voiceActive) {
+          markSpeculativeVoiceActive(resumeReason: 'pcm_voice_active');
+        }
+        continue;
+      }
+      _resetPcmResumeCandidate();
+      _pcmSilenceDuration += frameDuration;
+      if (!_pcmVoiceInactive &&
+          _pcmSilenceDuration >= _pcmStableSilenceDuration) {
+        _pcmVoiceInactive = true;
+        _pcmSilenceDetectedAtRecordingMs ??=
+            _recordingStopwatch.elapsedMilliseconds;
+        markSpeculativeVoiceInactive();
+      }
+    }
+  }
+
+  void _resetPcmResumeCandidate() {
+    _pcmResumeDuration = Duration.zero;
+    _pcmResumeMinimumDbfs = 0;
+    _pcmResumeMaximumDbfs = -100;
+  }
+
+  void _cancelTerminalPreviewTimer(String reason) {
+    final timer = _terminalPreviewTimer;
+    if (timer == null) {
+      return;
+    }
+    timer.cancel();
+    _terminalPreviewTimer = null;
+    _terminalTimerCanceledCount += 1;
+    _terminalTimerLastCancelReason = reason;
+  }
+
+  Map<String, dynamic> _clientTerminalTelemetry() {
+    final stopAt = _stopRequestedAtRecordingMs;
+    final terminalAt = _terminalRequestedAtRecordingMs;
+    return <String, dynamic>{
+      if (_stopReason != null) 'clientStopReason': _stopReason,
+      if (_pcmSilenceDetectedAtRecordingMs != null)
+        'clientPcmSilenceDetectedAtRecordingMs':
+            _pcmSilenceDetectedAtRecordingMs,
+      if (_terminalTimerScheduledAtRecordingMs != null)
+        'clientTerminalTimerScheduledAtRecordingMs':
+            _terminalTimerScheduledAtRecordingMs,
+      'clientTerminalRequestedAtRecordingMs': ?terminalAt,
+      'clientStopRequestedAtRecordingMs': ?stopAt,
+      if (stopAt != null && terminalAt != null)
+        'clientTerminalRequestedBeforeStopMs': math.max(0, stopAt - terminalAt),
+      'clientTerminalTimerCanceledCount': _terminalTimerCanceledCount,
+      if (_terminalTimerLastCancelReason != null)
+        'clientTerminalTimerLastCancelReason': _terminalTimerLastCancelReason,
+    };
+  }
+
+  void _pushClientTerminalTelemetry([
+    SpeculativeBatchChunkUploadSession? target,
+  ]) {
+    final speculative =
+        target ??
+        (_session is SpeculativeBatchChunkUploadSession
+            ? _session! as SpeculativeBatchChunkUploadSession
+            : null);
+    speculative?.updateClientTerminalTelemetry(_clientTerminalTelemetry());
   }
 
   void schedulePromotion() {
@@ -2201,6 +2390,7 @@ class _AdaptiveWebChunkUpload {
         } else if (_voiceInactiveAt != null) {
           speculative.markSpeculativeVoiceInactive();
         }
+        _pushClientTerminalTelemetry(speculative);
         _previewSubscription = speculative.speculativePreviews.listen(
           (preview) {
             if (!_previewController.isClosed) {
@@ -2230,11 +2420,15 @@ class _AdaptiveWebChunkUpload {
   }
 
   Future<BatchChunkUploadSession?> stopAndTakeSession() async {
-    _terminalPreviewTimer?.cancel();
-    _terminalPreviewTimer = null;
+    _cancelTerminalPreviewTimer('session_sealed');
     _acceptingChunks = false;
     _bufferedChunks.clear();
     final session = _session;
+    if (session is SpeculativeBatchChunkUploadSession) {
+      _pushClientTerminalTelemetry(
+        session as SpeculativeBatchChunkUploadSession,
+      );
+    }
     _session = null;
     return session;
   }
@@ -2249,8 +2443,7 @@ class _AdaptiveWebChunkUpload {
 
   Future<void> discard({String reason = 'adaptive_cancelled'}) async {
     _promotionTimer?.cancel();
-    _terminalPreviewTimer?.cancel();
-    _terminalPreviewTimer = null;
+    _cancelTerminalPreviewTimer('discarded');
     _acceptingChunks = false;
     _bufferedChunks.clear();
     await _previewSubscription?.cancel();

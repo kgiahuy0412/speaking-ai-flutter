@@ -10,6 +10,9 @@ class AppConfig {
     this.preferBleStreaming = true,
     this.realtimeBatchFallback = true,
     this.realtimeFallbackBufferBytes = 15 * 1024 * 1024,
+    this.enableWorkerAsrPilot = false,
+    this.enableWorkerAsrPrepare = false,
+    this.workerAsrPilotBaseUri,
   });
 
   factory AppConfig.fromEnvironment() {
@@ -22,6 +25,11 @@ class AppConfig {
         : kIsWeb
         ? 'http://localhost:3000'
         : 'http://10.0.2.2:3000';
+    const configuredWorkerAsrPilotUrl = String.fromEnvironment(
+      'WORKER_ASR_PILOT_URL',
+      defaultValue: '',
+    );
+    final normalizedWorkerAsrPilotUrl = configuredWorkerAsrPilotUrl.trim();
 
     return AppConfig(
       backendBaseUri: Uri.parse(
@@ -54,6 +62,21 @@ class AppConfig {
         'REALTIME_FALLBACK_BUFFER_BYTES',
         defaultValue: 15 * 1024 * 1024,
       ),
+      enableWorkerAsrPilot:
+          kIsWeb &&
+          const bool.fromEnvironment(
+            'ENABLE_WORKER_ASR_PILOT',
+            defaultValue: false,
+          ),
+      enableWorkerAsrPrepare:
+          kIsWeb &&
+          const bool.fromEnvironment(
+            'ENABLE_WORKER_ASR_PREPARE',
+            defaultValue: false,
+          ),
+      workerAsrPilotBaseUri: normalizedWorkerAsrPilotUrl.isEmpty
+          ? null
+          : Uri.tryParse(normalizedWorkerAsrPilotUrl),
     );
   }
 
@@ -65,6 +88,18 @@ class AppConfig {
   final bool preferBleStreaming;
   final bool realtimeBatchFallback;
   final int realtimeFallbackBufferBytes;
+  final bool enableWorkerAsrPilot;
+  final bool enableWorkerAsrPrepare;
+  final Uri? workerAsrPilotBaseUri;
+
+  bool get workerAsrPilotReady =>
+      enableWorkerAsrPilot &&
+      workerAsrPilotBaseUri != null &&
+      (workerAsrPilotBaseUri!.scheme == 'https' ||
+          workerAsrPilotBaseUri!.scheme == 'http');
+
+  bool get workerAsrPrepareReady =>
+      workerAsrPilotReady && enableWorkerAsrPrepare;
 
   Uri resolve(String path) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';

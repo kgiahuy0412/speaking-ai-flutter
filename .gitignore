@@ -40,6 +40,7 @@ dart_defines.local.json
 /standalone/aiv0_batch_reviewer/.venv-asr/
 
 node_modules/
+.wrangler/
 .codex-spreadsheet/
 .codegraph/
 dist/

@@ -605,6 +605,145 @@ void main() {
   );
 
   test(
+    'Web PCM silence requests terminal preview before recorder stop',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final session = _SpeculativeRecordingBatchSession();
+      final batchCompleter = Completer<BatchChunkUploadSession>()
+        ..complete(session);
+      final repository = _FallbackRepository(batchCompleter: batchCompleter);
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+      );
+
+      await controller.startRecording();
+      // Calibrate the PCM detector from actual Raw PCM even if Safari's
+      // amplitude callback later stops reporting the silence transition.
+      input.emit(_pcm16Chunk(amplitude: 0));
+      input.emit(_pcm16Chunk(amplitude: 0));
+      await _emitDetectedSpeech(input);
+      input.emit(_pcm16Chunk(amplitude: 0.3));
+      input.emit(_pcm16Chunk(amplitude: 0));
+
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(session.terminalPreviewRequests, 1);
+      expect(session.voiceInactiveCalls, greaterThan(0));
+      expect(session.finalized, isFalse);
+      expect(controller.phase, ConversationPhase.recording);
+
+      await controller.stopRecording(manual: true);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'short PCM noise after silence does not cancel early terminal preview',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final session = _SpeculativeRecordingBatchSession();
+      final repository = _FallbackRepository(
+        batchCompleter: Completer<BatchChunkUploadSession>()..complete(session),
+      );
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+      );
+
+      await controller.startRecording();
+      input.emit(_pcm16Chunk(amplitude: 0));
+      input.emit(_pcm16Chunk(amplitude: 0));
+      await _emitDetectedSpeech(input);
+      input.emit(_pcm16Chunk(amplitude: 0.3));
+      input.emit(_pcm16Chunk(amplitude: 0));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      // A brief fan click/reverberation used to cancel the 200 ms terminal
+      // timer and postpone Worker ASR until recorder.stop().
+      input.emitAmplitude(-20);
+      input.emit(_pcm16Chunk(amplitude: 0.12, durationMs: 40));
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+
+      expect(session.terminalPreviewRequests, 1);
+      expect(controller.phase, ConversationPhase.recording);
+
+      await controller.stopRecording(manual: true);
+      expect(session.clientTerminalTelemetry['clientStopReason'], 'manual');
+      expect(
+        session.clientTerminalTelemetry['clientTerminalRequestedBeforeStopMs'],
+        isA<int>(),
+      );
+      controller.dispose();
+    },
+  );
+
+  test(
+    'confirmed PCM speech resume cancels the stale terminal timer',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final session = _SpeculativeRecordingBatchSession();
+      final repository = _FallbackRepository(
+        batchCompleter: Completer<BatchChunkUploadSession>()..complete(session),
+      );
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+      );
+
+      await controller.startRecording();
+      input.emit(_pcm16Chunk(amplitude: 0));
+      input.emit(_pcm16Chunk(amplitude: 0));
+      await _emitDetectedSpeech(input);
+      input.emit(_pcm16Chunk(amplitude: 0.3));
+      input.emit(_pcm16Chunk(amplitude: 0));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      input.emit(
+        Uint8List.fromList(<int>[
+          ..._pcm16Chunk(amplitude: 0.08, durationMs: 40),
+          ..._pcm16Chunk(amplitude: 0.25, durationMs: 40),
+          ..._pcm16Chunk(amplitude: 0.12, durationMs: 40),
+        ]),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 220));
+
+      // A real resumed phrase must invalidate the stale snapshot so a child is
+      // never cut merely to gain terminal lead.
+      expect(session.terminalPreviewRequests, 0);
+
+      await controller.stopRecording(manual: true);
+      expect(
+        session.clientTerminalTelemetry['clientTerminalTimerLastCancelReason'],
+        'pcm_confirmed_resume',
+      );
+      controller.dispose();
+    },
+  );
+
+  test(
     'Web low-confidence Batch result does not upload the WAV a second time',
     () async {
       final input = _FakeChunkedInput(
@@ -1265,6 +1404,18 @@ Future<void> _emitDetectedSpeech(_FakeChunkedInput input) async {
   input.emitAmplitude(-28);
 }
 
+Uint8List _pcm16Chunk({required double amplitude, int durationMs = 200}) {
+  const sampleRate = 16000;
+  final sampleCount = sampleRate * durationMs ~/ 1000;
+  final bytes = Uint8List(sampleCount * 2);
+  final data = ByteData.sublistView(bytes);
+  final encoded = (amplitude.clamp(0.0, 1.0) * 32767).round();
+  for (var index = 0; index < sampleCount; index += 1) {
+    data.setInt16(index * 2, index.isEven ? encoded : -encoded, Endian.little);
+  }
+  return bytes;
+}
+
 class _FailingRealtimeSession implements RealtimeTranscriptionSession {
   @override
   Stream<String> get partialText => const Stream<String>.empty();
@@ -1324,6 +1475,10 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
   bool discarded = false;
   Object? finalizeError;
   AudioCapture? capture;
+  int terminalPreviewRequests = 0;
+  int speechDetectedCalls = 0;
+  int voiceActiveCalls = 0;
+  int voiceInactiveCalls = 0;
 
   @override
   void addAudioChunk(Uint8List bytes) {
@@ -1350,6 +1505,47 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
   @override
   Future<void> discard({String reason = 'unspecified'}) async {
     discarded = true;
+  }
+}
+
+class _SpeculativeRecordingBatchSession extends _RecordingBatchSession
+    implements SpeculativeBatchChunkUploadSession {
+  final StreamController<ConversationPreview> _previews =
+      StreamController<ConversationPreview>.broadcast(sync: true);
+  final Map<String, dynamic> clientTerminalTelemetry = <String, dynamic>{};
+
+  @override
+  Stream<ConversationPreview> get speculativePreviews => _previews.stream;
+
+  @override
+  void configureSpeculativePreview({
+    required PracticeContext context,
+    required int childAge,
+  }) {}
+
+  @override
+  void markSpeculativeSpeechDetected() {
+    speechDetectedCalls += 1;
+  }
+
+  @override
+  void markSpeculativeVoiceActive() {
+    voiceActiveCalls += 1;
+  }
+
+  @override
+  void markSpeculativeVoiceInactive() {
+    voiceInactiveCalls += 1;
+  }
+
+  @override
+  void updateClientTerminalTelemetry(Map<String, dynamic> telemetry) {
+    clientTerminalTelemetry.addAll(telemetry);
+  }
+
+  @override
+  void requestTerminalSpeculativePreview({bool atRecorderStop = false}) {
+    terminalPreviewRequests += 1;
   }
 }
 
