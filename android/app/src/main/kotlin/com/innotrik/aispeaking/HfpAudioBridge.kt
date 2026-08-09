@@ -538,7 +538,31 @@ class HfpAudioBridge(
             "deviceName" to selectedDevice?.let(::safeName),
             "message" to statusMessage,
             "sampleRate" to 16000,
+            "routeActive" to routeActive,
+            "inputDeviceName" to activeScoDeviceName(AudioManager.GET_DEVICES_INPUTS),
+            "outputDeviceName" to activeScoDeviceName(AudioManager.GET_DEVICES_OUTPUTS),
+            "audioRoute" to if (routeActive) "HFP/SCO two-way" else "system/default",
         )
+
+    private fun activeScoDeviceName(direction: Int): String? {
+        if (!routeActive) return null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val communicationDevice = audioManager.communicationDevice
+            if (communicationDevice?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                return communicationDevice.productName?.toString()
+                    ?.trim()
+                    ?.takeUnless { it.isEmpty() }
+                    ?: selectedDevice?.let(::safeName)
+            }
+        }
+        return audioManager.getDevices(direction)
+            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+            ?.productName
+            ?.toString()
+            ?.trim()
+            ?.takeUnless { it.isEmpty() }
+            ?: selectedDevice?.let(::safeName)
+    }
 
     private fun emitStatus() {
         if (!disposed) {

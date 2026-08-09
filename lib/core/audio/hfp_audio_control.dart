@@ -222,6 +222,10 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
       deviceName: _nullableString(map['deviceName']) ?? _status.deviceName,
       message: _nullableString(map['message']),
       sampleRate: 16000,
+      routeActive: map['routeActive'] == true,
+      inputDeviceName: _nullableString(map['inputDeviceName']),
+      outputDeviceName: _nullableString(map['outputDeviceName']),
+      audioRoute: _nullableString(map['audioRoute']),
     );
   }
 

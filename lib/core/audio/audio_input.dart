@@ -120,6 +120,10 @@ class BluetoothAudioStatus {
     this.invalidPacketCount = 0,
     this.decodedPcmBytes = 0,
     this.sampleRate = 24000,
+    this.routeActive = false,
+    this.inputDeviceName,
+    this.outputDeviceName,
+    this.audioRoute,
   });
 
   final BluetoothAudioConnectionPhase phase;
@@ -130,6 +134,10 @@ class BluetoothAudioStatus {
   final int invalidPacketCount;
   final int decodedPcmBytes;
   final int sampleRate;
+  final bool routeActive;
+  final String? inputDeviceName;
+  final String? outputDeviceName;
+  final String? audioRoute;
 
   bool get isBridgeSupported =>
       phase != BluetoothAudioConnectionPhase.disabled &&

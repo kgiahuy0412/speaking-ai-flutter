@@ -17,6 +17,7 @@ class MainActivity : FlutterActivity() {
     private var speechRecognizerBridge: AndroidSpeechRecognizerBridge? = null
     private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
     private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
+    private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
     private var voicePromptBridge: VoicePromptBridge? = null
 
@@ -33,6 +34,11 @@ class MainActivity : FlutterActivity() {
             )
         innotrikBleAudioBridge =
             InnotrikBleAudioBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        aiv0BleControlBridge =
+            Aiv0BleControlBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -97,6 +103,8 @@ class MainActivity : FlutterActivity() {
         offlineIntentRecognizerBridge = null
         innotrikBleAudioBridge?.dispose()
         innotrikBleAudioBridge = null
+        aiv0BleControlBridge?.dispose()
+        aiv0BleControlBridge = null
         hfpAudioBridge?.dispose()
         hfpAudioBridge = null
         voicePromptBridge?.dispose()
@@ -119,6 +127,14 @@ class MainActivity : FlutterActivity() {
         }
         if (
             innotrikBleAudioBridge?.onRequestPermissionsResult(
+                requestCode,
+                grantResults,
+            ) == true
+        ) {
+            return
+        }
+        if (
+            aiv0BleControlBridge?.onRequestPermissionsResult(
                 requestCode,
                 grantResults,
             ) == true
@@ -181,20 +197,16 @@ class MainActivity : FlutterActivity() {
 
     private fun protocolInfo(): Map<String, Any> =
         mapOf(
-            "serviceUuid" to InnotrikProtocol.SERVICE_UUID,
-            "writeCharacteristicUuid" to
-                InnotrikProtocol.WRITE_CHARACTERISTIC_UUID,
-            "notifyCharacteristicUuid" to
-                InnotrikProtocol.NOTIFY_CHARACTERISTIC_UUID,
-            "packetLength" to InnotrikProtocol.PACKET_LENGTH,
-            "opusPayloadLength" to InnotrikProtocol.OPUS_PAYLOAD_LENGTH,
-            "startCommand" to
-                InnotrikProtocol.START_MICROPHONE_COMMAND.map {
-                    byte -> byte.toInt() and 0xFF
-                },
-            "stopCommand" to
-                InnotrikProtocol.STOP_MICROPHONE_COMMAND.map {
-                    byte -> byte.toInt() and 0xFF
-                },
+            "architecture" to "HFP_AUDIO_PLUS_BLE_CONTROL",
+            "controlServiceUuid" to Aiv0BleProtocol.CONTROL_SERVICE,
+            "buttonEventUuid" to Aiv0BleProtocol.BUTTON_EVENT,
+            "appStateUuid" to Aiv0BleProtocol.APP_STATE,
+            "batteryServiceUuid" to Aiv0BleProtocol.BATTERY_SERVICE,
+            "batteryLevelUuid" to Aiv0BleProtocol.BATTERY_LEVEL,
+            "deviceInformationServiceUuid" to
+                Aiv0BleProtocol.DEVICE_INFORMATION_SERVICE,
+            "firmwareRevisionUuid" to Aiv0BleProtocol.FIRMWARE_REVISION,
+            "audioTransport" to "HFP",
+            "legacyBleAudioEnabledByDefault" to false,
         )
 }

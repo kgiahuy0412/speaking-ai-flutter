@@ -5,9 +5,11 @@ class AppConfig {
     required this.backendBaseUri,
     required this.useDemoBackend,
     required this.childAge,
-    this.enableInnotrikBle = true,
+    this.enableAiv0BleControl = true,
+    this.aiv0DraftProtocolConfirmed = false,
+    this.enableLegacyBleAudio = false,
     this.enableHfpAudio = true,
-    this.preferBleStreaming = true,
+    this.preferBleStreaming = false,
     this.realtimeBatchFallback = true,
     this.realtimeFallbackBufferBytes = 15 * 1024 * 1024,
     this.enableWorkerAsrPilot = false,
@@ -42,9 +44,17 @@ class AppConfig {
         defaultValue: false,
       ),
       childAge: const int.fromEnvironment('CHILD_AGE', defaultValue: 6),
-      enableInnotrikBle: const bool.fromEnvironment(
-        'ENABLE_INNOTRIK_BLE',
+      enableAiv0BleControl: const bool.fromEnvironment(
+        'ENABLE_AIV0_BLE_CONTROL',
         defaultValue: true,
+      ),
+      aiv0DraftProtocolConfirmed: const bool.fromEnvironment(
+        'AIV0_DRAFT_PROTOCOL_CONFIRMED',
+        defaultValue: false,
+      ),
+      enableLegacyBleAudio: const bool.fromEnvironment(
+        'ENABLE_LEGACY_BLE_AUDIO',
+        defaultValue: false,
       ),
       enableHfpAudio: const bool.fromEnvironment(
         'ENABLE_HFP_AUDIO',
@@ -52,7 +62,7 @@ class AppConfig {
       ),
       preferBleStreaming: const bool.fromEnvironment(
         'PREFER_BLE_STREAMING',
-        defaultValue: true,
+        defaultValue: false,
       ),
       realtimeBatchFallback: const bool.fromEnvironment(
         'REALTIME_BATCH_FALLBACK',
@@ -83,7 +93,14 @@ class AppConfig {
   final Uri backendBaseUri;
   final bool useDemoBackend;
   final int childAge;
-  final bool enableInnotrikBle;
+  final bool enableAiv0BleControl;
+
+  /// Enables the draft 12-byte button/8-byte APP-state codec only after ODM
+  /// confirms the raw packets. Raw BLE diagnostics remain available when off.
+  final bool aiv0DraftProtocolConfirmed;
+
+  /// Legacy FF12/FF13/FF14 BLE audio. Disabled for the AIV0 V1 architecture.
+  final bool enableLegacyBleAudio;
   final bool enableHfpAudio;
   final bool preferBleStreaming;
   final bool realtimeBatchFallback;
