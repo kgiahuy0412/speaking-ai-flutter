@@ -488,6 +488,7 @@ class Aiv0BleControlBridge(
             packetCount += 1
             val hex = value.toHex()
             val now = android.os.SystemClock.elapsedRealtime()
+            val receivedAtEpochMs = System.currentTimeMillis()
             val duplicate = hex == lastRawHex && now - lastPacketAt <= DUPLICATE_WINDOW_MS
             if (duplicate) duplicatePacketCount += 1
             if (value.size != 12) invalidPacketCount += 1
@@ -504,6 +505,7 @@ class Aiv0BleControlBridge(
                     "deviceId" to deviceId,
                     "bytes" to value.map { it.toInt() and 0xFF },
                     "duplicate" to duplicate,
+                    "receivedAtEpochMs" to receivedAtEpochMs,
                 ),
             )
         }

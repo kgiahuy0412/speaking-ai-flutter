@@ -16,7 +16,11 @@ enum Aiv0BlePhase {
   error,
 }
 
-enum Aiv0Button { main, replay, unknown }
+/// V1 exposes one application-controlled physical button: MAIN.
+///
+/// Power and volume stay local to the device. Unknown values are retained in
+/// the raw log instead of being interpreted as a retired REPLAY command.
+enum Aiv0Button { main, unknown }
 
 enum Aiv0ButtonGesture { shortPress, longPress, release, unknown }
 
@@ -85,7 +89,7 @@ class Aiv0ButtonEvent {
 }
 
 /// Temporary codec from the V0.1 draft. Keep [confirmed] false until ODM sends
-/// MAIN/REPLAY raw hex and confirms the byte layout implemented by firmware.
+/// MAIN raw hex and confirms the byte layout implemented by firmware.
 class Aiv0DraftProtocolCodec {
   const Aiv0DraftProtocolCodec({required this.confirmed});
 
@@ -117,7 +121,6 @@ class Aiv0DraftProtocolCodec {
       receivedAt: receivedAt ?? DateTime.now(),
       button: switch (bytes[1]) {
         0x01 => Aiv0Button.main,
-        0x02 => Aiv0Button.replay,
         _ => Aiv0Button.unknown,
       },
       gesture: switch (bytes[2]) {
@@ -377,6 +380,7 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
       final buttonEvent = _codec.decodeButtonEvent(
         Uint8List.fromList(bytes),
         deviceId: event['deviceId']?.toString(),
+        receivedAt: _dateTimeFromEpochMilliseconds(event['receivedAtEpochMs']),
       );
       _buttonController.add(
         Aiv0ButtonEvent(
@@ -400,6 +404,12 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
 
   void _updateStatus(Map<Object?, Object?> map) {
     _setStatus(Aiv0BleStatus.fromMap(map, protocolConfirmed: _codec.confirmed));
+  }
+
+  DateTime? _dateTimeFromEpochMilliseconds(Object? value) {
+    final milliseconds = (value as num?)?.toInt();
+    if (milliseconds == null || milliseconds <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds);
   }
 
   void _setStatus(Aiv0BleStatus value) {

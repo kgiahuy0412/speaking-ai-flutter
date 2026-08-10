@@ -17,7 +17,7 @@ void main() {
       expect(event.rawHex, '01 01 01 00 2A 00 58 00 D2 04 00 00');
     });
 
-    test('decodes draft MAIN and REPLAY only after confirmation', () {
+    test('decodes only draft MAIN after confirmation', () {
       const codec = Aiv0DraftProtocolCodec(confirmed: true);
       final main = codec.decodeButtonEvent(
         Uint8List.fromList(<int>[1, 1, 1, 0, 42, 0, 88, 0, 0xD2, 0x04, 0, 0]),
@@ -32,7 +32,7 @@ void main() {
       expect(main.batteryPercent, 88);
       expect(main.uptimeMilliseconds, 1234);
       expect(main.isDraftPacket, isTrue);
-      expect(replay.button, Aiv0Button.replay);
+      expect(replay.button, Aiv0Button.unknown);
       expect(replay.sequence, 43);
     });
 
