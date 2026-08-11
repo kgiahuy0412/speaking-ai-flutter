@@ -12,6 +12,7 @@ class AppConfig {
     this.realtimeFallbackBufferBytes = 15 * 1024 * 1024,
     this.enableWorkerAsrPilot = false,
     this.enableWorkerAsrPrepare = false,
+    this.enableWorkerAsrPcmTrim = true,
     this.workerAsrPilotBaseUri,
   });
 
@@ -74,6 +75,10 @@ class AppConfig {
             'ENABLE_WORKER_ASR_PREPARE',
             defaultValue: false,
           ),
+      enableWorkerAsrPcmTrim: const bool.fromEnvironment(
+        'ENABLE_WORKER_ASR_PCM_TRIM',
+        defaultValue: true,
+      ),
       workerAsrPilotBaseUri: normalizedWorkerAsrPilotUrl.isEmpty
           ? null
           : Uri.tryParse(normalizedWorkerAsrPilotUrl),
@@ -90,6 +95,7 @@ class AppConfig {
   final int realtimeFallbackBufferBytes;
   final bool enableWorkerAsrPilot;
   final bool enableWorkerAsrPrepare;
+  final bool enableWorkerAsrPcmTrim;
   final Uri? workerAsrPilotBaseUri;
 
   bool get workerAsrPilotReady =>
@@ -100,6 +106,9 @@ class AppConfig {
 
   bool get workerAsrPrepareReady =>
       workerAsrPilotReady && enableWorkerAsrPrepare;
+
+  bool get workerAsrPcmTrimReady =>
+      workerAsrPilotReady && enableWorkerAsrPcmTrim;
 
   Uri resolve(String path) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';

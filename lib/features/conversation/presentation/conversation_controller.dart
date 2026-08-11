@@ -165,6 +165,7 @@ class ConversationController extends ChangeNotifier {
   String? _lastPreviewText;
   ConversationPreview? _preview;
   Uri? _preferredPlaybackUri;
+  Uri? _speculativePreloadUri;
 
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
@@ -623,6 +624,7 @@ class ConversationController extends ChangeNotifier {
       _lastPreviewText = null;
       _preview = null;
       _preferredPlaybackUri = null;
+      _speculativePreloadUri = null;
       await _batchChunkSubscription?.cancel();
       _batchChunkSubscription = null;
       await _batchPreviewSubscription?.cancel();
@@ -1162,11 +1164,16 @@ class ConversationController extends ChangeNotifier {
     final audioUri = preview.audioUri;
     if (audioUri != null) {
       _preferredPlaybackUri = audioUri;
-      unawaited(
-        _playbackService.preload(audioUri).catchError((Object error) {
-          debugPrint('Speculative Web audio preload was skipped: $error');
-        }),
-      );
+      _speculativePreloadUri = audioUri;
+      final preload = _playbackService.preload(audioUri).catchError((
+        Object error,
+      ) {
+        debugPrint('Speculative Web audio preload was skipped: $error');
+      });
+      // Browser preload assigns the source to the persistent HTMLAudioElement
+      // synchronously before this future first yields. Finalization only reuses
+      // this source when the committed result returns the exact same URI.
+      unawaited(preload);
     }
   }
 
@@ -1488,9 +1495,20 @@ class ConversationController extends ChangeNotifier {
       // preloaded HTMLAudioElement source below. Cleanup happens only after
       // playback has started (or in finally on error).
       final preview = _preview;
-      if (preview?.audioUri != null &&
-          preview!.englishText.trim() == nextResult.englishText.trim()) {
+      final preparedPreviewMatchesResult =
+          preview?.audioUri != null &&
+          preview!.englishText.trim() == nextResult.englishText.trim() &&
+          preview.audioUri == nextResult.audioUri;
+      if (preparedPreviewMatchesResult) {
         _preferredPlaybackUri = preview.audioUri;
+      } else {
+        // A different signed URL means finalize did not commit the preparation
+        // that owns the current HTMLAudioElement. Do not play stale speculative
+        // audio merely because its English text happens to be equal.
+        _preferredPlaybackUri = nextResult.audioUri;
+        if (_speculativePreloadUri != nextResult.audioUri) {
+          _speculativePreloadUri = null;
+        }
       }
       result = nextResult;
       _processingStageTimer?.cancel();

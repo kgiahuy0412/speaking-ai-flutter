@@ -510,15 +510,20 @@ void main() {
   );
 
   test(
-    'uses scoped Raw PCM Worker ASR and skips backend Batch finalize on success',
+    'joins an unresolved Worker preparation without starting a duplicate pipeline',
     () async {
       var workerCalls = 0;
+      var prepareCalls = 0;
+      var commitCalls = 0;
+      var conversationCalls = 0;
       var batchFinalizeCalled = false;
-      Map<String, dynamic>? streamingBody;
+      Map<String, dynamic>? commitBody;
       http.Request? workerRequest;
       final shadowDiscarded = Completer<void>();
       final workerRequestStarted = Completer<void>();
       final releaseWorkerResponse = Completer<void>();
+      final previewDeliveredBeforeCommit = Completer<void>();
+      String? snapshotHash;
       final repository = NextConversationRepository(
         config: workerPrepareConfig,
         clientIdProvider: clientIdProvider,
@@ -563,12 +568,48 @@ void main() {
               request.method == 'POST') {
             return http.Response('{}', 200);
           }
-          if (request.url.path == '/api/conversation') {
-            streamingBody = jsonDecode(request.body) as Map<String, dynamic>;
+          if (request.url.path == '/api/conversation/prepare') {
+            prepareCalls += 1;
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            snapshotHash = body['snapshotHash'] as String;
             return http.Response(
               jsonEncode(<String, dynamic>{
-                'conversationId': 'conv_worker',
-                'sessionId': 'sess_worker',
+                'prepareId': 'prep_1234567890abcdef1234567890abcdef',
+                'snapshotHash': snapshotHash,
+                'result': <String, dynamic>{
+                  'conversationId': 'conv_worker_prepared',
+                  'sessionId': 'audio_v2-worker-success',
+                  'context': 'home',
+                  'vietnameseText': 'Con muốn uống nước',
+                  'englishText': 'Can I have some water, please?',
+                  'audioUrl': '/generated-audio/water.mp3',
+                  'processingMode': 'rule',
+                  'textSource': 'phrase_rule',
+                  'audioSource': 'cache',
+                  'asrMode': 'browser_streaming',
+                  'latency': <String, dynamic>{
+                    'asrMs': 430,
+                    'llmMs': 0,
+                    'ttsMs': 0,
+                    'timeToFirstAudioMs': 500,
+                  },
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
+              },
+            );
+          }
+          if (request.url.path == '/api/conversation/prepare/commit') {
+            commitCalls += 1;
+            expect(previewDeliveredBeforeCommit.isCompleted, isTrue);
+            commitBody = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(commitBody?['snapshotHash'], snapshotHash);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_worker_prepared',
+                'sessionId': 'audio_v2-worker-success',
                 'context': 'home',
                 'vietnameseText': 'Con muốn uống nước',
                 'englishText': 'Can I have some water, please?',
@@ -590,6 +631,10 @@ void main() {
               },
             );
           }
+          if (request.url.path == '/api/conversation') {
+            conversationCalls += 1;
+            return http.Response('{}', 500);
+          }
           if (request.url.path.endsWith('/finalize')) {
             batchFinalizeCalled = true;
             return http.Response('{}', 500);
@@ -610,6 +655,14 @@ void main() {
 
       final upload = await repository.startBatchChunkUpload();
       final speculative = upload as SpeculativeBatchChunkUploadSession;
+      final previewSubscription = speculative.speculativePreviews.listen((
+        preview,
+      ) {
+        expect(preview.audioUri?.path, '/generated-audio/water.mp3');
+        if (!previewDeliveredBeforeCommit.isCompleted) {
+          previewDeliveredBeforeCommit.complete();
+        }
+      });
       speculative.configureSpeculativePreview(
         context: PracticeContext.home,
         childAge: 6,
@@ -641,7 +694,11 @@ void main() {
       final result = await resultFuture;
 
       await shadowDiscarded.future.timeout(const Duration(seconds: 2));
+      await previewSubscription.cancel();
       expect(workerCalls, 1);
+      expect(prepareCalls, 1);
+      expect(commitCalls, 1);
+      expect(conversationCalls, 0);
       expect(batchFinalizeCalled, isFalse);
       expect(workerRequest?.url.path, '/v1/asr/transcribe');
       expect(
@@ -654,15 +711,16 @@ void main() {
       );
       expect(workerRequest?.headers['x-audio-sample-rate'], '16000');
       expect(workerRequest?.bodyBytes, hasLength(6400));
-      expect(streamingBody?['sourceText'], 'Con muốn uống nước');
-      expect(streamingBody?['asrMode'], 'browser_streaming');
-      final benchmark = streamingBody?['benchmark'] as Map<String, dynamic>;
+      final benchmark = commitBody?['benchmark'] as Map<String, dynamic>;
       expect(benchmark['requestedAsrMode'], 'browser_streaming');
       expect(benchmark['workerAsrPilotAsrMs'], 430);
       expect(benchmark['workerAsrPilotAudioBytes'], 6400);
-      expect(benchmark['workerPrepareSkippedLowLead'], isTrue);
-      expect(benchmark['workerPrepareAbandonedAtFinalize'], isTrue);
-      expect(benchmark['workerPrepareAttempted'], isTrue);
+      expect(benchmark['workerPrepareJoinedAtFinalize'], isTrue);
+      expect(benchmark['workerPrepareSkippedLowLead'], isFalse);
+      expect(benchmark['workerPrepareAbandonedAtFinalize'], isFalse);
+      expect(benchmark['workerPreparedCommit'], isTrue);
+      expect(result.conversationId, 'conv_worker_prepared');
+      expect(result.audioUri?.path, '/generated-audio/water.mp3');
       expect(result.asrMode, 'browser_streaming');
       await repository.dispose();
     },
@@ -845,6 +903,10 @@ void main() {
           }
           if (request.url.path == '/api/conversation/prepare') {
             prepareCalls += 1;
+            expect(
+              request.headers['authorization'],
+              'Bearer scoped.payload.signature',
+            );
             final body = jsonDecode(request.body) as Map<String, dynamic>;
             preparedSnapshotHash = body['snapshotHash'] as String;
             return http.Response(
@@ -878,6 +940,10 @@ void main() {
           }
           if (request.url.path == '/api/conversation/prepare/commit') {
             commitCalls += 1;
+            expect(
+              request.headers['authorization'],
+              'Bearer scoped.payload.signature',
+            );
             final body = jsonDecode(request.body) as Map<String, dynamic>;
             expect(body['snapshotHash'], preparedSnapshotHash);
             final benchmark = body['benchmark'] as Map<String, dynamic>;

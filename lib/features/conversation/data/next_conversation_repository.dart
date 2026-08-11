@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
+import '../../../core/audio/pcm16_speech_trimmer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/wav_audio.dart';
 import '../../../core/network/multipart_audio_file.dart';
@@ -527,9 +528,10 @@ class NextConversationRepository
   Future<_WorkerAsrTranscript> _transcribeWorkerAsrPilot({
     required String audioSessionId,
     required String uploadToken,
-    required Uint8List pcmBytes,
+    required Pcm16SpeechTrimResult audio,
     required int snapshotChunkCount,
   }) async {
+    final pcmBytes = audio.bytes;
     final workerBaseUri = _config.workerAsrPilotBaseUri;
     if (!_config.workerAsrPilotReady || workerBaseUri == null) {
       throw const ConversationApiException(
@@ -593,14 +595,24 @@ class NextConversationRepository
     final asrMs = timing is Map<String, dynamic>
         ? (timing['asrMs'] as num?)?.round()
         : null;
+    final requestReadMs = timing is Map<String, dynamic>
+        ? (timing['requestReadMs'] as num?)?.round()
+        : null;
+    final serverTotalMs = timing is Map<String, dynamic>
+        ? (timing['totalMs'] as num?)?.round()
+        : null;
     developer.log(
       jsonEncode(<String, dynamic>{
         'event': 'worker_asr_pilot_completed',
         'audioSessionId': audioSessionId,
         'snapshotChunkCount': snapshotChunkCount,
         'audioBytes': pcmBytes.length,
+        'originalAudioBytes': audio.originalByteLength,
+        'trimmedAudioMs': audio.trimmedDurationMs,
         'workerRttMs': requestStopwatch.elapsedMilliseconds,
         'workerAsrMs': asrMs,
+        'workerRequestReadMs': requestReadMs,
+        'workerServerTotalMs': serverTotalMs,
       }),
       name: 'conversation.worker_asr_pilot',
     );
@@ -610,8 +622,14 @@ class NextConversationRepository
       snapshotChunkCount: snapshotChunkCount,
       snapshotHash: crypto.sha256.convert(pcmBytes).toString(),
       audioBytes: pcmBytes.length,
+      originalAudioBytes: audio.originalByteLength,
+      sourceStartByte: audio.sourceStartByte,
+      sourceEndByte: audio.sourceEndByte,
+      trimmedAudioMs: audio.trimmedDurationMs,
       rttMs: requestStopwatch.elapsedMilliseconds,
       asrMs: asrMs,
+      requestReadMs: requestReadMs,
+      serverTotalMs: serverTotalMs,
     );
   }
 
@@ -647,6 +665,7 @@ class NextConversationRepository
 
   Future<_PreparedWorkerConversation> _prepareWorkerConversation({
     required String audioSessionId,
+    required String uploadToken,
     required _WorkerAsrTranscript transcript,
     required PracticeContext context,
     required int childAge,
@@ -656,7 +675,10 @@ class NextConversationRepository
     final response = await _client
         .post(
           _config.resolve('/api/conversation/prepare'),
-          headers: const <String, String>{'content-type': 'application/json'},
+          headers: <String, String>{
+            'content-type': 'application/json',
+            'Authorization': 'Bearer $uploadToken',
+          },
           body: jsonEncode(<String, dynamic>{
             'clientId': await _clientId,
             'audioSessionId': audioSessionId,
@@ -680,6 +702,14 @@ class NextConversationRepository
               if (transcript.asrMs != null)
                 'workerAsrPilotAsrMs': transcript.asrMs,
               'workerAsrPilotAudioBytes': transcript.audioBytes,
+              'workerAsrPilotOriginalAudioBytes': transcript.originalAudioBytes,
+              'workerAsrPilotTrimmedAudioMs': transcript.trimmedAudioMs,
+              'workerAsrPilotSourceStartByte': transcript.sourceStartByte,
+              'workerAsrPilotSourceEndByte': transcript.sourceEndByte,
+              if (transcript.requestReadMs != null)
+                'workerAsrPilotRequestReadMs': transcript.requestReadMs,
+              if (transcript.serverTotalMs != null)
+                'workerAsrPilotServerTotalMs': transcript.serverTotalMs,
               'workerStartedAtSessionMs': workerStartedAtSessionMs,
               'workerPrepareAttempted': true,
             },
@@ -716,13 +746,17 @@ class NextConversationRepository
 
   Future<ConversationResult> _commitPreparedWorkerConversation({
     required String audioSessionId,
+    required String uploadToken,
     required _PreparedWorkerConversation prepared,
     required Map<String, dynamic> benchmark,
   }) async {
     final response = await _client
         .post(
           _config.resolve('/api/conversation/prepare/commit'),
-          headers: const <String, String>{'content-type': 'application/json'},
+          headers: <String, String>{
+            'content-type': 'application/json',
+            'Authorization': 'Bearer $uploadToken',
+          },
           body: jsonEncode(<String, dynamic>{
             'prepareId': prepared.prepareId,
             'audioSessionId': audioSessionId,
@@ -1395,16 +1429,28 @@ class _WorkerAsrTranscript {
     required this.snapshotChunkCount,
     required this.snapshotHash,
     required this.audioBytes,
+    required this.originalAudioBytes,
+    required this.sourceStartByte,
+    required this.sourceEndByte,
+    required this.trimmedAudioMs,
     required this.rttMs,
     required this.asrMs,
+    required this.requestReadMs,
+    required this.serverTotalMs,
   });
 
   final String sourceText;
   final int snapshotChunkCount;
   final String snapshotHash;
   final int audioBytes;
+  final int originalAudioBytes;
+  final int sourceStartByte;
+  final int sourceEndByte;
+  final int trimmedAudioMs;
   final int rttMs;
   final int? asrMs;
+  final int? requestReadMs;
+  final int? serverTotalMs;
 }
 
 class _PreparedWorkerConversation {
@@ -1448,8 +1494,6 @@ class _NextBatchChunkUploadSession
   static const _maxRetainedAudioBytes = 2 * 1024 * 1024;
   static const _maxSpeculativeAttempts = 4;
   static const _maxRegularSpeculativeAttempts = 3;
-  static const _minimumPreparedWorkerLeadMs = 300;
-
   final NextConversationRepository _repository;
   final String audioSessionId;
   final int sessionCreateMs;
@@ -1534,13 +1578,14 @@ class _NextBatchChunkUploadSession
   int? _workerPreparationReadyAtSessionMs;
   int? _workerFinalizeStartedAtSessionMs;
   bool _workerPrepareJoinedAtFinalize = false;
-  bool _workerPrepareAbandoned = false;
   bool _workerPrepareSkippedLowLead = false;
   bool _workerPrepareAbandonedAtFinalize = false;
   bool _workerLatePrepareSkipped = false;
   String? _workerPrepareFailureCode;
   int _workerPrepareDuplicateSuppressed = 0;
   int _workerPrepareInvalidated = 0;
+  Future<ConversationResult>? _workerPreparedCommitFlight;
+  String? _workerPreparedCommitPrepareId;
   final Map<String, dynamic> _clientTerminalTelemetry = <String, dynamic>{};
 
   bool get _usesWorkerPrepare =>
@@ -1608,7 +1653,6 @@ class _NextBatchChunkUploadSession
       _workerTranscriptReadyAtSessionMs = null;
       _workerPreparationReadyAtSessionMs = null;
       _workerPrepareJoinedAtFinalize = false;
-      _workerPrepareAbandoned = false;
       _workerPrepareSkippedLowLead = false;
       _workerPrepareAbandonedAtFinalize = false;
       _workerLatePrepareSkipped = false;
@@ -1716,7 +1760,8 @@ class _NextBatchChunkUploadSession
     if (context == null || childAge == null || pcmBytes == null) {
       return;
     }
-    final snapshotHash = crypto.sha256.convert(pcmBytes).toString();
+    final workerAudio = _workerPcmPayload(pcmBytes);
+    final snapshotHash = crypto.sha256.convert(workerAudio.bytes).toString();
     final generation = _speechGeneration;
     if (_workerPrepareSpeechGeneration == generation &&
         (_readyWorkerTranscript?.snapshotHash == snapshotHash ||
@@ -1728,15 +1773,13 @@ class _NextBatchChunkUploadSession
 
     _workerAsrPilotAttempted = true;
     _workerPrepareSpeechGeneration = generation;
-    _workerPrepareAbandoned = false;
     _workerPrepareStartedAtSessionMs = _sessionStopwatch.elapsedMilliseconds;
-    final immutablePcm = Uint8List.fromList(pcmBytes);
     final transcriptFlight = _workerTranscriptFlights.putIfAbsent(
       snapshotHash,
       () => _repository._transcribeWorkerAsrPilot(
         audioSessionId: audioSessionId,
         uploadToken: uploadToken!,
-        pcmBytes: immutablePcm,
+        audio: workerAudio,
         snapshotChunkCount: _transportChunkCount,
       ),
     );
@@ -1750,11 +1793,9 @@ class _NextBatchChunkUploadSession
         _readyWorkerTranscript = transcript;
         _workerTranscriptReadyAtSessionMs =
             _sessionStopwatch.elapsedMilliseconds;
-        if (_workerPrepareAbandoned) {
-          return null;
-        }
         final prepared = await _repository._prepareWorkerConversation(
           audioSessionId: audioSessionId,
+          uploadToken: uploadToken!,
           transcript: transcript,
           context: context,
           childAge: childAge,
@@ -2205,17 +2246,36 @@ class _NextBatchChunkUploadSession
     return builder.takeBytes();
   }
 
+  Pcm16SpeechTrimResult _workerPcmPayload(Uint8List pcmBytes) {
+    if (_repository._config.workerAsrPcmTrimReady) {
+      return trimPcm16SpeechForAsr(pcmBytes, sampleRate: pcm16SampleRate);
+    }
+    return Pcm16SpeechTrimResult(
+      bytes: Uint8List.fromList(pcmBytes),
+      originalByteLength: pcmBytes.length,
+      sourceStartByte: 0,
+      sourceEndByte: pcmBytes.length,
+      sampleRate: pcm16SampleRate,
+      trimmed: false,
+      reason: 'disabled',
+    );
+  }
+
   bool _workerSnapshotStillValid(
     _WorkerAsrTranscript transcript,
     Uint8List finalPcm,
   ) {
     if (_workerPrepareSpeechGeneration != _speechGeneration ||
-        transcript.audioBytes > finalPcm.length) {
+        transcript.sourceStartByte < 0 ||
+        transcript.sourceEndByte > finalPcm.length ||
+        transcript.sourceEndByte <= transcript.sourceStartByte) {
       return false;
     }
-    final snapshotBytes = transcript.audioBytes == finalPcm.length
-        ? finalPcm
-        : Uint8List.sublistView(finalPcm, 0, transcript.audioBytes);
+    final snapshotBytes = Uint8List.sublistView(
+      finalPcm,
+      transcript.sourceStartByte,
+      transcript.sourceEndByte,
+    );
     return crypto.sha256.convert(snapshotBytes).toString() ==
         transcript.snapshotHash;
   }
@@ -2245,6 +2305,14 @@ class _NextBatchChunkUploadSession
       'workerAsrPilotRttMs': transcript.rttMs,
       if (transcript.asrMs != null) 'workerAsrPilotAsrMs': transcript.asrMs,
       'workerAsrPilotAudioBytes': transcript.audioBytes,
+      'workerAsrPilotOriginalAudioBytes': transcript.originalAudioBytes,
+      'workerAsrPilotTrimmedAudioMs': transcript.trimmedAudioMs,
+      'workerAsrPilotSourceStartByte': transcript.sourceStartByte,
+      'workerAsrPilotSourceEndByte': transcript.sourceEndByte,
+      if (transcript.requestReadMs != null)
+        'workerAsrPilotRequestReadMs': transcript.requestReadMs,
+      if (transcript.serverTotalMs != null)
+        'workerAsrPilotServerTotalMs': transcript.serverTotalMs,
       'workerPrepareAttempted': _workerPrepareSpeechGeneration != null,
       'workerPreparedCommit': preparedCommit,
       'workerPrepareJoinedAtFinalize': _workerPrepareJoinedAtFinalize,
@@ -2305,16 +2373,61 @@ class _NextBatchChunkUploadSession
       );
       return null;
     }
-    return _repository._commitPreparedWorkerConversation(
-      audioSessionId: audioSessionId,
-      prepared: prepared,
-      benchmark: _workerFinalBenchmark(
-        capture: capture,
-        vadSilenceMs: vadSilenceMs,
-        transcript: prepared.transcript,
-        preparedCommit: true,
-      ),
+    final activeCommit = _workerPreparedCommitFlight;
+    if (activeCommit != null &&
+        _workerPreparedCommitPrepareId == prepared.prepareId) {
+      return activeCommit;
+    }
+    final benchmark = _workerFinalBenchmark(
+      capture: capture,
+      vadSilenceMs: vadSilenceMs,
+      transcript: prepared.transcript,
+      preparedCommit: true,
     );
+    final commit = _repository._commitPreparedWorkerConversation(
+      audioSessionId: audioSessionId,
+      uploadToken: uploadToken!,
+      prepared: prepared,
+      benchmark: benchmark,
+    );
+    _workerPreparedCommitPrepareId = prepared.prepareId;
+    _workerPreparedCommitFlight = commit;
+    try {
+      return await commit;
+    } catch (error, stackTrace) {
+      // A valid prepared result is already authoritative and contains the exact
+      // audio URL Safari started preloading. Never launch /api/conversation or
+      // Batch ASR after a commit transport failure: that would duplicate the
+      // whole pipeline and can replace a result that is already on screen.
+      // Retry only the idempotent commit in the background; playback can proceed
+      // from the prepared response immediately.
+      developer.log(
+        'Prepared Worker commit response was unavailable; keeping the prepared result and retrying only the idempotent commit.',
+        name: 'conversation.worker_asr_prepare',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 150))
+            .then((_) async {
+              await _repository._commitPreparedWorkerConversation(
+                audioSessionId: audioSessionId,
+                uploadToken: uploadToken!,
+                prepared: prepared,
+                benchmark: benchmark,
+              );
+            })
+            .catchError((Object retryError, StackTrace retryStackTrace) {
+              developer.log(
+                'Prepared Worker commit retry failed.',
+                name: 'conversation.worker_asr_prepare',
+                error: retryError,
+                stackTrace: retryStackTrace,
+              );
+            }),
+      );
+      return prepared.result;
+    }
   }
 
   Future<ConversationResult?> _tryWorkerAsrPilot({
@@ -2345,7 +2458,8 @@ class _NextBatchChunkUploadSession
     late final _WorkerAsrTranscript transcript;
     try {
       final readyTranscript = _readyWorkerTranscript;
-      final snapshotHash = crypto.sha256.convert(pcmBytes).toString();
+      final workerAudio = _workerPcmPayload(pcmBytes);
+      final snapshotHash = crypto.sha256.convert(workerAudio.bytes).toString();
       if (readyTranscript != null &&
           _workerSnapshotStillValid(readyTranscript, pcmBytes)) {
         transcript = readyTranscript;
@@ -2366,7 +2480,7 @@ class _NextBatchChunkUploadSession
             () => _repository._transcribeWorkerAsrPilot(
               audioSessionId: audioSessionId,
               uploadToken: uploadToken!,
-              pcmBytes: Uint8List.fromList(pcmBytes),
+              audio: workerAudio,
               snapshotChunkCount: _transportChunkCount,
             ),
           );
@@ -2634,29 +2748,13 @@ class _NextBatchChunkUploadSession
           if (_readyWorkerPreparation == null &&
               activePreparation != null &&
               _workerPrepareSpeechGeneration == _speechGeneration) {
-            final workerStartedAt = _workerPrepareStartedAtSessionMs;
-            final workerLeadMs = workerStartedAt == null
-                ? 0
-                : math.max(
-                    0,
-                    _workerFinalizeStartedAtSessionMs! - workerStartedAt,
-                  );
-            if (_workerTranscriptReadyAtSessionMs != null) {
-              // Once ASR has completed, prepare is already doing the same
-              // translation/TTS work that Worker-only would start. Join it to
-              // avoid duplicate backend work.
-              _workerPrepareJoinedAtFinalize = true;
-              await activePreparation;
-            } else {
-              // Never block finalize on an unresolved speculative ASR merely
-              // because it started early. Reuse that same ASR through the
-              // established Worker-only path, and prevent the speculative
-              // flight from adding prepare + commit after ASR completes.
-              _workerPrepareSkippedLowLead =
-                  workerLeadMs < _minimumPreparedWorkerLeadMs;
-              _workerPrepareAbandonedAtFinalize = true;
-              _workerPrepareAbandoned = true;
-            }
+            // This is the single authoritative flight for the current speech
+            // generation. Worker-only would wait for the same ASR and then run
+            // the same rule/translation/TTS work again. Join the existing flight
+            // instead, regardless of whether ASR happened to finish a few
+            // milliseconds before or after recorder.stop().
+            _workerPrepareJoinedAtFinalize = true;
+            await activePreparation;
           }
           if (_readyWorkerPreparation != null) {
             _workerPrepareJoinedAtFinalize = true;
