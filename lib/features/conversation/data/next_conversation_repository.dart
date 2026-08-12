@@ -21,6 +21,7 @@ import '../domain/conversation_repository.dart';
 class NextConversationRepository
     implements
         ConversationRepository,
+        UserAudioArchiveRepository,
         ChunkedConversationRepository,
         RealtimeConversationRepository,
         OfflineIntentCatalogRepository {
@@ -376,6 +377,84 @@ class NextConversationRepository
       json,
       backendBaseUri: _config.backendBaseUri,
     );
+  }
+
+  @override
+  Future<void> archiveUserAudio({
+    required ConversationResult result,
+    required AudioCapture capture,
+  }) async {
+    if (result.conversationId.trim().isEmpty ||
+        result.sessionId.trim().isEmpty) {
+      throw const ConversationApiException(
+        'Thiếu mã lượt nói để lưu audio người dùng.',
+        errorCode: 'USER_AUDIO_IDENTITY_MISSING',
+      );
+    }
+
+    Object? lastError;
+    const retryDelays = <Duration>[
+      Duration.zero,
+      Duration(milliseconds: 500),
+      Duration(milliseconds: 1500),
+      Duration(milliseconds: 3000),
+    ];
+    for (var attempt = 0; attempt < retryDelays.length; attempt += 1) {
+      final delay = retryDelays[attempt];
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+      try {
+        await _archiveUserAudioOnce(result: result, capture: capture);
+        return;
+      } catch (error, stackTrace) {
+        lastError = error;
+        if (!_isRetryableConversationRequest(error) ||
+            attempt == retryDelays.length - 1) {
+          developer.log(
+            'User audio archive failed.',
+            name: 'conversation.user_audio',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          rethrow;
+        }
+      }
+    }
+
+    throw ConversationApiException(
+      'Không thể lưu audio người dùng: $lastError',
+      errorCode: 'USER_AUDIO_UPLOAD_FAILED',
+    );
+  }
+
+  Future<void> _archiveUserAudioOnce({
+    required ConversationResult result,
+    required AudioCapture capture,
+  }) async {
+    final request =
+        http.MultipartRequest(
+            'POST',
+            _config.resolve(
+              '/api/conversations/${Uri.encodeComponent(result.conversationId)}/user-audio',
+            ),
+          )
+          ..fields['clientId'] = await _clientId
+          ..fields['sessionId'] = result.sessionId
+          ..fields['mimeType'] = capture.mimeType
+          ..files.add(
+            await createAudioMultipartFile(
+              field: 'audio',
+              path: capture.filePath,
+              filename: _audioFilename(capture.mimeType),
+              bytes: capture.dataBytes,
+            ),
+          );
+    final streamedResponse = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 25));
+    final response = await http.Response.fromStream(streamedResponse);
+    _decodeResponse(response);
   }
 
   @override

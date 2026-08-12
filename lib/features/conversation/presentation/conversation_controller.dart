@@ -224,6 +224,7 @@ class ConversationController extends ChangeNotifier {
   bool _speechDetected = false;
   bool _noisyRecording = false;
   bool _usingStreamingSpeech = false;
+  bool _usingRecordedAudioSpeech = false;
   bool _usingHfpRoute = false;
   bool _hfpInputSelected;
   bool _preparingMicrophone = false;
@@ -1106,6 +1107,7 @@ class ConversationController extends ChangeNotifier {
               asrMode == AsrMode.hfpStreaming) &&
           _streamingSpeechInput != null &&
           !isBrowserHfpMode;
+      _usingRecordedAudioSpeech = false;
       _usingRealtimeTranscription = false;
       _usingOfflineIntent = false;
       _offlineIntentDecision = null;
@@ -1157,7 +1159,34 @@ class ConversationController extends ChangeNotifier {
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
           }
-          await _streamingSpeechInput!.start();
+          final recordedAudioRecognizer =
+              _streamingSpeechInput is RecordedAudioStreamingSpeechInput
+              ? _streamingSpeechInput! as RecordedAudioStreamingSpeechInput
+              : null;
+          final hasRecordedAudioPipeline =
+              !_isWebRuntime &&
+              recordedAudioRecognizer != null &&
+              _audioInput is ChunkedAudioInput;
+          final canRecognizeRecordedAudio =
+              hasRecordedAudioPipeline &&
+              await recordedAudioRecognizer.supportsRecordedAudioRecognition();
+          if (canRecognizeRecordedAudio) {
+            _usingStreamingSpeech = false;
+            _usingRecordedAudioSpeech = true;
+            await _audioInput.startChunked();
+          } else if (hasRecordedAudioPipeline) {
+            // Android 12 and older cannot inject the saved WAV into the
+            // platform recognizer. Use the audio-first Cloudflare path so the
+            // utterance is still recognized and archived instead of reverting
+            // to a transcript-only session.
+            _usingStreamingSpeech = false;
+            asrMode = AsrMode.batchChunks;
+            transientMessage =
+                'Thiết bị đang dùng Cloudflare để bảo đảm lưu được audio.';
+            await _startBatchRecording();
+          } else {
+            await _streamingSpeechInput!.start();
+          }
         } catch (error) {
           final permissionFailure =
               error is StreamingSpeechInputException &&
@@ -1168,6 +1197,7 @@ class ConversationController extends ChangeNotifier {
             rethrow;
           }
           _usingStreamingSpeech = false;
+          _usingRecordedAudioSpeech = false;
           if (!_isWebRuntime && _streamingSpeechInput != null) {
             await _stopHfpRoute();
             asrMode = AsrMode.androidStreaming;
@@ -1780,7 +1810,8 @@ class ConversationController extends ChangeNotifier {
       // could otherwise produce a confident-looking hallucination. Preserve
       // the existing manual-stop behavior for Android SpeechRecognizer, which
       // has its own transcript/confidence checks.
-      if (!_speechDetected && (!_usingStreamingSpeech || !manual)) {
+      if (!_speechDetected &&
+          (!(_usingStreamingSpeech || _usingRecordedAudioSpeech) || !manual)) {
         _realtimeConnectionGeneration += 1;
         _realtimeConnectionFuture = null;
         if (_usingStreamingSpeech) {
@@ -1833,6 +1864,7 @@ class ConversationController extends ChangeNotifier {
       if (_usingStreamingSpeech) {
         try {
           streamingCapture = await _streamingSpeechInput!.stop();
+          audioCapture = streamingCapture.recordedAudio;
         } catch (error) {
           _usingStreamingSpeech = false;
           if (!_isWebRuntime && _streamingSpeechInput != null) {
@@ -1859,6 +1891,7 @@ class ConversationController extends ChangeNotifier {
             asrMode: AsrMode.androidStreaming.apiValue,
             isBluetoothInput: true,
             initialNoiseRms: streamingCapture.initialNoiseRms,
+            recordedAudio: streamingCapture.recordedAudio,
           );
         }
       } else {
@@ -1892,6 +1925,32 @@ class ConversationController extends ChangeNotifier {
             recordingSampleRate: audioCapture.recordingSampleRate,
             dataBytes: audioCapture.dataBytes,
           );
+        }
+        if (_usingRecordedAudioSpeech) {
+          final recognizer =
+              _streamingSpeechInput is RecordedAudioStreamingSpeechInput
+              ? _streamingSpeechInput! as RecordedAudioStreamingSpeechInput
+              : null;
+          if (recognizer == null) {
+            throw const StreamingSpeechInputException(
+              'Bộ nhận diện bản ghi âm Android không còn sẵn sàng.',
+              code: 'RECORDED_AUDIO_RECOGNIZER_MISSING',
+            );
+          }
+          try {
+            streamingCapture = await recognizer.recognizeRecordedAudio(
+              audioCapture,
+            );
+          } catch (error) {
+            _usingRecordedAudioSpeech = false;
+            // Some OEM recognition services advertise Android 13 audio-source
+            // support but still reject an injected WAV. Keep the recording and
+            // process it through the proven multipart Cloudflare path instead
+            // of asking the child to repeat or losing admin audio.
+            transientMessage =
+                'Chế độ tiêu chuẩn chưa đọc được bản ghi; đang chuyển sang Cloudflare.';
+            debugPrint('Recorded Android recognition fell back: $error');
+          }
         }
       }
       if (_usingOfflineIntent) {
@@ -2005,6 +2064,22 @@ class ConversationController extends ChangeNotifier {
       ]);
       final nextResult = processing[1]! as ConversationResult;
       _responseReceivedAt = DateTime.now();
+      final archiveRepository = _repository is UserAudioArchiveRepository
+          ? _repository as UserAudioArchiveRepository
+          : null;
+      final shouldArchiveStreamingAudio =
+          audioCapture != null &&
+          (streamingCapture != null ||
+              nextResult.asrMode == AsrMode.workerAsrPilot.apiValue);
+      if (archiveRepository != null && shouldArchiveStreamingAudio) {
+        unawaited(
+          archiveRepository
+              .archiveUserAudio(result: nextResult, capture: audioCapture)
+              .catchError((Object error, StackTrace stackTrace) {
+                debugPrint('User audio background upload failed: $error');
+              }),
+        );
+      }
       // Do not wait for a late preview HTTP request before starting Safari
       // playback. The forwarding stream stays alive through finalize, so any
       // already-delivered terminal preview can still supply the exact

@@ -1160,6 +1160,68 @@ void main() {
     controller.dispose();
   });
 
+  test('standard Android ASR archives its microphone recording', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+    );
+    final repository = _ArchivingFallbackRepository();
+    final recognizer = _FakeRecordedAudioStreamingSpeechInput();
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: recognizer,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+    final archived = await repository.archived.future.timeout(
+      const Duration(seconds: 1),
+    );
+
+    expect(archived.$1.conversationId, 'stream-result');
+    expect(archived.$2.filePath, 'fake.wav');
+    expect(recognizer.recordedCapture, same(archived.$2));
+    expect(input.startCount, 1);
+    controller.dispose();
+  });
+
+  test(
+    'Android injected-audio failure keeps WAV via Cloudflare fallback',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: _FakeRecordedAudioStreamingSpeechInput(
+          failRecognition: true,
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.fullFileUploads, 1);
+      expect(repository.audioCapture?.filePath, 'fake.wav');
+      expect(controller.result?.conversationId, 'file-result');
+      controller.dispose();
+    },
+  );
+
   test('browser HFP records with the selected Bluetooth web input', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -1195,6 +1257,67 @@ void main() {
       controller.result?.conversationId,
       anyOf('file-result', 'batch-result'),
     );
+    controller.dispose();
+  });
+
+  test('older Android keeps audio through Cloudflare Batch Chunks', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: _FakeRecordedAudioStreamingSpeechInput(
+        supportsRecordedAudio: false,
+      ),
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+    await _emitDetectedSpeech(input);
+    await controller.stopRecording(manual: true);
+
+    expect(controller.asrMode, AsrMode.batchChunks);
+    expect(repository.batchSession.finalized, isTrue);
+    expect(controller.result?.conversationId, 'batch-result');
+    controller.dispose();
+  });
+
+  test('Safari Worker result archives the complete Web WAV', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Safari microphone',
+    );
+    final repository = _ArchivingFallbackRepository();
+    repository.batchSession.resultOverride = _result(
+      'worker-result',
+      asrMode: 'browser_streaming',
+    );
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: Duration.zero,
+      initialAsrMode: AsrMode.batchChunks,
+    );
+
+    await controller.startRecording();
+    await _emitDetectedSpeech(input);
+    await controller.stopRecording(manual: true);
+    final archived = await repository.archived.future.timeout(
+      const Duration(seconds: 1),
+    );
+
+    expect(archived.$1.asrMode, 'browser_streaming');
+    expect(archived.$2.filePath, 'fake.wav');
     controller.dispose();
   });
 }
@@ -1256,6 +1379,59 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _ArchivingFallbackRepository extends _FallbackRepository
+    implements UserAudioArchiveRepository {
+  final Completer<(ConversationResult, AudioCapture)> archived =
+      Completer<(ConversationResult, AudioCapture)>();
+
+  @override
+  Future<void> archiveUserAudio({
+    required ConversationResult result,
+    required AudioCapture capture,
+  }) async {
+    if (!archived.isCompleted) {
+      archived.complete((result, capture));
+    }
+  }
+}
+
+class _FakeRecordedAudioStreamingSpeechInput extends _FakeStreamingSpeechInput
+    implements RecordedAudioStreamingSpeechInput {
+  _FakeRecordedAudioStreamingSpeechInput({
+    this.failRecognition = false,
+    this.supportsRecordedAudio = true,
+  });
+
+  final bool failRecognition;
+  final bool supportsRecordedAudio;
+  AudioCapture? recordedCapture;
+
+  @override
+  Future<bool> supportsRecordedAudioRecognition() async =>
+      supportsRecordedAudio;
+
+  @override
+  Future<StreamingSpeechCapture> recognizeRecordedAudio(
+    AudioCapture capture,
+  ) async {
+    recordedCapture = capture;
+    if (failRecognition) {
+      throw const StreamingSpeechInputException(
+        'Injected audio is unsupported.',
+      );
+    }
+    return StreamingSpeechCapture(
+      sourceText: 'Con muốn uống nước',
+      duration: capture.duration,
+      inputLabel: 'ASR Android trực tiếp',
+      confidence: 0.9,
+      firstResultMs: 120,
+      finalAfterStopMs: 30,
+      recordedAudio: capture,
+    );
+  }
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {
@@ -1467,6 +1643,7 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
   bool finalized = false;
   bool discarded = false;
   Object? finalizeError;
+  ConversationResult? resultOverride;
   AudioCapture? capture;
   int terminalPreviewRequests = 0;
   int speechDetectedCalls = 0;
@@ -1492,7 +1669,7 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
     if (error != null) {
       throw error;
     }
-    return _result('batch-result');
+    return resultOverride ?? _result('batch-result');
   }
 
   @override
@@ -1905,22 +2082,25 @@ class _DirectGesturePlaybackService
   Future<void> dispose() async {}
 }
 
-ConversationResult _result(String conversationId, {Uri? audioUri}) =>
-    ConversationResult(
-      conversationId: conversationId,
-      sessionId: 'session',
-      context: PracticeContext.home,
-      vietnameseText: 'Con muốn uống nước',
-      englishText: 'Can I have some water?',
-      audioUri: audioUri,
-      processingMode: 'rule',
-      textSource: 'phrase_rule',
-      audioSource: 'cache',
-      asrMode: 'batch_chunks',
-      latency: const ConversationLatency(
-        asrMs: 1,
-        llmMs: 1,
-        ttsMs: 1,
-        timeToFirstAudioMs: 3,
-      ),
-    );
+ConversationResult _result(
+  String conversationId, {
+  Uri? audioUri,
+  String asrMode = 'batch_chunks',
+}) => ConversationResult(
+  conversationId: conversationId,
+  sessionId: 'session',
+  context: PracticeContext.home,
+  vietnameseText: 'Con muốn uống nước',
+  englishText: 'Can I have some water?',
+  audioUri: audioUri,
+  processingMode: 'rule',
+  textSource: 'phrase_rule',
+  audioSource: 'cache',
+  asrMode: asrMode,
+  latency: const ConversationLatency(
+    asrMs: 1,
+    llmMs: 1,
+    ttsMs: 1,
+    timeToFirstAudioMs: 3,
+  ),
+);

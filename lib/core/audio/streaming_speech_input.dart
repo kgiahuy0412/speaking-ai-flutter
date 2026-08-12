@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 
+import 'audio_input.dart';
+
 const _incompleteVietnameseEndings = <String>{
   'ba',
   'bố',
@@ -73,6 +75,7 @@ class StreamingSpeechCapture {
     this.workerAsrPilotAsrMs,
     this.workerAsrPilotAudioBytes,
     this.extraBenchmark,
+    this.recordedAudio,
   });
 
   final String sourceText;
@@ -92,6 +95,10 @@ class StreamingSpeechCapture {
   final int? workerAsrPilotAsrMs;
   final int? workerAsrPilotAudioBytes;
   final Map<String, dynamic>? extraBenchmark;
+
+  /// Original microphone recording, when the platform recognizer exposes it.
+  /// It is archived only after the conversation response has returned.
+  final AudioCapture? recordedAudio;
 }
 
 abstract interface class StreamingSpeechInput {
@@ -107,7 +114,17 @@ abstract interface class StreamingSpeechInput {
   Future<void> dispose();
 }
 
-class AndroidStreamingSpeechInput implements StreamingSpeechInput {
+/// Android 13+ can feed an already recorded PCM WAV to SpeechRecognizer.
+/// Recording once avoids competing microphone consumers and guarantees that
+/// the exact utterance sent to recognition can also be archived for admin.
+abstract interface class RecordedAudioStreamingSpeechInput {
+  Future<bool> supportsRecordedAudioRecognition();
+
+  Future<StreamingSpeechCapture> recognizeRecordedAudio(AudioCapture capture);
+}
+
+class AndroidStreamingSpeechInput
+    implements StreamingSpeechInput, RecordedAudioStreamingSpeechInput {
   AndroidStreamingSpeechInput({
     MethodChannel methodChannel = const MethodChannel('ailingo_speech'),
     EventChannel eventChannel = const EventChannel('ailingo_speech/events'),
@@ -135,6 +152,10 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   DateTime? _latestTextUpdatedAt;
   String _latestText = '';
   double? _confidence;
+  String? _recordedAudioPath;
+  String? _recordedAudioMimeType;
+  int? _recordedAudioByteLength;
+  int? _recordedAudioSampleRate;
   bool _active = false;
   bool _disposed = false;
 
@@ -179,6 +200,112 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   }
 
   @override
+  Future<bool> supportsRecordedAudioRecognition() async {
+    if (_disposed) {
+      return false;
+    }
+    try {
+      return await _methodChannel.invokeMethod<bool>(
+            'speech.supportsAudioSource',
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  @override
+  Future<StreamingSpeechCapture> recognizeRecordedAudio(
+    AudioCapture capture,
+  ) async {
+    if (_active) {
+      await cancel();
+    }
+    if (!await supportsRecordedAudioRecognition()) {
+      throw const StreamingSpeechInputException(
+        'Thiết bị chưa hỗ trợ nhận diện từ bản ghi âm.',
+        code: 'RECORDED_AUDIO_RECOGNITION_UNAVAILABLE',
+      );
+    }
+
+    _latestText = '';
+    _confidence = null;
+    _firstResultAt = null;
+    _resultAt = null;
+    _latestTextUpdatedAt = null;
+    _recordedAudioPath = capture.filePath;
+    _recordedAudioMimeType = capture.mimeType;
+    _recordedAudioByteLength = capture.dataBytes?.length;
+    _recordedAudioSampleRate = capture.recordingSampleRate;
+    final resultCompleter = Completer<String>();
+    _resultCompleter = resultCompleter;
+    unawaited(
+      resultCompleter.future.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      ),
+    );
+    final readyCompleter = Completer<void>();
+    _readyCompleter = readyCompleter;
+    final recognitionStartedAt = DateTime.now();
+    _startedAt = recognitionStartedAt;
+    _active = true;
+
+    try {
+      await _methodChannel.invokeMethod<void>('speech.recognizeFile', {
+        'path': capture.filePath,
+        'sampleRate': capture.recordingSampleRate ?? 16000,
+      });
+      await readyCompleter.future.timeout(const Duration(seconds: 2));
+      final sourceText = await resultCompleter.future.timeout(
+        const Duration(seconds: 12),
+      );
+      if (sourceText.trim().isEmpty) {
+        throw const StreamingSpeechInputException(
+          'Không nghe rõ câu nói. Hãy nói lại gần micro hơn.',
+          code: 'RECORDED_AUDIO_UNCLEAR',
+        );
+      }
+      return StreamingSpeechCapture(
+        sourceText: sourceText.trim(),
+        duration: capture.duration,
+        inputLabel: label,
+        confidence: _confidence,
+        firstResultMs: _firstResultAt
+            ?.difference(recognitionStartedAt)
+            .inMilliseconds,
+        finalAfterStopMs: math
+            .max(
+              0,
+              (_resultAt ?? DateTime.now())
+                  .difference(recognitionStartedAt)
+                  .inMilliseconds,
+            )
+            .toInt(),
+        recordedAudio: capture,
+      );
+    } on TimeoutException {
+      await cancel();
+      throw const StreamingSpeechInputException(
+        'Nhận diện bản ghi âm mất quá nhiều thời gian.',
+        code: 'RECORDED_AUDIO_RECOGNITION_TIMEOUT',
+      );
+    } on PlatformException catch (error) {
+      _active = false;
+      throw StreamingSpeechInputException(
+        error.message ?? 'Không thể nhận diện bản ghi âm.',
+        code: error.code,
+      );
+    } finally {
+      if (identical(_readyCompleter, readyCompleter)) {
+        _readyCompleter = null;
+      }
+    }
+  }
+
+  @override
   Future<void> start() async {
     if (_active) {
       await cancel();
@@ -194,6 +321,10 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     _firstResultAt = null;
     _resultAt = null;
     _latestTextUpdatedAt = null;
+    _recordedAudioPath = null;
+    _recordedAudioMimeType = null;
+    _recordedAudioByteLength = null;
+    _recordedAudioSampleRate = null;
     final resultCompleter = Completer<String>();
     _resultCompleter = resultCompleter;
     unawaited(
@@ -293,6 +424,21 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
       );
     }
 
+    final recordedAudioPath = _recordedAudioPath;
+    final recordedAudioByteLength = _recordedAudioByteLength ?? 0;
+    final recordedAudio =
+        recordedAudioPath != null && recordedAudioByteLength > 44
+        ? AudioCapture(
+            filePath: recordedAudioPath,
+            mimeType: _recordedAudioMimeType ?? 'audio/wav',
+            duration: DateTime.now().difference(startedAt),
+            inputLabel: label,
+            isBluetoothInput: false,
+            initialNoiseRms: null,
+            recordingSampleRate: _recordedAudioSampleRate,
+            streamedAudioBytes: recordedAudioByteLength - 44,
+          )
+        : null;
     return StreamingSpeechCapture(
       sourceText: sourceText.trim(),
       duration: DateTime.now().difference(startedAt),
@@ -307,6 +453,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
                 .inMilliseconds,
           )
           .toInt(),
+      recordedAudio: recordedAudio,
     );
   }
 
@@ -372,6 +519,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     }
 
     if (type == 'speech.partial' || type == 'speech.final') {
+      _readRecordedAudioMetadata(event);
       final text = event['text'];
       if (text is String && text.trim().isNotEmpty) {
         final nextText = type == 'speech.final'
@@ -408,6 +556,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     }
 
     if (type == 'speech.error') {
+      _readRecordedAudioMetadata(event);
       _active = false;
       _resultAt = DateTime.now();
       final message =
@@ -428,6 +577,19 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
         completer.completeError(StreamingSpeechInputException(message));
       }
       _completedController.add(null);
+    }
+  }
+
+  void _readRecordedAudioMetadata(Map<dynamic, dynamic> event) {
+    final path = event['audioPath'];
+    final mimeType = event['audioMimeType'];
+    final byteLength = (event['audioByteLength'] as num?)?.toInt();
+    final sampleRate = (event['audioSampleRate'] as num?)?.toInt();
+    if (path is String && path.trim().isNotEmpty && byteLength != null) {
+      _recordedAudioPath = path;
+      _recordedAudioMimeType = mimeType is String ? mimeType : 'audio/wav';
+      _recordedAudioByteLength = byteLength;
+      _recordedAudioSampleRate = sampleRate;
     }
   }
 

@@ -61,6 +61,18 @@ abstract interface class ConversationRepository {
   Future<void> dispose();
 }
 
+/// Optional capability for conversation paths that produce a transcript first
+/// and therefore cannot attach the original recording to `/api/conversation`.
+///
+/// The upload is deliberately separate from [processStreamingText] so showing
+/// the Vietnamese/English response and starting TTS never wait for Cloudinary.
+abstract interface class UserAudioArchiveRepository {
+  Future<void> archiveUserAudio({
+    required ConversationResult result,
+    required AudioCapture capture,
+  });
+}
+
 abstract interface class BatchChunkUploadSession {
   void addAudioChunk(Uint8List bytes);
 

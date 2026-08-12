@@ -258,6 +258,68 @@ void main() {
     await repository.dispose();
   });
 
+  test('archives streaming audio with conversation identity', () async {
+    var requestCount = 0;
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        requestCount += 1;
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/api/conversations/conv_streaming_audio/user-audio',
+        );
+        final body = latin1.decode(request.bodyBytes);
+        expect(body, contains('name="clientId"'));
+        expect(body, contains('android_test_device'));
+        expect(body, contains('name="sessionId"'));
+        expect(body, contains('sess_streaming_audio'));
+        expect(body, contains('name="mimeType"'));
+        expect(body, contains('audio/wav'));
+        expect(body, contains('name="audio"; filename="utterance.wav"'));
+        return http.Response(
+          jsonEncode(<String, dynamic>{'saved': true}),
+          201,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await repository.archiveUserAudio(
+      result: ConversationResult(
+        conversationId: 'conv_streaming_audio',
+        sessionId: 'sess_streaming_audio',
+        context: PracticeContext.home,
+        vietnameseText: 'Con muốn uống nước',
+        englishText: 'I want some water.',
+        audioUri: null,
+        processingMode: 'rule',
+        textSource: 'phrase_rule',
+        audioSource: 'cache',
+        asrMode: 'android_streaming',
+        latency: const ConversationLatency(
+          asrMs: 10,
+          llmMs: 1,
+          ttsMs: 1,
+          timeToFirstAudioMs: 12,
+        ),
+      ),
+      capture: AudioCapture(
+        filePath: 'streaming.wav',
+        mimeType: 'audio/wav',
+        duration: const Duration(seconds: 2),
+        inputLabel: 'Mic điện thoại',
+        isBluetoothInput: false,
+        initialNoiseRms: null,
+        dataBytes: Uint8List.fromList(<int>[82, 73, 70, 70, 1, 2, 3, 4]),
+      ),
+    );
+
+    expect(requestCount, 1);
+    await repository.dispose();
+  });
+
   test('batches PCM transport chunks and finalizes one WAV', () async {
     final uploadedSequences = <int>[];
     var finalized = false;
