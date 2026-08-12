@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -15,12 +16,15 @@ import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
 import '../../vocabulary/presentation/vocabulary_home_screen.dart';
+import '../../voice_navigation/application/voice_navigation_controller.dart';
+import '../../voice_navigation/application/voice_navigation_intent_resolver.dart';
 import 'home_mode_rail.dart';
 
 class HomeLearningShell extends StatefulWidget {
   const HomeLearningShell({
     required this.controller,
     required this.config,
+    this.voiceNavigationController,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
     this.onboardingStore,
@@ -29,6 +33,7 @@ class HomeLearningShell extends StatefulWidget {
 
   final ConversationController controller;
   final AppConfig config;
+  final VoiceNavigationController? voiceNavigationController;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final OnboardingProgressStore? onboardingStore;
@@ -37,12 +42,18 @@ class HomeLearningShell extends StatefulWidget {
   State<HomeLearningShell> createState() => _HomeLearningShellState();
 }
 
-class _HomeLearningShellState extends State<HomeLearningShell> {
+class _HomeLearningShellState extends State<HomeLearningShell>
+    with WidgetsBindingObserver {
   late final PageController _pageController;
   int _page = 0;
   bool _openingTopics = false;
+  Completer<void>? _topicRouteClosedCompleter;
   bool _tutorialActive = false;
   int _tutorialStep = 0;
+  Timer? _voiceNavigationRestartTimer;
+  late AppLifecycleState _appLifecycleState;
+  bool _voiceNavigationPausedForOverlay = false;
+  bool _voiceNavigationHelpShown = false;
 
   final GlobalKey _speakActionKey = GlobalKey(
     debugLabel: 'onboarding-speak-action',
@@ -64,7 +75,17 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _appLifecycleState =
+        WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
     _pageController = PageController();
+    _attachVoiceNavigationHandler();
+    widget.controller.addListener(_onConversationControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduleVoiceNavigationListening(
+        delay: const Duration(milliseconds: 450),
+      );
+    });
     if (widget.onboardingStore != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_showTutorialOnFirstUse());
@@ -73,9 +94,52 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
   }
 
   @override
+  void didUpdateWidget(HomeLearningShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onConversationControllerChanged);
+      widget.controller.addListener(_onConversationControllerChanged);
+    }
+    if (oldWidget.voiceNavigationController !=
+        widget.voiceNavigationController) {
+      oldWidget.voiceNavigationController?.setIntentHandler(null);
+      unawaited(oldWidget.voiceNavigationController?.pause());
+      _attachVoiceNavigationHandler();
+    }
+    if (oldWidget.config.enableVoiceNavigation !=
+            widget.config.enableVoiceNavigation ||
+        oldWidget.config.autoStartVoiceNavigation !=
+            widget.config.autoStartVoiceNavigation) {
+      _attachVoiceNavigationHandler();
+      if (_continuousVoiceNavigationEnabled) {
+        _scheduleVoiceNavigationListening();
+      } else {
+        _voiceNavigationRestartTimer?.cancel();
+        unawaited(widget.voiceNavigationController?.pause());
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _voiceNavigationRestartTimer?.cancel();
+    widget.controller.removeListener(_onConversationControllerChanged);
+    widget.voiceNavigationController?.setIntentHandler(null);
+    unawaited(widget.voiceNavigationController?.pause());
     _pageController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      _scheduleVoiceNavigationListening();
+      return;
+    }
+    _voiceNavigationRestartTimer?.cancel();
+    unawaited(widget.voiceNavigationController?.pause());
   }
 
   @override
@@ -185,6 +249,150 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       ? Duration.zero
       : const Duration(milliseconds: 420);
 
+  void _attachVoiceNavigationHandler() {
+    widget.voiceNavigationController?.setIntentHandler(
+      widget.config.enableVoiceNavigation ? _handleVoiceNavigationIntent : null,
+    );
+  }
+
+  bool get _continuousVoiceNavigationEnabled =>
+      widget.config.enableVoiceNavigation &&
+      widget.config.autoStartVoiceNavigation &&
+      widget.voiceNavigationController != null &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
+  bool get _canStartVoiceNavigationListening =>
+      mounted &&
+      _continuousVoiceNavigationEnabled &&
+      _appLifecycleState == AppLifecycleState.resumed &&
+      !_voiceNavigationPausedForOverlay &&
+      !_tutorialActive &&
+      !widget.controller.isBusy &&
+      !widget.controller.isPlaybackPlaying &&
+      widget.controller.isInputAvailable;
+
+  void _onConversationControllerChanged() {
+    if (!_continuousVoiceNavigationEnabled ||
+        widget.controller.isBusy ||
+        widget.controller.isPlaybackPlaying) {
+      _voiceNavigationRestartTimer?.cancel();
+      unawaited(widget.voiceNavigationController?.pause());
+      return;
+    }
+    _scheduleVoiceNavigationListening();
+  }
+
+  void _scheduleVoiceNavigationListening({
+    Duration delay = const Duration(milliseconds: 300),
+  }) {
+    _voiceNavigationRestartTimer?.cancel();
+    if (!_canStartVoiceNavigationListening) {
+      return;
+    }
+    _voiceNavigationRestartTimer = Timer(delay, () {
+      _voiceNavigationRestartTimer = null;
+      _startVoiceNavigationListening();
+    });
+  }
+
+  void _startVoiceNavigationListening() {
+    if (!_canStartVoiceNavigationListening) {
+      return;
+    }
+    if (!_voiceNavigationHelpShown) {
+      _voiceNavigationHelpShown = true;
+      _showVoiceNavigationMessage(
+        widget.controller.displayLanguage == DisplayLanguage.simplifiedChinese
+            ? '请先说：“Hey Pico”，听到回应后再说想打开的功能。'
+            : 'Hãy nói “Hey Pico”. Khi Pipo trả lời, con hãy nói chức năng muốn mở.',
+      );
+    }
+    widget.voiceNavigationController?.startContinuous();
+  }
+
+  Future<void> _pauseVoiceNavigation(String reason) async {
+    _voiceNavigationPausedForOverlay = true;
+    _voiceNavigationRestartTimer?.cancel();
+    await widget.voiceNavigationController?.pause();
+  }
+
+  void _resumeVoiceNavigation() {
+    _voiceNavigationPausedForOverlay = false;
+    _scheduleVoiceNavigationListening();
+  }
+
+  Future<void> _handleVoiceNavigationIntent(
+    VoiceNavigationIntent intent,
+  ) async {
+    if (!mounted || _tutorialActive) {
+      return;
+    }
+    await _executeVoiceNavigation(intent);
+  }
+
+  Future<void> _executeVoiceNavigation(VoiceNavigationIntent intent) async {
+    final useChinese =
+        widget.controller.displayLanguage == DisplayLanguage.simplifiedChinese;
+    final destinationLabel = switch (intent.destination) {
+      VoiceNavigationDestination.conversation =>
+        useChinese ? '沟通' : 'Giao tiếp',
+      VoiceNavigationDestination.vocabulary => useChinese ? '词汇' : 'Từ vựng',
+      VoiceNavigationDestination.topics => useChinese ? '主题' : 'Chủ đề',
+      VoiceNavigationDestination.history => useChinese ? '历史记录' : 'Lịch sử',
+      VoiceNavigationDestination.settings => useChinese ? '设置' : 'Cài đặt',
+    };
+    if (intent.destination != VoiceNavigationDestination.topics) {
+      await _closeTopicListeningIfNeeded();
+      if (!mounted) {
+        return;
+      }
+    }
+    _showVoiceNavigationMessage(
+      useChinese
+          ? '已识别语音指令，正在打开$destinationLabel。'
+          : 'Đã nhận lệnh giọng nói. Đang mở $destinationLabel.',
+    );
+
+    switch (intent.destination) {
+      case VoiceNavigationDestination.conversation:
+        _showConversation();
+      case VoiceNavigationDestination.vocabulary:
+        _showVocabulary();
+      case VoiceNavigationDestination.topics:
+        if (!_openingTopics) {
+          unawaited(_openTopicListening());
+        }
+      case VoiceNavigationDestination.history:
+        _showHistory();
+      case VoiceNavigationDestination.settings:
+        _showSettings();
+    }
+  }
+
+  Future<void> _closeTopicListeningIfNeeded() async {
+    if (!_openingTopics || !mounted) {
+      return;
+    }
+    final closed = _topicRouteClosedCompleter?.future;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (closed != null) {
+      await closed;
+    }
+  }
+
+  void _showVoiceNavigationMessage(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   List<UserOnboardingStep> get _tutorialSteps => <UserOnboardingStep>[
     UserOnboardingStep(
       kind: UserOnboardingStepKind.welcome,
@@ -290,6 +498,7 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
     if (!mounted || _tutorialActive) {
       return;
     }
+    unawaited(_pauseVoiceNavigation('onboarding_tutorial'));
     if (_page != 0 && _pageController.hasClients) {
       _pageController.jumpToPage(0);
     }
@@ -354,6 +563,7 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
     if (startSpeaking) {
       unawaited(widget.controller.onPrimaryAction());
     }
+    _resumeVoiceNavigation();
     final store = widget.onboardingStore;
     if (store == null) {
       return;
@@ -387,6 +597,8 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       return;
     }
     _openingTopics = true;
+    final routeClosedCompleter = Completer<void>();
+    _topicRouteClosedCompleter = routeClosedCompleter;
     try {
       if (!mounted) {
         return;
@@ -403,6 +615,9 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
             language: widget.controller.displayLanguage,
             childAge: widget.config.childAge,
             controller: widget.controller,
+            onVoiceNavigationPause: () =>
+                _pauseVoiceNavigation('listening_media_opened'),
+            onVoiceNavigationResume: _resumeVoiceNavigation,
           ),
           transitionsBuilder: (_, animation, secondaryAnimation, child) {
             final curved = CurvedAnimation(
@@ -422,11 +637,25 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       );
     } finally {
       _openingTopics = false;
+      if (identical(_topicRouteClosedCompleter, routeClosedCompleter)) {
+        _topicRouteClosedCompleter = null;
+      }
+      if (!routeClosedCompleter.isCompleted) {
+        routeClosedCompleter.complete();
+      }
+      if (mounted) {
+        _resumeVoiceNavigation();
+      }
     }
   }
 
   void _showSettings() {
-    showModalBottomSheet<void>(
+    unawaited(_pauseVoiceNavigation('settings_opened'));
+    unawaited(_openSettingsSheet());
+  }
+
+  Future<void> _openSettingsSheet() async {
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -438,15 +667,26 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
         onStartTutorial: _startTutorial,
       ),
     );
+    if (mounted && !_tutorialActive) {
+      _resumeVoiceNavigation();
+    }
   }
 
   void _showHistory() {
-    showModalBottomSheet<void>(
+    unawaited(_pauseVoiceNavigation('history_opened'));
+    unawaited(_openHistorySheet());
+  }
+
+  Future<void> _openHistorySheet() async {
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
       builder: (_) => HistorySheet(controller: widget.controller),
     );
+    if (mounted) {
+      _resumeVoiceNavigation();
+    }
   }
 }

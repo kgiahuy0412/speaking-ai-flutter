@@ -124,6 +124,9 @@ class _FakeVoicePromptService implements VoicePromptService {
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
 
   @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
   Future<void> stop() async {}
 
   @override
@@ -139,6 +142,10 @@ class _RecordingVoicePromptService implements VoicePromptService {
     spokenTexts.add(text);
     locales.add(locale);
   }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) =>
+      speak(text, locale: locale);
 
   @override
   Future<void> stop() async {}

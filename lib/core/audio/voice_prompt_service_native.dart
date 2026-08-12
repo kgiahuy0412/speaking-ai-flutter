@@ -14,11 +14,24 @@ class MethodChannelVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    await _invokeSpeak('speak', text, locale: locale);
+  }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    await _invokeSpeak('speakAndWait', text, locale: locale);
+  }
+
+  Future<void> _invokeSpeak(
+    String method,
+    String text, {
+    required String locale,
+  }) async {
     if (text.trim().isEmpty) {
       return;
     }
     try {
-      await _channel.invokeMethod<void>('speak', <String, dynamic>{
+      await _channel.invokeMethod<void>(method, <String, dynamic>{
         'text': text.trim(),
         'locale': locale,
       });

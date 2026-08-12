@@ -23,6 +23,16 @@ class WebVoicePromptService implements VoicePromptService {
   }
 
   @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    await speak(text, locale: locale);
+    if (text.trim().isNotEmpty) {
+      await Future<void>.delayed(
+        Duration(milliseconds: 450 + (text.trim().length * 55)),
+      );
+    }
+  }
+
+  @override
   Future<void> stop() async => _stopPrompt();
 
   @override

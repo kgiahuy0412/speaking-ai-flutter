@@ -27,4 +27,30 @@ void main() {
       'locale': 'vi-VN',
     });
   });
+
+  test(
+    'waits for the wake acknowledgement through the native bridge',
+    () async {
+      const channel = MethodChannel('test_voice_prompt_wait');
+      MethodCall? receivedCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            receivedCall = call;
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      const service = MethodChannelVoicePromptService(channel: channel);
+      await service.speakAndWait('Pipo nghe đây');
+
+      expect(receivedCall?.method, 'speakAndWait');
+      expect(receivedCall?.arguments, <String, dynamic>{
+        'text': 'Pipo nghe đây',
+        'locale': 'vi-VN',
+      });
+    },
+  );
 }

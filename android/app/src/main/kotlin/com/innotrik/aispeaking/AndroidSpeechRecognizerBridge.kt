@@ -35,6 +35,7 @@ class AndroidSpeechRecognizerBridge(
     private var events: EventChannel.EventSink? = null
     private var listening = false
     private var pendingPermissionResult: MethodChannel.Result? = null
+    private var pendingPermissionCommandMode = false
     private var capturedPcm = ByteArrayOutputStream()
     private var capturedAudioFile: File? = null
     private var injectedAudioRead: ParcelFileDescriptor? = null
@@ -56,7 +57,7 @@ class AndroidSpeechRecognizerBridge(
             "speech.supportsAudioSource" ->
                 result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
             "speech.prepare" -> result.success(ensureRecognizer())
-            "speech.start" -> startListening(result)
+            "speech.start" -> startListening(call, result)
             "speech.recognizeFile" -> recognizeFile(call, result)
             "speech.stop" -> {
                 closeInjectedAudio()
@@ -73,7 +74,11 @@ class AndroidSpeechRecognizerBridge(
         }
     }
 
-    private fun startListening(result: MethodChannel.Result) {
+    private fun startListening(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val commandMode = call.argument<Boolean>("commandMode") == true
         if (
             activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED
@@ -88,6 +93,7 @@ class AndroidSpeechRecognizerBridge(
             }
 
             pendingPermissionResult = result
+            pendingPermissionCommandMode = commandMode
             activity.requestPermissions(
                 arrayOf(Manifest.permission.RECORD_AUDIO),
                 microphonePermissionRequestCode,
@@ -95,10 +101,13 @@ class AndroidSpeechRecognizerBridge(
             return
         }
 
-        startRecognizer(result)
+        startRecognizer(result, commandMode)
     }
 
-    private fun startRecognizer(result: MethodChannel.Result) {
+    private fun startRecognizer(
+        result: MethodChannel.Result,
+        commandMode: Boolean = false,
+    ) {
         if (!ensureRecognizer()) {
             result.error(
                 "SPEECH_UNAVAILABLE",
@@ -115,11 +124,11 @@ class AndroidSpeechRecognizerBridge(
         resetCapturedAudio()
 
         listening = true
-        recognizer?.startListening(createRecognizerIntent())
+        recognizer?.startListening(createRecognizerIntent(commandMode))
         result.success(true)
     }
 
-    private fun createRecognizerIntent(): Intent =
+    private fun createRecognizerIntent(commandMode: Boolean = false): Intent =
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -131,15 +140,15 @@ class AndroidSpeechRecognizerBridge(
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(
                     RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
-                    800L,
+                    if (commandMode) 450L else 800L,
                 )
                 putExtra(
                     RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                    700L,
+                    if (commandMode) 500L else 700L,
                 )
                 putExtra(
                     RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
-                    900L,
+                    if (commandMode) 650L else 900L,
                 )
                 putExtra(
                     RecognizerIntent.EXTRA_CALLING_PACKAGE,
@@ -264,6 +273,8 @@ class AndroidSpeechRecognizerBridge(
 
         val pendingResult = pendingPermissionResult
         pendingPermissionResult = null
+        val commandMode = pendingPermissionCommandMode
+        pendingPermissionCommandMode = false
 
         if (pendingResult == null) {
             return true
@@ -273,7 +284,7 @@ class AndroidSpeechRecognizerBridge(
             grantResults.firstOrNull() ==
                 PackageManager.PERMISSION_GRANTED
         ) {
-            startRecognizer(pendingResult)
+            startRecognizer(pendingResult, commandMode)
         } else {
             pendingResult.error(
                 "MICROPHONE_PERMISSION_DENIED",
@@ -500,6 +511,7 @@ class AndroidSpeechRecognizerBridge(
             null,
         )
         pendingPermissionResult = null
+        pendingPermissionCommandMode = false
         recognizer?.cancel()
         closeInjectedAudio()
         recognizer?.destroy()

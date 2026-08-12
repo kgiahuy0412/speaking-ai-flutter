@@ -28,6 +28,7 @@ import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
+import '../features/voice_navigation/application/voice_navigation_controller.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
@@ -43,6 +44,7 @@ class AiSpeakingApp extends StatefulWidget {
 class _AiSpeakingAppState extends State<AiSpeakingApp> {
   late final AppConfig _config;
   ConversationController? _controller;
+  VoiceNavigationController? _voiceNavigationController;
   AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
   ConversationRepository? _repository;
@@ -152,6 +154,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         ? AndroidStreamingSpeechInput()
         : null;
     _androidStreamingSpeechInput = streamingSpeechInput;
+    final voiceNavigationController =
+        streamingSpeechInput != null && _config.enableVoiceNavigation
+        ? VoiceNavigationController(
+            speechInput: streamingSpeechInput,
+            voicePromptService: createVoicePromptService(),
+            ownsVoicePromptService: true,
+          )
+        : null;
     final controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
@@ -183,10 +193,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       initialAsrMode: supportsAndroidNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
+      beforeRecordingStart: voiceNavigationController?.pause,
     );
     _repository = repository;
     _deviceAudioCache = deviceAudioCache;
     _controller = controller;
+    _voiceNavigationController = voiceNavigationController;
   }
 
   void _startBackgroundWork() {
@@ -317,6 +329,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   @override
   void dispose() {
+    _voiceNavigationController?.dispose();
     _controller?.dispose();
     _deviceRegistrationService?.dispose();
     _deviceAudioCache?.dispose();
@@ -339,6 +352,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           child: HomeLearningShell(
             controller: controller,
             config: _config,
+            voiceNavigationController: _voiceNavigationController,
             themeMode: _themeMode,
             onThemeModeChanged: _setThemeMode,
           ),

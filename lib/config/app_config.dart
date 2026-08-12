@@ -16,6 +16,8 @@ class AppConfig {
     this.enableWorkerAsrPrepare = false,
     this.enableWorkerAsrPcmTrim = true,
     this.workerAsrPilotBaseUri,
+    this.enableVoiceNavigation = true,
+    this.autoStartVoiceNavigation = false,
   });
 
   factory AppConfig.fromEnvironment() {
@@ -92,6 +94,14 @@ class AppConfig {
       workerAsrPilotBaseUri: normalizedWorkerAsrPilotUrl.isEmpty
           ? null
           : Uri.tryParse(normalizedWorkerAsrPilotUrl),
+      enableVoiceNavigation: const bool.fromEnvironment(
+        'ENABLE_VOICE_NAVIGATION',
+        defaultValue: true,
+      ),
+      autoStartVoiceNavigation: const bool.fromEnvironment(
+        'AUTO_START_VOICE_NAVIGATION',
+        defaultValue: true,
+      ),
     );
   }
 
@@ -114,6 +124,13 @@ class AppConfig {
   final bool enableWorkerAsrPrepare;
   final bool enableWorkerAsrPcmTrim;
   final Uri? workerAsrPilotBaseUri;
+  final bool enableVoiceNavigation;
+
+  /// Keeps voice navigation listening while the Android app is in the
+  /// foreground. Each recognition window is restarted after a short pause.
+  /// Web remains gesture-driven because browsers can block microphone capture
+  /// that was not initiated by the user.
+  final bool autoStartVoiceNavigation;
 
   bool get workerAsrPilotReady =>
       enableWorkerAsrPilot &&

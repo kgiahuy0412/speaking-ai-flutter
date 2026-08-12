@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -21,6 +23,8 @@ class TopicLessonListScreen extends StatefulWidget {
     required this.topic,
     required this.content,
     this.controller,
+    this.onVoiceNavigationPause,
+    this.onVoiceNavigationResume,
     this.progressStore = const ListeningProgressStore(),
     this.mediaService,
     super.key,
@@ -32,6 +36,8 @@ class TopicLessonListScreen extends StatefulWidget {
   final ListeningTopic topic;
   final ListeningTopicContent content;
   final ConversationController? controller;
+  final Future<void> Function()? onVoiceNavigationPause;
+  final VoidCallback? onVoiceNavigationResume;
   final ListeningProgressStore progressStore;
   final LessonMediaService? mediaService;
 
@@ -231,21 +237,31 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     if (!mounted) {
       return;
     }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonIntroScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: lesson,
-          controller: widget.controller,
-          topicContent: widget.content,
-          progressStore: widget.progressStore,
-          mediaService: _mediaService,
+    await widget.onVoiceNavigationPause?.call();
+    try {
+      if (!mounted) {
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => LessonIntroScreen(
+            language: widget.language,
+            startAge: widget.startAge,
+            endAge: widget.endAge,
+            topic: widget.topic,
+            lesson: lesson,
+            controller: widget.controller,
+            topicContent: widget.content,
+            progressStore: widget.progressStore,
+            mediaService: _mediaService,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) {
+        widget.onVoiceNavigationResume?.call();
+      }
+    }
     if (!mounted) {
       return;
     }
@@ -254,14 +270,27 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     });
   }
 
-  void _showHistory() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => LessonRecordingHistorySheet(mediaService: _mediaService),
-    );
+  void _showHistory() => unawaited(_openHistory());
+
+  Future<void> _openHistory() async {
+    await widget.onVoiceNavigationPause?.call();
+    try {
+      if (!mounted) {
+        return;
+      }
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) =>
+            LessonRecordingHistorySheet(mediaService: _mediaService),
+      );
+    } finally {
+      if (mounted) {
+        widget.onVoiceNavigationResume?.call();
+      }
+    }
   }
 }
 

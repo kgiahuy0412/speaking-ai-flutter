@@ -65,6 +65,34 @@ void main() {
     controller.dispose();
   });
 
+  test('conversation waits for the navigation recognizer handoff', () async {
+    var navigationReleased = false;
+    final streamingInput = _FakeStreamingSpeechInput(
+      onStart: () => expect(navigationReleased, isTrue),
+    );
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      streamingSpeechInput: streamingInput,
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      childAge: 6,
+      beforeRecordingStart: () async {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+        navigationReleased = true;
+      },
+    );
+
+    await controller.startRecording();
+
+    expect(streamingInput.startCount, 1);
+    expect(controller.phase, ConversationPhase.recording);
+    controller.dispose();
+  });
+
   test('unlocks browser audio before stopping previous playback', () async {
     final events = <String>[];
     final playback = _GesturePlaybackService(events);
@@ -1326,10 +1354,12 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   _FakeStreamingSpeechInput({
     this.failOnStart = false,
     this.failOnStop = false,
+    this.onStart,
   });
 
   final bool failOnStart;
   final bool failOnStop;
+  final void Function()? onStart;
   int startCount = 0;
 
   @override
@@ -1350,6 +1380,7 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   @override
   Future<void> start() async {
     startCount += 1;
+    onStart?.call();
     if (failOnStart) {
       throw const StreamingSpeechInputException(
         'Android streaming start failed.',

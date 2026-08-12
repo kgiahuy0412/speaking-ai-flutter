@@ -114,6 +114,14 @@ abstract interface class StreamingSpeechInput {
   Future<void> dispose();
 }
 
+/// Optional fast profile for short navigation commands.
+///
+/// Conversation recording continues to use [StreamingSpeechInput.start] so a
+/// child's natural pauses do not end a normal speaking turn too early.
+abstract interface class CommandStreamingSpeechInput {
+  Future<void> startCommandRecognition();
+}
+
 /// Android 13+ can feed an already recorded PCM WAV to SpeechRecognizer.
 /// Recording once avoids competing microphone consumers and guarantees that
 /// the exact utterance sent to recognition can also be archived for admin.
@@ -124,7 +132,10 @@ abstract interface class RecordedAudioStreamingSpeechInput {
 }
 
 class AndroidStreamingSpeechInput
-    implements StreamingSpeechInput, RecordedAudioStreamingSpeechInput {
+    implements
+        StreamingSpeechInput,
+        RecordedAudioStreamingSpeechInput,
+        CommandStreamingSpeechInput {
   AndroidStreamingSpeechInput({
     MethodChannel methodChannel = const MethodChannel('ailingo_speech'),
     EventChannel eventChannel = const EventChannel('ailingo_speech/events'),
@@ -158,6 +169,7 @@ class AndroidStreamingSpeechInput
   int? _recordedAudioSampleRate;
   bool _active = false;
   bool _disposed = false;
+  bool? _availabilityCache;
 
   @override
   String get label => 'Chế độ tiêu chuẩn';
@@ -173,9 +185,18 @@ class AndroidStreamingSpeechInput
 
   @override
   Future<bool> checkAvailability() async {
+    final cached = _availabilityCache;
+    if (cached != null) {
+      return cached;
+    }
     try {
-      return await _methodChannel.invokeMethod<bool>('speech.isAvailable') ??
+      final available =
+          await _methodChannel.invokeMethod<bool>('speech.isAvailable') ??
           false;
+      if (available) {
+        _availabilityCache = true;
+      }
+      return available;
     } on MissingPluginException {
       return false;
     }
@@ -191,7 +212,12 @@ class AndroidStreamingSpeechInput
       return false;
     }
     try {
-      return await _methodChannel.invokeMethod<bool>('speech.prepare') ?? false;
+      final prepared =
+          await _methodChannel.invokeMethod<bool>('speech.prepare') ?? false;
+      if (prepared) {
+        _availabilityCache = true;
+      }
+      return prepared;
     } on MissingPluginException {
       return false;
     } on PlatformException {
@@ -306,7 +332,12 @@ class AndroidStreamingSpeechInput
   }
 
   @override
-  Future<void> start() async {
+  Future<void> start() => _start(commandMode: false);
+
+  @override
+  Future<void> startCommandRecognition() => _start(commandMode: true);
+
+  Future<void> _start({required bool commandMode}) async {
     if (_active) {
       await cancel();
     }
@@ -339,7 +370,9 @@ class AndroidStreamingSpeechInput
     _active = true;
 
     try {
-      await _methodChannel.invokeMethod<void>('speech.start');
+      await _methodChannel.invokeMethod<void>('speech.start', {
+        'commandMode': commandMode,
+      });
       await readyCompleter.future.timeout(const Duration(seconds: 2));
       _startedAt = DateTime.now();
     } on TimeoutException {

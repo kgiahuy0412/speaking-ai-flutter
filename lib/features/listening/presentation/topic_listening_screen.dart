@@ -20,6 +20,8 @@ class TopicListeningScreen extends StatefulWidget {
     required this.language,
     required this.childAge,
     this.controller,
+    this.onVoiceNavigationPause,
+    this.onVoiceNavigationResume,
     this.progressStore = const ListeningProgressStore(),
     super.key,
   });
@@ -27,6 +29,8 @@ class TopicListeningScreen extends StatefulWidget {
   final DisplayLanguage language;
   final int childAge;
   final ConversationController? controller;
+  final Future<void> Function()? onVoiceNavigationPause;
+  final VoidCallback? onVoiceNavigationResume;
   final ListeningProgressStore progressStore;
 
   @override
@@ -259,15 +263,27 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     );
   }
 
-  void _showHistory() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) =>
-          LessonRecordingHistorySheet(mediaService: _historyMediaService),
-    );
+  void _showHistory() => unawaited(_openHistory());
+
+  Future<void> _openHistory() async {
+    await widget.onVoiceNavigationPause?.call();
+    try {
+      if (!mounted) {
+        return;
+      }
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) =>
+            LessonRecordingHistorySheet(mediaService: _historyMediaService),
+      );
+    } finally {
+      if (mounted) {
+        widget.onVoiceNavigationResume?.call();
+      }
+    }
   }
 
   Future<void> _loadContentAndProgress() async {
@@ -349,6 +365,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             topic: topic,
             content: content,
             controller: widget.controller,
+            onVoiceNavigationPause: widget.onVoiceNavigationPause,
+            onVoiceNavigationResume: widget.onVoiceNavigationResume,
             progressStore: widget.progressStore,
           ),
         ),

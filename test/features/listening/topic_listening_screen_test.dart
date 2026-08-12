@@ -15,6 +15,8 @@ void main() {
     DisplayLanguage language = DisplayLanguage.vietnamese,
     double textScale = 1,
     ThemeMode themeMode = ThemeMode.light,
+    Future<void> Function()? onVoiceNavigationPause,
+    VoidCallback? onVoiceNavigationResume,
   }) {
     return MaterialApp(
       theme: buildAppTheme(),
@@ -25,7 +27,12 @@ void main() {
           size: const Size(390, 844),
           textScaler: TextScaler.linear(textScale),
         ),
-        child: TopicListeningScreen(language: language, childAge: childAge),
+        child: TopicListeningScreen(
+          language: language,
+          childAge: childAge,
+          onVoiceNavigationPause: onVoiceNavigationPause,
+          onVoiceNavigationResume: onVoiceNavigationResume,
+        ),
       ),
     );
   }
@@ -342,9 +349,21 @@ void main() {
   });
 
   testWidgets('opens the selected topic lesson journey', (tester) async {
+    var voiceNavigationPauseCount = 0;
+    var voiceNavigationResumeCount = 0;
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(buildSubject(childAge: 3));
+    await tester.pumpWidget(
+      buildSubject(
+        childAge: 3,
+        onVoiceNavigationPause: () async {
+          voiceNavigationPauseCount += 1;
+        },
+        onVoiceNavigationResume: () {
+          voiceNavigationResumeCount += 1;
+        },
+      ),
+    );
     await tester.pumpAndSettle();
 
     final topic = find.byKey(const ValueKey('topic-3-5-0'));
@@ -365,6 +384,7 @@ void main() {
     expect(find.textContaining('Chào hỏi'), findsOneWidget);
     expect(find.text('2 bài nhỏ'), findsOneWidget);
     expect(find.text('10 câu'), findsWidgets);
+    expect(voiceNavigationPauseCount, 0);
 
     await tester.tap(find.byKey(const ValueKey('start-lesson-a035_t01_l01')));
     await tester.pump();
@@ -372,6 +392,8 @@ void main() {
 
     expect(find.byKey(const Key('lesson-intro-screen')), findsOneWidget);
     expect(find.textContaining('Chào con!'), findsOneWidget);
+    expect(voiceNavigationPauseCount, 1);
+    expect(voiceNavigationResumeCount, 0);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();

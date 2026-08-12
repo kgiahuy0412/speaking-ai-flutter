@@ -77,6 +77,7 @@ class ConversationController extends ChangeNotifier {
     AsrMode? initialAsrMode,
     bool? webRuntimeOverride,
     Duration? adaptiveWebUploadDelay,
+    Future<void> Function()? beforeRecordingStart,
   }) : _audioInput = audioInput,
        _bluetoothAudioControl = audioInput is BluetoothAudioInputControl
            ? audioInput as BluetoothAudioInputControl
@@ -95,6 +96,7 @@ class ConversationController extends ChangeNotifier {
        _isWebRuntime = webRuntimeOverride ?? kIsWeb,
        _hfpInputSelected = initialAsrMode == AsrMode.hfpStreaming,
        _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
+       _beforeRecordingStart = beforeRecordingStart,
        _realtimeFallbackBuffer = RealtimeFallbackBuffer(
          maxBytes: realtimeFallbackBufferBytes > 0
              ? realtimeFallbackBufferBytes
@@ -192,6 +194,7 @@ class ConversationController extends ChangeNotifier {
   final bool _realtimeBatchFallback;
   final bool _isWebRuntime;
   final Duration _adaptiveWebUploadDelay;
+  final Future<void> Function()? _beforeRecordingStart;
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector =
       AdaptiveVoiceActivityDetector();
@@ -422,6 +425,7 @@ class ConversationController extends ChangeNotifier {
       usesHfpInput || _usingHfpRoute || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
+  bool get isPlaybackPlaying => _playbackPlaying;
   bool get isPreparingMicrophone => _preparingMicrophone;
   bool get h20HardwareTestActive =>
       h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
@@ -1064,6 +1068,10 @@ class ConversationController extends ChangeNotifier {
     try {
       _preparingMicrophone = true;
       notifyListeners();
+      await _beforeRecordingStart?.call();
+      if (_disposed) {
+        return;
+      }
       final userGesturePlayback = _playbackService;
       if (userGesturePlayback is UserGestureAudioPlaybackService) {
         await (userGesturePlayback as UserGestureAudioPlaybackService)
