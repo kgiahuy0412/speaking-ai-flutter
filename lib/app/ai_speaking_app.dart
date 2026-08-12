@@ -15,6 +15,7 @@ import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
 import '../core/audio/voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
+import '../core/device/aiv0_ble_control.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/pwa/pwa_install_gate.dart';
@@ -138,7 +139,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     final innotrikInput = InnotrikBleAudioInput(
-      enabled: supportsAndroidNativeSpeech && _config.enableInnotrikBle,
+      enabled: supportsAndroidNativeSpeech && _config.enableLegacyBleAudio,
     );
     final phoneMicrophoneInput = PhoneMicrophoneInput();
     final HfpAudioControl hfpAudioControl = kIsWeb
@@ -149,6 +150,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         : MethodChannelHfpAudioControl(
             enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
           );
+    final aiv0BleControl = MethodChannelAiv0BleControl(
+      enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
+      draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
+    );
     final controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
@@ -158,6 +163,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           ? AndroidStreamingSpeechInput()
           : null,
       hfpAudioControl: hfpAudioControl,
+      aiv0BleControl: aiv0BleControl,
       playbackService: JustAudioPlaybackService(cache: deviceAudioCache),
       voicePromptService: createVoicePromptService(),
       repository: repository,

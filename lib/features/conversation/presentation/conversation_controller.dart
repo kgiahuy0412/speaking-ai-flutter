@@ -12,16 +12,59 @@ import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/device/aiv0_ble_control.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 import '../domain/speech_gated_batch_upload_session.dart';
+
+enum H20HardwareTestPhase {
+  idle,
+  openingRoute,
+  recording,
+  playing,
+  completed,
+  error,
+}
+
+class H20HardwareTestResult {
+  const H20HardwareTestResult({
+    required this.completedAt,
+    required this.inputRouteVerified,
+    required this.outputRouteVerified,
+    this.recordedDuration,
+    this.inputDeviceName,
+    this.outputDeviceName,
+    this.playbackAudible,
+  });
+
+  final DateTime completedAt;
+  final bool inputRouteVerified;
+  final bool outputRouteVerified;
+  final Duration? recordedDuration;
+  final String? inputDeviceName;
+  final String? outputDeviceName;
+  final bool? playbackAudible;
+
+  H20HardwareTestResult copyWith({bool? playbackAudible}) {
+    return H20HardwareTestResult(
+      completedAt: completedAt,
+      inputRouteVerified: inputRouteVerified,
+      outputRouteVerified: outputRouteVerified,
+      recordedDuration: recordedDuration,
+      inputDeviceName: inputDeviceName,
+      outputDeviceName: outputDeviceName,
+      playbackAudible: playbackAudible ?? this.playbackAudible,
+    );
+  }
+}
 
 class ConversationController extends ChangeNotifier {
   ConversationController({
     required AudioInput audioInput,
     StreamingSpeechInput? streamingSpeechInput,
     HfpAudioControl? hfpAudioControl,
+    Aiv0BleControl? aiv0BleControl,
     required AudioPlaybackService playbackService,
     VoicePromptService? voicePromptService,
     required ConversationRepository repository,
@@ -40,6 +83,7 @@ class ConversationController extends ChangeNotifier {
            : null,
        _streamingSpeechInput = streamingSpeechInput,
        _hfpAudioControl = hfpAudioControl,
+       _aiv0BleControl = aiv0BleControl,
        _playbackService = playbackService,
        _voicePromptService = voicePromptService,
        _repository = repository,
@@ -99,6 +143,27 @@ class ConversationController extends ChangeNotifier {
         }),
       );
     }
+    final aiv0Control = _aiv0BleControl;
+    if (aiv0Control != null) {
+      _aiv0StatusSubscription = aiv0Control.statusStream.listen((_) {
+        if (!_disposed) notifyListeners();
+      });
+      _aiv0ButtonSubscription = aiv0Control.buttonEvents.listen(
+        _onAiv0ButtonEvent,
+      );
+      unawaited(
+        aiv0Control.initialize().catchError((Object error) {
+          debugPrint('AIV0 BLE Control initialization failed: $error');
+        }),
+      );
+    }
+    _playbackPlayingSubscription = playbackService.playingStream
+        .distinct()
+        .listen((playing) {
+          _playbackPlaying = playing;
+          unawaited(_syncAiv0AppState());
+          if (!_disposed) notifyListeners();
+        });
     if (displayLanguageStore != null) {
       unawaited(_loadDisplayLanguage());
     }
@@ -109,6 +174,7 @@ class ConversationController extends ChangeNotifier {
   final BluetoothAudioInputControl? _bluetoothAudioControl;
   final StreamingSpeechInput? _streamingSpeechInput;
   final HfpAudioControl? _hfpAudioControl;
+  final Aiv0BleControl? _aiv0BleControl;
   final AudioPlaybackService _playbackService;
   final VoicePromptService? _voicePromptService;
   final ConversationRepository _repository;
@@ -126,6 +192,9 @@ class ConversationController extends ChangeNotifier {
   StreamSubscription<double>? _amplitudeSubscription;
   StreamSubscription<BluetoothAudioStatus>? _bluetoothStatusSubscription;
   StreamSubscription<BluetoothAudioStatus>? _hfpStatusSubscription;
+  StreamSubscription<Aiv0BleStatus>? _aiv0StatusSubscription;
+  StreamSubscription<Aiv0ButtonEvent>? _aiv0ButtonSubscription;
+  StreamSubscription<bool>? _playbackPlayingSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
@@ -140,6 +209,7 @@ class ConversationController extends ChangeNotifier {
   Timer? _maximumDurationTimer;
   Timer? _offlineFallbackTimer;
   Timer? _processingStageTimer;
+  Timer? _h20HardwareRecordingTimer;
   DateTime? _recordingStartedAt;
   DateTime? _stoppedAt;
   DateTime? _responseReceivedAt;
@@ -150,6 +220,9 @@ class ConversationController extends ChangeNotifier {
   bool _usingHfpRoute = false;
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
+  bool _playbackPlaying = false;
+  bool _h20HardwareAudioInputStarted = false;
+  bool _h20HardwareStopInProgress = false;
   BatchChunkUploadSession? _batchChunkUpload;
   SpeechGatedBatchUploadSession? _batchSpeechGate;
   _AdaptiveWebChunkUpload? _adaptiveWebUpload;
@@ -166,6 +239,7 @@ class ConversationController extends ChangeNotifier {
   ConversationPreview? _preview;
   Uri? _preferredPlaybackUri;
   Uri? _speculativePreloadUri;
+  final List<Aiv0ButtonEvent> _aiv0ButtonEventLog = <Aiv0ButtonEvent>[];
 
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
@@ -180,6 +254,10 @@ class ConversationController extends ChangeNotifier {
   String? transientMessage;
   DisplayLanguage displayLanguage = DisplayLanguage.vietnamese;
   bool bleDiagnosticRunning = false;
+  bool h20HardwareTestModeEnabled = false;
+  H20HardwareTestPhase h20HardwareTestPhase = H20HardwareTestPhase.idle;
+  H20HardwareTestResult? h20HardwareTestResult;
+  String? h20HardwareTestMessage;
 
   Future<void> _loadDisplayLanguage() async {
     final stored = await _displayLanguageStore!.read();
@@ -316,6 +394,12 @@ class ConversationController extends ChangeNotifier {
       );
   bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
   bool get canUseHfp => hfpAudioStatus.isConnected;
+  Aiv0BleStatus get aiv0BleStatus =>
+      _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
+  bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
+  bool get canUseAiv0Ble => aiv0BleStatus.isConnected;
+  List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
+      List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
   bool get supportsBrowserHfp =>
       (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
       _audioInput is ChunkedAudioInput;
@@ -327,9 +411,16 @@ class ConversationController extends ChangeNotifier {
       _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
+  bool get h20HardwareTestActive =>
+      h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
+      h20HardwareTestPhase == H20HardwareTestPhase.recording ||
+      h20HardwareTestPhase == H20HardwareTestPhase.playing;
   bool get isBusy =>
       bleDiagnosticRunning ||
+      h20HardwareTestActive ||
       hfpAudioStatus.isBusy ||
+      aiv0BleStatus.phase == Aiv0BlePhase.scanning ||
+      aiv0BleStatus.phase == Aiv0BlePhase.connecting ||
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
 
@@ -402,6 +493,161 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     await startRecording();
+  }
+
+  Future<List<Aiv0BleDevice>> scanAiv0Devices() async {
+    final control = _aiv0BleControl;
+    if (control == null || isBusy) return const [];
+    transientMessage = 'Đang quét BLE Control H20/AIV0…';
+    notifyListeners();
+    try {
+      final devices = await control.scan(timeout: const Duration(seconds: 8));
+      transientMessage = devices.isEmpty
+          ? 'Không tìm thấy H20. Hãy bật thiết bị và đặt gần điện thoại.'
+          : null;
+      notifyListeners();
+      return devices;
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> connectAiv0Device(Aiv0BleDevice device) async {
+    final control = _aiv0BleControl;
+    if (control == null || isBusy) return;
+    transientMessage = 'Đang xác nhận BLE Control trên ${device.name}…';
+    notifyListeners();
+    try {
+      await control.connect(device.id);
+      transientMessage = aiv0BleStatus.protocolConfirmed
+          ? 'BLE Control AIV0 đã kết nối; MAIN đã sẵn sàng.'
+          : 'BLE Control đã kết nối ở chế độ chẩn đoán. Hãy bấm MAIN để lấy raw hex từ ODM.';
+      notifyListeners();
+      await _syncAiv0AppState();
+    } catch (error) {
+      transientMessage = _friendlyError(error);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> disconnectAiv0Device() async {
+    if (isBusy) return;
+    await _aiv0BleControl?.disconnect();
+    transientMessage = 'Đã ngắt BLE Control AIV0.';
+    notifyListeners();
+  }
+
+  void _onAiv0ButtonEvent(Aiv0ButtonEvent event) {
+    if (_disposed) return;
+    _aiv0ButtonEventLog.insert(0, event);
+    if (_aiv0ButtonEventLog.length > 12) {
+      _aiv0ButtonEventLog.removeRange(12, _aiv0ButtonEventLog.length);
+    }
+    if (!event.isDraftPacket) {
+      transientMessage =
+          'Đã nhận raw hex từ H20: ${event.rawHex}. Chưa điều khiển APP vì ODM chưa xác nhận định dạng packet.';
+      notifyListeners();
+      return;
+    }
+    unawaited(
+      _handleAiv0ButtonEvent(event).catchError((Object error) async {
+        transientMessage = _friendlyError(error);
+        if (!_disposed) notifyListeners();
+        await _syncAiv0AppState(
+          resultCode: Aiv0AppResult.internalError,
+          sequence: event.sequence ?? 0,
+        );
+      }),
+    );
+  }
+
+  Future<void> _handleAiv0ButtonEvent(Aiv0ButtonEvent event) async {
+    final sequence = event.sequence ?? 0;
+    if (event.isDuplicate) {
+      await _syncAiv0AppState(
+        resultCode: Aiv0AppResult.duplicate,
+        sequence: sequence,
+      );
+      return;
+    }
+    if (event.gesture != Aiv0ButtonGesture.shortPress) return;
+
+    switch (event.button) {
+      case Aiv0Button.main:
+        if (h20HardwareTestModeEnabled) {
+          if (h20HardwareTestPhase == H20HardwareTestPhase.playing ||
+              h20HardwareTestPhase == H20HardwareTestPhase.openingRoute) {
+            await _syncAiv0AppState(
+              resultCode: Aiv0AppResult.busy,
+              sequence: sequence,
+            );
+            return;
+          }
+          await toggleH20OfflineRecordingTest();
+          await _syncAiv0AppState(sequence: sequence);
+          return;
+        }
+        if (phase == ConversationPhase.processing) {
+          await _syncAiv0AppState(
+            resultCode: Aiv0AppResult.busy,
+            sequence: sequence,
+          );
+          return;
+        }
+        if (_playbackPlaying) await _playbackService.stop();
+        if (phase == ConversationPhase.recording) {
+          await stopRecording(manual: true);
+        } else {
+          await startRecording();
+        }
+        await _syncAiv0AppState(sequence: sequence);
+        return;
+      case Aiv0Button.unknown:
+        transientMessage =
+            'Đã bỏ qua mã nút chưa hỗ trợ: ${event.rawHex}. V1 chỉ dùng MAIN.';
+        notifyListeners();
+        return;
+    }
+  }
+
+  Aiv0AppState get _currentAiv0AppState {
+    if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
+      return Aiv0AppState.recording;
+    }
+    if (h20HardwareTestPhase == H20HardwareTestPhase.playing) {
+      return Aiv0AppState.playing;
+    }
+    if (h20HardwareTestPhase == H20HardwareTestPhase.error) {
+      return Aiv0AppState.error;
+    }
+    if (_playbackPlaying) return Aiv0AppState.playing;
+    return switch (phase) {
+      ConversationPhase.recording => Aiv0AppState.recording,
+      ConversationPhase.processing => Aiv0AppState.processing,
+      ConversationPhase.ready => Aiv0AppState.ready,
+      ConversationPhase.error => Aiv0AppState.error,
+      _ => Aiv0AppState.idle,
+    };
+  }
+
+  Future<void> _syncAiv0AppState({
+    Aiv0AppResult resultCode = Aiv0AppResult.accepted,
+    int sequence = 0,
+  }) async {
+    final control = _aiv0BleControl;
+    if (control == null || !control.status.isConnected) return;
+    try {
+      await control.sendAppState(
+        state: _currentAiv0AppState,
+        result: resultCode,
+        sequence: sequence,
+      );
+    } catch (error) {
+      debugPrint('Cannot send AIV0 APP State: $error');
+    }
   }
 
   Future<List<BluetoothAudioDevice>> scanInnotrikDevices() async {
@@ -523,6 +769,231 @@ class ConversationController extends ChangeNotifier {
         ? 'Đã bỏ chọn mic HFP Web; trình duyệt sẽ dùng mic mặc định.'
         : 'Đã bỏ chọn mic HFP; ứng dụng sẽ dùng mic điện thoại.';
     notifyListeners();
+  }
+
+  Future<void> setH20HardwareTestMode(bool enabled) async {
+    if (enabled == h20HardwareTestModeEnabled) return;
+    if (!enabled && h20HardwareTestActive) {
+      await cancelH20HardwareTest();
+    }
+    h20HardwareTestModeEnabled = enabled;
+    h20HardwareTestPhase = H20HardwareTestPhase.idle;
+    h20HardwareTestMessage = enabled
+        ? 'Chế độ kiểm tra cục bộ đã bật. Không gửi âm thanh lên cloud.'
+        : null;
+    notifyListeners();
+  }
+
+  /// Opens the verified HFP/SCO route and records locally. No repository or
+  /// network API is touched. A second tap (or MAIN after ODM confirmation)
+  /// stops capture and immediately replays the local file through H20.
+  Future<void> toggleH20OfflineRecordingTest() async {
+    if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
+      await stopAndReplayH20OfflineRecording();
+      return;
+    }
+    await startH20OfflineRecording();
+  }
+
+  Future<void> startH20OfflineRecording() async {
+    if (!h20HardwareTestModeEnabled) {
+      throw StateError('Hãy bật chế độ kiểm tra phần cứng offline trước.');
+    }
+    if (h20HardwareTestActive ||
+        phase == ConversationPhase.recording ||
+        phase == ConversationPhase.processing) {
+      return;
+    }
+    final hfp = _hfpAudioControl;
+    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+      throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra micro.');
+    }
+
+    h20HardwareTestResult = null;
+    h20HardwareTestPhase = H20HardwareTestPhase.openingRoute;
+    h20HardwareTestMessage = 'Đang mở đường HFP/SCO hai chiều…';
+    notifyListeners();
+    try {
+      await _playbackService.stop();
+      await hfp.startAudioRoute();
+      _usingHfpRoute = true;
+      _setPlaybackCommunicationRoute(true);
+      final route = hfp.status;
+      if (!route.routeActive || route.inputDeviceName == null) {
+        throw StateError('Android chưa xác nhận micro H20 trên đường HFP/SCO.');
+      }
+      await _audioInput.start();
+      _h20HardwareAudioInputStarted = true;
+      h20HardwareTestPhase = H20HardwareTestPhase.recording;
+      h20HardwareTestMessage =
+          'Đang thu cục bộ từ ${route.inputDeviceName}. Bấm lại để dừng; tự dừng sau 5 giây.';
+      _h20HardwareRecordingTimer?.cancel();
+      _h20HardwareRecordingTimer = Timer(
+        const Duration(seconds: 5),
+        () => unawaited(stopAndReplayH20OfflineRecording()),
+      );
+      unawaited(_syncAiv0AppState());
+      notifyListeners();
+    } catch (error) {
+      await _failH20HardwareTest(error);
+      rethrow;
+    }
+  }
+
+  Future<void> stopAndReplayH20OfflineRecording() async {
+    if (h20HardwareTestPhase != H20HardwareTestPhase.recording ||
+        _h20HardwareStopInProgress) {
+      return;
+    }
+    _h20HardwareStopInProgress = true;
+    _h20HardwareRecordingTimer?.cancel();
+    _h20HardwareRecordingTimer = null;
+    try {
+      final capture = await _audioInput.stop();
+      _h20HardwareAudioInputStarted = false;
+      final routeBeforePlayback = hfpAudioStatus;
+      h20HardwareTestPhase = H20HardwareTestPhase.playing;
+      h20HardwareTestMessage = 'Đang phát lại bản ghi cục bộ qua loa H20…';
+      notifyListeners();
+
+      await _playH20TestUri(Uri.file(capture.filePath));
+      final routeAfterPlayback = hfpAudioStatus;
+      final inputName =
+          routeBeforePlayback.inputDeviceName ??
+          routeAfterPlayback.inputDeviceName;
+      final outputName =
+          routeAfterPlayback.outputDeviceName ??
+          routeBeforePlayback.outputDeviceName;
+      h20HardwareTestResult = H20HardwareTestResult(
+        completedAt: DateTime.now(),
+        inputRouteVerified:
+            routeBeforePlayback.routeActive && inputName != null,
+        outputRouteVerified:
+            routeAfterPlayback.routeActive && outputName != null,
+        recordedDuration: capture.duration,
+        inputDeviceName: inputName,
+        outputDeviceName: outputName,
+      );
+      h20HardwareTestPhase = H20HardwareTestPhase.completed;
+      h20HardwareTestMessage =
+          'Đã thu và phát lại hoàn toàn offline. Hãy xác nhận bạn có nghe giọng từ loa H20.';
+      notifyListeners();
+    } catch (error) {
+      await _failH20HardwareTest(error);
+      rethrow;
+    } finally {
+      _h20HardwareStopInProgress = false;
+      await _closeH20HardwareAudioRoute();
+      unawaited(_syncAiv0AppState());
+    }
+  }
+
+  Future<void> playH20BundledSpeakerTest() async {
+    if (!h20HardwareTestModeEnabled) {
+      throw StateError('Hãy bật chế độ kiểm tra phần cứng offline trước.');
+    }
+    if (h20HardwareTestActive ||
+        phase == ConversationPhase.recording ||
+        phase == ConversationPhase.processing) {
+      return;
+    }
+    final hfp = _hfpAudioControl;
+    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+      throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra loa.');
+    }
+    h20HardwareTestPhase = H20HardwareTestPhase.openingRoute;
+    h20HardwareTestMessage = 'Đang mở HFP/SCO để kiểm tra loa…';
+    notifyListeners();
+    try {
+      await _playbackService.stop();
+      await hfp.startAudioRoute();
+      _usingHfpRoute = true;
+      _setPlaybackCommunicationRoute(true);
+      if (!hfp.status.routeActive || hfp.status.outputDeviceName == null) {
+        throw StateError('Android chưa xác nhận loa H20 trên đường HFP/SCO.');
+      }
+      h20HardwareTestPhase = H20HardwareTestPhase.playing;
+      h20HardwareTestMessage = 'Đang phát file có sẵn trong APK qua H20…';
+      notifyListeners();
+      await _playH20TestUri(
+        Uri.parse(
+          'asset:assets/audio/A-3-5/GUIDE_RECORD/A035_GUIDE_RECORD_01.mp3',
+        ),
+      );
+      final route = hfp.status;
+      h20HardwareTestResult = H20HardwareTestResult(
+        completedAt: DateTime.now(),
+        inputRouteVerified: false,
+        outputRouteVerified:
+            route.routeActive && route.outputDeviceName != null,
+        outputDeviceName: route.outputDeviceName,
+      );
+      h20HardwareTestPhase = H20HardwareTestPhase.completed;
+      h20HardwareTestMessage =
+          'Đã phát file offline. Hãy xác nhận âm thanh phát từ loa H20.';
+      notifyListeners();
+    } catch (error) {
+      await _failH20HardwareTest(error);
+      rethrow;
+    } finally {
+      await _closeH20HardwareAudioRoute();
+      unawaited(_syncAiv0AppState());
+    }
+  }
+
+  void confirmH20PlaybackAudible(bool audible) {
+    final current = h20HardwareTestResult;
+    if (current == null) return;
+    h20HardwareTestResult = current.copyWith(playbackAudible: audible);
+    h20HardwareTestMessage = audible
+        ? 'Đã xác nhận: âm thanh nghe được từ loa H20.'
+        : 'Không nghe từ loa H20. Chưa đạt; cần kiểm tra lại route HFP/SCO.';
+    notifyListeners();
+  }
+
+  Future<void> cancelH20HardwareTest() async {
+    _h20HardwareRecordingTimer?.cancel();
+    _h20HardwareRecordingTimer = null;
+    if (_h20HardwareAudioInputStarted) {
+      await _audioInput.cancel().catchError((Object _) {});
+      _h20HardwareAudioInputStarted = false;
+    }
+    await _playbackService.stop().catchError((Object _) {});
+    await _closeH20HardwareAudioRoute();
+    h20HardwareTestPhase = H20HardwareTestPhase.idle;
+    h20HardwareTestMessage = h20HardwareTestModeEnabled
+        ? 'Đã dừng kiểm tra cục bộ.'
+        : null;
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _playH20TestUri(Uri uri) async {
+    final playback = _playbackService;
+    final completion = playback is CompletionAwareAudioPlaybackService
+        ? (playback as CompletionAwareAudioPlaybackService)
+              .completionStream
+              .first
+              .timeout(const Duration(seconds: 20), onTimeout: () {})
+        : null;
+    await playback.play(uri);
+    if (completion != null) await completion;
+  }
+
+  Future<void> _failH20HardwareTest(Object error) async {
+    _h20HardwareRecordingTimer?.cancel();
+    _h20HardwareRecordingTimer = null;
+    if (_h20HardwareAudioInputStarted) {
+      await _audioInput.cancel().catchError((Object _) {});
+      _h20HardwareAudioInputStarted = false;
+    }
+    h20HardwareTestPhase = H20HardwareTestPhase.error;
+    h20HardwareTestMessage = _friendlyError(error);
+    await _closeH20HardwareAudioRoute();
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _closeH20HardwareAudioRoute() async {
+    if (_usingHfpRoute) await _stopHfpRoute();
   }
 
   Future<void> testInnotrikMicrophone() async {
@@ -660,6 +1131,7 @@ class ConversationController extends ChangeNotifier {
           if (asrMode == AsrMode.hfpStreaming) {
             await _hfpAudioControl!.startAudioRoute();
             _usingHfpRoute = true;
+            _setPlaybackCommunicationRoute(true);
           }
           await _streamingSpeechInput!.start();
         } catch (error) {
@@ -683,6 +1155,7 @@ class ConversationController extends ChangeNotifier {
         try {
           await _hfpAudioControl!.startAudioRoute();
           _usingHfpRoute = true;
+          _setPlaybackCommunicationRoute(true);
           await _startAdaptiveWebRecording();
         } catch (_) {
           await _stopHfpRoute();
@@ -707,6 +1180,7 @@ class ConversationController extends ChangeNotifier {
 
       _recordingStartedAt = DateTime.now();
       phase = ConversationPhase.recording;
+      unawaited(_syncAiv0AppState());
       _listenToAmplitude(
         _usingStreamingSpeech
             ? _streamingSpeechInput!.amplitudeDbfs
@@ -1261,6 +1735,7 @@ class ConversationController extends ChangeNotifier {
               .catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
+        unawaited(_syncAiv0AppState());
         transientMessage = 'Hãy nói lâu hơn một chút nhé.';
         _stopInProgress = false;
         notifyListeners();
@@ -1309,6 +1784,7 @@ class ConversationController extends ChangeNotifier {
               .catchError((Object _) {});
         }
         phase = ConversationPhase.idle;
+        unawaited(_syncAiv0AppState());
         transientMessage = _noisyRecording
             ? 'Môi trường đang khá ồn. Hãy đưa micro gần hơn, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại.'
             : _unclearSpeechMessage;
@@ -1440,6 +1916,7 @@ class ConversationController extends ChangeNotifier {
       _realtimeFallbackBuffer.clear();
       _usingOfflineIntent = false;
       phase = ConversationPhase.processing;
+      unawaited(_syncAiv0AppState());
       _beginProcessingStages();
       amplitude = 0;
       notifyListeners();
@@ -1559,6 +2036,7 @@ class ConversationController extends ChangeNotifier {
       await _batchPreviewSubscription?.cancel();
       _batchPreviewSubscription = null;
       phase = ConversationPhase.ready;
+      unawaited(_syncAiv0AppState());
       notifyListeners();
     } catch (error) {
       _handleConversationError(error);
@@ -1570,6 +2048,9 @@ class ConversationController extends ChangeNotifier {
       _adaptiveWebUpload = null;
       if (adaptiveWebUpload != null) {
         await adaptiveWebUpload.discard();
+      }
+      if (_usingHfpRoute && _playbackPlaying) {
+        await _waitForActivePlaybackToComplete();
       }
       await _stopHfpRoute();
       _realtimeConnectionGeneration += 1;
@@ -1584,9 +2065,31 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     _usingHfpRoute = false;
+    _setPlaybackCommunicationRoute(false);
     await _hfpAudioControl?.stopAudioRoute().catchError((Object error) {
       debugPrint('Cannot stop HFP audio route: $error');
     });
+  }
+
+  void _setPlaybackCommunicationRoute(bool active) {
+    final playback = _playbackService;
+    if (playback is CommunicationRouteAwareAudioPlaybackService) {
+      (playback as CommunicationRouteAwareAudioPlaybackService)
+          .setCommunicationRouteActive(active);
+    }
+  }
+
+  Future<void> _waitForActivePlaybackToComplete() async {
+    final playback = _playbackService;
+    if (playback is! CompletionAwareAudioPlaybackService) return;
+    try {
+      await (playback as CompletionAwareAudioPlaybackService)
+          .completionStream
+          .first
+          .timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      debugPrint('Timed out while keeping the HFP route open for playback.');
+    }
   }
 
   Future<void> _waitForRealtimeConnectionAtStop() async {
@@ -1711,7 +2214,14 @@ class ConversationController extends ChangeNotifier {
       return;
     }
 
+    var openedHfpForReplay = false;
     try {
+      if (asrMode == AsrMode.hfpStreaming && canUseHfp && !_usingHfpRoute) {
+        await _hfpAudioControl!.startAudioRoute();
+        _usingHfpRoute = true;
+        openedHfpForReplay = true;
+        _setPlaybackCommunicationRoute(true);
+      }
       final playbackRequestedAt = DateTime.now();
       PlaybackStartMetrics? gestureMetrics;
       final gesturePlayback = _playbackService;
@@ -1729,9 +2239,14 @@ class ConversationController extends ChangeNotifier {
           metrics: metrics,
         );
       }
+      if (_usingHfpRoute) {
+        await _waitForActivePlaybackToComplete();
+      }
     } catch (error) {
       transientMessage = _friendlyError(error);
       notifyListeners();
+    } finally {
+      if (openedHfpForReplay) await _stopHfpRoute();
     }
   }
 
@@ -1932,6 +2447,7 @@ class ConversationController extends ChangeNotifier {
       _processingStageTimer?.cancel();
       phase = result == null ? ConversationPhase.idle : ConversationPhase.ready;
       errorMessage = null;
+      unawaited(_syncAiv0AppState());
     }
     notifyListeners();
   }
@@ -1940,6 +2456,7 @@ class ConversationController extends ChangeNotifier {
     _processingStageTimer?.cancel();
     errorMessage = message;
     phase = ConversationPhase.error;
+    unawaited(_syncAiv0AppState(resultCode: Aiv0AppResult.internalError));
     if (!_disposed) {
       notifyListeners();
     }
@@ -1982,6 +2499,7 @@ class ConversationController extends ChangeNotifier {
     _partialPreviewTimer?.cancel();
     _offlineFallbackTimer?.cancel();
     _processingStageTimer?.cancel();
+    _h20HardwareRecordingTimer?.cancel();
     unawaited(_amplitudeSubscription?.cancel());
     unawaited(_batchChunkSubscription?.cancel());
     unawaited(_batchPreviewSubscription?.cancel());
@@ -2009,11 +2527,18 @@ class ConversationController extends ChangeNotifier {
     unawaited(_partialTextSubscription?.cancel());
     unawaited(_bluetoothStatusSubscription?.cancel());
     unawaited(_hfpStatusSubscription?.cancel());
+    unawaited(_aiv0StatusSubscription?.cancel());
+    unawaited(_aiv0ButtonSubscription?.cancel());
+    unawaited(_playbackPlayingSubscription?.cancel());
+    if (_h20HardwareAudioInputStarted) {
+      unawaited(_audioInput.cancel().catchError((Object _) {}));
+    }
     unawaited(_stopHfpRoute());
     unawaited(_audioInput.dispose());
     unawaited(_streamingSpeechInput?.dispose());
     unawaited(_offlineIntentRecognizer?.dispose());
     unawaited(_hfpAudioControl?.dispose());
+    unawaited(_aiv0BleControl?.dispose());
     unawaited(_playbackService.dispose());
     unawaited(_voicePromptService?.dispose());
     unawaited(_repository.dispose());

@@ -66,13 +66,21 @@ abstract interface class DirectUserGestureAudioPlaybackService {
   Future<PlaybackStartMetrics?> playLoadedForUserGesture(Uri uri);
 }
 
+/// Optional capability for two-way HFP/SCO devices. Media playback attributes
+/// can leave Android on A2DP or the phone speaker; communication attributes
+/// keep English audio on the same HFP route as the external microphone.
+abstract interface class CommunicationRouteAwareAudioPlaybackService {
+  void setCommunicationRouteActive(bool active);
+}
+
 class JustAudioPlaybackService
     implements
         AudioPlaybackService,
         CompletionAwareAudioPlaybackService,
         ProgressAwareAudioPlaybackService,
         UserGestureAudioPlaybackService,
-        DirectUserGestureAudioPlaybackService {
+        DirectUserGestureAudioPlaybackService,
+        CommunicationRouteAwareAudioPlaybackService {
   static Future<void>? _assetCacheRefresh;
 
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
@@ -107,6 +115,14 @@ class JustAudioPlaybackService
   Uri? _loadedOriginalUri;
   Uri? _loadedResolvedUri;
   int _preloadRevision = 0;
+  bool _communicationRouteActive = false;
+
+  @override
+  void setCommunicationRouteActive(bool active) {
+    if (_communicationRouteActive == active) return;
+    _communicationRouteActive = active;
+    _playbackSessionPreparation = null;
+  }
 
   @override
   Future<void> unlockForUserGesture() async {
@@ -124,9 +140,24 @@ class JustAudioPlaybackService
 
   Future<void> _configurePlaybackAudioSession() async {
     final session = await _audioSession;
-    // iOS uses spoken-audio playback while Android keeps the media path used
-    // by Bluetooth Classic/A2DP speakers. Recording changes the shared audio
-    // session, so restore this configuration before every playback request.
+    // Recording changes the shared audio session, so restore the desired
+    // route before every playback request.
+    if (_communicationRouteActive) {
+      await session.configure(
+        const AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+          avAudioSessionCategoryOptions:
+              AVAudioSessionCategoryOptions.allowBluetooth,
+          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          androidAudioAttributes: AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.speech,
+            usage: AndroidAudioUsage.voiceCommunication,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        ),
+      );
+      return;
+    }
     await session.configure(
       const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,

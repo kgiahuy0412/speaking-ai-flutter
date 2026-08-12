@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
+import '../../../core/device/aiv0_ble_control.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -127,13 +128,12 @@ class SettingsSheet extends StatelessWidget {
                       stateColor: AppColors.success,
                     ),
                     const SizedBox(height: 10),
-                    _InnotrikStatusCard(
-                      status: controller.bluetoothAudioStatus,
+                    _Aiv0BleControlCard(
+                      status: controller.aiv0BleStatus,
+                      events: controller.aiv0ButtonEventLog,
                       disabled: controller.isBusy,
-                      diagnosticRunning: controller.bleDiagnosticRunning,
-                      onScan: () => _scanAndConnect(context),
-                      onTest: () => _testInnotrik(context),
-                      onDisconnect: controller.disconnectInnotrikDevice,
+                      onScan: () => _scanAndConnectAiv0(context),
+                      onDisconnect: controller.disconnectAiv0Device,
                     ),
                     const SizedBox(height: 10),
                     _HfpStatusCard(
@@ -143,6 +143,28 @@ class SettingsSheet extends StatelessWidget {
                       onFind: () => _findAndConnectHfp(context),
                       onDisconnect: controller.disconnectHfpDevice,
                     ),
+                    if (!kIsWeb) ...<Widget>[
+                      const SizedBox(height: 10),
+                      _H20OfflineHardwareTestCard(
+                        enabled: controller.h20HardwareTestModeEnabled,
+                        phase: controller.h20HardwareTestPhase,
+                        message: controller.h20HardwareTestMessage,
+                        result: controller.h20HardwareTestResult,
+                        bleConnected: controller.canUseAiv0Ble,
+                        mainProtocolConfirmed:
+                            controller.aiv0BleStatus.protocolConfirmed,
+                        hfpStatus: controller.hfpAudioStatus,
+                        conversationBusy:
+                            controller.phase == ConversationPhase.recording ||
+                            controller.phase == ConversationPhase.processing,
+                        onEnabledChanged: (enabled) =>
+                            _setH20HardwareTestMode(context, enabled),
+                        onRecord: () => _toggleH20OfflineRecording(context),
+                        onSpeakerTest: () => _playH20SpeakerTest(context),
+                        onPlaybackConfirmed:
+                            controller.confirmH20PlaybackAudible,
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     _SectionLabel(
                       label: context.tr('Chế độ nhận diện', '识别模式'),
@@ -159,6 +181,7 @@ class SettingsSheet extends StatelessWidget {
                         children: AsrMode.values
                             .where(
                               (mode) =>
+                                  mode != AsrMode.deviceStreaming &&
                                   (mode.isUserSelectable ||
                                       (kIsWeb &&
                                           mode == AsrMode.batchChunks)) &&
@@ -332,6 +355,138 @@ class SettingsSheet extends StatelessWidget {
     );
   }
 
+  Future<void> _setH20HardwareTestMode(
+    BuildContext context,
+    bool enabled,
+  ) async {
+    try {
+      await controller.setH20HardwareTestMode(enabled);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _toggleH20OfflineRecording(BuildContext context) async {
+    try {
+      await controller.toggleH20OfflineRecordingTest();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _playH20SpeakerTest(BuildContext context) async {
+    try {
+      await controller.playH20BundledSpeakerTest();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _scanAndConnectAiv0(BuildContext context) async {
+    try {
+      final devices = await controller.scanAiv0Devices();
+      if (!context.mounted) return;
+      if (devices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Không tìm thấy H20/AIV0. Hãy bật thiết bị và thử lại.',
+                '未找到 H20/AIV0。请开启设备后重试。',
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+      final selected = await showModalBottomSheet<Aiv0BleDevice>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  context.tr('Chọn thiết bị BLE Control', '选择 BLE 控制设备'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  context.tr(
+                    'APK sẽ xác nhận service 9E3B0001. Âm thanh không truyền qua BLE.',
+                    'APK 将验证 9E3B0001 服务。音频不通过 BLE 传输。',
+                  ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: devices.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final device = devices[index];
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: AppColors.lavender,
+                          child: Icon(
+                            Icons.bluetooth_rounded,
+                            color: AppColors.indigo,
+                          ),
+                        ),
+                        title: Text(device.name),
+                        subtitle: Text('${device.id} • ${device.rssi} dBm'),
+                        onTap: () => Navigator.of(context).pop(device),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (selected == null || !context.mounted) return;
+      await controller.connectAiv0Device(selected);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Đã kết nối BLE Control. Hãy bấm MAIN để kiểm tra Raw Hex.',
+                'BLE 控制已连接。请按 MAIN 检查 Raw Hex。',
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  // Kept only for release builds that intentionally re-enable legacy
+  // FF12/FF13/FF14 audio through ENABLE_LEGACY_BLE_AUDIO.
+  // ignore: unused_element
   Future<void> _scanAndConnect(BuildContext context) async {
     try {
       final devices = await controller.scanInnotrikDevices();
@@ -441,6 +596,7 @@ class SettingsSheet extends StatelessWidget {
     }
   }
 
+  // ignore: unused_element
   Future<void> _testInnotrik(BuildContext context) async {
     try {
       await controller.testInnotrikMicrophone();
@@ -903,6 +1059,280 @@ class _StatusTile extends StatelessWidget {
   }
 }
 
+class _Aiv0BleControlCard extends StatelessWidget {
+  const _Aiv0BleControlCard({
+    required this.status,
+    required this.events,
+    required this.disabled,
+    required this.onScan,
+    required this.onDisconnect,
+  });
+
+  final Aiv0BleStatus status;
+  final List<Aiv0ButtonEvent> events;
+  final bool disabled;
+  final VoidCallback onScan;
+  final Future<void> Function() onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final connected = status.isConnected;
+    final busy =
+        status.phase == Aiv0BlePhase.scanning ||
+        status.phase == Aiv0BlePhase.connecting ||
+        status.phase == Aiv0BlePhase.reconnecting;
+    final stateColor = connected
+        ? AppColors.success
+        : status.phase == Aiv0BlePhase.error
+        ? AppColors.coral
+        : AppColors.muted;
+    final name = status.deviceName?.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: connected
+            ? Color.alphaBlend(
+                AppColors.success.withValues(alpha: 0.12),
+                colorScheme.surfaceContainer,
+              )
+            : colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: stateColor.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                connected
+                    ? Icons.bluetooth_connected_rounded
+                    : Icons.settings_remote_rounded,
+                color: stateColor,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      name == null || name.isEmpty
+                          ? context.tr('BLE Control AIV0 V1', 'AIV0 V1 BLE 控制')
+                          : name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _detail(context),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            context.tr(
+              'BLE: MAIN, pin, firmware và trạng thái • Âm thanh: HFP hai chiều',
+              'BLE：MAIN、电量、固件和状态 • 音频：双向 HFP',
+            ),
+            style: const TextStyle(
+              color: AppColors.indigo,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (connected) ...<Widget>[
+            const SizedBox(height: 9),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Pin', '电量'),
+              value: status.batteryPercent == null
+                  ? context.tr('Chưa đọc được', '尚未读取')
+                  : '${status.batteryPercent}%',
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Firmware', '固件'),
+              value:
+                  status.firmwareRevision ??
+                  context.tr('Chưa đọc được', '尚未读取'),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Trạng thái sạc', '充电状态'),
+              value: context.tr(
+                'Chưa được H20 cung cấp qua BLE',
+                'H20 尚未通过 BLE 提供',
+              ),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Ghi 9E3B0003', '写入 9E3B0003'),
+              value: status.writeMode == 'withResponse'
+                  ? 'Write with response'
+                  : status.writeMode == 'withoutResponse'
+                  ? context.tr(
+                      'WRITE_NO_RESPONSE • chờ ODM bổ sung ACK',
+                      'WRITE_NO_RESPONSE • 等待 ODM 增加 ACK',
+                    )
+                  : context.tr('Chưa xác định', '尚未确定'),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Giao thức packet', '数据包协议'),
+              value: status.protocolConfirmed
+                  ? context.tr('Đã xác nhận', '已确认')
+                  : context.tr(
+                      'Chẩn đoán raw hex • chưa điều khiển APP',
+                      'Raw Hex 诊断 • 尚未控制 APP',
+                    ),
+            ),
+            if (events.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                context.tr(
+                  'Log MAIN / Raw Hex gần nhất',
+                  '最近的 MAIN / Raw Hex 日志',
+                ),
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 4),
+              ...events
+                  .take(5)
+                  .map(
+                    (event) => Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: SelectableText(
+                        '${_formatEventTime(event.receivedAt)}  '
+                        '${event.isDuplicate ? '[TRÙNG] ' : ''}${event.rawHex}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 11.5,
+                          color: event.isDuplicate
+                              ? AppColors.coral
+                              : AppColors.indigo,
+                        ),
+                      ),
+                    ),
+                  ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              context.tr(
+                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.reconnectCount} reconnect',
+                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.reconnectCount} 次重连',
+              ),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (busy)
+            const Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+            )
+          else
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: disabled || status.phase == Aiv0BlePhase.disabled
+                    ? null
+                    : connected
+                    ? () => onDisconnect()
+                    : onScan,
+                icon: Icon(
+                  connected ? Icons.link_off_rounded : Icons.search_rounded,
+                ),
+                label: Text(
+                  connected
+                      ? context.tr('Ngắt BLE', '断开 BLE')
+                      : context.tr('Quét & kết nối', '扫描并连接'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _detail(BuildContext context) {
+    return switch (status.phase) {
+      Aiv0BlePhase.disabled => context.tr(
+        'BLE Control AIV0 chỉ hoạt động trên APK Android.',
+        'AIV0 BLE 控制仅适用于 Android APK。',
+      ),
+      Aiv0BlePhase.idle => context.tr(
+        'Chưa kết nối service 9E3B0001.',
+        '尚未连接 9E3B0001 服务。',
+      ),
+      Aiv0BlePhase.scanning => context.tr(
+        'Đang tìm H20/AIV0 ở gần…',
+        '正在搜索附近的 H20/AIV0…',
+      ),
+      Aiv0BlePhase.connecting => context.tr(
+        'Đang xác nhận 9E3B0001/0002/0003…',
+        '正在验证 9E3B0001/0002/0003…',
+      ),
+      Aiv0BlePhase.connected =>
+        status.message ?? context.tr('BLE Control đã kết nối.', 'BLE 控制已连接。'),
+      Aiv0BlePhase.reconnecting =>
+        status.message ?? context.tr('Đang tự kết nối lại…', '正在自动重连…'),
+      Aiv0BlePhase.error =>
+        status.message ?? context.tr('Kết nối BLE gặp lỗi.', 'BLE 连接发生错误。'),
+    };
+  }
+
+  String _formatEventTime(DateTime value) {
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${twoDigits(value.hour)}:${twoDigits(value.minute)}:'
+        '${twoDigits(value.second)}';
+  }
+}
+
+class _Aiv0DiagnosticLine extends StatelessWidget {
+  const _Aiv0DiagnosticLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 108,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Legacy diagnostic is hidden in AIV0 V1 and retained for an explicit
+// ENABLE_LEGACY_BLE_AUDIO compatibility build only.
+// ignore: unused_element
 class _InnotrikStatusCard extends StatelessWidget {
   const _InnotrikStatusCard({
     required this.status,
@@ -1092,6 +1522,220 @@ class _InnotrikStatusCard extends StatelessWidget {
   }
 }
 
+class _H20OfflineHardwareTestCard extends StatelessWidget {
+  const _H20OfflineHardwareTestCard({
+    required this.enabled,
+    required this.phase,
+    required this.message,
+    required this.result,
+    required this.bleConnected,
+    required this.mainProtocolConfirmed,
+    required this.hfpStatus,
+    required this.conversationBusy,
+    required this.onEnabledChanged,
+    required this.onRecord,
+    required this.onSpeakerTest,
+    required this.onPlaybackConfirmed,
+  });
+
+  final bool enabled;
+  final H20HardwareTestPhase phase;
+  final String? message;
+  final H20HardwareTestResult? result;
+  final bool bleConnected;
+  final bool mainProtocolConfirmed;
+  final BluetoothAudioStatus hfpStatus;
+  final bool conversationBusy;
+  final ValueChanged<bool> onEnabledChanged;
+  final Future<void> Function() onRecord;
+  final Future<void> Function() onSpeakerTest;
+  final ValueChanged<bool> onPlaybackConfirmed;
+
+  bool get _running =>
+      phase == H20HardwareTestPhase.openingRoute ||
+      phase == H20HardwareTestPhase.recording ||
+      phase == H20HardwareTestPhase.playing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final hfpConnected = hfpStatus.isConnected;
+    final routeActive = hfpStatus.routeActive;
+    final canStart = enabled && hfpConnected && !conversationBusy && !_running;
+    final canToggleRecording =
+        phase == H20HardwareTestPhase.recording || canStart;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color:
+              (phase == H20HardwareTestPhase.error
+                      ? AppColors.coral
+                      : AppColors.indigo)
+                  .withValues(alpha: 0.24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      context.tr(
+                        'Kiểm tra phần cứng H20 offline',
+                        'H20 离线硬件测试',
+                      ),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      context.tr(
+                        'Chỉ ghi file trên điện thoại; không gọi backend và không tải âm thanh lên cloud.',
+                        '仅在手机本地录音；不调用后端，也不上传音频到云端。',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Switch.adaptive(value: enabled, onChanged: onEnabledChanged),
+            ],
+          ),
+          _Aiv0DiagnosticLine(
+            label: 'BLE',
+            value: bleConnected
+                ? context.tr('Đã kết nối', '已连接')
+                : context.tr('Chưa kết nối', '未连接'),
+          ),
+          _Aiv0DiagnosticLine(
+            label: 'HFP',
+            value: hfpConnected
+                ? context.tr('Đã kết nối', '已连接')
+                : context.tr('Chưa kết nối', '未连接'),
+          ),
+          _Aiv0DiagnosticLine(
+            label: 'SCO',
+            value: routeActive
+                ? context.tr('Đang hoạt động', '正在使用')
+                : context.tr('Chỉ mở trong lúc kiểm tra', '仅在测试时打开'),
+          ),
+          _Aiv0DiagnosticLine(
+            label: 'MAIN',
+            value: mainProtocolConfirmed
+                ? context.tr(
+                    'Đã xác nhận • điều khiển ghi/dừng',
+                    '已确认 • 控制开始/停止录音',
+                  )
+                : context.tr(
+                    'Chỉ ghi Raw Hex • chờ ODM xác nhận packet',
+                    '仅记录 Raw Hex • 等待 ODM 确认数据包',
+                  ),
+          ),
+          if (message != null && message!.trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              message!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: phase == H20HardwareTestPhase.error
+                    ? AppColors.coral
+                    : colors.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (result != null) ...<Widget>[
+            const SizedBox(height: 6),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Micro đã kiểm', '麦克风验证'),
+              value: result!.inputRouteVerified
+                  ? result!.inputDeviceName ?? 'HFP/SCO'
+                  : context.tr('Chưa xác nhận', '尚未确认'),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Loa đã kiểm', '扬声器验证'),
+              value: result!.outputRouteVerified
+                  ? result!.outputDeviceName ?? 'HFP/SCO'
+                  : context.tr('Chưa xác nhận', '尚未确认'),
+            ),
+            if (result!.recordedDuration != null)
+              _Aiv0DiagnosticLine(
+                label: context.tr('Thời lượng', '录音时长'),
+                value: '${result!.recordedDuration!.inMilliseconds / 1000.0} s',
+              ),
+            const SizedBox(height: 6),
+            Text(
+              context.tr(
+                'Bạn có nghe âm thanh từ loa H20 không?',
+                '您是否从 H20 扬声器听到声音？',
+              ),
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            Row(
+              children: <Widget>[
+                TextButton.icon(
+                  onPressed: () => onPlaybackConfirmed(true),
+                  icon: Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: result!.playbackAudible == true
+                        ? AppColors.success
+                        : null,
+                  ),
+                  label: Text(context.tr('Có', '是')),
+                ),
+                TextButton.icon(
+                  onPressed: () => onPlaybackConfirmed(false),
+                  icon: Icon(
+                    Icons.error_outline_rounded,
+                    color: result!.playbackAudible == false
+                        ? AppColors.coral
+                        : null,
+                  ),
+                  label: Text(context.tr('Không', '否')),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: canStart ? () => onSpeakerTest() : null,
+                icon: const Icon(Icons.volume_up_rounded),
+                label: Text(context.tr('Test loa offline', '离线测试扬声器')),
+              ),
+              FilledButton.icon(
+                onPressed: canToggleRecording ? () => onRecord() : null,
+                icon: Icon(
+                  phase == H20HardwareTestPhase.recording
+                      ? Icons.stop_circle_outlined
+                      : Icons.mic_rounded,
+                ),
+                label: Text(
+                  phase == H20HardwareTestPhase.recording
+                      ? context.tr('Dừng & phát lại', '停止并回放')
+                      : context.tr('Thu thử tối đa 5 giây', '录音测试（最多 5 秒）'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HfpStatusCard extends StatelessWidget {
   const _HfpStatusCard({
     required this.status,
@@ -1164,6 +1808,35 @@ class _HfpStatusCard extends StatelessWidget {
               ),
             ],
           ),
+          if (connected && !browserManaged) ...<Widget>[
+            const SizedBox(height: 9),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Micro thực tế', '实际麦克风'),
+              value: status.routeActive
+                  ? status.inputDeviceName ??
+                        context.tr('HFP/SCO (không rõ tên)', 'HFP/SCO（名称未知）')
+                  : context.tr(
+                      'Chưa xác nhận • đường SCO chưa mở',
+                      '尚未确认 • SCO 通道未打开',
+                    ),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Loa thực tế', '实际扬声器'),
+              value: status.routeActive
+                  ? status.outputDeviceName ??
+                        context.tr('HFP/SCO (không rõ tên)', 'HFP/SCO（名称未知）')
+                  : context.tr(
+                      'Chưa xác nhận • đường SCO chưa mở',
+                      '尚未确认 • SCO 通道未打开',
+                    ),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('Đường SCO', 'SCO 通道'),
+              value: status.routeActive
+                  ? context.tr('Đang hoạt động', '正在使用')
+                  : context.tr('Chưa mở', '未打开'),
+            ),
+          ],
           const SizedBox(height: 6),
           if (busy)
             const Align(
