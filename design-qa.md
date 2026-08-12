@@ -274,6 +274,60 @@ final result: passed
 
 ---
 
+# Design QA — Cổng cài PWA trên iOS (2026-08-12)
+
+## Comparison target
+
+- Source visual truth: `design-qa-assets/ios-pwa-install-reference-original.png` — 870 × 1885 px, gồm chrome của trình duyệt iOS và vùng nội dung web.
+- Normalized source: `design-qa-assets/ios-pwa-install-reference-app.png` — 435 × 809 px; crop vùng nội dung từ `x=0, y=197, width=870, height=1618`, sau đó downsample 2:1.
+- Browser-rendered implementation: `design-qa-assets/ios-pwa-install-actual.png` — 435 × 809 px.
+- Combined comparison input: `design-qa-assets/ios-pwa-install-comparison.png` — 870 × 809 px; reference ở trái, implementation ở phải.
+- CSS viewport: 435 × 809; browser chrome được loại khỏi cả hai phía trước khi so sánh.
+- Density normalization: ảnh nguồn @2x được đưa về 435 × 809; bản render của Codex in-app Browser được chụp ở cùng kích thước CSS và crop đúng vùng 435 × 809. Khác biệt raster do DPR 0.8 của trình duyệt kiểm tra không được tính là design drift.
+- State: iOS web chưa cài PWA, đang mở trong in-app browser nên hiển thị đủ 4 bước, gồm “Mở bằng Safari”.
+
+## Findings
+
+- Không còn khác biệt P0/P1/P2 có thể hành động. Khung thẻ, vị trí mascot, tiêu đề, mô tả, bốn hàng hướng dẫn, ghi chú cuối và nền phong cảnh cùng nhịp dọc với ảnh nguồn.
+- Không có P3 cần xử lý trong phạm vi khôi phục màn đã mất.
+
+## Required fidelity surfaces
+
+- Fonts and typography: Roboto, cấp độ chữ, độ đậm, line-height và wrapping trùng với ảnh nguồn; không có cắt chữ hoặc tràn dòng.
+- Spacing and layout rhythm: lề ngang 24 px, card rộng 387 px, bo góc 28 px, khoảng cách giữa mascot/tiêu đề/mô tả/các bước và vị trí card theo trục dọc khớp sau chuẩn hóa.
+- Colors and visual tokens: nền trời xanh nhạt, card trắng, indigo cho số/icon, vòng tròn lavender, chữ chính và muted text giữ đúng token hiện có.
+- Image quality and asset fidelity: dùng lại `penguin-wave.png` và `learning-minimal-sky-background.png`; không thay bằng placeholder, emoji, CSS art hay SVG tự dựng.
+- Copy and content: đủ tiêu đề, mô tả, 4 bước và câu lưu ý cuối như ảnh nguồn.
+
+## Interaction and runtime verification
+
+- In-app browser iOS: gate chặn màn chính và hiện 4 bước.
+- Safari iOS: gate hiện 3 bước, bỏ bước “Mở bằng Safari”.
+- PWA đã cài, Android, desktop và native app: gate đi thẳng vào app.
+- Primary interaction: đây là màn hướng dẫn thủ công, không có CTA giả; Safari không cho website tự thực hiện Add to Home Screen.
+- Console: không có lỗi; chỉ có cảnh báo thông tin của Flutter về việc thay meta viewport, không ảnh hưởng giao diện.
+
+## Full-view and focused evidence
+
+- Full-view comparison: `design-qa-assets/ios-pwa-install-comparison.png` cho thấy bố cục và tỷ lệ các vùng khớp ở cùng viewport/state.
+- Focused crop riêng không cần thiết: comparison 870 × 809 giữ chữ, icon, mascot, bán kính card và khoảng cách ở kích thước đọc được; các chi tiết quan trọng đều rõ trong cùng một input.
+
+## Comparison history
+
+- Pass 1: không phát hiện P0/P1/P2; không cần vòng sửa hình ảnh.
+- Post-check: widget tests, `flutter analyze`, release Web build và browser capture đều qua; không có regression nhìn thấy.
+
+## Implementation checklist
+
+- [x] Nối lại `PwaInstallGate` ở root app mà không khôi phục splash chặn mọi nền tảng.
+- [x] Giữ `PwaUpdateGate` bên trong install gate để kiểm tra bản cập nhật chỉ xuất hiện một lần.
+- [x] Bao phủ ba nhánh runtime bằng widget tests.
+- [x] Xác minh release Web và so sánh trình duyệt ở đúng viewport.
+
+final result: passed
+
+---
+
 # Design QA — Hướng dẫn sử dụng lần đầu trên APK và Web (2026-08-05)
 
 ## Evidence

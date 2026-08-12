@@ -93,17 +93,21 @@ class ConversationController extends ChangeNotifier {
        _preferBleStreaming = preferBleStreaming,
        _realtimeBatchFallback = realtimeBatchFallback,
        _isWebRuntime = webRuntimeOverride ?? kIsWeb,
+       _hfpInputSelected = initialAsrMode == AsrMode.hfpStreaming,
        _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
        _realtimeFallbackBuffer = RealtimeFallbackBuffer(
          maxBytes: realtimeFallbackBufferBytes > 0
              ? realtimeFallbackBufferBytes
              : 15 * 1024 * 1024,
        ),
-       asrMode =
-           initialAsrMode ??
-           (streamingSpeechInput == null
-               ? AsrMode.batchChunks
-               : AsrMode.androidStreaming) {
+       asrMode = initialAsrMode == AsrMode.hfpStreaming
+           ? (hfpAudioControl?.usesBrowserAudioInput ?? false)
+                 ? AsrMode.batchChunks
+                 : AsrMode.androidStreaming
+           : initialAsrMode ??
+                 (streamingSpeechInput == null
+                     ? AsrMode.batchChunks
+                     : AsrMode.androidStreaming) {
     _streamingCompletionSubscription = streamingSpeechInput?.completed.listen((
       _,
     ) {
@@ -132,7 +136,10 @@ class ConversationController extends ChangeNotifier {
     }
     final hfpControl = _hfpAudioControl;
     if (hfpControl != null) {
-      _hfpStatusSubscription = hfpControl.statusChanges.listen((_) {
+      _hfpStatusSubscription = hfpControl.statusChanges.listen((status) {
+        if (_hfpInputSelected && !status.isConnected && !status.isBusy) {
+          _hfpInputSelected = false;
+        }
         if (!_disposed) {
           notifyListeners();
         }
@@ -218,6 +225,8 @@ class ConversationController extends ChangeNotifier {
   bool _noisyRecording = false;
   bool _usingStreamingSpeech = false;
   bool _usingHfpRoute = false;
+  bool _hfpInputSelected;
+  bool _preparingMicrophone = false;
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
   bool _playbackPlaying = false;
@@ -360,7 +369,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   String get inputLabel {
-    if (asrMode == AsrMode.hfpStreaming || _usingHfpRoute) {
+    if (usesHfpInput || _usingHfpRoute) {
       final name = hfpAudioStatus.deviceName?.trim();
       if (supportsBrowserHfp) {
         return name == null || name.isEmpty
@@ -368,8 +377,11 @@ class ConversationController extends ChangeNotifier {
             : 'Mic HFP Web • $name';
       }
       return name == null || name.isEmpty
-          ? 'ASR HFP trực tiếp'
-          : 'ASR HFP trực tiếp • $name';
+          ? 'Mic H20 qua HFP'
+          : 'Mic HFP • $name';
+    }
+    if (!_isWebRuntime && asrMode == AsrMode.androidStreaming) {
+      return _audioInput.isBluetooth ? _audioInput.label : 'Mic điện thoại';
     }
     return _usingStreamingSpeech ||
             (phase == ConversationPhase.idle &&
@@ -403,19 +415,19 @@ class ConversationController extends ChangeNotifier {
   bool get supportsBrowserHfp =>
       (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
       _audioInput is ChunkedAudioInput;
-  bool get isBrowserHfpMode =>
-      asrMode == AsrMode.hfpStreaming && supportsBrowserHfp;
+  bool get isBrowserHfpMode => supportsBrowserHfp && _hfpInputSelected;
+  bool get usesHfpInput => _hfpInputSelected;
   bool get isBluetoothInput =>
-      asrMode == AsrMode.hfpStreaming ||
-      _usingHfpRoute ||
-      _audioInput.isBluetooth;
+      usesHfpInput || _usingHfpRoute || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
+  bool get isPreparingMicrophone => _preparingMicrophone;
   bool get h20HardwareTestActive =>
       h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
       h20HardwareTestPhase == H20HardwareTestPhase.recording ||
       h20HardwareTestPhase == H20HardwareTestPhase.playing;
   bool get isBusy =>
+      _preparingMicrophone ||
       bleDiagnosticRunning ||
       h20HardwareTestActive ||
       hfpAudioStatus.isBusy ||
@@ -741,10 +753,13 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
     try {
       await control.connect(device);
-      asrMode = AsrMode.hfpStreaming;
+      _hfpInputSelected = true;
+      asrMode = supportsBrowserHfp
+          ? AsrMode.batchChunks
+          : AsrMode.androidStreaming;
       transientMessage = supportsBrowserHfp
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
-          : 'Đã chọn mic HFP. Chế độ tiêu chuẩn sẽ nghe từ thiết bị Bluetooth.';
+          : 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -758,10 +773,9 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     await _hfpAudioControl?.disconnect();
+    _hfpInputSelected = false;
     if (asrMode == AsrMode.hfpStreaming) {
-      asrMode = supportsBrowserHfp
-          ? AsrMode.batchChunks
-          : supportsAndroidStreaming
+      asrMode = supportsAndroidStreaming
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks;
     }
@@ -1041,12 +1055,14 @@ class ConversationController extends ChangeNotifier {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
     }
-    if (asrMode == AsrMode.hfpStreaming && !canUseHfp) {
+    if (usesHfpInput && !canUseHfp) {
       _setError('Hãy tìm và kết nối thiết bị HFP trước khi bắt đầu nói.');
       return;
     }
 
     try {
+      _preparingMicrophone = true;
+      notifyListeners();
       final userGesturePlayback = _playbackService;
       if (userGesturePlayback is UserGestureAudioPlaybackService) {
         await (userGesturePlayback as UserGestureAudioPlaybackService)
@@ -1065,6 +1081,14 @@ class ConversationController extends ChangeNotifier {
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
+      // Android V1 has one recognition path only. HFP is an audio source,
+      // never a separate ASR mode, and Android must not upload audio to
+      // Cloudflare when the platform recognizer is available.
+      if (!_isWebRuntime &&
+          _streamingSpeechInput != null &&
+          (asrMode == AsrMode.hfpStreaming || asrMode == AsrMode.batchChunks)) {
+        asrMode = AsrMode.androidStreaming;
+      }
       final preferAvailableBle =
           _preferBleStreaming &&
           _audioInput.isBluetooth &&
@@ -1128,7 +1152,7 @@ class ConversationController extends ChangeNotifier {
 
       if (_usingStreamingSpeech) {
         try {
-          if (asrMode == AsrMode.hfpStreaming) {
+          if (_hfpInputSelected && !supportsBrowserHfp) {
             await _hfpAudioControl!.startAudioRoute();
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
@@ -1144,11 +1168,17 @@ class ConversationController extends ChangeNotifier {
             rethrow;
           }
           _usingStreamingSpeech = false;
-          final keepsHfpRoute = _usingHfpRoute;
+          if (!_isWebRuntime && _streamingSpeechInput != null) {
+            await _stopHfpRoute();
+            asrMode = AsrMode.androidStreaming;
+            throw const StreamingSpeechInputException(
+              'Chế độ tiêu chuẩn chưa sẵn sàng. Hãy kiểm tra quyền micro hoặc kết nối H20 rồi thử lại.',
+              code: 'ANDROID_STANDARD_RECOGNITION_UNAVAILABLE',
+            );
+          }
           asrMode = AsrMode.batchChunks;
-          transientMessage = keepsHfpRoute
-              ? 'Nhận diện HFP trực tiếp chưa sẵn sàng; đang ghi âm HFP để gửi Cloudflare.'
-              : 'Nhận diện Android trực tiếp chưa sẵn sàng; đang ghi âm để gửi Cloudflare.';
+          transientMessage =
+              'Nhận dạng trực tiếp chưa sẵn sàng; đang ghi âm để gửi Cloudflare.';
           await _startBatchRecording();
         }
       } else if (isBrowserHfpMode && _audioInput is ChunkedAudioInput) {
@@ -1180,6 +1210,7 @@ class ConversationController extends ChangeNotifier {
 
       _recordingStartedAt = DateTime.now();
       phase = ConversationPhase.recording;
+      _preparingMicrophone = false;
       unawaited(_syncAiv0AppState());
       _listenToAmplitude(
         _usingStreamingSpeech
@@ -1197,6 +1228,7 @@ class ConversationController extends ChangeNotifier {
       });
       notifyListeners();
     } catch (error) {
+      _preparingMicrophone = false;
       _setError(_friendlyError(error));
     }
   }
@@ -1803,6 +1835,13 @@ class ConversationController extends ChangeNotifier {
           streamingCapture = await _streamingSpeechInput!.stop();
         } catch (error) {
           _usingStreamingSpeech = false;
+          if (!_isWebRuntime && _streamingSpeechInput != null) {
+            asrMode = AsrMode.androidStreaming;
+            throw const StreamingSpeechInputException(
+              'Chế độ tiêu chuẩn bị gián đoạn. Hãy nói lại câu vừa rồi.',
+              code: 'ANDROID_STANDARD_RECOGNITION_INTERRUPTED',
+            );
+          }
           asrMode = AsrMode.batchChunks;
           throw StreamingSpeechInputException(
             'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
@@ -1817,7 +1856,7 @@ class ConversationController extends ChangeNotifier {
             confidence: streamingCapture.confidence,
             firstResultMs: streamingCapture.firstResultMs,
             finalAfterStopMs: streamingCapture.finalAfterStopMs,
-            asrMode: AsrMode.hfpStreaming.apiValue,
+            asrMode: AsrMode.androidStreaming.apiValue,
             isBluetoothInput: true,
             initialNoiseRms: streamingCapture.initialNoiseRms,
           );
@@ -1840,7 +1879,7 @@ class ConversationController extends ChangeNotifier {
         if (adaptiveUpload != null) {
           adaptiveWebUpload = await adaptiveUpload.stopAndTakeSession();
         }
-        if (_usingHfpRoute && !supportsBrowserHfp) {
+        if (_usingHfpRoute) {
           audioCapture = AudioCapture(
             filePath: audioCapture.filePath,
             mimeType: audioCapture.mimeType,
@@ -2216,7 +2255,7 @@ class ConversationController extends ChangeNotifier {
 
     var openedHfpForReplay = false;
     try {
-      if (asrMode == AsrMode.hfpStreaming && canUseHfp && !_usingHfpRoute) {
+      if (usesHfpInput && canUseHfp && !_usingHfpRoute) {
         await _hfpAudioControl!.startAudioRoute();
         _usingHfpRoute = true;
         openedHfpForReplay = true;
@@ -2401,6 +2440,28 @@ class ConversationController extends ChangeNotifier {
         return;
       }
     }
+    if (!_isWebRuntime && _streamingSpeechInput != null) {
+      if (nextMode == AsrMode.batchChunks) {
+        asrMode = AsrMode.androidStreaming;
+        transientMessage =
+            'Android chỉ dùng Chế độ tiêu chuẩn để nhận dạng. Cloudflare vẫn được dùng cho dịch và phát âm khi cần.';
+        notifyListeners();
+        return;
+      }
+      if (nextMode == AsrMode.hfpStreaming) {
+        if (!canUseHfp) {
+          transientMessage = 'Hãy tìm và kết nối H20 trước khi chọn mic HFP.';
+          notifyListeners();
+          return;
+        }
+        _hfpInputSelected = true;
+        asrMode = AsrMode.androidStreaming;
+        transientMessage =
+            'Đã chọn H20 qua HFP làm nguồn âm thanh cho Chế độ tiêu chuẩn.';
+        notifyListeners();
+        return;
+      }
+    }
     if (nextMode == AsrMode.hfpStreaming) {
       if (!canUseHfp) {
         transientMessage =
@@ -2410,6 +2471,14 @@ class ConversationController extends ChangeNotifier {
       }
       if (_streamingSpeechInput == null && !supportsBrowserHfp) {
         transientMessage = 'HFP streaming chỉ khả dụng trên Android.';
+        notifyListeners();
+        return;
+      }
+      if (supportsBrowserHfp) {
+        _hfpInputSelected = true;
+        asrMode = AsrMode.batchChunks;
+        transientMessage =
+            'Đã chọn mic Bluetooth. Web vẫn dùng Nhận giọng nói trực tuyến.';
         notifyListeners();
         return;
       }

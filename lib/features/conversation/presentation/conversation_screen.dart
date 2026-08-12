@@ -78,6 +78,8 @@ class ConversationScreen extends StatelessWidget {
                                   phase: controller.phase,
                                   processingStage: controller.processingStage,
                                   amplitude: controller.amplitude,
+                                  isPreparingMicrophone:
+                                      controller.isPreparingMicrophone,
                                   onStop: () => unawaited(
                                     controller.stopRecording(manual: true),
                                   ),
@@ -111,6 +113,7 @@ class ConversationScreen extends StatelessWidget {
                       key: speakActionKey,
                       phase: controller.phase,
                       processingStage: controller.processingStage,
+                      isPreparingMicrophone: controller.isPreparingMicrophone,
                       onPressed: () => unawaited(controller.onPrimaryAction()),
                     ),
                   ],

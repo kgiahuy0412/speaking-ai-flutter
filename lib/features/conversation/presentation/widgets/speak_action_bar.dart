@@ -8,18 +8,21 @@ class SpeakActionBar extends StatelessWidget {
   const SpeakActionBar({
     required this.phase,
     required this.processingStage,
+    this.isPreparingMicrophone = false,
     required this.onPressed,
     super.key,
   });
 
   final ConversationPhase phase;
   final ConversationProcessingStage processingStage;
+  final bool isPreparingMicrophone;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final isRecording = phase == ConversationPhase.recording;
-    final isProcessing = phase == ConversationPhase.processing;
+    final isProcessing =
+        phase == ConversationPhase.processing || isPreparingMicrophone;
     final primary = isRecording ? AppColors.coral : AppColors.indigo;
     final secondary = isRecording
         ? const Color(0xFFE9524A)
@@ -36,7 +39,9 @@ class SpeakActionBar extends StatelessWidget {
             child: Semantics(
               button: true,
               enabled: !isProcessing,
-              label: _label(context),
+              label: isPreparingMicrophone
+                  ? context.tr('Đang chuẩn bị micro…', '正在准备麦克风…')
+                  : _label(context),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -80,7 +85,12 @@ class SpeakActionBar extends StatelessWidget {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               child: Text(
-                                _label(context),
+                                isPreparingMicrophone
+                                    ? context.tr(
+                                        'Đang chuẩn bị micro…',
+                                        '正在准备麦克风…',
+                                      )
+                                    : _label(context),
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(

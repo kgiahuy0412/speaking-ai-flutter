@@ -128,6 +128,7 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
 
   late final StreamSubscription<dynamic> _eventSubscription;
   Completer<String>? _resultCompleter;
+  Completer<void>? _readyCompleter;
   DateTime? _startedAt;
   DateTime? _firstResultAt;
   DateTime? _resultAt;
@@ -159,6 +160,24 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     }
   }
 
+  /// Creates the platform recognizer without opening the microphone.
+  ///
+  /// Android's first SpeechRecognizer construction can be noticeably slower
+  /// than subsequent starts. Running this after the first Flutter frame keeps
+  /// that cold-start work out of the child's first recording attempt.
+  Future<bool> prewarm() async {
+    if (_disposed) {
+      return false;
+    }
+    try {
+      return await _methodChannel.invokeMethod<bool>('speech.prepare') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   @override
   Future<void> start() async {
     if (_active) {
@@ -183,17 +202,34 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
         onError: (Object _, StackTrace _) {},
       ),
     );
-    _startedAt = DateTime.now();
+    _startedAt = null;
+    final readyCompleter = Completer<void>();
+    _readyCompleter = readyCompleter;
     _active = true;
 
     try {
       await _methodChannel.invokeMethod<void>('speech.start');
+      await readyCompleter.future.timeout(const Duration(seconds: 2));
+      _startedAt = DateTime.now();
+    } on TimeoutException {
+      _active = false;
+      await _methodChannel
+          .invokeMethod<void>('speech.cancel')
+          .catchError((Object _) {});
+      throw const StreamingSpeechInputException(
+        'Micro Android chưa sẵn sàng. Hãy thử lại sau một chút.',
+        code: 'SPEECH_READY_TIMEOUT',
+      );
     } on PlatformException catch (error) {
       _active = false;
       throw StreamingSpeechInputException(
         error.message ?? 'Không thể bắt đầu nhận diện giọng nói.',
         code: error.code,
       );
+    } finally {
+      if (identical(_readyCompleter, readyCompleter)) {
+        _readyCompleter = null;
+      }
     }
   }
 
@@ -291,6 +327,16 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
 
   @override
   Future<void> cancel() async {
+    final readyCompleter = _readyCompleter;
+    if (readyCompleter != null && !readyCompleter.isCompleted) {
+      readyCompleter.completeError(
+        const StreamingSpeechInputException(
+          'Đã dừng trước khi micro sẵn sàng.',
+          code: 'SPEECH_START_CANCELLED',
+        ),
+      );
+    }
+    _readyCompleter = null;
     if (_active) {
       await _methodChannel.invokeMethod<void>('speech.cancel');
     }
@@ -311,6 +357,13 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
     }
 
     final type = event['type'];
+    if (type == 'speech.ready') {
+      final readyCompleter = _readyCompleter;
+      if (readyCompleter != null && !readyCompleter.isCompleted) {
+        readyCompleter.complete();
+      }
+      return;
+    }
     if (type == 'speech.rms') {
       final rmsDb = (event['rmsDb'] as num?)?.toDouble() ?? -2;
       final level = ((rmsDb + 2) / 12).clamp(0.0, 1.0);
@@ -359,6 +412,15 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
       _resultAt = DateTime.now();
       final message =
           event['message'] as String? ?? 'Không thể nhận diện giọng nói.';
+      final readyCompleter = _readyCompleter;
+      if (readyCompleter != null && !readyCompleter.isCompleted) {
+        readyCompleter.completeError(
+          StreamingSpeechInputException(
+            message,
+            code: 'ANDROID_SPEECH_${event['code'] ?? 'ERROR'}',
+          ),
+        );
+      }
       final completer = _resultCompleter;
       if (_latestText.isNotEmpty) {
         _completeResult(_latestText);
@@ -370,6 +432,12 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   }
 
   void _handleChannelError(Object error) {
+    final readyCompleter = _readyCompleter;
+    if (readyCompleter != null && !readyCompleter.isCompleted) {
+      readyCompleter.completeError(
+        StreamingSpeechInputException(error.toString()),
+      );
+    }
     final completer = _resultCompleter;
     if (completer != null && !completer.isCompleted) {
       completer.completeError(StreamingSpeechInputException(error.toString()));
@@ -389,6 +457,16 @@ class AndroidStreamingSpeechInput implements StreamingSpeechInput {
   @override
   Future<void> dispose() async {
     _disposed = true;
+    final readyCompleter = _readyCompleter;
+    if (readyCompleter != null && !readyCompleter.isCompleted) {
+      readyCompleter.completeError(
+        const StreamingSpeechInputException(
+          'Bộ nhận dạng đã được đóng.',
+          code: 'SPEECH_DISPOSED',
+        ),
+      );
+    }
+    _readyCompleter = null;
     if (_active) {
       await _methodChannel.invokeMethod<void>('speech.cancel');
     }

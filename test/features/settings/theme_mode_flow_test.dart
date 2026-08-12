@@ -4,6 +4,7 @@ import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/app/app_theme_mode.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/settings/presentation/settings_sheet.dart';
@@ -78,6 +79,78 @@ void main() {
       Brightness.light,
     );
   });
+
+  testWidgets(
+    'Android settings separates standard recognition from audio source',
+    (tester) async {
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: _FakeStreamingSpeechInput(),
+        playbackService: const _FakePlaybackService(),
+        repository: const DemoConversationRepository(),
+        childAge: 6,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: SettingsSheet(
+              controller: controller,
+              themeMode: ThemeMode.system,
+            ),
+          ),
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('android-standard-recognition')),
+        500,
+      );
+
+      expect(find.text('Nhận dạng'), findsOneWidget);
+      expect(find.text('Chế độ tiêu chuẩn'), findsOneWidget);
+      expect(find.text('Mic điện thoại'), findsOneWidget);
+      expect(find.text('Cloudflare Batch Chunks'), findsNothing);
+      expect(find.text('HFP streaming'), findsNothing);
+    },
+  );
+}
+
+class _FakeStreamingSpeechInput implements StreamingSpeechInput {
+  @override
+  String get label => 'Chế độ tiêu chuẩn';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
+    sourceText: 'Con muốn uống nước',
+    duration: Duration(seconds: 1),
+    inputLabel: 'Mic điện thoại',
+    confidence: 0.9,
+    firstResultMs: 100,
+    finalAfterStopMs: 20,
+  );
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class _FakeAudioInput implements ChunkedAudioInput {

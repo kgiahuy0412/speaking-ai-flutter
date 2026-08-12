@@ -244,7 +244,7 @@ void main() {
   );
 
   test(
-    'Android streaming start failure records with Cloudflare Batch Chunks',
+    'Android streaming start failure does not upload audio to Cloudflare',
     () async {
       final input = _FakeChunkedInput(
         available: true,
@@ -263,24 +263,19 @@ void main() {
       );
 
       await controller.startRecording();
-      expect(controller.asrMode, AsrMode.batchChunks);
-      expect(controller.phase, ConversationPhase.recording);
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      await controller.stopRecording(manual: true);
+      expect(controller.asrMode, AsrMode.androidStreaming);
+      expect(controller.phase, ConversationPhase.error);
 
       expect(streaming.startCount, 1);
       expect(repository.realtimeStarted, 0);
-      expect(repository.batchStarted, 1);
-      expect(repository.batchSession.chunks, <List<int>>[
-        <int>[5, 6, 7, 8],
-      ]);
-      expect(controller.result?.conversationId, 'batch-result');
+      expect(repository.batchStarted, 0);
+      expect(controller.errorMessage, contains('Chế độ tiêu chuẩn'));
       controller.dispose();
     },
   );
 
   test(
-    'late Android streaming failure switches the next attempt to Batch Chunks',
+    'late Android streaming failure keeps the standard recognition mode',
     () async {
       final input = _FakeChunkedInput(
         available: true,
@@ -303,26 +298,23 @@ void main() {
       await controller.stopRecording(manual: true);
 
       expect(controller.phase, ConversationPhase.error);
-      expect(controller.asrMode, AsrMode.batchChunks);
+      expect(controller.asrMode, AsrMode.androidStreaming);
       expect(repository.realtimeStarted, 0);
 
       await controller.startRecording();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
-      expect(streaming.startCount, 1);
+      expect(streaming.startCount, 2);
       expect(repository.realtimeStarted, 0);
-      expect(repository.batchStarted, 1);
-      expect(repository.batchSession.chunks, <List<int>>[
-        <int>[21, 22, 23, 24],
-      ]);
-      expect(controller.result?.conversationId, 'batch-result');
+      expect(repository.batchStarted, 0);
+      expect(controller.phase, ConversationPhase.error);
       controller.dispose();
     },
   );
 
   test(
-    'HFP streaming start failure keeps the route for Batch Chunks',
+    'HFP source failure does not fall back to Cloudflare audio ASR',
     () async {
       final input = _FakeChunkedInput(
         available: true,
@@ -343,19 +335,13 @@ void main() {
       );
 
       await controller.startRecording();
-      expect(controller.asrMode, AsrMode.batchChunks);
+      expect(controller.asrMode, AsrMode.androidStreaming);
       expect(hfp.startRouteCount, 1);
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      await controller.stopRecording(manual: true);
+      expect(hfp.stopRouteCount, 1);
+      expect(controller.phase, ConversationPhase.error);
 
       expect(repository.realtimeStarted, 0);
-      expect(repository.batchStarted, 1);
-      expect(repository.batchSession.capture?.isBluetoothInput, isTrue);
-      expect(
-        repository.batchSession.capture?.inputLabel,
-        contains('Tai nghe HFP'),
-      );
-      expect(hfp.stopRouteCount, 1);
+      expect(repository.batchStarted, 0);
       controller.dispose();
     },
   );
@@ -1141,7 +1127,7 @@ void main() {
     controller.dispose();
   });
 
-  test('HFP streaming opens SCO route and reports Bluetooth input', () async {
+  test('HFP source uses standard Android ASR and reports Bluetooth', () async {
     final input = _FakeChunkedInput(
       available: true,
       bluetooth: false,
@@ -1167,7 +1153,8 @@ void main() {
     await controller.stopRecording(manual: true);
 
     expect(hfp.stopRouteCount, 1);
-    expect(repository.streamingCapture?.asrMode, 'hfp_streaming');
+    expect(controller.asrMode, AsrMode.androidStreaming);
+    expect(repository.streamingCapture?.asrMode, 'android_streaming');
     expect(repository.streamingCapture?.isBluetoothInput, isTrue);
     expect(repository.streamingCapture?.inputLabel, contains('Tai nghe HFP'));
     controller.dispose();
@@ -1188,6 +1175,8 @@ void main() {
       repository: repository,
       childAge: 6,
       initialAsrMode: AsrMode.hfpStreaming,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: const Duration(seconds: 8),
     );
 
     await controller.startRecording();
@@ -1195,13 +1184,17 @@ void main() {
     expect(input.startCount, 1);
     expect(controller.phase, ConversationPhase.recording);
 
+    await _emitDetectedSpeech(input);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     await controller.stopRecording(manual: true);
 
     expect(hfp.stopRouteCount, 1);
-    expect(repository.audioCapture?.isBluetoothInput, isTrue);
-    expect(repository.audioCapture?.inputLabel, contains('AirPods'));
-    expect(controller.result?.conversationId, 'file-result');
+    expect(controller.asrMode, AsrMode.batchChunks);
+    expect(controller.inputLabel, contains('HFP'));
+    expect(
+      controller.result?.conversationId,
+      anyOf('file-result', 'batch-result'),
+    );
     controller.dispose();
   });
 }

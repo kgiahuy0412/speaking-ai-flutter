@@ -39,6 +39,7 @@ class HfpAudioBridge(
         private const val CONTROL_CHANNEL = "ailingo_hfp_audio"
         private const val EVENT_CHANNEL = "ailingo_hfp_audio/events"
         private const val PERMISSION_REQUEST_CODE = 7393
+        private const val AUDIO_ROUTE_SETTLE_MS = 300L
 
         private val HFP_UUIDS =
             setOf(
@@ -376,7 +377,10 @@ class HfpAudioBridge(
                 phase = "recording"
                 statusMessage = "Đang dùng mic HFP/SCO để nhận diện."
                 emitStatus()
-                result.success(null)
+                mainHandler.postDelayed(
+                    { result.success(null) },
+                    AUDIO_ROUTE_SETTLE_MS,
+                )
             } else {
                 pendingAudioRouteResult = result
                 phase = "discovering"
@@ -398,7 +402,10 @@ class HfpAudioBridge(
         phase = "recording"
         statusMessage = "Đang dùng mic HFP/SCO để nhận diện."
         emitStatus()
-        pending.success(null)
+        mainHandler.postDelayed(
+            { pending.success(null) },
+            AUDIO_ROUTE_SETTLE_MS,
+        )
     }
 
     private fun stopAudioRouteInternal() {

@@ -40,7 +40,6 @@ class HomeLearningShell extends StatefulWidget {
 class _HomeLearningShellState extends State<HomeLearningShell> {
   late final PageController _pageController;
   int _page = 0;
-  bool _topicPreviewExpanded = false;
   bool _openingTopics = false;
   bool _tutorialActive = false;
   int _tutorialStep = 0;
@@ -158,7 +157,6 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
                       label: context.tr('Chủ đề', '主题'),
                       icon: Icons.headphones_rounded,
                       color: const Color(0xFF7443D8),
-                      expanded: _topicPreviewExpanded,
                       onPressed: _openTopicListening,
                     ),
                   ),
@@ -299,7 +297,6 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       _page = 0;
       _tutorialStep = 0;
       _tutorialActive = true;
-      _topicPreviewExpanded = false;
     });
   }
 
@@ -390,46 +387,42 @@ class _HomeLearningShellState extends State<HomeLearningShell> {
       return;
     }
     _openingTopics = true;
-    setState(() => _topicPreviewExpanded = true);
-    if (!MediaQuery.disableAnimationsOf(context)) {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    }
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        settings: const RouteSettings(name: ListeningRouteNames.topicCatalog),
-        transitionDuration: _motionDuration,
-        reverseTransitionDuration: _motionDuration,
-        pageBuilder: (_, _, _) => TopicListeningScreen(
-          language: widget.controller.displayLanguage,
-          childAge: widget.config.childAge,
-          controller: widget.controller,
+    try {
+      if (!mounted) {
+        return;
+      }
+      final routeDuration = MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 260);
+      await Navigator.of(context).push<void>(
+        PageRouteBuilder<void>(
+          settings: const RouteSettings(name: ListeningRouteNames.topicCatalog),
+          transitionDuration: routeDuration,
+          reverseTransitionDuration: routeDuration,
+          pageBuilder: (_, _, _) => TopicListeningScreen(
+            language: widget.controller.displayLanguage,
+            childAge: widget.config.childAge,
+            controller: widget.controller,
+          ),
+          transitionsBuilder: (_, animation, secondaryAnimation, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.08, 0),
+                end: Offset.zero,
+              ).animate(curved),
+              child: FadeTransition(opacity: curved, child: child),
+            );
+          },
         ),
-        transitionsBuilder: (_, animation, secondaryAnimation, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          );
-        },
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _topicPreviewExpanded = false;
+      );
+    } finally {
       _openingTopics = false;
-    });
+    }
   }
 
   void _showSettings() {

@@ -7,19 +7,25 @@ import 'pwa_runtime.dart';
 import 'pwa_update_gate.dart';
 
 class PwaInstallGate extends StatelessWidget {
-  const PwaInstallGate({required this.child, super.key});
+  const PwaInstallGate({
+    required this.child,
+    this.runtimeState,
+    super.key,
+  });
 
   final Widget child;
+  final PwaRuntimeState? runtimeState;
 
   @override
   Widget build(BuildContext context) {
-    final runtime = readPwaRuntimeState();
+    final runtime = runtimeState ?? readPwaRuntimeState();
     if (!runtime.installRequired) {
       return PwaUpdateGate(child: child);
     }
 
     return PwaUpdateGate(
       child: Scaffold(
+        key: const ValueKey('pwa-install-guide'),
         backgroundColor: Colors.transparent,
         body: LearningScenery(
           child: SafeArea(
@@ -136,6 +142,7 @@ class _InstallStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      key: ValueKey('pwa-install-step-$number'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         CircleAvatar(

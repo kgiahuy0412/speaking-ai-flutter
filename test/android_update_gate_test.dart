@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_speaking_flutter_app/config/app_config.dart';
 import 'package:ai_speaking_flutter_app/core/update/android_update_gate.dart';
 import 'package:ai_speaking_flutter_app/core/update/app_update_policy.dart';
@@ -76,6 +78,30 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     }
   });
+
+  testWidgets('does not block the first frame while checking', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final completer = Completer<AppUpdateDecision>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AndroidUpdateGate(
+            config: config,
+            checker: _PendingChecker(completer.future),
+            child: const Text('MAIN_APP'),
+          ),
+        ),
+      );
+
+      expect(find.text('MAIN_APP'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+
+      completer.complete(const AppUpdateDecision.unavailable());
+      await tester.pumpAndSettle();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 }
 
 AppUpdatePolicy _policy({required int minimum}) => AppUpdatePolicy(
@@ -94,6 +120,18 @@ class _FakeChecker implements AppUpdateChecker {
 
   @override
   Future<AppUpdateDecision> check() async => decision;
+
+  @override
+  void dispose() {}
+}
+
+class _PendingChecker implements AppUpdateChecker {
+  _PendingChecker(this.result);
+
+  final Future<AppUpdateDecision> result;
+
+  @override
+  Future<AppUpdateDecision> check() => result;
 
   @override
   void dispose() {}

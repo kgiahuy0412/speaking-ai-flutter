@@ -26,15 +26,12 @@ import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
+import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
-import '../features/onboarding/application/onboarding_progress_store.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
 import 'mascot_assets.dart';
-import 'startup_splash_screen.dart';
-
-const appStartupMinimumDuration = Duration(seconds: 1);
 
 class AiSpeakingApp extends StatefulWidget {
   const AiSpeakingApp({super.key});
@@ -46,6 +43,7 @@ class AiSpeakingApp extends StatefulWidget {
 class _AiSpeakingAppState extends State<AiSpeakingApp> {
   late final AppConfig _config;
   ConversationController? _controller;
+  AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
   ConversationRepository? _repository;
   final ClientIdentity _clientIdentity = ClientIdentity();
@@ -53,63 +51,35 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   DeviceRegistrationService? _deviceRegistrationService;
   ThemeMode _themeMode = ThemeMode.system;
   bool _themeModeChangedByUser = false;
-  bool _startupComplete = false;
   bool _backgroundWorkStarted = false;
-
-  static const _startupHoldMilliseconds = int.fromEnvironment(
-    'STARTUP_SPLASH_MIN_MS',
-    defaultValue: 0,
-  );
 
   @override
   void initState() {
     super.initState();
     _config = AppConfig.fromEnvironment();
+    // Build the lightweight runtime before the first frame so the real home
+    // screen appears immediately on both Android and web.
+    _createRuntime();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_beginStartup());
+      _startBackgroundStartup();
     });
   }
 
-  Duration get _minimumSplashDuration {
-    if (_startupHoldMilliseconds > 0) {
-      return Duration(milliseconds: _startupHoldMilliseconds);
-    }
-    return appStartupMinimumDuration;
-  }
-
-  Future<void> _beginStartup() async {
-    final stopwatch = Stopwatch()..start();
-    final startupTasks = Future.wait<void>(<Future<void>>[
-      _runStartupTask(() async {
-        await _clientIdentity.getClientId();
-      }),
-      _runStartupTask(() async {
-        await AssetListeningContentRepository().load();
-      }),
-      _runStartupTask(_loadThemeMode),
-      _runStartupTask(_precacheHomeAssets),
-    ]);
-    // These tasks fill shared local caches while the logo is visible. They are
-    // deliberately non-blocking and may finish after the home screen appears.
-    unawaited(startupTasks);
-
-    // The first Flutter frame is already visible. Runtime services can now
-    // initialize without leaving Android or the browser on an empty surface.
-    await Future<void>.delayed(const Duration(milliseconds: 32));
-    if (!mounted) {
-      return;
-    }
-    _createRuntime();
-
-    final remaining = _minimumSplashDuration - stopwatch.elapsed;
-    if (remaining > Duration.zero) {
-      await Future<void>.delayed(remaining);
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() => _startupComplete = true);
+  void _startBackgroundStartup() {
     _startBackgroundWork();
+    unawaited(
+      Future.wait<void>(<Future<void>>[
+        _runStartupTask(() async {
+          await _clientIdentity.getClientId();
+        }),
+        _runStartupTask(() async {
+          await AssetListeningContentRepository().load();
+        }),
+        _runStartupTask(_loadThemeMode),
+        _runStartupTask(_precacheHomeAssets),
+      ]),
+    );
+    unawaited(_warmTopicImagesWhenIdle());
   }
 
   Future<void> _runStartupTask(Future<void> Function() task) async {
@@ -126,6 +96,30 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       precacheImage(const AssetImage(MascotAssets.scenery), context),
       precacheImage(const AssetImage(MascotAssets.avatar), context),
     ]);
+  }
+
+  Future<void> _warmTopicImagesWhenIdle() async {
+    // Prioritize interactivity, then decode only the first visible topic cards
+    // sequentially so entering the catalog does not cause a burst of work.
+    await Future<void>.delayed(const Duration(milliseconds: 280));
+    if (!mounted) {
+      return;
+    }
+    var catalogIndex = listeningCatalogs.lastIndexWhere(
+      (catalog) => _config.childAge >= catalog.startAge,
+    );
+    if (catalogIndex < 0) {
+      catalogIndex = 0;
+    }
+    for (final topic in listeningCatalogs[catalogIndex].topics.take(4)) {
+      final imagePath = topic.imagePath;
+      if (imagePath == null || !mounted) {
+        continue;
+      }
+      await _runStartupTask(
+        () => precacheImage(AssetImage(imagePath), context),
+      );
+    }
   }
 
   void _createRuntime() {
@@ -154,14 +148,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
     );
+    final streamingSpeechInput = supportsAndroidNativeSpeech
+        ? AndroidStreamingSpeechInput()
+        : null;
+    _androidStreamingSpeechInput = streamingSpeechInput;
     final controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
         fallback: phoneMicrophoneInput,
       ),
-      streamingSpeechInput: supportsAndroidNativeSpeech
-          ? AndroidStreamingSpeechInput()
-          : null,
+      streamingSpeechInput: streamingSpeechInput,
       hfpAudioControl: hfpAudioControl,
       aiv0BleControl: aiv0BleControl,
       playbackService: JustAudioPlaybackService(cache: deviceAudioCache),
@@ -198,6 +194,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return;
     }
     _backgroundWorkStarted = true;
+    final androidStreamingSpeechInput = _androidStreamingSpeechInput;
+    if (androidStreamingSpeechInput != null) {
+      unawaited(androidStreamingSpeechInput.prewarm());
+    }
     final repository = _repository;
     final controller = _controller;
     final deviceAudioCache = _deviceAudioCache;
@@ -325,28 +325,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
-    final appContent = _startupComplete && controller != null
-        ? KeyedSubtree(
-            key: const ValueKey('app-content'),
-            child: AndroidUpdateGate(
-              config: _config,
-              child: PwaInstallGate(
-                child: HomeLearningShell(
-                  controller: controller,
-                  config: _config,
-                  themeMode: _themeMode,
-                  onThemeModeChanged: _setThemeMode,
-                  onboardingStore:
-                      const SharedPreferencesOnboardingProgressStore(),
-                ),
-              ),
-            ),
-          )
-        : const KeyedSubtree(
-            key: ValueKey('startup-content'),
-            child: StartupSplashScreen(),
-          );
+    final controller = _controller!;
 
     return MaterialApp(
       title: 'Trợ lý giao tiếp',
@@ -354,13 +333,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       theme: buildAppTheme(),
       darkTheme: buildDarkAppTheme(),
       themeMode: _themeMode,
-      home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) =>
-            FadeTransition(opacity: animation, child: child),
-        child: appContent,
+      home: AndroidUpdateGate(
+        config: _config,
+        child: PwaInstallGate(
+          child: HomeLearningShell(
+            controller: controller,
+            config: _config,
+            themeMode: _themeMode,
+            onThemeModeChanged: _setThemeMode,
+          ),
+        ),
       ),
     );
   }

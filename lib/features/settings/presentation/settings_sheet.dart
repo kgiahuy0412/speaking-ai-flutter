@@ -86,44 +86,53 @@ class SettingsSheet extends StatelessWidget {
                     _StatusTile(
                       icon: Icons.mic_rounded,
                       title: context.trKnown(controller.inputLabel),
-                      detail: switch (controller.asrMode) {
-                        AsrMode.androidStreaming => context.tr(
-                          'Nhận chữ trực tiếp • fast path',
-                          '直接识别文字 • 快速路径',
-                        ),
-                        AsrMode.hfpStreaming => context.tr(
-                          controller.supportsBrowserHfp
-                              ? 'Mic Bluetooth HFP • trình duyệt quản lý'
-                              : 'Mic Bluetooth HFP/SCO • Android ASR',
-                          controller.supportsBrowserHfp
-                              ? '蓝牙 HFP 麦克风 • 浏览器管理'
-                              : '蓝牙 HFP/SCO 麦克风 • Android 识别',
-                        ),
-                        AsrMode.openAiRealtime => context.tr(
-                          'PCM16 16 kHz • ASR trực tiếp • Batch dự phòng',
-                          'PCM16 16 kHz • 实时识别 • 分块备用',
-                        ),
-                        AsrMode.bleOfflineIntent => context.tr(
-                          'BLE • offline fast path • Cloudflare Batch dự phòng',
-                          'BLE • 离线快速路径 • Cloudflare 分块备用',
-                        ),
-                        AsrMode.workerAsrPilot => context.tr(
-                          'PCM16 16 kHz • Worker ASR Pilot • Batch dự phòng',
-                          'PCM16 16 kHz • Worker 识别试验 • 分块备用',
-                        ),
-                        AsrMode.batchChunks => context.tr(
-                          kIsWeb
-                              ? 'PCM16 • truyền trong lúc nói • Cloudflare chính'
-                              : 'PCM16 • Cloudflare ASR chính',
-                          kIsWeb
-                              ? 'PCM16 • 说话时传输 • Cloudflare 主服务'
-                              : 'PCM16 • Cloudflare 语音识别主服务',
-                        ),
-                        AsrMode.deviceStreaming => context.tr(
-                          'Opus BLE • cần thiết bị thật',
-                          'Opus BLE • 需要真实设备',
-                        ),
-                      },
+                      detail: !kIsWeb
+                          ? context.tr(
+                              controller.usesHfpInput
+                                  ? 'H20 qua HFP/SCO • Chế độ tiêu chuẩn'
+                                  : 'Mic điện thoại • Chế độ tiêu chuẩn',
+                              controller.usesHfpInput
+                                  ? 'H20 通过 HFP/SCO • 标准模式'
+                                  : '手机麦克风 • 标准模式',
+                            )
+                          : switch (controller.asrMode) {
+                              AsrMode.androidStreaming => context.tr(
+                                'Nhận chữ trực tiếp • fast path',
+                                '直接识别文字 • 快速路径',
+                              ),
+                              AsrMode.hfpStreaming => context.tr(
+                                controller.supportsBrowserHfp
+                                    ? 'Mic Bluetooth HFP • trình duyệt quản lý'
+                                    : 'Mic Bluetooth HFP/SCO • Android ASR',
+                                controller.supportsBrowserHfp
+                                    ? '蓝牙 HFP 麦克风 • 浏览器管理'
+                                    : '蓝牙 HFP/SCO 麦克风 • Android 识别',
+                              ),
+                              AsrMode.openAiRealtime => context.tr(
+                                'PCM16 16 kHz • ASR trực tiếp • Batch dự phòng',
+                                'PCM16 16 kHz • 实时识别 • 分块备用',
+                              ),
+                              AsrMode.bleOfflineIntent => context.tr(
+                                'BLE • offline fast path • Cloudflare Batch dự phòng',
+                                'BLE • 离线快速路径 • Cloudflare 分块备用',
+                              ),
+                              AsrMode.workerAsrPilot => context.tr(
+                                'PCM16 16 kHz • Worker ASR Pilot • Batch dự phòng',
+                                'PCM16 16 kHz • Worker 识别试验 • 分块备用',
+                              ),
+                              AsrMode.batchChunks => context.tr(
+                                kIsWeb
+                                    ? 'PCM16 • truyền trong lúc nói • Cloudflare chính'
+                                    : 'PCM16 • Cloudflare ASR chính',
+                                kIsWeb
+                                    ? 'PCM16 • 说话时传输 • Cloudflare 主服务'
+                                    : 'PCM16 • Cloudflare 语音识别主服务',
+                              ),
+                              AsrMode.deviceStreaming => context.tr(
+                                'Opus BLE • cần thiết bị thật',
+                                'Opus BLE • 需要真实设备',
+                              ),
+                            },
                       trailing: context.tr('Đang dùng', '使用中'),
                       stateColor: AppColors.success,
                     ),
@@ -139,6 +148,7 @@ class SettingsSheet extends StatelessWidget {
                     _HfpStatusCard(
                       status: controller.hfpAudioStatus,
                       browserManaged: controller.supportsBrowserHfp,
+                      selected: controller.usesHfpInput,
                       disabled: controller.isBusy,
                       onFind: () => _findAndConnectHfp(context),
                       onDisconnect: controller.disconnectHfpDevice,
@@ -167,105 +177,42 @@ class SettingsSheet extends StatelessWidget {
                     ],
                     const SizedBox(height: 24),
                     _SectionLabel(
-                      label: context.tr('Chế độ nhận diện', '识别模式'),
+                      label: kIsWeb
+                          ? context.tr('Chế độ nhận diện', '识别模式')
+                          : context.tr('Nhận dạng', '语音识别'),
                     ),
                     const SizedBox(height: 8),
-                    RadioGroup<AsrMode>(
-                      groupValue: controller.asrMode,
-                      onChanged: (value) {
-                        if (value != null) {
-                          controller.selectAsrMode(value);
-                        }
-                      },
-                      child: Column(
-                        children: AsrMode.values
-                            .where(
-                              (mode) =>
-                                  mode != AsrMode.deviceStreaming &&
-                                  (mode.isUserSelectable ||
-                                      (kIsWeb &&
-                                          mode == AsrMode.batchChunks)) &&
-                                  (!kIsWeb ||
-                                      mode == AsrMode.batchChunks ||
-                                      mode == AsrMode.hfpStreaming) &&
-                                  (mode != AsrMode.androidStreaming ||
-                                      controller.supportsAndroidStreaming) &&
-                                  (mode != AsrMode.hfpStreaming ||
-                                      ((controller.supportsAndroidStreaming ||
-                                              controller.supportsBrowserHfp) &&
-                                          controller.supportsHfp)),
-                            )
-                            .map(
-                              (mode) => RadioListTile<AsrMode>(
-                                contentPadding: EdgeInsets.zero,
-                                value: mode,
-                                enabled:
-                                    mode.isBackendSupported &&
-                                    (mode != AsrMode.deviceStreaming ||
-                                        controller.canUseInnotrikBle) &&
-                                    (mode != AsrMode.hfpStreaming ||
-                                        controller.canUseHfp),
-                                title: Text(
-                                  kIsWeb && mode == AsrMode.batchChunks
-                                      ? context.tr(
-                                          'Nhận giọng nói trực tuyến',
-                                          '在线语音识别',
-                                        )
-                                      : kIsWeb && mode == AsrMode.hfpStreaming
-                                      ? context.tr('HFP Web', 'HFP 网页版')
-                                      : context.trKnown(mode.label),
-                                ),
-                                subtitle: Text(switch (mode) {
-                                  AsrMode.androidStreaming => context.tr(
-                                    'Dùng nhận dạng giọng nói tích hợp trên thiết bị',
-                                    '使用设备内置的语音识别服务',
-                                  ),
-                                  AsrMode.hfpStreaming => context.tr(
-                                    controller.supportsBrowserHfp
-                                        ? controller.canUseHfp
-                                              ? 'Ghi âm từ mic Bluetooth do trình duyệt cung cấp'
-                                              : 'Kết nối tai nghe trong hệ thống rồi chọn mic ở phía trên'
-                                        : controller.canUseHfp
-                                        ? 'Nghe từ mic tai nghe qua HFP/SCO'
-                                        : 'Kết nối thiết bị HFP ở phía trên để bật',
-                                    controller.supportsBrowserHfp
-                                        ? controller.canUseHfp
-                                              ? '使用浏览器提供的蓝牙麦克风录音'
-                                              : '先在系统中连接耳机，再在上方选择麦克风'
-                                        : controller.canUseHfp
-                                        ? '通过 HFP/SCO 使用耳机麦克风'
-                                        : '请先在上方连接 HFP 设备',
-                                  ),
-                                  AsrMode.openAiRealtime => context.tr(
-                                    'Nhận dạng trực tuyến khi đang nói; cần kết nối mạng',
-                                    '说话时在线识别；需要网络连接',
-                                  ),
-                                  AsrMode.bleOfflineIntent => context.tr(
-                                    'Tự động cho BLE khi ý định có độ tin cậy cao',
-                                    '当意图置信度高时自动用于 BLE',
-                                  ),
-                                  AsrMode.workerAsrPilot => context.tr(
-                                    'Gửi PCM trực tiếp tới Worker thử nghiệm; tự động quay lại Batch khi lỗi',
-                                    '将 PCM 直接发送到试验 Worker；失败时自动回退到分块识别',
-                                  ),
-                                  AsrMode.batchChunks => context.tr(
-                                    'Gửi bản ghi về backend; Cloudflare xử lý nhận dạng, dịch và phát âm',
-                                    '将录音发送到后端；由 Cloudflare 完成识别、翻译和语音合成',
-                                  ),
-                                  AsrMode.deviceStreaming => context.tr(
-                                    controller.canUseInnotrikBle
-                                        ? 'INNOTRIK Opus → PCM16 24 kHz → Offline/Cloudflare Batch'
-                                        : 'Kết nối Mic INNOTRIK ở phía trên để bật',
-                                    controller.canUseInnotrikBle
-                                        ? 'INNOTRIK Opus → PCM16 24 kHz → 离线/Cloudflare 分块识别'
-                                        : '请先在上方连接 INNOTRIK 麦克风',
-                                  ),
-                                }),
-                              ),
-                            )
-                            .toList(growable: false),
+                    if (!kIsWeb)
+                      _StatusTile(
+                        key: const Key('android-standard-recognition'),
+                        icon: Icons.record_voice_over_rounded,
+                        title: context.tr('Chế độ tiêu chuẩn', '标准模式'),
+                        detail: context.tr(
+                          'Nhận dạng trực tiếp bằng dịch vụ Android. Cloudflare chỉ dịch văn bản và tạo giọng đọc khi cần, không nhận dạng audio.',
+                          '使用 Android 服务直接识别。Cloudflare 仅在需要时翻译文本和生成语音，不识别音频。',
+                        ),
+                        trailing: context.tr('Mặc định', '默认'),
+                        stateColor: AppColors.success,
+                      )
+                    else
+                      _StatusTile(
+                        key: const Key('web-online-recognition'),
+                        icon: Icons.cloud_done_rounded,
+                        title: context.tr(
+                          'Nhận giọng nói trực tuyến',
+                          '在线语音识别',
+                        ),
+                        detail: context.tr(
+                          controller.usesHfpInput
+                              ? 'Đang nhận âm thanh từ mic Bluetooth đã chọn; Cloudflare xử lý nhận dạng, dịch và phát âm.'
+                              : 'Đang nhận âm thanh từ mic mặc định; Cloudflare xử lý nhận dạng, dịch và phát âm.',
+                          controller.usesHfpInput
+                              ? '使用已选择的蓝牙麦克风；由 Cloudflare 完成识别、翻译和语音合成。'
+                              : '使用默认麦克风；由 Cloudflare 完成识别、翻译和语音合成。',
+                        ),
+                        trailing: context.tr('Mặc định', '默认'),
+                        stateColor: AppColors.success,
                       ),
-                    ),
                     const SizedBox(height: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -999,6 +946,7 @@ class _StatusTile extends StatelessWidget {
     required this.detail,
     required this.trailing,
     required this.stateColor,
+    super.key,
   });
 
   final IconData icon;
@@ -1740,6 +1688,7 @@ class _HfpStatusCard extends StatelessWidget {
   const _HfpStatusCard({
     required this.status,
     required this.browserManaged,
+    required this.selected,
     required this.disabled,
     required this.onFind,
     required this.onDisconnect,
@@ -1747,6 +1696,7 @@ class _HfpStatusCard extends StatelessWidget {
 
   final BluetoothAudioStatus status;
   final bool browserManaged;
+  final bool selected;
   final bool disabled;
   final VoidCallback onFind;
   final Future<void> Function() onDisconnect;
@@ -1756,10 +1706,12 @@ class _HfpStatusCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final connected = status.isConnected;
     final busy = status.isBusy;
-    final stateColor = connected
+    final stateColor = selected
         ? AppColors.success
         : status.phase == BluetoothAudioConnectionPhase.error
         ? AppColors.coral
+        : connected
+        ? AppColors.indigo
         : AppColors.muted;
     final deviceName = status.deviceName?.trim();
     return Container(
@@ -1798,7 +1750,7 @@ class _HfpStatusCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      _detail(context),
+                      _detail(context, selected: selected),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -1859,17 +1811,19 @@ class _HfpStatusCard extends StatelessWidget {
                             BluetoothAudioConnectionPhase.unsupported ||
                         status.phase == BluetoothAudioConnectionPhase.disabled
                     ? null
-                    : connected
+                    : selected
                     ? () => onDisconnect()
                     : onFind,
                 icon: Icon(
-                  connected
+                  selected
                       ? Icons.link_off_rounded
                       : Icons.manage_search_rounded,
                 ),
                 label: Text(
-                  connected
-                      ? context.tr('Bỏ chọn', '取消选择')
+                  selected
+                      ? context.tr('Dùng mic điện thoại', '使用手机麦克风')
+                      : connected && !browserManaged
+                      ? context.tr('Dùng mic này', '使用此麦克风')
                       : browserManaged
                       ? context.tr('Chọn mic HFP', '选择 HFP 麦克风')
                       : context.tr('Tìm HFP', '查找 HFP'),
@@ -1881,7 +1835,7 @@ class _HfpStatusCard extends StatelessWidget {
     );
   }
 
-  String _detail(BuildContext context) {
+  String _detail(BuildContext context, {required bool selected}) {
     if (browserManaged) {
       return switch (status.phase) {
         BluetoothAudioConnectionPhase.disabled => context.tr(
@@ -1951,8 +1905,10 @@ class _HfpStatusCard extends StatelessWidget {
         '正在检查 SCO 音频通道…',
       ),
       BluetoothAudioConnectionPhase.ready => context.tr(
-        'Đã kết nối • mic HFP/SCO sẵn sàng',
-        '已连接 • HFP/SCO 麦克风就绪',
+        selected
+            ? 'Nguồn đang chọn • H20 qua HFP/SCO'
+            : 'Đã kết nối • bấm “Dùng mic này” để chọn',
+        selected ? '当前音源 • H20 通过 HFP/SCO' : '已连接 • 点击“使用此麦克风”',
       ),
       BluetoothAudioConnectionPhase.recording => context.tr(
         'Đang nhận diện từ mic HFP/SCO',

@@ -41,6 +41,7 @@ class AndroidSpeechRecognizerBridge(
         when (call.method) {
             "speech.isAvailable" ->
                 result.success(SpeechRecognizer.isRecognitionAvailable(activity))
+            "speech.prepare" -> result.success(ensureRecognizer())
             "speech.start" -> startListening(result)
             "speech.stop" -> {
                 recognizer?.stopListening()
@@ -81,20 +82,13 @@ class AndroidSpeechRecognizerBridge(
     }
 
     private fun startRecognizer(result: MethodChannel.Result) {
-        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
+        if (!ensureRecognizer()) {
             result.error(
                 "SPEECH_UNAVAILABLE",
                 "Android speech recognition is unavailable.",
                 null,
             )
             return
-        }
-
-        if (recognizer == null) {
-            recognizer =
-                SpeechRecognizer.createSpeechRecognizer(activity).also {
-                    it.setRecognitionListener(this)
-                }
         }
 
         if (listening) {
@@ -132,6 +126,19 @@ class AndroidSpeechRecognizerBridge(
         listening = true
         recognizer?.startListening(intent)
         result.success(true)
+    }
+
+    private fun ensureRecognizer(): Boolean {
+        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
+            return false
+        }
+        if (recognizer == null) {
+            recognizer =
+                SpeechRecognizer.createSpeechRecognizer(activity).also {
+                    it.setRecognitionListener(this)
+                }
+        }
+        return true
     }
 
     fun onRequestPermissionsResult(

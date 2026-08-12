@@ -144,39 +144,19 @@ class _AndroidUpdateGateState extends State<AndroidUpdateGate>
       return widget.child;
     }
     final decision = _decision;
-    if (!_checking && !(decision?.requiresUpdate ?? false)) {
+    // The network check runs in the background and must not cover the first
+    // usable frame. A blocking screen appears only after a required-update
+    // decision has actually arrived.
+    if (!(decision?.requiresUpdate ?? false)) {
       return widget.child;
     }
-    if (decision?.requiresUpdate ?? false) {
-      return _RequiredUpdateScreen(
-        decision: decision!,
-        language: _language,
-        checking: _checking,
-        openFailed: _openFailed,
-        onUpdate: _openUpdatePage,
-        onRetry: _check,
-      );
-    }
-    return const _UpdateCheckSplash();
-  }
-}
-
-class _UpdateCheckSplash extends StatelessWidget {
-  const _UpdateCheckSplash();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.transparent,
-      body: LearningScenery(
-        child: Center(
-          child: SizedBox(
-            width: 34,
-            height: 34,
-            child: CircularProgressIndicator(strokeWidth: 3),
-          ),
-        ),
-      ),
+    return _RequiredUpdateScreen(
+      decision: decision!,
+      language: _language,
+      checking: _checking,
+      openFailed: _openFailed,
+      onUpdate: _openUpdatePage,
+      onRetry: _check,
     );
   }
 }

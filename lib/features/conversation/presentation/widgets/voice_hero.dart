@@ -10,6 +10,7 @@ class VoiceHero extends StatelessWidget {
     required this.phase,
     required this.processingStage,
     required this.amplitude,
+    this.isPreparingMicrophone = false,
     required this.onStop,
     super.key,
   });
@@ -17,6 +18,7 @@ class VoiceHero extends StatelessWidget {
   final ConversationPhase phase;
   final ConversationProcessingStage processingStage;
   final double amplitude;
+  final bool isPreparingMicrophone;
   final VoidCallback onStop;
 
   @override
@@ -53,7 +55,9 @@ class VoiceHero extends StatelessWidget {
           Semantics(
             liveRegion: true,
             child: Text(
-              _statusLabel(context),
+              isPreparingMicrophone
+                  ? context.tr('Đang chuẩn bị micro…', '正在准备麦克风…')
+                  : _statusLabel(context),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 color: isRecording
@@ -73,7 +77,12 @@ class VoiceHero extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            _supportingText(context),
+            isPreparingMicrophone
+                ? context.tr(
+                    'Đợi một chút rồi nói khi màn hình báo đang nghe nhé',
+                    '请稍候，显示正在聆听后再开始说话',
+                  )
+                : _supportingText(context),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: isDark ? colorScheme.onSurfaceVariant : AppColors.muted,
@@ -90,7 +99,8 @@ class VoiceHero extends StatelessWidget {
           SizedBox(
             height: compact ? 64 : 72,
             child: Center(
-              child: phase == ConversationPhase.processing
+              child:
+                  phase == ConversationPhase.processing || isPreparingMicrophone
                   ? const SizedBox.square(
                       dimension: 46,
                       child: CircularProgressIndicator(
@@ -126,7 +136,7 @@ class VoiceHero extends StatelessWidget {
                 foregroundColor: Colors.white,
               ),
             )
-          else
+          else if (!isPreparingMicrophone)
             Text(
               _helperText(context),
               textAlign: TextAlign.center,

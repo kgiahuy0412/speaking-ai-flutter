@@ -62,12 +62,7 @@ void main() {
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 180));
-    expect(find.byKey(const Key('expanded-home-mode-rail')), findsOneWidget);
     expect(find.text('Chủ đề'), findsOneWidget);
-    expect(
-      tester.getSize(find.byKey(const Key('topic-listening-edge-tab'))).width,
-      greaterThan(100),
-    );
     await tester.pumpAndSettle();
     expect(find.byType(TopicListeningScreen), findsOneWidget);
   });
