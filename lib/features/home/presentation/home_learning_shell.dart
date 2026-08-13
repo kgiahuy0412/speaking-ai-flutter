@@ -8,6 +8,8 @@ import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
+import '../../listening/application/listening_voice_navigation_target.dart';
+import '../../listening/domain/listening_content.dart';
 import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../onboarding/application/onboarding_progress_store.dart';
@@ -27,7 +29,10 @@ class HomeLearningShell extends StatefulWidget {
     this.voiceNavigationController,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onMainSpeakingModeStarted,
+    this.onModalVisibilityChanged,
     this.onboardingStore,
+    this.listeningContentFuture,
     super.key,
   });
 
@@ -36,7 +41,10 @@ class HomeLearningShell extends StatefulWidget {
   final VoiceNavigationController? voiceNavigationController;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final VoidCallback? onMainSpeakingModeStarted;
+  final ValueChanged<bool>? onModalVisibilityChanged;
   final OnboardingProgressStore? onboardingStore;
+  final Future<ListeningContentCatalog>? listeningContentFuture;
 
   @override
   State<HomeLearningShell> createState() => _HomeLearningShellState();
@@ -54,6 +62,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   late AppLifecycleState _appLifecycleState;
   bool _voiceNavigationPausedForOverlay = false;
   bool _voiceNavigationHelpShown = false;
+  int? _activeVoiceTopicIndex;
 
   final GlobalKey _speakActionKey = GlobalKey(
     debugLabel: 'onboarding-speak-action',
@@ -174,6 +183,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                       resultPanelKey: _resultPanelKey,
                       historyButtonKey: _historyButtonKey,
                       settingsButtonKey: _settingsButtonKey,
+                      onModalVisibilityChanged: widget.onModalVisibilityChanged,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
@@ -334,14 +344,21 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   Future<void> _executeVoiceNavigation(VoiceNavigationIntent intent) async {
     final useChinese =
         widget.controller.displayLanguage == DisplayLanguage.simplifiedChinese;
-    final destinationLabel = switch (intent.destination) {
-      VoiceNavigationDestination.conversation =>
-        useChinese ? '沟通' : 'Giao tiếp',
-      VoiceNavigationDestination.vocabulary => useChinese ? '词汇' : 'Từ vựng',
-      VoiceNavigationDestination.topics => useChinese ? '主题' : 'Chủ đề',
-      VoiceNavigationDestination.history => useChinese ? '历史记录' : 'Lịch sử',
-      VoiceNavigationDestination.settings => useChinese ? '设置' : 'Cài đặt',
-    };
+    final destinationLabel = intent.openLesson
+        ? useChinese
+              ? '第 ${intent.lessonNumber ?? 1} 课'
+              : 'Bài ${intent.lessonNumber ?? 1}'
+        : switch (intent.destination) {
+            VoiceNavigationDestination.conversation =>
+              useChinese ? '沟通' : 'Giao tiếp',
+            VoiceNavigationDestination.vocabulary =>
+              useChinese ? '词汇' : 'Từ vựng',
+            VoiceNavigationDestination.topics => useChinese ? '主题' : 'Chủ đề',
+            VoiceNavigationDestination.history =>
+              useChinese ? '历史记录' : 'Lịch sử',
+            VoiceNavigationDestination.settings =>
+              useChinese ? '设置' : 'Cài đặt',
+          };
     if (intent.destination != VoiceNavigationDestination.topics) {
       await _closeTopicListeningIfNeeded();
       if (!mounted) {
@@ -357,11 +374,26 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     switch (intent.destination) {
       case VoiceNavigationDestination.conversation:
         _showConversation();
+        if (intent.enterMainSpeakingMode) {
+          widget.onMainSpeakingModeStarted?.call();
+        }
       case VoiceNavigationDestination.vocabulary:
         _showVocabulary();
       case VoiceNavigationDestination.topics:
-        if (!_openingTopics) {
-          unawaited(_openTopicListening());
+        final fallbackTopicIndex = _activeVoiceTopicIndex;
+        final target = ListeningVoiceNavigationTarget(
+          recognizedText: intent.recognizedText,
+          openLesson: intent.openLesson,
+          topicNumber: intent.topicNumber,
+          lessonNumber: intent.lessonNumber,
+          childAge: intent.childAge,
+          fallbackTopicIndex: fallbackTopicIndex,
+        );
+        if (_openingTopics) {
+          await _closeTopicListeningIfNeeded();
+        }
+        if (mounted) {
+          unawaited(_openTopicListening(initialVoiceTarget: target));
         }
       case VoiceNavigationDestination.history:
         _showHistory();
@@ -592,7 +624,9 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     );
   }
 
-  Future<void> _openTopicListening() async {
+  Future<void> _openTopicListening({
+    ListeningVoiceNavigationTarget? initialVoiceTarget,
+  }) async {
     if (_openingTopics) {
       return;
     }
@@ -618,6 +652,9 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             onVoiceNavigationPause: () =>
                 _pauseVoiceNavigation('listening_media_opened'),
             onVoiceNavigationResume: _resumeVoiceNavigation,
+            initialVoiceTarget: initialVoiceTarget,
+            onTopicSelected: (index) => _activeVoiceTopicIndex = index,
+            contentFuture: widget.listeningContentFuture,
           ),
           transitionsBuilder: (_, animation, secondaryAnimation, child) {
             final curved = CurvedAnimation(
@@ -637,6 +674,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       );
     } finally {
       _openingTopics = false;
+      _activeVoiceTopicIndex = null;
       if (identical(_topicRouteClosedCompleter, routeClosedCompleter)) {
         _topicRouteClosedCompleter = null;
       }
@@ -655,18 +693,23 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   Future<void> _openSettingsSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => SettingsSheet(
-        controller: widget.controller,
-        themeMode: widget.themeMode,
-        onThemeModeChanged: widget.onThemeModeChanged,
-        onStartTutorial: _startTutorial,
-      ),
-    );
+    widget.onModalVisibilityChanged?.call(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => SettingsSheet(
+          controller: widget.controller,
+          themeMode: widget.themeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
+          onStartTutorial: _startTutorial,
+        ),
+      );
+    } finally {
+      widget.onModalVisibilityChanged?.call(false);
+    }
     if (mounted && !_tutorialActive) {
       _resumeVoiceNavigation();
     }
@@ -678,13 +721,18 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   Future<void> _openHistorySheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => HistorySheet(controller: widget.controller),
-    );
+    widget.onModalVisibilityChanged?.call(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => HistorySheet(controller: widget.controller),
+      );
+    } finally {
+      widget.onModalVisibilityChanged?.call(false);
+    }
     if (mounted) {
       _resumeVoiceNavigation();
     }

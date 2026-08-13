@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 typedef VoiceNavigationIntentHandler =
@@ -19,6 +20,7 @@ class VoiceNavigationController extends ChangeNotifier {
     required StreamingSpeechInput speechInput,
     VoiceNavigationIntentResolver resolver =
         const VoiceNavigationIntentResolver(),
+    MainVoiceAssistantFlow? mainAssistantFlow,
     VoicePromptService? voicePromptService,
     bool ownsSpeechInput = false,
     bool ownsVoicePromptService = false,
@@ -27,6 +29,7 @@ class VoiceNavigationController extends ChangeNotifier {
     Duration commandWindowDuration = const Duration(seconds: 8),
   }) : _speechInput = speechInput,
        _resolver = resolver,
+       _mainAssistantFlow = mainAssistantFlow ?? MainVoiceAssistantFlow(),
        _voicePromptService = voicePromptService,
        _ownsSpeechInput = ownsSpeechInput,
        _ownsVoicePromptService = ownsVoicePromptService,
@@ -41,17 +44,27 @@ class VoiceNavigationController extends ChangeNotifier {
     _partialTextSubscription = _speechInput.partialText.listen(
       _handlePartialText,
     );
+    final alternativeInput =
+        _speechInput is AlternativeTranscriptStreamingSpeechInput
+        ? _speechInput as AlternativeTranscriptStreamingSpeechInput
+        : null;
+    _alternativeTextSubscription = alternativeInput?.transcriptAlternatives
+        .listen(_handleAlternativeTranscripts);
   }
 
   static const Duration _noSpeechTimeout = Duration(seconds: 8);
   static const Duration _maximumSessionDuration = Duration(seconds: 12);
-  static const Duration _wakePromptTimeout = Duration(seconds: 3);
+  static const Duration _voicePromptTimeout = Duration(seconds: 8);
   static const Duration _commandListenRestartDelay = Duration(
     milliseconds: 100,
+  );
+  static const Duration _mainCommandListenRestartDelay = Duration(
+    milliseconds: 500,
   );
 
   final StreamingSpeechInput _speechInput;
   final VoiceNavigationIntentResolver _resolver;
+  final MainVoiceAssistantFlow _mainAssistantFlow;
   final VoicePromptService? _voicePromptService;
   final bool _ownsSpeechInput;
   final bool _ownsVoicePromptService;
@@ -61,6 +74,7 @@ class VoiceNavigationController extends ChangeNotifier {
 
   StreamSubscription<void>? _completedSubscription;
   StreamSubscription<String>? _partialTextSubscription;
+  StreamSubscription<List<String>>? _alternativeTextSubscription;
   Timer? _restartTimer;
   Timer? _noSpeechTimer;
   Timer? _maximumSessionTimer;
@@ -77,6 +91,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _speechDetected = false;
   bool _awaitingCommand = false;
   bool _acknowledgingWakeWord = false;
+  bool _buttonCommandSession = false;
   bool _disposed = false;
   int _generation = 0;
   Object? _lastError;
@@ -93,6 +108,8 @@ class VoiceNavigationController extends ChangeNotifier {
   bool get continuousRequested => _continuousRequested;
   bool get isAwaitingCommand => _awaitingCommand;
   bool get isAcknowledgingWakeWord => _acknowledgingWakeWord;
+  bool get isMainButtonSessionActive => _buttonCommandSession;
+  MainVoiceAssistantStage get mainAssistantStage => _mainAssistantFlow.stage;
   Object? get lastError => _lastError;
 
   void setIntentHandler(VoiceNavigationIntentHandler? handler) {
@@ -107,12 +124,56 @@ class VoiceNavigationController extends ChangeNotifier {
     _scheduleSession(delay);
   }
 
+  /// Opens one command window from the fixed Main button.
+  ///
+  /// This does not require a wake phrase. Any existing recognition session is
+  /// released first, the assistant replies, then Android listens for one
+  /// navigation command until the normal command window expires.
+  Future<bool> activateFromMainButton() async {
+    return _activateMainAssistantFlow(_mainAssistantFlow.begin);
+  }
+
+  /// Leaves automatic speaking practice and offers the remaining learning
+  /// destinations without translating the child's command as practice text.
+  Future<bool> activateOtherLearningFromSpeaking() async {
+    return _activateMainAssistantFlow(_mainAssistantFlow.beginOtherLearning);
+  }
+
+  Future<bool> _activateMainAssistantFlow(String Function() beginFlow) async {
+    if (_disposed) {
+      return false;
+    }
+    await pause();
+    if (_disposed) {
+      return false;
+    }
+    _buttonCommandSession = true;
+    _continuousRequested = true;
+    final generation = _generation;
+    final acknowledged = await _acknowledgeWakeWord(
+      generation,
+      promptText: beginFlow(),
+    );
+    if (!acknowledged || _disposed || generation != _generation) {
+      _buttonCommandSession = false;
+      _continuousRequested = false;
+      _mainAssistantFlow.reset();
+      return false;
+    }
+    // Give Android audio focus and the speaker a short time to settle so the
+    // recognizer does not capture the tail of Bi cô's own sentence.
+    _scheduleSession(_mainCommandListenRestartDelay);
+    return true;
+  }
+
   /// Releases the recognizer so the conversation microphone can use it.
   Future<void> pause() {
     if (_disposed) {
       return Future<void>.value();
     }
     _continuousRequested = false;
+    _buttonCommandSession = false;
+    _mainAssistantFlow.reset();
     _generation += 1;
     _cancelTimers();
     final shouldStopPrompt = _acknowledgingWakeWord;
@@ -173,6 +234,10 @@ class VoiceNavigationController extends ChangeNotifier {
       return _acknowledgeWakeWord(generation);
     }
 
+    if (_buttonCommandSession) {
+      return _handleMainAssistantText(recognizedText, generation);
+    }
+
     final intent = _resolver.resolve(recognizedText);
     if (intent == null) {
       return false;
@@ -180,11 +245,66 @@ class VoiceNavigationController extends ChangeNotifier {
     _commandWindowTimer?.cancel();
     _commandWindowTimer = null;
     _awaitingCommand = false;
+    if (_buttonCommandSession) {
+      _buttonCommandSession = false;
+      _continuousRequested = false;
+    }
     notifyListeners();
     return _dispatchIntent(intent);
   }
 
-  Future<bool> _acknowledgeWakeWord(int generation) async {
+  Future<bool> _handleMainAssistantText(
+    String recognizedText,
+    int generation,
+  ) async {
+    _commandWindowTimer?.cancel();
+    _commandWindowTimer = null;
+    _awaitingCommand = false;
+    notifyListeners();
+
+    final turn = await _mainAssistantFlow.handle(recognizedText);
+    if (_disposed || generation != _generation || !_buttonCommandSession) {
+      return false;
+    }
+
+    final navigationBeforePrompt = turn.navigationBeforePrompt;
+    if (navigationBeforePrompt != null) {
+      await _dispatchIntent(navigationBeforePrompt);
+      if (_disposed || generation != _generation || !_buttonCommandSession) {
+        return false;
+      }
+    }
+
+    final promptCompleted = await _acknowledgeWakeWord(
+      generation,
+      promptText: turn.promptText,
+      openCommandWindow: turn.continueListening,
+    );
+    if (!promptCompleted || _disposed || generation != _generation) {
+      return false;
+    }
+
+    if (turn.continueListening) {
+      _scheduleSession(_mainCommandListenRestartDelay);
+      return true;
+    }
+
+    _buttonCommandSession = false;
+    _continuousRequested = false;
+    _mainAssistantFlow.reset();
+    notifyListeners();
+    final navigationAfterPrompt = turn.navigationAfterPrompt;
+    if (navigationAfterPrompt != null) {
+      await _dispatchIntent(navigationAfterPrompt);
+    }
+    return true;
+  }
+
+  Future<bool> _acknowledgeWakeWord(
+    int generation, {
+    String promptText = 'Pipo nghe đây',
+    bool openCommandWindow = true,
+  }) async {
     if (_acknowledgingWakeWord) {
       return true;
     }
@@ -197,8 +317,11 @@ class VoiceNavigationController extends ChangeNotifier {
       final promptService = _voicePromptService;
       if (promptService != null) {
         await promptService
-            .speakAndWait('Pipo nghe đây')
-            .timeout(_wakePromptTimeout, onTimeout: () => promptService.stop());
+            .speakAndWait(promptText)
+            .timeout(
+              _voicePromptTimeout,
+              onTimeout: () => promptService.stop(),
+            );
       }
     } catch (error) {
       if (!_disposed && generation == _generation) {
@@ -209,10 +332,20 @@ class VoiceNavigationController extends ChangeNotifier {
       return false;
     }
     _acknowledgingWakeWord = false;
+    if (!openCommandWindow) {
+      _awaitingCommand = false;
+      notifyListeners();
+      return true;
+    }
     _awaitingCommand = true;
     _commandWindowTimer = Timer(_commandWindowDuration, () {
       _commandWindowTimer = null;
       if (_disposed || generation != _generation || !_awaitingCommand) {
+        return;
+      }
+      if (_buttonCommandSession) {
+        _buttonCommandSession = false;
+        unawaited(pause());
         return;
       }
       _awaitingCommand = false;
@@ -312,7 +445,9 @@ class VoiceNavigationController extends ChangeNotifier {
     // action phrases use this fast path; short destination names still wait for
     // Android's final result to avoid redirecting a longer normal sentence.
     final shouldHandle = _awaitingCommand
-        ? _resolver.resolve(text, allowShortDirectCommand: false) != null
+        ? _buttonCommandSession
+              ? _mainAssistantFlow.canHandle(text)
+              : _resolver.resolve(text, allowShortDirectCommand: false) != null
         : _resolver.containsWakeWord(text);
     _partialIntentTimer?.cancel();
     _partialIntentTimer = null;
@@ -324,6 +459,29 @@ class VoiceNavigationController extends ChangeNotifier {
       _partialIntentTimer = null;
       unawaited(_finishFromPartialRecognition(generation, text));
     });
+  }
+
+  void _handleAlternativeTranscripts(List<String> candidates) {
+    if (!_listening || candidates.length < 2) {
+      return;
+    }
+    // The primary transcript already arrives through partialText. Inspect only
+    // the remaining Android alternatives and forward the first actionable one.
+    for (final candidate in candidates.skip(1)) {
+      final shouldHandle = _awaitingCommand
+          ? _buttonCommandSession
+                ? _mainAssistantFlow.canHandle(candidate)
+                : _resolver.resolve(
+                        candidate,
+                        allowShortDirectCommand: false,
+                      ) !=
+                      null
+          : _resolver.containsWakeWord(candidate);
+      if (shouldHandle) {
+        _handlePartialText(candidate);
+        return;
+      }
+    }
   }
 
   Future<void> _finishFromPartialRecognition(
@@ -370,7 +528,11 @@ class VoiceNavigationController extends ChangeNotifier {
       }
       if (_continuousRequested && generation == _generation) {
         _scheduleSession(
-          _awaitingCommand ? _commandListenRestartDelay : _restartDelay,
+          _awaitingCommand
+              ? _buttonCommandSession
+                    ? _mainCommandListenRestartDelay
+                    : _commandListenRestartDelay
+              : _restartDelay,
         );
       }
     }
@@ -413,7 +575,25 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed || generation != _generation) {
         return;
       }
-      await _handleRecognizedText(capture.sourceText, generation);
+      final candidates = <String>[capture.sourceText, ...capture.alternatives];
+      final orderedCandidates = _buttonCommandSession
+          ? <String>[
+              ...candidates.where(_mainAssistantFlow.canHandle),
+              ...candidates.where(
+                (candidate) => !_mainAssistantFlow.canHandle(candidate),
+              ),
+            ]
+          : candidates;
+      final handledCandidates = <String>{};
+      for (final candidate in orderedCandidates) {
+        final recognizedText = candidate.trim();
+        if (recognizedText.isEmpty || !handledCandidates.add(recognizedText)) {
+          continue;
+        }
+        if (await _handleRecognizedText(recognizedText, generation)) {
+          break;
+        }
+      }
     } catch (error) {
       if (!_disposed && generation == _generation) {
         _lastError = error;
@@ -426,7 +606,11 @@ class VoiceNavigationController extends ChangeNotifier {
       }
       if (_continuousRequested && generation == _generation) {
         _scheduleSession(
-          _awaitingCommand ? _commandListenRestartDelay : _restartDelay,
+          _awaitingCommand
+              ? _buttonCommandSession
+                    ? _mainCommandListenRestartDelay
+                    : _commandListenRestartDelay
+              : _restartDelay,
         );
       }
     }
@@ -457,6 +641,7 @@ class VoiceNavigationController extends ChangeNotifier {
     _cancelTimers();
     unawaited(_completedSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_alternativeTextSubscription?.cancel());
     if (_ownsSpeechInput) {
       unawaited(_speechInput.dispose());
     }

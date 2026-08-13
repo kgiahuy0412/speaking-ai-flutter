@@ -1,5 +1,7 @@
 # Hướng dẫn kiểm thử điều hướng giọng nói “Hey Pico”
 
+> Luồng mặc định hiện đã chuyển sang nút **Main** và câu phản hồi **“Bi cô đây”**. Xem `docs/main-voice-assistant-test-guide.md`. Tài liệu này chỉ áp dụng khi bật lại chế độ nghe liên tục bằng `AUTO_START_VOICE_NAVIGATION=true`.
+
 ## 1. Phạm vi kiểm thử
 
 Tài liệu này dùng để kiểm thử luồng điều hướng giọng nói hai bước trên ứng dụng Flutter Android:
@@ -20,7 +22,7 @@ Tên đánh thức là **Pico**, còn câu phản hồi **“Pipo nghe đây”*
 - Backend: `https://speaking-ai-nextjs-backend-production.up.railway.app`.
 - File APK: `build/app/outputs/flutter-apk/app-release.apk`.
 - SHA-256 của bản tại thời điểm viết tài liệu:
-  `17AF31388FD3790489E993554409AC419E01C44698215DF8E56F3A97213587B7`.
+  `10E056DF5BAD81BB0A175B508393FDA6F846868CDD8017F9D56CEFAE545B4EAA`.
 
 > Lưu ý: máy build hiện chưa có production keystore nên APK release đang được ký bằng Android Debug certificate. APK có thể dùng để QA/cài thử, nhưng chưa phải gói ký chính thức để phát hành Play Store.
 
@@ -131,6 +133,9 @@ Kết quả mong đợi:
 | Chủ đề | “Con muốn học chủ đề” |
 | Chủ đề | “Con muốn luyện nghe theo chủ đề” |
 | Chủ đề | “Mở chủ đề” |
+| Vào bài theo tên chủ đề | “Mở bài 1 trong chủ đề Gia đình và ngôi nhà” |
+| Vào bài theo số chủ đề | “Mở bài đầu tiên trong chủ đề số 3” |
+| Vào bài trong chủ đề hiện tại | “Mở bài 2” |
 | Giao tiếp | “Mở giao tiếp” |
 | Giao tiếp | “Con muốn luyện giao tiếp” |
 | Giao tiếp | “Con muốn nói chuyện” |
@@ -143,6 +148,13 @@ Kết quả mong đợi:
 
 Trước mỗi câu hành động trong bảng, phải nói **“Hey Pico”** và chờ lời đáp kết thúc.
 
+Với lệnh vào bài học:
+
+- Nếu nói đủ tên hoặc số chủ đề, ứng dụng mở đúng chủ đề rồi đi thẳng vào bài.
+- Nếu đang ở danh sách bài của một chủ đề, có thể chỉ nói “Mở bài 1”, “Mở bài 2”, v.v.
+- Nếu chỉ nói số bài khi chưa chọn chủ đề, ứng dụng dùng chủ đề “Tiếp tục học”.
+- Nếu chủ đề không có số bài được yêu cầu, ứng dụng giữ danh sách bài và hiện thông báo thay vì mở nhầm bài.
+
 Các biến thể từ đánh thức hiện được hỗ trợ để chịu lỗi ASR:
 
 - “Hey Pico”
@@ -151,6 +163,14 @@ Các biến thể từ đánh thức hiện được hỗ trợ để chịu l�
 - “Hey Pipo”
 - “Hey Pi Cô”
 - “Hay Pi Cô”
+- “Hey Bi Cô”
+- “Hay Bi Cô”
+- “Ê Pi Cô”
+- “Hey Bigo”
+
+Ứng dụng kiểm tra tối đa ba phương án phiên âm do Android trả về. Vì vậy, nếu
+phương án đầu nghe sai “Hey Pico” nhưng phương án sau nhận đúng hoặc gần đúng,
+luồng đánh thức vẫn có thể phản hồi.
 
 ## 7. Kiểm thử chống nhận sai
 

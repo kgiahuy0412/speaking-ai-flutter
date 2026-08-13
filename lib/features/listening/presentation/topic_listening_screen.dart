@@ -8,6 +8,7 @@ import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
+import '../application/listening_voice_navigation_target.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
@@ -22,6 +23,9 @@ class TopicListeningScreen extends StatefulWidget {
     this.controller,
     this.onVoiceNavigationPause,
     this.onVoiceNavigationResume,
+    this.initialVoiceTarget,
+    this.onTopicSelected,
+    this.contentFuture,
     this.progressStore = const ListeningProgressStore(),
     super.key,
   });
@@ -31,6 +35,9 @@ class TopicListeningScreen extends StatefulWidget {
   final ConversationController? controller;
   final Future<void> Function()? onVoiceNavigationPause;
   final VoidCallback? onVoiceNavigationResume;
+  final ListeningVoiceNavigationTarget? initialVoiceTarget;
+  final ValueChanged<int>? onTopicSelected;
+  final Future<ListeningContentCatalog>? contentFuture;
   final ListeningProgressStore progressStore;
 
   @override
@@ -45,19 +52,28 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   ListeningContentCatalog? _contentCatalog;
   Map<String, int> _lessonProgress = const <String, int>{};
   late final LessonMediaService _historyMediaService;
+  bool _initialVoiceTargetHandled = false;
 
   ListeningAgeCatalog get _catalog => listeningCatalogs[_selectedCatalogIndex];
 
   @override
   void initState() {
     super.initState();
-    _selectedCatalogIndex = listeningCatalogs.lastIndexWhere(
-      (catalog) => widget.childAge >= catalog.startAge,
+    final requestedAge = widget.initialVoiceTarget?.childAge ?? widget.childAge;
+    _selectedCatalogIndex = listeningCatalogs.indexWhere(
+      (catalog) =>
+          requestedAge >= catalog.startAge && requestedAge <= catalog.endAge,
     );
     if (_selectedCatalogIndex < 0) {
-      _selectedCatalogIndex = 0;
+      _selectedCatalogIndex = listeningCatalogs.lastIndexWhere(
+        (catalog) => requestedAge >= catalog.startAge,
+      );
+      if (_selectedCatalogIndex < 0) {
+        _selectedCatalogIndex = 0;
+      }
     }
-    _contentFuture = AssetListeningContentRepository().load();
+    _contentFuture =
+        widget.contentFuture ?? AssetListeningContentRepository().load();
     _historyMediaService = LessonMediaService();
     unawaited(_loadContentAndProgress());
   }
@@ -293,6 +309,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         return;
       }
       setState(() => _contentCatalog = catalog);
+      unawaited(_openInitialVoiceTarget());
     } catch (_) {
       // The topic catalog remains usable while lesson content is unavailable.
     }
@@ -345,12 +362,40 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
   }
 
-  Future<void> _openTopic(ListeningTopic topic, int topicIndex) async {
+  Future<void> _openInitialVoiceTarget() async {
+    final target = widget.initialVoiceTarget;
+    if (_initialVoiceTargetHandled || target == null || !mounted) {
+      return;
+    }
+    _initialVoiceTargetHandled = true;
+    final topicIndex = target.resolveTopicIndex(_catalog);
+    if (topicIndex == null) {
+      return;
+    }
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) {
+      return;
+    }
+    await _openTopic(
+      _catalog.topics[topicIndex],
+      topicIndex,
+      initialLessonNumber: target.openLesson
+          ? target.resolvedLessonNumber
+          : null,
+    );
+  }
+
+  Future<void> _openTopic(
+    ListeningTopic topic,
+    int topicIndex, {
+    int? initialLessonNumber,
+  }) async {
     try {
       final catalog = await _contentFuture;
       if (!mounted) {
         return;
       }
+      widget.onTopicSelected?.call(topicIndex);
       final content = catalog.topic(
         startAge: _catalog.startAge,
         endAge: _catalog.endAge,
@@ -368,6 +413,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             onVoiceNavigationPause: widget.onVoiceNavigationPause,
             onVoiceNavigationResume: widget.onVoiceNavigationResume,
             progressStore: widget.progressStore,
+            initialLessonNumber: initialLessonNumber,
           ),
         ),
       );

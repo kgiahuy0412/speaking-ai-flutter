@@ -76,6 +76,7 @@ class StreamingSpeechCapture {
     this.workerAsrPilotAudioBytes,
     this.extraBenchmark,
     this.recordedAudio,
+    this.alternatives = const <String>[],
   });
 
   final String sourceText;
@@ -95,6 +96,12 @@ class StreamingSpeechCapture {
   final int? workerAsrPilotAsrMs;
   final int? workerAsrPilotAudioBytes;
   final Map<String, dynamic>? extraBenchmark;
+
+  /// Other transcripts returned by the recognizer, ordered by confidence.
+  ///
+  /// Android can hear a wake phrase such as "Hey Pico" as "hay bi co" in
+  /// the first result while keeping the intended phrase in a later result.
+  final List<String> alternatives;
 
   /// Original microphone recording, when the platform recognizer exposes it.
   /// It is archived only after the conversation response has returned.
@@ -122,6 +129,15 @@ abstract interface class CommandStreamingSpeechInput {
   Future<void> startCommandRecognition();
 }
 
+/// Optional stream of all transcripts produced for the same utterance.
+///
+/// Normal conversation UI keeps using [StreamingSpeechInput.partialText].
+/// Voice commands can inspect these alternatives without replacing or
+/// interfering with that existing speaking flow.
+abstract interface class AlternativeTranscriptStreamingSpeechInput {
+  Stream<List<String>> get transcriptAlternatives;
+}
+
 /// Android 13+ can feed an already recorded PCM WAV to SpeechRecognizer.
 /// Recording once avoids competing microphone consumers and guarantees that
 /// the exact utterance sent to recognition can also be archived for admin.
@@ -135,7 +151,8 @@ class AndroidStreamingSpeechInput
     implements
         StreamingSpeechInput,
         RecordedAudioStreamingSpeechInput,
-        CommandStreamingSpeechInput {
+        CommandStreamingSpeechInput,
+        AlternativeTranscriptStreamingSpeechInput {
   AndroidStreamingSpeechInput({
     MethodChannel methodChannel = const MethodChannel('ailingo_speech'),
     EventChannel eventChannel = const EventChannel('ailingo_speech/events'),
@@ -153,6 +170,8 @@ class AndroidStreamingSpeechInput
       StreamController<void>.broadcast();
   final StreamController<String> _partialTextController =
       StreamController<String>.broadcast();
+  final StreamController<List<String>> _transcriptAlternativesController =
+      StreamController<List<String>>.broadcast();
 
   late final StreamSubscription<dynamic> _eventSubscription;
   Completer<String>? _resultCompleter;
@@ -162,6 +181,7 @@ class AndroidStreamingSpeechInput
   DateTime? _resultAt;
   DateTime? _latestTextUpdatedAt;
   String _latestText = '';
+  List<String> _latestAlternatives = const <String>[];
   double? _confidence;
   String? _recordedAudioPath;
   String? _recordedAudioMimeType;
@@ -182,6 +202,10 @@ class AndroidStreamingSpeechInput
 
   @override
   Stream<String> get partialText => _partialTextController.stream;
+
+  @override
+  Stream<List<String>> get transcriptAlternatives =>
+      _transcriptAlternativesController.stream;
 
   @override
   Future<bool> checkAvailability() async {
@@ -257,6 +281,7 @@ class AndroidStreamingSpeechInput
     }
 
     _latestText = '';
+    _latestAlternatives = const <String>[];
     _confidence = null;
     _firstResultAt = null;
     _resultAt = null;
@@ -310,6 +335,7 @@ class AndroidStreamingSpeechInput
                   .inMilliseconds,
             )
             .toInt(),
+        alternatives: List<String>.unmodifiable(_latestAlternatives),
         recordedAudio: capture,
       );
     } on TimeoutException {
@@ -348,6 +374,7 @@ class AndroidStreamingSpeechInput
     }
 
     _latestText = '';
+    _latestAlternatives = const <String>[];
     _confidence = null;
     _firstResultAt = null;
     _resultAt = null;
@@ -486,6 +513,7 @@ class AndroidStreamingSpeechInput
                 .inMilliseconds,
           )
           .toInt(),
+      alternatives: List<String>.unmodifiable(_latestAlternatives),
       recordedAudio: recordedAudio,
     );
   }
@@ -523,6 +551,7 @@ class AndroidStreamingSpeechInput
     _active = false;
     _startedAt = null;
     _latestText = '';
+    _latestAlternatives = const <String>[];
     _latestTextUpdatedAt = null;
     final completer = _resultCompleter;
     if (completer != null && !completer.isCompleted) {
@@ -553,6 +582,7 @@ class AndroidStreamingSpeechInput
 
     if (type == 'speech.partial' || type == 'speech.final') {
       _readRecordedAudioMetadata(event);
+      final alternatives = _readTranscriptAlternatives(event);
       final text = event['text'];
       if (text is String && text.trim().isNotEmpty) {
         final nextText = type == 'speech.final'
@@ -570,6 +600,10 @@ class AndroidStreamingSpeechInput
         if (changed && type == 'speech.partial') {
           _partialTextController.add(nextText);
         }
+      }
+      if (alternatives.isNotEmpty) {
+        _latestAlternatives = alternatives;
+        _transcriptAlternativesController.add(alternatives);
       }
     }
 
@@ -607,10 +641,39 @@ class AndroidStreamingSpeechInput
       if (_latestText.isNotEmpty) {
         _completeResult(_latestText);
       } else if (completer != null && !completer.isCompleted) {
-        completer.completeError(StreamingSpeechInputException(message));
+        completer.completeError(
+          StreamingSpeechInputException(
+            message,
+            code: 'ANDROID_SPEECH_${event['code'] ?? 'ERROR'}',
+          ),
+        );
       }
       _completedController.add(null);
     }
+  }
+
+  List<String> _readTranscriptAlternatives(Map<dynamic, dynamic> event) {
+    final rawAlternatives = event['alternatives'];
+    final candidates = <String>[];
+    if (rawAlternatives is Iterable<dynamic>) {
+      for (final value in rawAlternatives) {
+        if (value is! String) {
+          continue;
+        }
+        final candidate = value.trim();
+        if (candidate.isNotEmpty && !candidates.contains(candidate)) {
+          candidates.add(candidate);
+        }
+      }
+    }
+    final primaryText = event['text'];
+    if (primaryText is String && primaryText.trim().isNotEmpty) {
+      final candidate = primaryText.trim();
+      if (!candidates.contains(candidate)) {
+        candidates.insert(0, candidate);
+      }
+    }
+    return List<String>.unmodifiable(candidates);
   }
 
   void _readRecordedAudioMetadata(Map<dynamic, dynamic> event) {
@@ -669,6 +732,7 @@ class AndroidStreamingSpeechInput
     await _amplitudeController.close();
     await _completedController.close();
     await _partialTextController.close();
+    await _transcriptAlternativesController.close();
   }
 }
 

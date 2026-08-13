@@ -590,7 +590,11 @@ class NextConversationRepository
     final uploadProtocolVersion = capabilityMap['uploadProtocolVersion'];
     return _AudioSessionDescriptor(
       id: audioSessionId,
-      supportsPcm16WavFinalize: capabilityMap['pcm16WavFinalize'] == true,
+      // The app creates this session explicitly as pcm_s16le, and current
+      // finalize endpoints require PCM metadata. Treat an omitted capability
+      // as supported so a partially cached/older create response cannot make
+      // the client send the legacy header-only finalize shape.
+      supportsPcm16WavFinalize: capabilityMap['pcm16WavFinalize'] != false,
       uploadToken: uploadToken is String && uploadToken.isNotEmpty
           ? uploadToken
           : null,
@@ -2939,7 +2943,10 @@ class _RetainedTransportChunk {
 }
 
 class ConversationApiException
-    implements Exception, CodedConversationException {
+    implements
+        Exception,
+        CodedConversationException,
+        RetryableConversationException {
   const ConversationApiException(
     this.message, {
     this.statusCode,
@@ -2957,6 +2964,16 @@ class ConversationApiException
   final Duration? retryAfter;
 
   @override
+  bool get isRetryable {
+    final code = statusCode;
+    return code == 408 ||
+        code == 425 ||
+        code == 429 ||
+        (code == 409 && errorCode == 'RATE_LIMITED') ||
+        (code != null && code >= 500);
+  }
+
+  @override
   String toString() => message;
 }
 
@@ -2964,16 +2981,7 @@ bool _isRetryableConversationRequest(Object error) {
   if (error is TimeoutException || error is http.ClientException) {
     return true;
   }
-  if (error is! ConversationApiException) {
-    return false;
-  }
-
-  final statusCode = error.statusCode;
-  return statusCode == 408 ||
-      statusCode == 425 ||
-      statusCode == 429 ||
-      (statusCode == 409 && error.errorCode == 'RATE_LIMITED') ||
-      (statusCode != null && statusCode >= 500);
+  return error is RetryableConversationException && error.isRetryable;
 }
 
 final math.Random _conversationRetryRandom = math.Random();

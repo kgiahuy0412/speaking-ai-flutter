@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
+import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +52,123 @@ void main() {
       controller.dispose();
     },
   );
+
+  test('Main button speaks the menu then starts the speaking flow', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      restartDelay: const Duration(milliseconds: 1),
+    );
+    VoiceNavigationIntent? receivedIntent;
+    controller.setIntentHandler((intent) => receivedIntent = intent);
+
+    expect(await controller.activateFromMainButton(), isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 520));
+
+    expect(voicePrompt.spokenTexts, <String>[
+      'Con muốn luyện nói hay học chủ đề nè',
+    ]);
+    expect(controller.isAwaitingCommand, isTrue);
+    expect(controller.isListening, isTrue);
+    expect(
+      await controller.dispatchRecognizedText('Con ghi muốn luyện nói'),
+      isTrue,
+    );
+    expect(voicePrompt.spokenTexts, <String>[
+      'Con muốn luyện nói hay học chủ đề nè',
+      'Bắt đầu nói đi con',
+    ]);
+    expect(
+      receivedIntent?.destination,
+      VoiceNavigationDestination.conversation,
+    );
+    expect(receivedIntent?.enterMainSpeakingMode, isTrue);
+    expect(controller.continuousRequested, isFalse);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
+  test('Main button keeps listening through age, topic and lesson', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      mainAssistantFlow: MainVoiceAssistantFlow(
+        contentLoader: _loadMainAssistantContent,
+      ),
+      restartDelay: const Duration(milliseconds: 1),
+    );
+    final receivedIntents = <VoiceNavigationIntent>[];
+    controller.setIntentHandler(receivedIntents.add);
+
+    expect(await controller.activateFromMainButton(), isTrue);
+    expect(
+      await controller.dispatchRecognizedText('Con muốn học theo chủ đề'),
+      isTrue,
+    );
+    expect(await controller.dispatchRecognizedText('Con 6 tuổi'), isTrue);
+    expect(
+      await controller.dispatchRecognizedText('Con muốn học chủ đề số 3'),
+      isTrue,
+    );
+
+    expect(receivedIntents, hasLength(1));
+    expect(receivedIntents.single.childAge, 6);
+    expect(receivedIntents.single.topicNumber, 3);
+    expect(controller.isMainButtonSessionActive, isTrue);
+    expect(await controller.dispatchRecognizedText('Con học bài số 1'), isTrue);
+
+    expect(voicePrompt.spokenTexts, <String>[
+      'Con muốn luyện nói hay học chủ đề nè',
+      'Con mấy tuổi',
+      'Có 10 chủ đề. Con muốn học chủ đề số mấy',
+      'Có 2 bài học. Con muốn học bài số mấy',
+      'Bắt đầu học thôi con',
+    ]);
+    expect(receivedIntents, hasLength(2));
+    expect(receivedIntents.last.childAge, 6);
+    expect(receivedIntents.last.topicNumber, 3);
+    expect(receivedIntents.last.lessonNumber, 1);
+    expect(receivedIntents.last.openLesson, isTrue);
+    expect(controller.isMainButtonSessionActive, isFalse);
+    expect(controller.continuousRequested, isFalse);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
+  test('speaking command opens the other-learning voice menu', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      restartDelay: const Duration(milliseconds: 1),
+    );
+    VoiceNavigationIntent? receivedIntent;
+    controller.setIntentHandler((intent) => receivedIntent = intent);
+
+    expect(await controller.activateOtherLearningFromSpeaking(), isTrue);
+    expect(voicePrompt.spokenTexts, <String>[
+      'Có chứ. Con muốn học chủ đề hay học từ vựng nè',
+    ]);
+    expect(controller.isAwaitingCommand, isTrue);
+
+    expect(
+      await controller.dispatchRecognizedText('Con muốn học từ vựng'),
+      isTrue,
+    );
+    expect(voicePrompt.spokenTexts.last, 'Mình cùng học từ vựng nhé');
+    expect(receivedIntent?.destination, VoiceNavigationDestination.vocabulary);
+    expect(controller.isMainButtonSessionActive, isFalse);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
 
   test(
     'pauses navigation recognizer before conversation can reuse it',
@@ -115,6 +234,55 @@ void main() {
     controller.dispose();
     await speechInput.dispose();
   });
+
+  test('hears the wake phrase from a secondary Android transcript', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      restartDelay: const Duration(milliseconds: 1),
+      partialIntentDebounce: const Duration(milliseconds: 1),
+    );
+
+    controller.startContinuous();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    speechInput.emitAlternatives(<String>['Thời tiết hôm nay', 'Hay Bi Cô']);
+    await Future<void>.delayed(const Duration(milliseconds: 140));
+
+    expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+    expect(controller.isAwaitingCommand, isTrue);
+    await controller.pause();
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
+  test(
+    'uses final Android alternatives when the primary text misses',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(
+        stopText: 'Thời tiết hôm nay',
+        stopAlternatives: const <String>['Thời tiết hôm nay', 'Hey Pico'],
+      );
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        restartDelay: const Duration(milliseconds: 1),
+      );
+
+      controller.startContinuous();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      speechInput.emitCompleted();
+      await Future<void>.delayed(const Duration(milliseconds: 140));
+
+      expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+      expect(controller.isAwaitingCommand, isTrue);
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
 
   test('returns to wake-word mode when the command window expires', () async {
     final controller = VoiceNavigationController(
@@ -209,16 +377,70 @@ void main() {
   );
 }
 
-class _FakeNavigationSpeechInput implements StreamingSpeechInput {
+Future<ListeningContentCatalog> _loadMainAssistantContent() async {
+  return const ListeningContentCatalog(
+    groups: <ListeningContentAgeGroup>[
+      ListeningContentAgeGroup(
+        startAge: 6,
+        endAge: 7,
+        topics: <ListeningTopicContent>[
+          ListeningTopicContent(
+            id: 'a067_t03',
+            number: 3,
+            titleVi: 'Cặp sách và lớp học',
+            titleEn: 'School Bag and Classroom',
+            lessons: <ListeningLessonContent>[
+              ListeningLessonContent(
+                id: 'lesson-1',
+                number: 1,
+                titleVi: 'Đồ dùng học tập',
+                titleEn: 'School Supplies',
+                intro: '',
+                outro: '',
+                estimatedMinutes: 3,
+                sentences: <ListeningSentenceContent>[],
+              ),
+              ListeningLessonContent(
+                id: 'lesson-2',
+                number: 2,
+                titleVi: 'Trong lớp học',
+                titleEn: 'In the Classroom',
+                intro: '',
+                outro: '',
+                estimatedMinutes: 3,
+                sentences: <ListeningSentenceContent>[],
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _FakeNavigationSpeechInput
+    implements StreamingSpeechInput, AlternativeTranscriptStreamingSpeechInput {
+  _FakeNavigationSpeechInput({
+    this.stopText = 'Con muốn học từ vựng',
+    this.stopAlternatives = const <String>[],
+  });
+
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
   final StreamController<void> _completedController =
       StreamController<void>.broadcast();
   final StreamController<String> _partialTextController =
       StreamController<String>.broadcast();
+  final StreamController<List<String>> _alternativeTextController =
+      StreamController<List<String>>.broadcast();
   final List<String> events = <String>[];
+  final String stopText;
+  final List<String> stopAlternatives;
 
   void emitPartial(String text) => _partialTextController.add(text);
+
+  void emitAlternatives(List<String> alternatives) =>
+      _alternativeTextController.add(alternatives);
 
   void emitCompleted() => _completedController.add(null);
 
@@ -235,6 +457,10 @@ class _FakeNavigationSpeechInput implements StreamingSpeechInput {
   Stream<String> get partialText => _partialTextController.stream;
 
   @override
+  Stream<List<String>> get transcriptAlternatives =>
+      _alternativeTextController.stream;
+
+  @override
   Future<bool> checkAvailability() async => true;
 
   @override
@@ -243,13 +469,14 @@ class _FakeNavigationSpeechInput implements StreamingSpeechInput {
   }
 
   @override
-  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
-    sourceText: 'Con muốn học từ vựng',
-    duration: Duration(seconds: 1),
+  Future<StreamingSpeechCapture> stop() async => StreamingSpeechCapture(
+    sourceText: stopText,
+    duration: const Duration(seconds: 1),
     inputLabel: 'Navigation ASR',
     confidence: 0.9,
     firstResultMs: 100,
     finalAfterStopMs: 20,
+    alternatives: stopAlternatives,
   );
 
   @override
@@ -262,6 +489,7 @@ class _FakeNavigationSpeechInput implements StreamingSpeechInput {
     await _amplitudeController.close();
     await _completedController.close();
     await _partialTextController.close();
+    await _alternativeTextController.close();
   }
 }
 

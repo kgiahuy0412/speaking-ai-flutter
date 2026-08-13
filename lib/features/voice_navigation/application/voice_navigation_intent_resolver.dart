@@ -11,11 +11,21 @@ class VoiceNavigationIntent {
     required this.destination,
     required this.recognizedText,
     required this.matchedPhrase,
+    this.topicNumber,
+    this.lessonNumber,
+    this.childAge,
+    this.openLesson = false,
+    this.enterMainSpeakingMode = false,
   });
 
   final VoiceNavigationDestination destination;
   final String recognizedText;
   final String matchedPhrase;
+  final int? topicNumber;
+  final int? lessonNumber;
+  final int? childAge;
+  final bool openLesson;
+  final bool enterMainSpeakingMode;
 }
 
 class VoiceNavigationIntentResolver {
@@ -28,6 +38,14 @@ class VoiceNavigationIntentResolver {
     'hey pipo',
     'hey pi co',
     'hay pi co',
+    'hey bi co',
+    'hay bi co',
+    'hey bico',
+    'hay bico',
+    'hey bigo',
+    'hay bigo',
+    'e pico',
+    'e pi co',
   ];
 
   static const List<String> _commandCues = <String>[
@@ -136,6 +154,23 @@ class VoiceNavigationIntentResolver {
 
     final hasCommandCue = _hasCommandCue(normalized);
     final wordCount = normalized.split(' ').length;
+    final topicNumber = _numberAfter(normalized, 'chu de');
+    final lessonNumber = _numberAfter(normalized, 'bai');
+    final hasLessonRequest = _hasLessonRequest(normalized);
+    final isShortLessonRequest =
+        allowShortDirectCommand &&
+        wordCount <= 4 &&
+        (normalized == 'bai hoc' || normalized.startsWith('bai '));
+    if (hasLessonRequest && (hasCommandCue || isShortLessonRequest)) {
+      return VoiceNavigationIntent(
+        destination: VoiceNavigationDestination.topics,
+        recognizedText: recognizedText.trim(),
+        matchedPhrase: 'bai hoc',
+        topicNumber: topicNumber,
+        lessonNumber: lessonNumber ?? 1,
+        openLesson: true,
+      );
+    }
     VoiceNavigationIntent? bestMatch;
     var bestScore = -1;
 
@@ -165,6 +200,9 @@ class VoiceNavigationIntentResolver {
           destination: rule.destination,
           recognizedText: recognizedText.trim(),
           matchedPhrase: phrase,
+          topicNumber: rule.destination == VoiceNavigationDestination.topics
+              ? topicNumber
+              : null,
         );
       }
     }
@@ -174,7 +212,69 @@ class VoiceNavigationIntentResolver {
 
   bool containsWakeWord(String recognizedText) {
     final normalized = _normalize(recognizedText);
-    return _wakePhrases.any((phrase) => _containsPhrase(normalized, phrase));
+    if (_wakePhrases.any((phrase) => _containsPhrase(normalized, phrase))) {
+      return true;
+    }
+
+    // Vietnamese ASR commonly turns the English brand name into variants such
+    // as "hay bi co" or "ê pi cô". Only allow fuzzy matching after an
+    // explicit wake-like first word so ordinary speech containing "Pico" does
+    // not open a page accidentally.
+    final words = normalized.split(' ');
+    const wakeStarts = <String>{'hey', 'hay', 'hei', 'e'};
+    const compactWakePhrases = <String>{'heypico', 'haypico', 'epico'};
+    for (var start = 0; start < words.length; start += 1) {
+      if (!wakeStarts.contains(words[start])) {
+        continue;
+      }
+      var candidate = '';
+      final endLimit = (start + 3).clamp(0, words.length - 1);
+      for (var end = start; end <= endLimit; end += 1) {
+        candidate += words[end];
+        if (compactWakePhrases.any(
+          (phrase) => _editDistanceAtMost(candidate, phrase, 1),
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  static bool _editDistanceAtMost(String left, String right, int limit) {
+    if ((left.length - right.length).abs() > limit) {
+      return false;
+    }
+    var previous = List<int>.generate(right.length + 1, (index) => index);
+    for (var leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+      final current = List<int>.filled(right.length + 1, 0);
+      current[0] = leftIndex;
+      var rowMinimum = current[0];
+      for (var rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+        final substitutionCost =
+            left.codeUnitAt(leftIndex - 1) == right.codeUnitAt(rightIndex - 1)
+            ? 0
+            : 1;
+        current[rightIndex] = _minimumOfThree(
+          current[rightIndex - 1] + 1,
+          previous[rightIndex] + 1,
+          previous[rightIndex - 1] + substitutionCost,
+        );
+        if (current[rightIndex] < rowMinimum) {
+          rowMinimum = current[rightIndex];
+        }
+      }
+      if (rowMinimum > limit) {
+        return false;
+      }
+      previous = current;
+    }
+    return previous.last <= limit;
+  }
+
+  static int _minimumOfThree(int first, int second, int third) {
+    final firstTwo = first < second ? first : second;
+    return firstTwo < third ? firstTwo : third;
   }
 
   static bool _containsPhrase(String value, String phrase) {
@@ -195,6 +295,43 @@ class VoiceNavigationIntentResolver {
           value.startsWith('con $cue ') ||
           value.startsWith('toi $cue '),
     );
+  }
+
+  static bool _hasLessonRequest(String value) {
+    if (_containsPhrase(value, 'bai hat')) {
+      return false;
+    }
+    return _containsPhrase(value, 'bai hoc') ||
+        _numberAfter(value, 'bai') != null ||
+        RegExp(r'(^| )(mo|vao|hoc|luyen|bat dau) bai( |$)').hasMatch(value);
+  }
+
+  static int? _numberAfter(String value, String marker) {
+    final match = RegExp(
+      '(^| )$marker(?: hoc)?(?: so)? '
+      r'(\d+|mot|hai|ba|bon|nam|sau|bay|tam|chin|muoi|dau tien)( |$)',
+    ).firstMatch(value);
+    final token = match?.group(2);
+    if (token == null) {
+      return null;
+    }
+    final numeric = int.tryParse(token);
+    if (numeric != null) {
+      return numeric;
+    }
+    return const <String, int>{
+      'mot': 1,
+      'dau tien': 1,
+      'hai': 2,
+      'ba': 3,
+      'bon': 4,
+      'nam': 5,
+      'sau': 6,
+      'bay': 7,
+      'tam': 8,
+      'chin': 9,
+      'muoi': 10,
+    }[token];
   }
 
   static String _normalize(String value) {

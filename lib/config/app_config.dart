@@ -100,7 +100,7 @@ class AppConfig {
       ),
       autoStartVoiceNavigation: const bool.fromEnvironment(
         'AUTO_START_VOICE_NAVIGATION',
-        defaultValue: true,
+        defaultValue: false,
       ),
     );
   }

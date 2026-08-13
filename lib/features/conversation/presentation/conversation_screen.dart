@@ -21,6 +21,7 @@ class ConversationScreen extends StatelessWidget {
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
     this.onStartTutorial,
+    this.onModalVisibilityChanged,
     this.speakActionKey,
     this.resultPanelKey,
     this.historyButtonKey,
@@ -33,6 +34,7 @@ class ConversationScreen extends StatelessWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final VoidCallback? onStartTutorial;
+  final ValueChanged<bool>? onModalVisibilityChanged;
   final Key? speakActionKey;
   final Key? resultPanelKey;
   final Key? historyButtonKey;
@@ -126,29 +128,39 @@ class ConversationScreen extends StatelessWidget {
     );
   }
 
-  void _showSettings(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => SettingsSheet(
-        controller: controller,
-        themeMode: themeMode,
-        onThemeModeChanged: onThemeModeChanged,
-        onStartTutorial: onStartTutorial,
-      ),
-    );
+  Future<void> _showSettings(BuildContext context) async {
+    onModalVisibilityChanged?.call(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => SettingsSheet(
+          controller: controller,
+          themeMode: themeMode,
+          onThemeModeChanged: onThemeModeChanged,
+          onStartTutorial: onStartTutorial,
+        ),
+      );
+    } finally {
+      onModalVisibilityChanged?.call(false);
+    }
   }
 
-  void _showHistory(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (_) => HistorySheet(controller: controller),
-    );
+  Future<void> _showHistory(BuildContext context) async {
+    onModalVisibilityChanged?.call(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => HistorySheet(controller: controller),
+      );
+    } finally {
+      onModalVisibilityChanged?.call(false);
+    }
   }
 }
 

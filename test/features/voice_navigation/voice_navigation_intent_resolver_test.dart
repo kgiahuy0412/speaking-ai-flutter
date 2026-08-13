@@ -10,7 +10,12 @@ void main() {
       expect(resolver.containsWakeWord('hay pico'), isTrue);
       expect(resolver.containsWakeWord('Hey Piko'), isTrue);
       expect(resolver.containsWakeWord('Hey Pi Cô'), isTrue);
+      expect(resolver.containsWakeWord('Hay Bi Cô'), isTrue);
+      expect(resolver.containsWakeWord('Ê Pi Cô'), isTrue);
+      expect(resolver.containsWakeWord('Hey Bigo'), isTrue);
       expect(resolver.containsWakeWord('Pico'), isFalse);
+      expect(resolver.containsWakeWord('Hãy đi coi bài tập'), isFalse);
+      expect(resolver.containsWakeWord('Em biết cô giáo'), isFalse);
     });
 
     test('recognizes vocabulary commands with and without accents', () {
@@ -41,6 +46,26 @@ void main() {
         resolver.resolve('Hãy mở cài đặt')?.destination,
         VoiceNavigationDestination.settings,
       );
+    });
+
+    test('recognizes a direct topic lesson command', () {
+      final byName = resolver.resolve(
+        'Con muốn học bài 2 trong chủ đề Gia đình và ngôi nhà',
+      );
+      expect(byName?.destination, VoiceNavigationDestination.topics);
+      expect(byName?.openLesson, isTrue);
+      expect(byName?.lessonNumber, 2);
+      expect(byName?.topicNumber, isNull);
+
+      final byNumber = resolver.resolve('Mở bài đầu tiên trong chủ đề số 3');
+      expect(byNumber?.destination, VoiceNavigationDestination.topics);
+      expect(byNumber?.openLesson, isTrue);
+      expect(byNumber?.lessonNumber, 1);
+      expect(byNumber?.topicNumber, 3);
+
+      final contextual = resolver.resolve('Bài 2');
+      expect(contextual?.openLesson, isTrue);
+      expect(contextual?.lessonNumber, 2);
     });
 
     test('accepts a short destination name as a direct command', () {

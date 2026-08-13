@@ -11,6 +11,11 @@ abstract interface class CodedConversationException {
   String? get errorCode;
 }
 
+/// An API failure for which retrying or using an on-device result is safe.
+abstract interface class RetryableConversationException {
+  bool get isRetryable;
+}
+
 abstract interface class ConversationRepository {
   Future<void> warmAudioCache();
 

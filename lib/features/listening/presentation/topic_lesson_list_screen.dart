@@ -27,6 +27,7 @@ class TopicLessonListScreen extends StatefulWidget {
     this.onVoiceNavigationResume,
     this.progressStore = const ListeningProgressStore(),
     this.mediaService,
+    this.initialLessonNumber,
     super.key,
   });
 
@@ -40,6 +41,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final VoidCallback? onVoiceNavigationResume;
   final ListeningProgressStore progressStore;
   final LessonMediaService? mediaService;
+  final int? initialLessonNumber;
 
   bool get showsSongs => startAge >= 6 && content.songs.isNotEmpty;
 
@@ -51,6 +53,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
   late final LessonMediaService _mediaService;
   late Future<Map<String, int>> _progressFuture;
   late final bool _ownsMediaService;
+  bool _initialLessonOpened = false;
 
   @override
   void initState() {
@@ -58,6 +61,9 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     _ownsMediaService = widget.mediaService == null;
     _mediaService = widget.mediaService ?? LessonMediaService();
     _progressFuture = widget.progressStore.readAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_openInitialLesson());
+    });
   }
 
   @override
@@ -221,6 +227,38 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
   }
 
   void _goBack() => Navigator.of(context).pop();
+
+  Future<void> _openInitialLesson() async {
+    final lessonNumber = widget.initialLessonNumber;
+    if (_initialLessonOpened || lessonNumber == null || !mounted) {
+      return;
+    }
+    _initialLessonOpened = true;
+    if (widget.content.lessons.isEmpty) {
+      return;
+    }
+    ListeningLessonContent? lesson;
+    for (final candidate in widget.content.lessons) {
+      if (candidate.number == lessonNumber) {
+        lesson = candidate;
+        break;
+      }
+    }
+    if (lesson == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Chủ đề này chưa có Bài $lessonNumber. Con hãy chọn một bài đang hiển thị nhé.',
+              '这个主题还没有第 $lessonNumber 课，请选择当前显示的课程。',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    await _startLesson(lesson, reviewFromBeginning: false);
+  }
 
   Future<void> _startLesson(
     ListeningLessonContent lesson, {

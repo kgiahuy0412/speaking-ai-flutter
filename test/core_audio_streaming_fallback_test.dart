@@ -342,6 +342,88 @@ void main() {
   );
 
   test(
+    'spoken learning command bypasses translation and result audio',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[5, 6, 7, 8],
+      );
+      final streaming = _FakeStreamingSpeechInput(
+        sourceText: 'Còn cái gì khác để học không?',
+      );
+      final repository = _FallbackRepository();
+      String? handledCommand;
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: streaming,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        recognizedSpeechCommandMatcher: (text) => text.contains('khác để học'),
+        onRecognizedSpeechCommand: (text) async => handledCommand = text,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.streamingCapture, isNull);
+      expect(controller.result, isNull);
+      expect(controller.phase, ConversationPhase.idle);
+      expect(
+        controller.lastTurnEndReason,
+        ConversationTurnEndReason.commandHandled,
+      );
+      expect(handledCommand, 'Còn cái gì khác để học không?');
+      controller.dispose();
+    },
+  );
+
+  test(
+    'Batch command result is hidden and opens the command handler',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[5, 6, 7, 8],
+      );
+      final repository = _FallbackRepository();
+      repository.batchSession.resultOverride = _result(
+        'batch-command',
+        vietnameseText: 'Còn cái gì khác để học không?',
+        audioUri: Uri.parse('https://api.example.com/should-not-play.mp3'),
+      );
+      String? handledCommand;
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        recognizedSpeechCommandMatcher: (text) => text.contains('khác để học'),
+        onRecognizedSpeechCommand: (text) async => handledCommand = text,
+      );
+
+      await controller.startRecording();
+      await _emitDetectedSpeech(input);
+      await controller.stopRecording(manual: false);
+
+      expect(repository.batchSession.finalized, isTrue);
+      expect(controller.result, isNull);
+      expect(controller.phase, ConversationPhase.idle);
+      expect(
+        controller.lastTurnEndReason,
+        ConversationTurnEndReason.commandHandled,
+      );
+      expect(handledCommand, 'Còn cái gì khác để học không?');
+      controller.dispose();
+    },
+  );
+
+  test(
     'HFP source failure does not fall back to Cloudflare audio ASR',
     () async {
       final input = _FakeChunkedInput(
@@ -830,6 +912,39 @@ void main() {
     controller.dispose();
   });
 
+  test('Batch PCM metadata mismatch falls back to the complete WAV', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+      emitOnStart: <int>[1, 2],
+    );
+    final repository = _FallbackRepository();
+    repository.batchSession.finalizeError = const _PcmMetadataFailure();
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: true,
+      adaptiveWebUploadDelay: const Duration(milliseconds: 20),
+    );
+
+    await controller.startRecording();
+    await _emitDetectedSpeech(input);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.batchSession.finalized, isTrue);
+    expect(repository.batchSession.discarded, isTrue);
+    expect(repository.fullFileUploads, 1);
+    expect(repository.batchFallbackReason, 'batch_pcm_metadata_mismatch');
+    expect(controller.result?.conversationId, 'file-result');
+    expect(controller.phase, ConversationPhase.ready);
+    controller.dispose();
+  });
+
   test(
     'processing status advances through ASR, translation, and audio',
     () async {
@@ -966,6 +1081,78 @@ void main() {
 
       expect(playback.playedUris, <Uri>[audioUri]);
       expect(controller.phase, ConversationPhase.ready);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'exact Android rule remains usable while backend is unavailable',
+    () async {
+      final repository = _FallbackRepository(
+        streamingError: const _RetryableBackendFailure(),
+      );
+      final playback = _DirectGesturePlaybackService();
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        streamingSpeechInput: _FakeStreamingSpeechInput(),
+        playbackService: playback,
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.ready);
+      expect(controller.result?.vietnameseText, 'Con muốn uống nước');
+      expect(controller.result?.englishText, 'Can I have some water?');
+      expect(controller.result?.textSource, 'device_exact_rule_fallback');
+      expect(controller.result?.conversationId, isEmpty);
+      expect(controller.transientMessage, contains('tạm gián đoạn'));
+      expect(playback.playedUris, <Uri>[
+        Uri.parse('https://api.example.com/water.mp3'),
+      ]);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'unknown Android sentence shows a friendly backend outage message',
+    () async {
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        streamingSpeechInput: _FakeStreamingSpeechInput(
+          sourceText: 'Hôm nay trời đẹp quá',
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: _FallbackRepository(
+          streamingError: const _RetryableBackendFailure(),
+        ),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.error);
+      expect(
+        controller.errorMessage,
+        'Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.',
+      );
+      expect(controller.errorMessage, isNot(contains('Mã hỗ trợ')));
       controller.dispose();
     },
   );
@@ -1250,6 +1437,48 @@ void main() {
     },
   );
 
+  test(
+    'automatic Android no-match after VAD noise exits as no speech',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: _FakeRecordedAudioStreamingSpeechInput(
+          recognitionError: const StreamingSpeechInputException(
+            'Mình chưa nghe rõ câu nói.',
+            code: 'RECORDED_AUDIO_UNCLEAR',
+          ),
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording(
+        noSpeechTimeout: const Duration(seconds: 5),
+        speakNoSpeechPrompt: false,
+      );
+      // Simulate background noise crossing the local VAD threshold even though
+      // Android ultimately reports that it did not recognize any speech.
+      await _emitDetectedSpeech(input);
+      await controller.stopRecording(manual: false);
+
+      expect(controller.phase, ConversationPhase.idle);
+      expect(controller.lastTurnEndReason, ConversationTurnEndReason.noSpeech);
+      expect(controller.errorMessage, isNull);
+      expect(controller.result, isNull);
+      expect(repository.fullFileUploads, 0);
+      expect(repository.batchStarted, 0);
+      controller.dispose();
+    },
+  );
+
   test('browser HFP records with the selected Bluetooth web input', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -1355,11 +1584,13 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
     this.failOnStart = false,
     this.failOnStop = false,
     this.onStart,
+    this.sourceText = 'Con muốn uống nước',
   });
 
   final bool failOnStart;
   final bool failOnStop;
   final void Function()? onStart;
+  final String sourceText;
   int startCount = 0;
 
   @override
@@ -1395,8 +1626,8 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
         'Android streaming stop failed.',
       );
     }
-    return const StreamingSpeechCapture(
-      sourceText: 'Con muốn uống nước',
+    return StreamingSpeechCapture(
+      sourceText: sourceText,
       duration: Duration(seconds: 1),
       inputLabel: 'ASR Android trực tiếp',
       confidence: 0.9,
@@ -1433,10 +1664,12 @@ class _FakeRecordedAudioStreamingSpeechInput extends _FakeStreamingSpeechInput
   _FakeRecordedAudioStreamingSpeechInput({
     this.failRecognition = false,
     this.supportsRecordedAudio = true,
+    this.recognitionError,
   });
 
   final bool failRecognition;
   final bool supportsRecordedAudio;
+  final Object? recognitionError;
   AudioCapture? recordedCapture;
 
   @override
@@ -1448,6 +1681,10 @@ class _FakeRecordedAudioStreamingSpeechInput extends _FakeStreamingSpeechInput
     AudioCapture capture,
   ) async {
     recordedCapture = capture;
+    final error = recognitionError;
+    if (error != null) {
+      throw error;
+    }
     if (failRecognition) {
       throw const StreamingSpeechInputException(
         'Injected audio is unsupported.',
@@ -1761,6 +1998,24 @@ class _LowConfidenceFailure implements Exception, CodedConversationException {
   String get errorCode => 'ASR_LOW_CONFIDENCE';
 }
 
+class _PcmMetadataFailure implements Exception, CodedConversationException {
+  const _PcmMetadataFailure();
+
+  @override
+  String get message => 'Thiếu metadata PCM khi finalize Batch Chunks.';
+
+  @override
+  String get errorCode => 'AUDIO_SESSION_INVALID';
+}
+
+class _RetryableBackendFailure
+    implements Exception, RetryableConversationException {
+  const _RetryableBackendFailure();
+
+  @override
+  bool get isRetryable => true;
+}
+
 class _FallbackRepository
     implements
         ConversationRepository,
@@ -1772,6 +2027,7 @@ class _FallbackRepository
     this.batchCompleter,
     this.audioResultCompleter,
     this.streamingResultCompleter,
+    this.streamingError,
     this.failRealtimeConnection = false,
   });
 
@@ -1779,6 +2035,7 @@ class _FallbackRepository
   final Completer<BatchChunkUploadSession>? batchCompleter;
   final Completer<ConversationResult>? audioResultCompleter;
   final Completer<ConversationResult>? streamingResultCompleter;
+  final Object? streamingError;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
@@ -1863,6 +2120,10 @@ class _FallbackRepository
     required int vadSilenceMs,
   }) async {
     streamingCapture = capture;
+    final error = streamingError;
+    if (error != null) {
+      throw error;
+    }
     final completer = streamingResultCompleter;
     if (completer != null) {
       return completer.future;
@@ -2117,11 +2378,12 @@ ConversationResult _result(
   String conversationId, {
   Uri? audioUri,
   String asrMode = 'batch_chunks',
+  String vietnameseText = 'Con muốn uống nước',
 }) => ConversationResult(
   conversationId: conversationId,
   sessionId: 'session',
   context: PracticeContext.home,
-  vietnameseText: 'Con muốn uống nước',
+  vietnameseText: vietnameseText,
   englishText: 'Can I have some water?',
   audioUri: audioUri,
   processingMode: 'rule',

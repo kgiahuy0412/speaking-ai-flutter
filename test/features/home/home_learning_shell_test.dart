@@ -10,10 +10,13 @@ import 'package:ai_speaking_flutter_app/features/conversation/presentation/conve
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
 import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabulary_home_screen.dart';
+import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -70,6 +73,36 @@ void main() {
     expect(find.byType(TopicListeningScreen), findsOneWidget);
   });
 
+  testWidgets('reports settings modal visibility until the sheet closes', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    final visibilityChanges = <bool>[];
+
+    await tester.pumpWidget(
+      _app(controller, onModalVisibilityChanged: visibilityChanges.add),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cài đặt lượt nói'), findsOneWidget);
+    expect(visibilityChanges, <bool>[true]);
+
+    Navigator.of(tester.element(find.text('Cài đặt lượt nói'))).pop();
+    await tester.pumpAndSettle();
+
+    expect(visibilityChanges, <bool>[true, false]);
+  });
+
   testWidgets('opens vocabulary from a recognized voice command', (
     tester,
   ) async {
@@ -89,7 +122,13 @@ void main() {
     addTearDown(voiceNavigationController.dispose);
 
     await tester.pumpWidget(
-      _app(controller, voiceNavigationController: voiceNavigationController),
+      _app(
+        controller,
+        voiceNavigationController: voiceNavigationController,
+        listeningContentFuture: AssetListeningContentRepository(
+          bundle: rootBundle,
+        ).load(),
+      ),
     );
     await tester.pumpAndSettle();
     expect(
@@ -167,12 +206,190 @@ void main() {
     controller.dispose();
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets('opens a lesson inside a named topic from voice', (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final speechInput = _FakeStreamingSpeechInput();
+    final voiceNavigationController = VoiceNavigationController(
+      speechInput: speechInput,
+      ownsSpeechInput: true,
+    );
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    addTearDown(voiceNavigationController.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        controller,
+        voiceNavigationController: voiceNavigationController,
+        listeningContentFuture: AssetListeningContentRepository(
+          bundle: rootBundle,
+        ).load(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      await voiceNavigationController.dispatchRecognizedText('Hey Pico'),
+      isTrue,
+    );
+    expect(
+      await voiceNavigationController.dispatchRecognizedText(
+        'Con muốn học bài 1 trong chủ đề Gia đình và ngôi nhà',
+      ),
+      isTrue,
+    );
+
+    for (var index = 0; index < 14; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    for (var index = 0; index < 20; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final openedLessonScreenCount = <Key>[
+      const Key('lesson-intro-screen'),
+      const Key('lesson-review-screen'),
+      const Key('lesson-practice-screen'),
+    ].fold<int>(0, (count, key) => count + find.byKey(key).evaluate().length);
+    expect(openedLessonScreenCount, 1);
+  });
+
+  testWidgets('Main flow uses spoken age to open topic 3 lesson 1', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final contentFuture = AssetListeningContentRepository(
+      bundle: rootBundle,
+    ).load();
+    final speechInput = _FakeStreamingSpeechInput();
+    final voiceNavigationController = VoiceNavigationController(
+      speechInput: speechInput,
+      ownsSpeechInput: true,
+      mainAssistantFlow: MainVoiceAssistantFlow(
+        contentLoader: () => contentFuture,
+      ),
+    );
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    addTearDown(voiceNavigationController.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        controller,
+        childAge: 4,
+        voiceNavigationController: voiceNavigationController,
+        listeningContentFuture: contentFuture,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(await voiceNavigationController.activateFromMainButton(), isTrue);
+    expect(
+      await voiceNavigationController.dispatchRecognizedText(
+        'Con muốn học theo chủ đề',
+      ),
+      isTrue,
+    );
+    expect(
+      await voiceNavigationController.dispatchRecognizedText('Con 6 tuổi'),
+      isTrue,
+    );
+    expect(
+      await voiceNavigationController.dispatchRecognizedText(
+        'Con muốn học chủ đề số 3',
+      ),
+      isTrue,
+    );
+    for (var index = 0; index < 20; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.text('Cặp sách và lớp học'), findsWidgets);
+    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
+
+    final openLesson = voiceNavigationController.dispatchRecognizedText(
+      'Con học bài số 1',
+    );
+    for (var index = 0; index < 40; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(await openLesson, isTrue);
+    for (var index = 0; index < 40; index += 1) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final openedLessonScreenCount = <Key>[
+      const Key('lesson-intro-screen'),
+      const Key('lesson-review-screen'),
+      const Key('lesson-practice-screen'),
+    ].fold<int>(0, (count, key) => count + find.byKey(key).evaluate().length);
+    expect(openedLessonScreenCount, 1);
+  });
+
+  testWidgets(
+    'Main speaking choice hands off to the automatic speaking session',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+        ownsSpeechInput: true,
+      );
+      final controller = _controller();
+      var didStartMainSpeakingMode = false;
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          voiceNavigationController: voiceNavigationController,
+          onMainSpeakingModeStarted: () => didStartMainSpeakingMode = true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(await voiceNavigationController.activateFromMainButton(), isTrue);
+      expect(
+        await voiceNavigationController.dispatchRecognizedText(
+          'Con ghi muốn luyện nói',
+        ),
+        isTrue,
+      );
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump();
+
+      expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+      expect(didStartMainSpeakingMode, isTrue);
+      expect(controller.isRecording, isFalse);
+
+      controller.dispose();
+      voiceNavigationController.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
 
 Widget _app(
   ConversationController controller, {
   bool autoStartVoiceNavigation = false,
+  int childAge = 6,
   VoiceNavigationController? voiceNavigationController,
+  Future<ListeningContentCatalog>? listeningContentFuture,
+  VoidCallback? onMainSpeakingModeStarted,
+  ValueChanged<bool>? onModalVisibilityChanged,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -180,10 +397,13 @@ Widget _app(
     home: HomeLearningShell(
       controller: controller,
       voiceNavigationController: voiceNavigationController,
+      listeningContentFuture: listeningContentFuture,
+      onMainSpeakingModeStarted: onMainSpeakingModeStarted,
+      onModalVisibilityChanged: onModalVisibilityChanged,
       config: AppConfig(
         backendBaseUri: Uri.parse('https://example.com'),
         useDemoBackend: true,
-        childAge: 6,
+        childAge: childAge,
         autoStartVoiceNavigation: autoStartVoiceNavigation,
       ),
     ),
@@ -240,9 +460,8 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   );
 
   @override
-  Future<void> cancel() {
+  Future<void> cancel() async {
     cancelCount += 1;
-    return SynchronousFuture<void>(null);
   }
 
   @override

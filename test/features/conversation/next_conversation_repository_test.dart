@@ -320,124 +320,124 @@ void main() {
     await repository.dispose();
   });
 
-  test('batches PCM transport chunks and finalizes one WAV', () async {
-    final uploadedSequences = <int>[];
-    var finalized = false;
-    final repository = NextConversationRepository(
-      config: config,
-      clientIdProvider: clientIdProvider,
-      client: MockClient((request) async {
-        if (request.url.path == '/api/audio-sessions') {
-          return http.Response(
-            jsonEncode(<String, dynamic>{
-              'audioSessionId': 'audio_test',
-              'capabilities': <String, dynamic>{'pcm16WavFinalize': true},
-            }),
-            200,
-          );
-        }
-        if (request.url.path.endsWith('/chunks')) {
-          final body = latin1.decode(request.bodyBytes);
-          final match = RegExp(
-            r'name="sequence"\r\n\r\n(\d+)',
-          ).firstMatch(body);
-          expect(match, isNotNull);
-          uploadedSequences.add(int.parse(match!.group(1)!));
-          return http.Response(
-            jsonEncode(<String, dynamic>{'uploaded': true}),
-            200,
-          );
-        }
-        if (request.url.path.endsWith('/finalize')) {
-          final body = jsonDecode(request.body) as Map<String, dynamic>;
-          final benchmark = body['benchmark'] as Map<String, dynamic>;
-          expect(body['mimeType'], 'audio/wav');
-          expect(benchmark['clientVadApplied'], isTrue);
-          expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
-          expect(benchmark['audioChunkCount'], 2);
-          expect(benchmark['transportChunkCount'], 1);
-          expect(benchmark['chunkIntervalMs'], 800);
-          expect(benchmark['sourceChunkIntervalMs'], 200);
-          expect(benchmark['maxConcurrentChunkUploads'], 2);
-          expect(benchmark['uploadedAudioBytes'], 16000);
-          expect(benchmark['wavHeaderStrategy'], 'finalize_metadata');
-          expect(benchmark['platformNoiseSuppressionRequested'], isTrue);
-          expect(benchmark['platformNoiseSuppressionApplied'], isTrue);
-          expect(benchmark['pcmHighPassApplied'], isTrue);
-          expect(benchmark['pcmAdaptiveNoiseGateApplied'], isTrue);
-          expect(benchmark['estimatedSnrDb'], 14.5);
-          expect(body['pcm16Wav'], <String, dynamic>{
-            'sampleRate': 48000,
-            'channelCount': 1,
-            'bitsPerSample': 16,
-            'pcmByteLength': 16000,
-            'chunkCount': 1,
-          });
-          finalized = true;
-          return http.Response(
-            jsonEncode(<String, dynamic>{
-              'conversationId': 'conv_batch',
-              'sessionId': 'sess_batch',
-              'context': 'home',
-              'vietnameseText': 'Con muốn uống nước',
-              'englishText': 'Can I have some water, please?',
-              'audioUrl': '/generated-audio/water.mp3',
-              'processingMode': 'rule',
-              'textSource': 'phrase_rule',
-              'audioSource': 'cache',
-              'asrMode': 'batch_chunks',
-              'latency': <String, dynamic>{
-                'asrMs': 500,
-                'llmMs': 0,
-                'ttsMs': 1,
-                'timeToFirstAudioMs': 520,
+  test(
+    'defaults to PCM metadata finalize when create capabilities are omitted',
+    () async {
+      final uploadedSequences = <int>[];
+      var finalized = false;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: clientIdProvider,
+        client: MockClient((request) async {
+          if (request.url.path == '/api/audio-sessions') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{'audioSessionId': 'audio_test'}),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/chunks')) {
+            final body = latin1.decode(request.bodyBytes);
+            final match = RegExp(
+              r'name="sequence"\r\n\r\n(\d+)',
+            ).firstMatch(body);
+            expect(match, isNotNull);
+            uploadedSequences.add(int.parse(match!.group(1)!));
+            return http.Response(
+              jsonEncode(<String, dynamic>{'uploaded': true}),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/finalize')) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            final benchmark = body['benchmark'] as Map<String, dynamic>;
+            expect(body['mimeType'], 'audio/wav');
+            expect(benchmark['clientVadApplied'], isTrue);
+            expect(benchmark['batchTransport'], 'streamed_pcm16_chunks');
+            expect(benchmark['audioChunkCount'], 2);
+            expect(benchmark['transportChunkCount'], 1);
+            expect(benchmark['chunkIntervalMs'], 800);
+            expect(benchmark['sourceChunkIntervalMs'], 200);
+            expect(benchmark['maxConcurrentChunkUploads'], 2);
+            expect(benchmark['uploadedAudioBytes'], 16000);
+            expect(benchmark['wavHeaderStrategy'], 'finalize_metadata');
+            expect(benchmark['platformNoiseSuppressionRequested'], isTrue);
+            expect(benchmark['platformNoiseSuppressionApplied'], isTrue);
+            expect(benchmark['pcmHighPassApplied'], isTrue);
+            expect(benchmark['pcmAdaptiveNoiseGateApplied'], isTrue);
+            expect(benchmark['estimatedSnrDb'], 14.5);
+            expect(body['pcm16Wav'], <String, dynamic>{
+              'sampleRate': 48000,
+              'channelCount': 1,
+              'bitsPerSample': 16,
+              'pcmByteLength': 16000,
+              'chunkCount': 1,
+            });
+            finalized = true;
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'conversationId': 'conv_batch',
+                'sessionId': 'sess_batch',
+                'context': 'home',
+                'vietnameseText': 'Con muốn uống nước',
+                'englishText': 'Can I have some water, please?',
+                'audioUrl': '/generated-audio/water.mp3',
+                'processingMode': 'rule',
+                'textSource': 'phrase_rule',
+                'audioSource': 'cache',
+                'asrMode': 'batch_chunks',
+                'latency': <String, dynamic>{
+                  'asrMs': 500,
+                  'llmMs': 0,
+                  'ttsMs': 1,
+                  'timeToFirstAudioMs': 520,
+                },
+              }),
+              200,
+              headers: const <String, String>{
+                'content-type': 'application/json; charset=utf-8',
               },
-            }),
-            200,
-            headers: const <String, String>{
-              'content-type': 'application/json; charset=utf-8',
-            },
-          );
-        }
-        fail('Unexpected request: ${request.method} ${request.url}');
-      }),
-    );
+            );
+          }
+          fail('Unexpected request: ${request.method} ${request.url}');
+        }),
+      );
 
-    final upload = await repository.startBatchChunkUpload();
-    upload.addAudioChunk(Uint8List(8000));
-    upload.addAudioChunk(Uint8List(8000));
-    final header = buildPcm16WavHeader(pcmByteLength: 16000);
-    final result = await upload.finalize(
-      capture: AudioCapture(
-        filePath: 'fallback.wav',
-        mimeType: 'audio/wav',
-        duration: const Duration(milliseconds: 500),
-        inputLabel: 'Mic điện thoại',
-        isBluetoothInput: false,
-        initialNoiseRms: null,
-        streamHeaderBytes: header,
-        streamedAudioBytes: 16000,
-        recordingSampleRate: 48000,
-        audioProcessing: const AudioProcessingMetrics(
-          platformNoiseSuppressionRequested: true,
-          platformEchoCancellationRequested: true,
-          platformAutoGainRequested: true,
-          platformNoiseSuppressionApplied: true,
-          pcmHighPassApplied: true,
-          pcmAdaptiveNoiseGateApplied: true,
-          estimatedSnrDb: 14.5,
+      final upload = await repository.startBatchChunkUpload();
+      upload.addAudioChunk(Uint8List(8000));
+      upload.addAudioChunk(Uint8List(8000));
+      final header = buildPcm16WavHeader(pcmByteLength: 16000);
+      final result = await upload.finalize(
+        capture: AudioCapture(
+          filePath: 'fallback.wav',
+          mimeType: 'audio/wav',
+          duration: const Duration(milliseconds: 500),
+          inputLabel: 'Mic điện thoại',
+          isBluetoothInput: false,
+          initialNoiseRms: null,
+          streamHeaderBytes: header,
+          streamedAudioBytes: 16000,
+          recordingSampleRate: 48000,
+          audioProcessing: const AudioProcessingMetrics(
+            platformNoiseSuppressionRequested: true,
+            platformEchoCancellationRequested: true,
+            platformAutoGainRequested: true,
+            platformNoiseSuppressionApplied: true,
+            pcmHighPassApplied: true,
+            pcmAdaptiveNoiseGateApplied: true,
+            estimatedSnrDb: 14.5,
+          ),
         ),
-      ),
-      context: PracticeContext.home,
-      childAge: 6,
-      vadSilenceMs: 700,
-    );
+        context: PracticeContext.home,
+        childAge: 6,
+        vadSilenceMs: 700,
+      );
 
-    expect(uploadedSequences, <int>[0]);
-    expect(finalized, isTrue);
-    expect(result.asrMode, 'batch_chunks');
-    await repository.dispose();
-  });
+      expect(uploadedSequences, <int>[0]);
+      expect(finalized, isTrue);
+      expect(result.asrMode, 'batch_chunks');
+      await repository.dispose();
+    },
+  );
 
   test(
     'uses 600 ms speculative Web chunks and forwards prefetchId on finalize',

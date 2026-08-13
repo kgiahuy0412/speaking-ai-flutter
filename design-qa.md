@@ -274,6 +274,42 @@ final result: passed
 
 ---
 
+# Design QA — Kiểm tra phần cứng H20 offline (2026-08-13)
+
+## Bằng chứng
+
+- Nguồn thiết kế: `C:/Users/DELL/AppData/Local/Temp/codex-clipboard-6ab5afa1-0b7f-4bbf-8624-1286290f5edf.png`, 319 × 280 px.
+- Ảnh Android đầy đủ sau sửa: `artifacts/design-qa/h20-offline-implementation-full.png`, 1080 × 2400 px trên emulator Android, device pixel ratio 2.75.
+- Vùng thẻ H20: `artifacts/design-qa/h20-offline-implementation-card.png`, crop vật lý x=53, y=945, w=975, h=845; chuẩn hóa còn 319 × 276 px để so với nguồn.
+- So sánh cùng một đầu vào: `artifacts/design-qa/h20-offline-reference-vs-implementation.png`.
+- Trạng thái: chưa kết nối BLE/HFP, SCO chưa mở, MAIN chỉ ghi Raw Hex, công tắc tắt và hai nút kiểm tra bị khóa.
+
+## Kết quả so sánh
+
+- Typography: cỡ chữ, độ đậm, hierarchy tiêu đề/mô tả/trạng thái và wrapping của dòng MAIN khớp nguồn; không có text bị cắt.
+- Spacing và layout: padding, bốn hàng trạng thái, vị trí switch, hai CTA căn phải, bán kính góc và nhịp dọc khớp sau khi chuẩn hóa mật độ.
+- Màu sắc: nền lavender nhạt, viền indigo mờ, chữ navy, nhãn xám và trạng thái disabled giữ đúng hệ token hiện có.
+- Icon và asset: dùng Material volume/micro icon giống giao diện nguồn; không có placeholder hay asset bị giảm chất lượng.
+- Copy: tiêu đề, mô tả offline, BLE/HFP/SCO/MAIN và hai nhãn thao tác trùng thiết kế tham chiếu.
+- Focused region chính là crop thẻ 319 × 276 nêu trên; không cần crop phụ vì toàn bộ chữ và điều khiển đều đọc rõ trong ảnh so sánh.
+
+## Lịch sử sửa
+
+- Pass 1 phát hiện P2: nút Main toàn cục nằm trên modal Cài đặt và che một phần dòng MAIN cùng vùng thao tác H20.
+- Sửa: bổ sung trạng thái vòng đời modal; Main vẫn cố định trên các màn hình ứng dụng nhưng tự ẩn khi Cài đặt/Lịch sử mở và hiện lại sau khi modal đóng.
+- Pass 2: ảnh Android và cây accessibility xác nhận không còn Main trong modal; không còn P0, P1 hoặc P2.
+
+## Xác minh
+
+- 17 test H20, codec MAIN và HomeLearningShell: qua.
+- `flutter analyze`: qua, không có issue.
+- Các tương tác cốt lõi được kiểm tra bằng test: hoàn toàn offline, thu tối đa 5 giây, phát lại local, từ chối nhận H20 khi SCO chưa hoạt động, MAIN đã xác nhận bật/dừng và packet trùng bị bỏ qua.
+- Kiểm tra với H20 vật lý không thể thực hiện trên emulator và vẫn là bước nghiệm thu phần cứng riêng, không phải lỗi fidelity của giao diện.
+
+final result: passed
+
+---
+
 # Design QA — Cổng cài PWA trên iOS (2026-08-12)
 
 ## Comparison target

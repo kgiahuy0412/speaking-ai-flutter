@@ -28,7 +28,10 @@ import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
+import '../features/voice_navigation/application/main_speaking_session_controller.dart';
+import '../features/voice_navigation/application/main_speaking_command_resolver.dart';
 import '../features/voice_navigation/application/voice_navigation_controller.dart';
+import '../features/voice_navigation/presentation/main_voice_assistant_button.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
@@ -50,15 +53,25 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   ConversationRepository? _repository;
   final ClientIdentity _clientIdentity = ClientIdentity();
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  late final MainSpeakingSessionController _mainSpeakingSessionController;
+  final MainSpeakingCommandResolver _mainSpeakingCommandResolver =
+      const MainSpeakingCommandResolver();
   DeviceRegistrationService? _deviceRegistrationService;
   ThemeMode _themeMode = ThemeMode.system;
   bool _themeModeChangedByUser = false;
+  bool _isActivatingMainAssistant = false;
+  bool _isStartingMainSpeakingTurn = false;
+  bool _isFinishingMainSpeakingMode = false;
+  bool _hasMainSpeakingTurnStarted = false;
+  bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
 
   @override
   void initState() {
     super.initState();
     _config = AppConfig.fromEnvironment();
+    _mainSpeakingSessionController = MainSpeakingSessionController();
     // Build the lightweight runtime before the first frame so the real home
     // screen appears immediately on both Android and web.
     _createRuntime();
@@ -194,11 +207,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
       beforeRecordingStart: voiceNavigationController?.pause,
+      recognizedSpeechCommandMatcher: _matchesMainSpeakingCommand,
+      onRecognizedSpeechCommand: _handleMainSpeakingCommand,
     );
     _repository = repository;
     _deviceAudioCache = deviceAudioCache;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;
+    controller.addListener(_synchronizeMainSpeakingSession);
   }
 
   void _startBackgroundWork() {
@@ -258,6 +274,180 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         debugPrint('Cannot persist app theme mode: $error');
       }),
     );
+  }
+
+  Future<void> _activateMainAssistant() async {
+    final voiceController = _voiceNavigationController;
+    final conversationController = _controller;
+    if (_isActivatingMainAssistant ||
+        voiceController == null ||
+        conversationController == null) {
+      return;
+    }
+
+    if (_mainSpeakingSessionController.isActive) {
+      return;
+    }
+
+    if (conversationController.isBusy ||
+        conversationController.isPlaybackPlaying) {
+      return;
+    }
+
+    setState(() => _isActivatingMainAssistant = true);
+
+    try {
+      // Main is a global escape hatch. Close lesson/media routes first so their
+      // audio is disposed before the assistant speaks and opens the microphone.
+      final navigator = _navigatorKey.currentState;
+      final closedRoutes = navigator?.canPop() ?? false;
+      if (closedRoutes) {
+        navigator!.popUntil((route) => route.isFirst);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+      if (!mounted) {
+        return;
+      }
+      await voiceController.activateFromMainButton();
+    } finally {
+      if (mounted) {
+        setState(() => _isActivatingMainAssistant = false);
+      }
+    }
+  }
+
+  void _startMainSpeakingMode() {
+    _hasMainSpeakingTurnStarted = false;
+    _mainSpeakingSessionController.enter();
+    _synchronizeMainSpeakingSession();
+  }
+
+  void _synchronizeMainSpeakingSession() {
+    final controller = _controller;
+    if (controller == null) {
+      return;
+    }
+    _mainSpeakingSessionController.synchronize(
+      isRecording: controller.isRecording,
+      isBusy: controller.isBusy,
+      isPlaying: controller.isPlaybackPlaying,
+    );
+    if (!_mainSpeakingSessionController.isActive ||
+        _isFinishingMainSpeakingMode) {
+      return;
+    }
+
+    final turnEndReason = controller.lastTurnEndReason;
+    if (turnEndReason == ConversationTurnEndReason.commandHandled) {
+      return;
+    }
+    if (_hasMainSpeakingTurnStarted &&
+        controller.phase == ConversationPhase.idle &&
+        (turnEndReason == ConversationTurnEndReason.noSpeech ||
+            turnEndReason == ConversationTurnEndReason.tooShort)) {
+      unawaited(_finishMainSpeakingMode(sayGoodbye: true));
+      return;
+    }
+    if (_hasMainSpeakingTurnStarted &&
+        (controller.phase == ConversationPhase.error ||
+            turnEndReason == ConversationTurnEndReason.failed)) {
+      unawaited(_finishMainSpeakingMode(sayGoodbye: false));
+      return;
+    }
+    if (_mainSpeakingSessionController.isReady &&
+        !_isStartingMainSpeakingTurn) {
+      unawaited(_startNextMainSpeakingTurn());
+    }
+  }
+
+  Future<void> _startNextMainSpeakingTurn() async {
+    final controller = _controller;
+    if (controller == null ||
+        !_mainSpeakingSessionController.isActive ||
+        _isStartingMainSpeakingTurn ||
+        _isFinishingMainSpeakingMode ||
+        controller.isBusy ||
+        controller.isPlaybackPlaying) {
+      return;
+    }
+    if (!controller.isInputAvailable) {
+      await _finishMainSpeakingMode(sayGoodbye: false);
+      return;
+    }
+
+    _isStartingMainSpeakingTurn = true;
+    try {
+      await controller.startRecording(
+        noSpeechTimeout: const Duration(seconds: 10),
+        speakNoSpeechPrompt: false,
+      );
+      _hasMainSpeakingTurnStarted = controller.isRecording;
+    } finally {
+      _isStartingMainSpeakingTurn = false;
+    }
+  }
+
+  Future<void> _finishMainSpeakingMode({required bool sayGoodbye}) async {
+    final controller = _controller;
+    if (!_mainSpeakingSessionController.isActive ||
+        _isFinishingMainSpeakingMode) {
+      return;
+    }
+    _isFinishingMainSpeakingMode = true;
+    _hasMainSpeakingTurnStarted = false;
+    if (mounted) {
+      setState(() => _isActivatingMainAssistant = true);
+    }
+    _mainSpeakingSessionController.exit();
+    try {
+      if (sayGoodbye && controller != null) {
+        controller.clearMessage();
+        await controller.speakAssistantPrompt('tạm biệt con nhé');
+      }
+    } finally {
+      _isFinishingMainSpeakingMode = false;
+      if (mounted) {
+        setState(() => _isActivatingMainAssistant = false);
+      }
+    }
+  }
+
+  bool _matchesMainSpeakingCommand(String recognizedText) {
+    return _mainSpeakingSessionController.isActive &&
+        _mainSpeakingCommandResolver.resolve(recognizedText) ==
+            MainSpeakingCommand.otherLearning;
+  }
+
+  Future<void> _handleMainSpeakingCommand(String recognizedText) async {
+    final voiceController = _voiceNavigationController;
+    final controller = _controller;
+    if (!_mainSpeakingSessionController.isActive ||
+        voiceController == null ||
+        controller == null ||
+        _isFinishingMainSpeakingMode) {
+      return;
+    }
+
+    _isFinishingMainSpeakingMode = true;
+    _hasMainSpeakingTurnStarted = false;
+    _mainSpeakingSessionController.exit();
+    controller.clearMessage();
+    if (mounted) {
+      setState(() => _isActivatingMainAssistant = true);
+    }
+    try {
+      await voiceController.activateOtherLearningFromSpeaking();
+    } finally {
+      _isFinishingMainSpeakingMode = false;
+      if (mounted) {
+        setState(() => _isActivatingMainAssistant = false);
+      }
+    }
+  }
+
+  void _setGlobalModalOpen(bool isOpen) {
+    if (!mounted || _isGlobalModalOpen == isOpen) return;
+    setState(() => _isGlobalModalOpen = isOpen);
   }
 
   Future<void> _registerDevice(
@@ -329,6 +519,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   @override
   void dispose() {
+    _controller?.removeListener(_synchronizeMainSpeakingSession);
+    _mainSpeakingSessionController.dispose();
     _voiceNavigationController?.dispose();
     _controller?.dispose();
     _deviceRegistrationService?.dispose();
@@ -341,11 +533,36 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     final controller = _controller!;
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Trợ lý giao tiếp',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildDarkAppTheme(),
       themeMode: _themeMode,
+      builder: (context, child) {
+        final voiceController = _voiceNavigationController;
+        return Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            child ?? const SizedBox.shrink(),
+            if (voiceController != null && !_isGlobalModalOpen)
+              Positioned(
+                right: 16,
+                bottom: 0,
+                child: SafeArea(
+                  minimum: const EdgeInsets.only(bottom: 88),
+                  child: MainVoiceAssistantButton(
+                    voiceController: voiceController,
+                    conversationController: controller,
+                    speakingSessionController: _mainSpeakingSessionController,
+                    isActivationPending: _isActivatingMainAssistant,
+                    onPressed: _activateMainAssistant,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
       home: AndroidUpdateGate(
         config: _config,
         child: PwaInstallGate(
@@ -355,6 +572,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             voiceNavigationController: _voiceNavigationController,
             themeMode: _themeMode,
             onThemeModeChanged: _setThemeMode,
+            onMainSpeakingModeStarted: _startMainSpeakingMode,
+            onModalVisibilityChanged: _setGlobalModalOpen,
           ),
         ),
       ),
