@@ -187,6 +187,7 @@ class LessonMediaService {
     String? sentenceId,
     String? english,
     String? vietnamese,
+    bool saveToHistory = true,
   }) async {
     await stopPlayback();
     final recorder = _activeRecorder;
@@ -222,6 +223,7 @@ class LessonMediaService {
       sentenceNumber: sentenceNumber,
       english: english ?? '',
       vietnamese: vietnamese ?? '',
+      saveToHistory: saveToHistory,
     );
     _recordingStartedAt = DateTime.now();
   }
@@ -252,23 +254,25 @@ class LessonMediaService {
       filePath: resolvedPath,
       duration: DateTime.now().difference(startedAt),
     );
-    final createdAt = DateTime.now();
-    final evictedPaths = await historyStore.addSuccessful(
-      LessonRecordingHistoryEntry(
-        id: '${context.sentenceId}-${createdAt.microsecondsSinceEpoch}',
-        lessonId: context.lessonId,
-        lessonTitle: context.lessonTitle,
-        sentenceId: context.sentenceId,
-        sentenceNumber: context.sentenceNumber,
-        english: context.english,
-        vietnamese: context.vietnamese,
-        filePath: resolvedPath,
-        duration: recording.duration,
-        createdAt: createdAt,
-      ),
-    );
-    for (final path in evictedPaths) {
-      await deleteLessonRecording(path);
+    if (context.saveToHistory) {
+      final createdAt = DateTime.now();
+      final evictedPaths = await historyStore.addSuccessful(
+        LessonRecordingHistoryEntry(
+          id: '${context.sentenceId}-${createdAt.microsecondsSinceEpoch}',
+          lessonId: context.lessonId,
+          lessonTitle: context.lessonTitle,
+          sentenceId: context.sentenceId,
+          sentenceNumber: context.sentenceNumber,
+          english: context.english,
+          vietnamese: context.vietnamese,
+          filePath: resolvedPath,
+          duration: recording.duration,
+          createdAt: createdAt,
+        ),
+      );
+      for (final path in evictedPaths) {
+        await deleteLessonRecording(path);
+      }
     }
     return recording;
   }
@@ -279,6 +283,8 @@ class LessonMediaService {
     _activePath = null;
     _activeContext = null;
   }
+
+  Future<void> deleteRecording(String path) => deleteLessonRecording(path);
 
   Future<void> dispose() async {
     await _recorder?.dispose();
@@ -294,6 +300,7 @@ class _ActiveLessonRecording {
     required this.sentenceNumber,
     required this.english,
     required this.vietnamese,
+    required this.saveToHistory,
   });
 
   final String lessonId;
@@ -302,6 +309,7 @@ class _ActiveLessonRecording {
   final int sentenceNumber;
   final String english;
   final String vietnamese;
+  final bool saveToHistory;
 }
 
 class LessonMediaException implements Exception {

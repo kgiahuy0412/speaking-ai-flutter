@@ -7,6 +7,9 @@ class ListeningProgressStore {
 
   static const String _resumeSuffix = '::current-sentence';
   static const String _skippedMarker = '::skipped-sentence::';
+  static const String _learningGuideOpenedKey =
+      '__listening-learning-guide-opened-v2';
+  static const String _needsPracticeMarker = '::needs-practice::';
 
   final String? progressFilePath;
   ListeningProgressPersistence get _persistence =>
@@ -15,7 +18,11 @@ class ListeningProgressStore {
   Future<Map<String, int>> readAll() async {
     final progress = await _readRaw();
     progress.removeWhere(
-      (key, _) => key.endsWith(_resumeSuffix) || key.contains(_skippedMarker),
+      (key, _) =>
+          key.endsWith(_resumeSuffix) ||
+          key == _learningGuideOpenedKey ||
+          key.contains(_skippedMarker) ||
+          key.contains(_needsPracticeMarker),
     );
     return progress;
   }
@@ -53,6 +60,17 @@ class ListeningProgressStore {
     await _writeRaw(progress);
   }
 
+  Future<bool> hasOpenedLearningGuide() async {
+    final progress = await _readRaw();
+    return progress[_learningGuideOpenedKey] == 1;
+  }
+
+  Future<void> markLearningGuideOpened() async {
+    final progress = await _readRaw();
+    progress[_learningGuideOpenedKey] = 1;
+    await _writeRaw(progress);
+  }
+
   Future<Set<int>> readSkippedSentences(String lessonId) async {
     final progress = await _readRaw();
     final prefix = '$lessonId$_skippedMarker';
@@ -79,6 +97,42 @@ class ListeningProgressStore {
   Future<void> clearSkippedSentences(String lessonId) async {
     final progress = await _readRaw();
     final prefix = '$lessonId$_skippedMarker';
+    progress.removeWhere((key, _) => key.startsWith(prefix));
+    await _writeRaw(progress);
+  }
+
+  Future<Set<int>> readNeedsPracticeSentences(String lessonId) async {
+    final progress = await _readRaw();
+    final prefix = '$lessonId$_needsPracticeMarker';
+    return progress.entries
+        .where((entry) => entry.key.startsWith(prefix) && entry.value == 1)
+        .map((entry) => int.tryParse(entry.key.substring(prefix.length)))
+        .whereType<int>()
+        .where((index) => index >= 0)
+        .toSet();
+  }
+
+  Future<void> saveNeedsPracticeSentence(
+    String lessonId,
+    int sentenceIndex,
+  ) async {
+    final progress = await _readRaw();
+    progress['$lessonId$_needsPracticeMarker$sentenceIndex'] = 1;
+    await _writeRaw(progress);
+  }
+
+  Future<void> clearNeedsPracticeSentence(
+    String lessonId,
+    int sentenceIndex,
+  ) async {
+    final progress = await _readRaw();
+    progress.remove('$lessonId$_needsPracticeMarker$sentenceIndex');
+    await _writeRaw(progress);
+  }
+
+  Future<void> clearNeedsPracticeSentences(String lessonId) async {
+    final progress = await _readRaw();
+    final prefix = '$lessonId$_needsPracticeMarker';
     progress.removeWhere((key, _) => key.startsWith(prefix));
     await _writeRaw(progress);
   }

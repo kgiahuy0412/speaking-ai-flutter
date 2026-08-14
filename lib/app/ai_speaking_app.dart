@@ -15,9 +15,11 @@ import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
 import '../core/audio/voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
+import '../core/device/active_learning_module.dart';
 import '../core/device/aiv0_ble_control.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
+import '../core/device/main_button_coordinator.dart';
 import '../core/pwa/pwa_install_gate.dart';
 import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
@@ -54,7 +56,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   final ClientIdentity _clientIdentity = ClientIdentity();
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final ActiveLearningModuleRegistry _activeLearningModules =
+      ActiveLearningModuleRegistry();
   late final MainSpeakingSessionController _mainSpeakingSessionController;
+  late final MainButtonCoordinator _mainButtonCoordinator;
   final MainSpeakingCommandResolver _mainSpeakingCommandResolver =
       const MainSpeakingCommandResolver();
   DeviceRegistrationService? _deviceRegistrationService;
@@ -66,6 +71,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _hasMainSpeakingTurnStarted = false;
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
+  bool _activeModulePausedForMain = false;
 
   @override
   void initState() {
@@ -173,6 +179,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             speechInput: streamingSpeechInput,
             voicePromptService: createVoicePromptService(),
             ownsVoicePromptService: true,
+            activeLearningCommandHandler: _handleActiveLearningCommand,
           )
         : null;
     final controller = ConversationController(
@@ -210,10 +217,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       recognizedSpeechCommandMatcher: _matchesMainSpeakingCommand,
       onRecognizedSpeechCommand: _handleMainSpeakingCommand,
     );
+    final mainButtonCoordinator = MainButtonCoordinator(
+      onScreenShortPress: _handleUnifiedMainShortPress,
+      onBleShortPress: _handleUnifiedMainShortPress,
+      onLongPress: _handleMainLongPress,
+    );
+    controller.setMainButtonDispatcher(mainButtonCoordinator.handle);
+    _mainButtonCoordinator = mainButtonCoordinator;
     _repository = repository;
     _deviceAudioCache = deviceAudioCache;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;
+    voiceNavigationController?.addListener(_synchronizeMainAssistantSession);
     controller.addListener(_synchronizeMainSpeakingSession);
   }
 
@@ -276,44 +291,162 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     );
   }
 
-  Future<void> _activateMainAssistant() async {
+  Future<bool> _activateMainAssistant() async {
     final voiceController = _voiceNavigationController;
     final conversationController = _controller;
     if (_isActivatingMainAssistant ||
         voiceController == null ||
         conversationController == null) {
-      return;
+      return false;
     }
 
     if (_mainSpeakingSessionController.isActive) {
-      return;
+      return false;
     }
 
     if (conversationController.isBusy ||
         conversationController.isPlaybackPlaying) {
-      return;
+      return false;
     }
 
     setState(() => _isActivatingMainAssistant = true);
 
     try {
-      // Main is a global escape hatch. Close lesson/media routes first so their
-      // audio is disposed before the assistant speaks and opens the microphone.
-      final navigator = _navigatorKey.currentState;
-      final closedRoutes = navigator?.canPop() ?? false;
-      if (closedRoutes) {
-        navigator!.popUntil((route) => route.isFirst);
-        await Future<void>.delayed(const Duration(milliseconds: 300));
+      final hasActiveModule = _activeLearningModules.hasActiveModule;
+      if (hasActiveModule) {
+        _activeModulePausedForMain = await _activeLearningModules
+            .pauseForMainAssistant();
       }
       if (!mounted) {
-        return;
+        return false;
       }
-      await voiceController.activateFromMainButton();
+      final activated = await voiceController.activateFromMainButton(
+        activeLearning: hasActiveModule,
+      );
+      if (!activated && _activeModulePausedForMain) {
+        await _resumeActiveModuleAfterMain();
+      }
+      return activated;
     } finally {
       if (mounted) {
         setState(() => _isActivatingMainAssistant = false);
       }
     }
+  }
+
+  Future<MainButtonActionResult> _handleUnifiedMainShortPress(
+    MainButtonInputEvent event,
+  ) async {
+    final controller = _controller;
+    // Keep the existing offline H20 diagnostic available until the real
+    // hardware packet contract is confirmed.
+    if (event.source == MainButtonSource.ble &&
+        (controller?.h20HardwareTestModeEnabled ?? false)) {
+      return controller!.handleBleMainShortPress(event);
+    }
+    final activated = await _activateMainAssistant();
+    return activated
+        ? MainButtonActionResult.accepted
+        : MainButtonActionResult.busy;
+  }
+
+  Future<ActiveLearningCommandResult> _handleActiveLearningCommand(
+    ActiveLearningCommand command,
+  ) async {
+    _activeModulePausedForMain = false;
+    final result = await _activeLearningModules.execute(command);
+    final reply = result.spokenReply;
+    if (!result.wasHandled && reply != null && reply.trim().isNotEmpty) {
+      await _controller?.speakAssistantPrompt(reply);
+    }
+    return result;
+  }
+
+  void _synchronizeMainAssistantSession() {
+    final voiceController = _voiceNavigationController;
+    if (!_activeModulePausedForMain || voiceController == null) {
+      return;
+    }
+    if (!voiceController.isMainButtonSessionActive &&
+        !voiceController.isActive) {
+      unawaited(_resumeActiveModuleAfterMain());
+    }
+  }
+
+  Future<void> _resumeActiveModuleAfterMain() async {
+    if (!_activeModulePausedForMain) {
+      return;
+    }
+    _activeModulePausedForMain = false;
+    await _activeLearningModules.execute(ActiveLearningCommand.resume);
+  }
+
+  Future<MainButtonActionResult> _handleMainLongPress(
+    MainButtonInputEvent event,
+  ) async {
+    final voiceController = _voiceNavigationController;
+    if (voiceController?.isMainButtonSessionActive ?? false) {
+      _activeModulePausedForMain = false;
+      await voiceController!.pause();
+      final stopped = await _activeLearningModules.execute(
+        ActiveLearningCommand.stop,
+      );
+      if (stopped.wasHandled) {
+        await _controller?.speakAssistantPrompt('Đã dừng.');
+        return MainButtonActionResult.accepted;
+      }
+      return MainButtonActionResult.accepted;
+    }
+
+    final stoppedModule = await _activeLearningModules.execute(
+      ActiveLearningCommand.stop,
+    );
+    if (stoppedModule.wasHandled) {
+      _activeModulePausedForMain = false;
+      await _controller?.speakAssistantPrompt('Đã dừng.');
+      return MainButtonActionResult.accepted;
+    }
+
+    final controller = _controller;
+    if (controller == null) {
+      return MainButtonActionResult.ignored;
+    }
+    if (_mainSpeakingSessionController.state ==
+        MainSpeakingSessionState.processing) {
+      return MainButtonActionResult.busy;
+    }
+    final endedMainSpeakingSession = _mainSpeakingSessionController.isActive;
+    if (endedMainSpeakingSession) {
+      _hasMainSpeakingTurnStarted = false;
+      _mainSpeakingSessionController.exit();
+    }
+    final result = await controller.stopCurrentMainAction();
+    if (result != MainButtonActionResult.ignored) {
+      return result;
+    }
+    if (endedMainSpeakingSession) {
+      return MainButtonActionResult.accepted;
+    }
+
+    return MainButtonActionResult.ignored;
+  }
+
+  Future<void> _handleScreenMainLongPress() async {
+    await _mainButtonCoordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.screen,
+        gesture: MainButtonGesture.longPress,
+      ),
+    );
+  }
+
+  Future<void> _handleScreenMainRelease() async {
+    await _mainButtonCoordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.screen,
+        gesture: MainButtonGesture.release,
+      ),
+    );
   }
 
   void _startMainSpeakingMode() {
@@ -521,10 +654,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   void dispose() {
     _controller?.removeListener(_synchronizeMainSpeakingSession);
     _mainSpeakingSessionController.dispose();
+    _voiceNavigationController?.removeListener(
+      _synchronizeMainAssistantSession,
+    );
     _voiceNavigationController?.dispose();
     _controller?.dispose();
     _deviceRegistrationService?.dispose();
     _deviceAudioCache?.dispose();
+    _activeLearningModules.dispose();
     super.dispose();
   }
 
@@ -541,26 +678,38 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       themeMode: _themeMode,
       builder: (context, child) {
         final voiceController = _voiceNavigationController;
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            child ?? const SizedBox.shrink(),
-            if (voiceController != null && !_isGlobalModalOpen)
-              Positioned(
-                right: 16,
-                bottom: 0,
-                child: SafeArea(
-                  minimum: const EdgeInsets.only(bottom: 88),
-                  child: MainVoiceAssistantButton(
-                    voiceController: voiceController,
-                    conversationController: controller,
-                    speakingSessionController: _mainSpeakingSessionController,
-                    isActivationPending: _isActivatingMainAssistant,
-                    onPressed: _activateMainAssistant,
+        return ActiveLearningModuleScope(
+          registry: _activeLearningModules,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              child ?? const SizedBox.shrink(),
+              if (voiceController != null && !_isGlobalModalOpen)
+                Positioned(
+                  right: 16,
+                  bottom: 0,
+                  child: SafeArea(
+                    minimum: const EdgeInsets.only(bottom: 88),
+                    child: MainVoiceAssistantButton(
+                      voiceController: voiceController,
+                      conversationController: controller,
+                      speakingSessionController: _mainSpeakingSessionController,
+                      isActivationPending: _isActivatingMainAssistant,
+                      onPressed: () async {
+                        await _mainButtonCoordinator.handle(
+                          const MainButtonInputEvent(
+                            source: MainButtonSource.screen,
+                            gesture: MainButtonGesture.shortPress,
+                          ),
+                        );
+                      },
+                      onLongPressed: _handleScreenMainLongPress,
+                      onLongPressReleased: _handleScreenMainRelease,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
       home: AndroidUpdateGate(

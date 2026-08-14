@@ -368,6 +368,10 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        await voiceNavigationController.dispatchRecognizedText('Dịch liên tục'),
+        isTrue,
+      );
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pump();
 

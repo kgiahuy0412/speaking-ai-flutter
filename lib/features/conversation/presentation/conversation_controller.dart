@@ -13,6 +13,7 @@ import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/aiv0_ble_control.dart';
+import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
@@ -210,6 +211,8 @@ class ConversationController extends ChangeNotifier {
   final bool Function(String recognizedText)? _recognizedSpeechCommandMatcher;
   final Future<void> Function(String recognizedText)?
   _onRecognizedSpeechCommand;
+  Future<MainButtonActionResult> Function(MainButtonInputEvent event)?
+  _mainButtonDispatcher;
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector =
       AdaptiveVoiceActivityDetector();
@@ -513,6 +516,13 @@ class ConversationController extends ChangeNotifier {
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
 
+  void setMainButtonDispatcher(
+    Future<MainButtonActionResult> Function(MainButtonInputEvent event)?
+    dispatcher,
+  ) {
+    _mainButtonDispatcher = dispatcher;
+  }
+
   Future<({String englishText, String vietnameseText})> translateVocabulary(
     String sourceText,
   ) async {
@@ -662,44 +672,96 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
-    if (event.gesture != Aiv0ButtonGesture.shortPress) return;
-
-    switch (event.button) {
-      case Aiv0Button.main:
-        if (h20HardwareTestModeEnabled) {
-          if (h20HardwareTestPhase == H20HardwareTestPhase.playing ||
-              h20HardwareTestPhase == H20HardwareTestPhase.openingRoute) {
-            await _syncAiv0AppState(
-              resultCode: Aiv0AppResult.busy,
-              sequence: sequence,
-            );
-            return;
-          }
-          await toggleH20OfflineRecordingTest();
-          await _syncAiv0AppState(sequence: sequence);
-          return;
-        }
-        if (phase == ConversationPhase.processing) {
-          await _syncAiv0AppState(
-            resultCode: Aiv0AppResult.busy,
-            sequence: sequence,
-          );
-          return;
-        }
-        if (_playbackPlaying) await _playbackService.stop();
-        if (phase == ConversationPhase.recording) {
-          await stopRecording(manual: true);
-        } else {
-          await startRecording();
-        }
-        await _syncAiv0AppState(sequence: sequence);
-        return;
-      case Aiv0Button.unknown:
-        transientMessage =
-            'Đã bỏ qua mã nút chưa hỗ trợ: ${event.rawHex}. V1 chỉ dùng MAIN.';
-        notifyListeners();
-        return;
+    if (event.button != Aiv0Button.main) {
+      transientMessage =
+          'Đã bỏ qua mã nút chưa hỗ trợ: ${event.rawHex}. V1 chỉ dùng MAIN.';
+      notifyListeners();
+      return;
     }
+
+    final gesture = switch (event.gesture) {
+      Aiv0ButtonGesture.shortPress => MainButtonGesture.shortPress,
+      Aiv0ButtonGesture.longPress => MainButtonGesture.longPress,
+      Aiv0ButtonGesture.release => MainButtonGesture.release,
+      Aiv0ButtonGesture.unknown => null,
+    };
+    if (gesture == null) return;
+
+    final inputEvent = MainButtonInputEvent(
+      source: MainButtonSource.ble,
+      gesture: gesture,
+      sequence: event.sequence,
+    );
+    final dispatcher = _mainButtonDispatcher;
+    final result = dispatcher == null
+        ? gesture == MainButtonGesture.shortPress
+              ? await handleBleMainShortPress(inputEvent)
+              : MainButtonActionResult.ignored
+        : await dispatcher(inputEvent);
+    await _syncAiv0AppState(
+      resultCode: switch (result) {
+        MainButtonActionResult.accepted => Aiv0AppResult.accepted,
+        MainButtonActionResult.busy => Aiv0AppResult.busy,
+        MainButtonActionResult.ignored => Aiv0AppResult.noResult,
+      },
+      sequence: sequence,
+    );
+  }
+
+  /// Preserves the V1 physical MAIN short-press behavior. The coordinator uses
+  /// this after normalizing screen and BLE events through one policy.
+  Future<MainButtonActionResult> handleBleMainShortPress(
+    MainButtonInputEvent event,
+  ) async {
+    if (event.source != MainButtonSource.ble ||
+        event.gesture != MainButtonGesture.shortPress) {
+      return MainButtonActionResult.ignored;
+    }
+    if (h20HardwareTestModeEnabled) {
+      if (h20HardwareTestPhase == H20HardwareTestPhase.playing ||
+          h20HardwareTestPhase == H20HardwareTestPhase.openingRoute) {
+        return MainButtonActionResult.busy;
+      }
+      await toggleH20OfflineRecordingTest();
+      return MainButtonActionResult.accepted;
+    }
+    if (phase == ConversationPhase.processing || _preparingMicrophone) {
+      return MainButtonActionResult.busy;
+    }
+    if (_playbackPlaying) await _playbackService.stop();
+    if (phase == ConversationPhase.recording) {
+      await stopRecording(manual: true);
+    } else {
+      await startRecording();
+    }
+    return MainButtonActionResult.accepted;
+  }
+
+  /// Stops the current conversation-owned activity without starting a new one.
+  /// Processing is intentionally not cancelled because its backend result is
+  /// already authoritative.
+  Future<MainButtonActionResult> stopCurrentMainAction() async {
+    if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
+      await stopAndReplayH20OfflineRecording();
+      return MainButtonActionResult.accepted;
+    }
+    if (h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
+        h20HardwareTestPhase == H20HardwareTestPhase.playing) {
+      await cancelH20HardwareTest();
+      return MainButtonActionResult.accepted;
+    }
+    if (phase == ConversationPhase.processing || _preparingMicrophone) {
+      return MainButtonActionResult.busy;
+    }
+    if (phase == ConversationPhase.recording) {
+      await stopRecording(manual: true);
+      return MainButtonActionResult.accepted;
+    }
+    if (_playbackPlaying) {
+      await _playbackService.stop();
+      return MainButtonActionResult.accepted;
+    }
+    return MainButtonActionResult.ignored;
   }
 
   Aiv0AppState get _currentAiv0AppState {

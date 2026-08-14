@@ -25,6 +25,12 @@ void main() {
       final replay = codec.decodeButtonEvent(
         Uint8List.fromList(<int>[1, 2, 1, 0, 43, 0, 87, 0, 0xE8, 0x03, 0, 0]),
       );
+      final longPress = codec.decodeButtonEvent(
+        Uint8List.fromList(<int>[1, 1, 2, 0, 44, 0, 86, 0, 0xE9, 0x03, 0, 0]),
+      );
+      final release = codec.decodeButtonEvent(
+        Uint8List.fromList(<int>[1, 1, 3, 0, 44, 0, 86, 0, 0xEA, 0x03, 0, 0]),
+      );
 
       expect(main.button, Aiv0Button.main);
       expect(main.gesture, Aiv0ButtonGesture.shortPress);
@@ -34,6 +40,8 @@ void main() {
       expect(main.isDraftPacket, isTrue);
       expect(replay.button, Aiv0Button.unknown);
       expect(replay.sequence, 43);
+      expect(longPress.gesture, Aiv0ButtonGesture.longPress);
+      expect(release.gesture, Aiv0ButtonGesture.release);
     });
 
     test('encodes the draft 8-byte APP State with acknowledged sequence', () {

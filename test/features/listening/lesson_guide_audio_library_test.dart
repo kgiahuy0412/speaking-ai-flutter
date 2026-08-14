@@ -70,6 +70,26 @@ void main() {
     );
   });
 
+  test('resolves a V2 guide by stable audio code in any folder', () async {
+    final library = LessonGuideAudioLibrary(
+      assetPaths: const <String>[
+        'assets/audio/guides/AI_GUIDE_BEFORE_SENTENCE.mp3',
+        'assets/audio/A-6-7/LESSON_GUIDES/A067_T01_L01_FIRST.wav',
+        'assets/audio/guides/AI_GUIDE_BEFORE_SENTENCE.txt',
+      ],
+    );
+
+    expect(
+      (await library.uriForAudioCode('ai_guide_before_sentence'))?.path,
+      '/assets/audio/guides/AI_GUIDE_BEFORE_SENTENCE.mp3',
+    );
+    expect(
+      (await library.uriForAudioCode('A067_T01_L01_FIRST'))?.path,
+      '/assets/audio/A-6-7/LESSON_GUIDES/A067_T01_L01_FIRST.wav',
+    );
+    expect(await library.uriForAudioCode('missing'), isNull);
+  });
+
   test('bundles guide audio for every supported age and cue', () async {
     final library = LessonGuideAudioLibrary();
     const ageGroups = <(int, int)>[(3, 5), (6, 7), (8, 10), (11, 12), (13, 15)];

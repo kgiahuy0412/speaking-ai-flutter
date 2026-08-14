@@ -6,6 +6,7 @@ import 'package:ai_speaking_flutter_app/features/listening/data/listening_progre
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_practice_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_review_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/song_karaoke_screen.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
@@ -259,7 +260,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SongKaraokeScreen), findsNothing);
-    expect(find.byType(LessonReviewScreen), findsOneWidget);
+    expect(find.byType(LessonReviewScreen), findsNothing);
+    expect(find.byType(LessonPracticeScreen), findsOneWidget);
   });
 
   testWidgets('karaoke screen matches the selected visual direction', (

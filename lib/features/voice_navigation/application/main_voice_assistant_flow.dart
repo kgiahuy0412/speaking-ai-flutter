@@ -1,11 +1,15 @@
+import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
+import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 enum MainVoiceAssistantStage {
   idle,
   chooseFeature,
   chooseOtherLearning,
+  chooseTranslationMode,
+  activeLearning,
   askAge,
   chooseTopic,
   chooseLesson,
@@ -17,12 +21,14 @@ class MainVoiceAssistantTurn {
     required this.continueListening,
     this.navigationBeforePrompt,
     this.navigationAfterPrompt,
+    this.activeLearningCommand,
   });
 
   final String promptText;
   final bool continueListening;
   final VoiceNavigationIntent? navigationBeforePrompt;
   final VoiceNavigationIntent? navigationAfterPrompt;
+  final ActiveLearningCommand? activeLearningCommand;
 }
 
 /// Holds the multi-turn conversation started from the fixed Main button.
@@ -36,12 +42,16 @@ class MainVoiceAssistantFlow {
   }) : _catalogs = catalogs,
        _contentLoader = contentLoader ?? _loadDefaultContent;
 
-  static const String openingPrompt = 'Con muốn luyện nói hay học chủ đề nè';
+  static const String openingPrompt =
+      'Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String otherLearningPrompt =
-      'Có chứ. Con muốn học chủ đề hay học từ vựng nè';
+      'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
+  static const String activeLearningPrompt = 'Con cần mình giúp gì không?';
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
+  final ActiveLearningCommandResolver _activeLearningCommandResolver =
+      const ActiveLearningCommandResolver();
 
   MainVoiceAssistantStage _stage = MainVoiceAssistantStage.idle;
   int? _selectedAge;
@@ -63,6 +73,12 @@ class MainVoiceAssistantFlow {
     return otherLearningPrompt;
   }
 
+  String beginActiveLearning() {
+    reset();
+    _stage = MainVoiceAssistantStage.activeLearning;
+    return activeLearningPrompt;
+  }
+
   void reset() {
     _stage = MainVoiceAssistantStage.idle;
     _selectedAge = null;
@@ -78,9 +94,18 @@ class MainVoiceAssistantFlow {
     }
     return switch (_stage) {
       MainVoiceAssistantStage.chooseFeature =>
-        _isSpeakingChoice(normalized) || _isTopicChoice(normalized),
+        _isSpeakingChoice(normalized) ||
+            _isTopicChoice(normalized) ||
+            _isVocabularyChoice(normalized) ||
+            _isTranslationChoice(normalized),
       MainVoiceAssistantStage.chooseOtherLearning =>
-        _isTopicChoice(normalized) || _isVocabularyChoice(normalized),
+        _isTopicChoice(normalized) ||
+            _isVocabularyChoice(normalized) ||
+            _isTranslationChoice(normalized),
+      MainVoiceAssistantStage.chooseTranslationMode =>
+        _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
+      MainVoiceAssistantStage.activeLearning =>
+        _activeLearningCommandResolver.resolve(recognizedText) != null,
       MainVoiceAssistantStage.askAge ||
       MainVoiceAssistantStage.chooseTopic ||
       MainVoiceAssistantStage.chooseLesson =>
@@ -98,6 +123,13 @@ class MainVoiceAssistantFlow {
       ),
       MainVoiceAssistantStage.chooseOtherLearning => _handleOtherLearning(
         recognizedText,
+        normalized,
+      ),
+      MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
+        recognizedText,
+        normalized,
+      ),
+      MainVoiceAssistantStage.activeLearning => _handleActiveLearning(
         normalized,
       ),
       MainVoiceAssistantStage.askAge => _handleAge(normalized),
@@ -122,20 +154,8 @@ class MainVoiceAssistantFlow {
   ) {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
-        promptText: 'Con muốn luyện nói hay học chủ đề nè',
+        promptText: openingPrompt,
         continueListening: true,
-      );
-    }
-    if (_isSpeakingChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: 'Bắt đầu nói đi con',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.conversation,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'luyen noi',
-          enterMainSpeakingMode: true,
-        ),
       );
     }
     if (_isTopicChoice(normalized)) {
@@ -145,8 +165,26 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    if (_isVocabularyChoice(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình cùng học từ mới nhé',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.vocabulary,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'hoc tu moi',
+        ),
+      );
+    }
+    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
     return const MainVoiceAssistantTurn(
-      promptText: 'Con muốn luyện nói hay học chủ đề nè',
+      promptText: openingPrompt,
       continueListening: true,
     );
   }
@@ -179,11 +217,92 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
     return const MainVoiceAssistantTurn(
       promptText: otherLearningPrompt,
       continueListening: true,
     );
   }
+
+  MainVoiceAssistantTurn _handleTranslationMode(
+    String recognizedText,
+    String normalized,
+  ) {
+    if (_looksLikePromptEcho(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
+    if (_isSingleSentenceChoice(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Con hãy nói một câu.',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.conversation,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'mot cau',
+          enterMainSpeakingMode: false,
+        ),
+      );
+    }
+    if (_isContinuousChoice(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.conversation,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'lien tuc',
+          enterMainSpeakingMode: true,
+        ),
+      );
+    }
+    return const MainVoiceAssistantTurn(
+      promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+      continueListening: true,
+    );
+  }
+
+  MainVoiceAssistantTurn _handleActiveLearning(String normalized) {
+    if (_looksLikePromptEcho(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: activeLearningPrompt,
+        continueListening: true,
+      );
+    }
+    final command = _activeLearningCommandResolver.resolve(normalized);
+    if (command == null) {
+      return const MainVoiceAssistantTurn(
+        promptText:
+            'Con có thể nói tiếp tục, nghe lại, câu tiếp theo, bài tiếp theo hoặc dừng lại.',
+        continueListening: true,
+      );
+    }
+    return MainVoiceAssistantTurn(
+      promptText: _activeLearningReply(command),
+      continueListening: false,
+      activeLearningCommand: command,
+    );
+  }
+
+  static String _activeLearningReply(ActiveLearningCommand command) =>
+      switch (command) {
+        ActiveLearningCommand.resume => 'Mình cùng tiếp tục học nhé.',
+        ActiveLearningCommand.replayCurrent => 'Mình nghe lại nhé.',
+        ActiveLearningCommand.nextItem => 'Mình sang câu tiếp theo nhé.',
+        ActiveLearningCommand.previousItem => 'Mình quay lại câu trước nhé.',
+        ActiveLearningCommand.nextLesson => 'Mình sang bài tiếp theo nhé.',
+        ActiveLearningCommand.previousLesson => 'Mình quay lại bài trước nhé.',
+        ActiveLearningCommand.restart => 'Mình luyện lại từ đầu nhé.',
+        ActiveLearningCommand.stop => 'Đã dừng.',
+      };
 
   MainVoiceAssistantTurn _handleAge(String normalized) {
     final age = _extractSpokenNumber(normalized);
@@ -353,6 +472,20 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'tu vung') ||
       _containsPhrase(normalized, 'tu moi');
 
+  static bool _isTranslationChoice(String normalized) =>
+      _containsPhrase(normalized, 'dich sang tieng anh') ||
+      _containsPhrase(normalized, 'dich tieng anh') ||
+      _containsPhrase(normalized, 'dich');
+
+  static bool _isSingleSentenceChoice(String normalized) =>
+      _containsPhrase(normalized, 'mot cau') ||
+      _containsPhrase(normalized, 'dich mot cau');
+
+  static bool _isContinuousChoice(String normalized) =>
+      _containsPhrase(normalized, 'lien tuc') ||
+      _containsPhrase(normalized, 'dich lien tuc') ||
+      _containsPhrase(normalized, 'noi lien tuc');
+
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');
 
@@ -366,6 +499,14 @@ class MainVoiceAssistantFlow {
         (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc tu vung ne') ||
             normalized == 'hoc tu vung ne',
+      MainVoiceAssistantStage.chooseTranslationMode =>
+        (_isSingleSentenceChoice(normalized) &&
+                _isContinuousChoice(normalized)) ||
+            _containsPhrase(normalized, 'mot cau hay dich lien tuc'),
+      MainVoiceAssistantStage.activeLearning => _containsPhrase(
+        normalized,
+        'con can minh giup gi khong',
+      ),
       MainVoiceAssistantStage.askAge => normalized == 'con may tuoi',
       MainVoiceAssistantStage.chooseTopic =>
         _containsPhrase(normalized, 'chu de so may') ||

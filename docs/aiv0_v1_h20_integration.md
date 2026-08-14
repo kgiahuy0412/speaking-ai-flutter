@@ -49,11 +49,26 @@ Không bật `ENABLE_LEGACY_BLE_AUDIO` hoặc `PREFER_BLE_STREAMING` cho mẫu V
 
 ## Luồng nút khi giao thức đã được xác nhận
 
-- MAIN:
-  - IDLE/READY → bắt đầu ghi âm.
-  - RECORDING → dừng và xử lý.
-  - PROCESSING → trả BUSY.
-  - PLAYING → dừng phát và bắt đầu lượt ghi mới.
+- MAIN giả lập trên APP và MAIN BLE cùng đi qua `MainButtonCoordinator` và có
+  cùng ngữ nghĩa trong chế độ sử dụng bình thường.
+- MAIN nhấn ngắn ở màn hình chính mở trợ lý với ba lựa chọn:
+  - Học theo chủ đề.
+  - Học từ mới.
+  - Dịch sang tiếng Anh theo một câu hoặc liên tục.
+- MAIN nhấn ngắn khi đang học chỉ tạm dừng câu hiện tại, giữ nguyên route, bài,
+  câu và tiến độ. Trợ lý hỏi `Con cần mình giúp gì không?`, rồi chuyển lệnh cho
+  adapter của mô-đun đang mở (`tiếp tục`, `nghe lại`, `câu/bài tiếp theo`,
+  `câu/bài trước`, `luyện lại từ đầu`, `dừng lại`).
+- Không có phản hồi sau khoảng 6 giây: hỏi lại đúng một lần `Con muốn làm gì?`.
+  Lần hai vẫn im lặng thì đóng phiên lệnh và trở về đúng trạng thái bài học.
+- MAIN nhấn giữ dừng hành động hiện tại nhưng không tự đóng màn hình bài học:
+  - Trợ lý/ASR đang nghe → đóng phiên nghe.
+  - RECORDING của bài học → hủy lượt đang thu và giữ nguyên câu.
+  - PLAYING của bài học → dừng phát và giữ nguyên câu.
+  - PROCESSING backend → trả BUSY, không hủy request đang xử lý.
+  - RELEASE sau LONG_PRESS chỉ kết thúc gesture, không dừng lần hai.
+- Riêng màn hình kiểm tra phần cứng H20 offline, MAIN BLE vẫn bật/dừng bản ghi
+  loopback cục bộ để kiểm thử mic/loa mà không gọi backend.
 - Packet trùng bị bỏ qua và trả DUPLICATE.
 - Trong màn hình kiểm tra offline, MAIN bắt đầu/dừng bản ghi cục bộ và phát lại qua H20; không gọi backend.
 

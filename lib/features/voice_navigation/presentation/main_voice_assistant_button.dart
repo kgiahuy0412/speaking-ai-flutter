@@ -13,6 +13,8 @@ class MainVoiceAssistantButton extends StatelessWidget {
     required this.speakingSessionController,
     required this.isActivationPending,
     required this.onPressed,
+    required this.onLongPressed,
+    required this.onLongPressReleased,
     super.key,
   });
 
@@ -21,6 +23,8 @@ class MainVoiceAssistantButton extends StatelessWidget {
   final MainSpeakingSessionController speakingSessionController;
   final bool isActivationPending;
   final Future<void> Function() onPressed;
+  final Future<void> Function() onLongPressed;
+  final Future<void> Function() onLongPressReleased;
 
   @override
   Widget build(BuildContext context) {
@@ -82,12 +86,17 @@ class MainVoiceAssistantButton extends StatelessWidget {
               : isSpeakingMode
               ? '$label, ứng dụng sẽ tự động chuyển sang lượt tiếp theo'
               : '$label, vui lòng chờ',
-          child: FloatingActionButton.extended(
-            key: const Key('main-voice-assistant-button'),
-            heroTag: 'main-voice-assistant-button',
-            onPressed: canActivate ? () => unawaited(onPressed()) : null,
-            icon: Icon(icon),
-            label: Text(label),
+          child: GestureDetector(
+            onLongPress: () => unawaited(onLongPressed()),
+            onLongPressEnd: (_) => unawaited(onLongPressReleased()),
+            onLongPressCancel: () => unawaited(onLongPressReleased()),
+            child: FloatingActionButton.extended(
+              key: const Key('main-voice-assistant-button'),
+              heroTag: 'main-voice-assistant-button',
+              onPressed: canActivate ? () => unawaited(onPressed()) : null,
+              icon: Icon(icon),
+              label: Text(label),
+            ),
           ),
         );
       },

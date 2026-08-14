@@ -5,13 +5,17 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_guide_audio_library.dart';
+import '../application/lesson_completion_choice_recognizer.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/lesson_guide_flow.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'lesson_review_screen.dart';
@@ -29,6 +33,9 @@ class LessonPracticeScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.guideAudioLibrary,
+    this.attemptEvaluator,
+    this.completionChoiceRecognizer,
+    this.voicePromptService,
     this.topicContent,
     super.key,
   });
@@ -42,53 +49,116 @@ class LessonPracticeScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
+  final LessonAttemptEvaluator? attemptEvaluator;
+  final LessonCompletionChoiceRecognizer? completionChoiceRecognizer;
+  final VoicePromptService? voicePromptService;
   final ListeningTopicContent? topicContent;
 
   @override
   State<LessonPracticeScreen> createState() => _LessonPracticeScreenState();
 }
 
-class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
+class _LessonPracticeScreenState extends State<LessonPracticeScreen>
+    implements ActiveLearningModuleController {
   int _sentenceIndex = 0;
   bool _recording = false;
   bool _mediaBusy = false;
+  bool _evaluatingAttempt = false;
   String? _recordingPath;
   Duration? _recordingDuration;
   String? _message;
   bool _showSkip = false;
   _LessonCoachPopupKind? _coachPopupKind;
   final Set<int> _skippedSentenceIndexes = <int>{};
+  final Set<int> _needsPracticeSentenceIndexes = <int>{};
   Timer? _idleReminderTimer;
   Timer? _coachPopupTimer;
   Timer? _praiseFireworksTimer;
+  Timer? _recordingAutoStopTimer;
   late final LessonGuideAudioLibrary _guideAudioLibrary;
+  late final LessonAttemptEvaluator _attemptEvaluator;
+  late final VoicePromptService _voicePromptService;
+  late final LessonCompletionChoiceRecognizer _completionChoiceRecognizer;
+  late final bool _ownsVoicePromptService;
+  late final bool _ownsCompletionChoiceRecognizer;
+  int _attemptNumber = 1;
+  bool _guidedSequenceStarted = false;
   bool _recordingStartPending = false;
   int _recordingStartRequest = 0;
   int _praiseFireworksSequence = 0;
   bool _praiseFireworksVisible = false;
   bool _handingOffMediaPlayback = false;
+  bool _completionChoiceRecording = false;
+  bool _completionChoiceStopping = false;
+  bool _pausedForMainAssistant = false;
+  int _mainPauseGeneration = 0;
+  ActiveLearningModuleRegistry? _activeModuleRegistry;
+  Object? _activeModuleRegistration;
 
   ListeningSentenceContent get _sentence =>
       widget.lesson.sentences[_sentenceIndex];
+
+  bool get _usesGuideV2 =>
+      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(widget.lesson.code);
+
+  @override
+  ActiveLearningModuleKind get moduleKind =>
+      ActiveLearningModuleKind.listeningLesson;
 
   @override
   void initState() {
     super.initState();
     _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
+    _attemptEvaluator =
+        widget.attemptEvaluator ?? const RecordedAttemptEvaluator();
+    _ownsVoicePromptService = widget.voicePromptService == null;
+    _voicePromptService =
+        widget.voicePromptService ?? createVoicePromptService();
+    _ownsCompletionChoiceRecognizer = widget.completionChoiceRecognizer == null;
+    _completionChoiceRecognizer =
+        widget.completionChoiceRecognizer ??
+        BackendLessonCompletionChoiceRecognizer();
     unawaited(_loadStartingPoint());
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final registry = ActiveLearningModuleScope.maybeOf(context);
+    if (identical(registry, _activeModuleRegistry)) {
+      return;
+    }
+    final oldRegistry = _activeModuleRegistry;
+    final oldRegistration = _activeModuleRegistration;
+    if (oldRegistry != null && oldRegistration != null) {
+      oldRegistry.unregister(oldRegistration);
+    }
+    _activeModuleRegistry = registry;
+    _activeModuleRegistration = registry?.register(this);
+  }
+
+  @override
   void dispose() {
+    final registration = _activeModuleRegistration;
+    if (registration != null) {
+      _activeModuleRegistry?.unregister(registration);
+    }
     _recordingStartRequest += 1;
     _cancelIdleReminder();
     _coachPopupTimer?.cancel();
     _praiseFireworksTimer?.cancel();
+    _recordingAutoStopTimer?.cancel();
     if (_recording) {
       widget.mediaService.cancelRecording();
     }
     if (!_handingOffMediaPlayback) {
       widget.mediaService.stopPlayback();
+    }
+    if (_ownsVoicePromptService) {
+      _voicePromptService.dispose();
+    }
+    if (_ownsCompletionChoiceRecognizer) {
+      _completionChoiceRecognizer.dispose();
     }
     super.dispose();
   }
@@ -98,10 +168,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       widget.lesson.id,
     );
     Set<int> skippedSentences = <int>{};
+    Set<int> needsPracticeSentences = <int>{};
     try {
       skippedSentences = await widget.progressStore.readSkippedSentences(
         widget.lesson.id,
       );
+      needsPracticeSentences = await widget.progressStore
+          .readNeedsPracticeSentences(widget.lesson.id);
     } catch (_) {
       // A fresh or restricted browser session starts without skip markers.
     }
@@ -117,6 +190,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _skippedSentenceIndexes
         ..clear()
         ..addAll(skippedSentences);
+      _needsPracticeSentenceIndexes
+        ..clear()
+        ..addAll(needsPracticeSentences);
     });
     await _activateCurrentSentence(autoPlay: true);
   }
@@ -128,13 +204,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       setState(() {
         _showSkip = false;
         _message = null;
+        _attemptNumber = 1;
+        _guidedSequenceStarted = false;
       });
     }
     await _loadRecording();
-    if (autoPlay && _sentence.audioUri != null) {
-      await _runMediaAction(
-        () => widget.mediaService.play(_sentence.audioUri!),
-      );
+    if (autoPlay && !_pausedForMainAssistant) {
+      await _startGuidedSentenceSequence();
     }
     _scheduleIdleReminder();
   }
@@ -155,8 +231,105 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   }
 
   @override
+  Future<void> pauseForMainAssistant() async {
+    _pausedForMainAssistant = true;
+    _mainPauseGeneration += 1;
+    _recordingStartRequest += 1;
+    _cancelIdleReminder();
+    _hideCoachPopup();
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+
+    if (_recording || _completionChoiceRecording || _recordingStartPending) {
+      await widget.mediaService.cancelRecording().catchError((Object _) {});
+    }
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
+    await _voicePromptService.stop().catchError((Object _) {});
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _recording = false;
+      _completionChoiceRecording = false;
+      _completionChoiceStopping = false;
+      _recordingStartPending = false;
+      _mediaBusy = false;
+      _evaluatingAttempt = false;
+      _message = 'Bài học đang tạm dừng.';
+    });
+  }
+
+  @override
+  Future<ActiveLearningCommandResult> handleMainCommand(
+    ActiveLearningCommand command,
+  ) async {
+    if (!mounted) {
+      return const ActiveLearningCommandResult.unavailable();
+    }
+    switch (command) {
+      case ActiveLearningCommand.stop:
+        await pauseForMainAssistant();
+        if (mounted) {
+          setState(() => _message = 'Đã dừng. Nhấn MAIN để tiếp tục.');
+        }
+        return const ActiveLearningCommandResult.handled(
+          spokenReply: 'Đã dừng.',
+        );
+      case ActiveLearningCommand.resume:
+        _pausedForMainAssistant = false;
+        _guidedSequenceStarted = false;
+        await _activateCurrentSentence(autoPlay: true);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.replayCurrent:
+        _pausedForMainAssistant = false;
+        _guidedSequenceStarted = false;
+        await _playSample();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.nextItem:
+        _pausedForMainAssistant = false;
+        await _advanceToNext(autoPlaySentence: true);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.previousItem:
+        if (_sentenceIndex == 0) {
+          return const ActiveLearningCommandResult.unavailable(
+            spokenReply: 'Con đang ở câu đầu tiên rồi.',
+          );
+        }
+        _pausedForMainAssistant = false;
+        await _previous();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.nextLesson:
+        final nextLesson = _nextLessonInTopic;
+        if (nextLesson == null) {
+          return const ActiveLearningCommandResult.unavailable(
+            spokenReply:
+                'Con đã học xong chủ đề này rồi. Con chọn tiếp chủ đề mới nhé.',
+          );
+        }
+        _pausedForMainAssistant = false;
+        await _openNextLesson(nextLesson);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.previousLesson:
+        final previousLesson = _previousLessonInTopic;
+        if (previousLesson == null) {
+          return const ActiveLearningCommandResult.unavailable(
+            spokenReply: 'Con đang ở bài đầu tiên rồi.',
+          );
+        }
+        _pausedForMainAssistant = false;
+        await _openNextLesson(previousLesson);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.restart:
+        _pausedForMainAssistant = false;
+        await _restartCurrentLesson();
+        return const ActiveLearningCommandResult.handled();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final total = widget.lesson.sentences.length;
+    final interactionBusy = _recording || _mediaBusy || _evaluatingAttempt;
     return DisplayLanguageScope(
       language: widget.language,
       child: Scaffold(
@@ -200,7 +373,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
                                   const SizedBox(height: 18),
                                 _RecordButton(
                                   recording: _recording,
-                                  busy: _mediaBusy,
+                                  busy: _mediaBusy || _evaluatingAttempt,
                                   onTap: _toggleRecording,
                                   onLongPressStart: _startRecording,
                                   onLongPressEnd: _stopRecording,
@@ -234,7 +407,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
                                 const SizedBox(height: 18),
                                 if (_recordingPath != null)
                                   _PostRecordingActions(
-                                    busy: _recording || _mediaBusy,
+                                    busy: interactionBusy,
                                     onPlaySample: _playSample,
                                     onPlayRecording: _playRecording,
                                     onRecordAgain: _startRecording,
@@ -247,7 +420,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
                                   _LessonNavigationActions(
                                     current: _sentenceIndex,
                                     total: total,
-                                    busy: _recording || _mediaBusy,
+                                    busy: interactionBusy,
                                     onPrevious: _previous,
                                     onContinue: _continue,
                                   ),
@@ -256,9 +429,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
                                   const SizedBox(height: 10),
                                   TextButton.icon(
                                     key: const Key('skip-lesson-sentence'),
-                                    onPressed: _recording || _mediaBusy
-                                        ? null
-                                        : _skip,
+                                    onPressed: interactionBusy ? null : _skip,
                                     icon: const Icon(
                                       Icons.fast_forward_rounded,
                                     ),
@@ -338,10 +509,37 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   }
 
   Future<void> _playSample() async {
+    _pausedForMainAssistant = false;
     _cancelIdleReminder();
     _hideCoachPopup();
+    if (_usesGuideV2) {
+      await _runMediaAction(() async {
+        await _playBilingualSentenceSample();
+        if (_pausedForMainAssistant) {
+          return;
+        }
+        await _playPrompt(LessonGuideFlowV2.afterSample);
+      });
+      if (mounted && !_pausedForMainAssistant && _recordingPath == null) {
+        await _startRecording();
+      }
+      return;
+    }
     final uri = _sentence.audioUri;
     if (uri == null) {
+      if (_usesGuideV2) {
+        await _runMediaAction(
+          () => _voicePromptService.speakAndWait(
+            _sentence.english,
+            locale: 'en-US',
+          ),
+        );
+        if (mounted && _recordingPath == null) {
+          await _playPrompt(LessonGuideFlowV2.afterSample);
+          await _startRecording();
+        }
+        return;
+      }
       _setMessage(
         context.tr(
           'Audio mẫu sẽ sẵn sàng sau khi cập nhật thư viện Cloudinary.',
@@ -351,7 +549,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       _scheduleIdleReminder();
       return;
     }
-    await _runMediaAction(() => _playLessonAudioThenRecordGuide(uri));
+    await _runMediaAction(() => _playSampleThenInviteRecording(uri));
+    if (_usesGuideV2 && mounted && _recordingPath == null) {
+      await _startRecording();
+    }
     if (_recordingPath == null) {
       _scheduleIdleReminder();
     }
@@ -411,6 +612,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   }
 
   Future<void> _toggleRecording() async {
+    if (_completionChoiceRecording) {
+      await _stopCompletionChoiceRecording();
+      return;
+    }
     if (_recording) {
       await _stopRecording();
     } else {
@@ -419,7 +624,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   }
 
   Future<void> _startRecording() async {
-    if (_recording || _mediaBusy) {
+    if (_pausedForMainAssistant || _recording || _mediaBusy) {
       return;
     }
     final request = ++_recordingStartRequest;
@@ -449,8 +654,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
           _mediaBusy = false;
           _recordingStartPending = false;
         });
+        if (_usesGuideV2) {
+          _recordingAutoStopTimer?.cancel();
+          _recordingAutoStopTimer = Timer(
+            const Duration(seconds: 6),
+            () => unawaited(_stopRecording()),
+          );
+        }
       }
     } catch (error) {
+      _recordingAutoStopTimer?.cancel();
+      _recordingAutoStopTimer = null;
       if (request != _recordingStartRequest) {
         await widget.mediaService.cancelRecording();
         return;
@@ -466,6 +680,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   }
 
   Future<void> _stopRecording() async {
+    if (_completionChoiceRecording) {
+      await _stopCompletionChoiceRecording();
+      return;
+    }
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
     if (_recordingStartPending && !_recording) {
       _recordingStartRequest += 1;
       _recordingStartPending = false;
@@ -500,8 +720,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
       } catch (_) {
         // The successful recording remains usable even if progress sync fails.
       }
-      _showPraiseFireworks();
-      unawaited(_playGuideCue(LessonGuideCue.praise));
+      if (_usesGuideV2) {
+        setState(() => _evaluatingAttempt = true);
+        try {
+          await widget.mediaService.playToCompletion(
+            _recordingUri(recording.filePath),
+          );
+          await _evaluateAttempt(recording);
+        } finally {
+          if (mounted) {
+            setState(() => _evaluatingAttempt = false);
+          }
+        }
+      } else {
+        _showPraiseFireworks();
+        unawaited(_playGuideCue(LessonGuideCue.praise));
+      }
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -514,6 +748,77 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         _scheduleIdleReminder();
       }
     }
+  }
+
+  Future<void> _evaluateAttempt(LessonRecording recording) async {
+    final outcome = await _attemptEvaluator.evaluate(
+      lessonCode: widget.lesson.code,
+      sentenceId: _sentence.id,
+      expectedEnglish: _sentence.english,
+      recordingPath: recording.filePath,
+      recordingDuration: recording.duration,
+      attemptNumber: _attemptNumber,
+      childAge: widget.startAge,
+    );
+    if (!mounted) {
+      return;
+    }
+    switch (outcome) {
+      case LessonAttemptOutcome.good:
+        try {
+          await widget.progressStore.clearNeedsPracticeSentence(
+            widget.lesson.id,
+            _sentenceIndex,
+          );
+        } catch (_) {
+          // A restricted browser session must not block the lesson flow.
+        }
+        _needsPracticeSentenceIndexes.remove(_sentenceIndex);
+        _showPraiseFireworks();
+        await _playPrompt(LessonGuideFlowV2.good);
+        await _advanceToNext(autoPlaySentence: true);
+        return;
+      case LessonAttemptOutcome.retry:
+        if (_attemptNumber >= 2) {
+          await _markNeedsPracticeAndAdvance();
+          return;
+        }
+        setState(() {
+          _attemptNumber = 2;
+          _recordingPath = null;
+          _recordingDuration = null;
+          _message = LessonGuideFlowV2.retryFirst.text;
+        });
+        await _playPrompt(LessonGuideFlowV2.retryFirst);
+        await _playBilingualSentenceSample();
+        await _playPrompt(LessonGuideFlowV2.retrySecond);
+        await _startRecording();
+        return;
+      case LessonAttemptOutcome.needsPractice:
+        await _markNeedsPracticeAndAdvance();
+        return;
+    }
+  }
+
+  Future<void> _markNeedsPracticeAndAdvance() async {
+    _needsPracticeSentenceIndexes.add(_sentenceIndex);
+    try {
+      await widget.progressStore.saveNeedsPracticeSentence(
+        widget.lesson.id,
+        _sentenceIndex,
+      );
+    } catch (_) {
+      // Keep the in-memory retry queue when persistence is unavailable.
+    }
+    if (mounted) {
+      setState(() {
+        _recordingPath = null;
+        _recordingDuration = null;
+        _message = LessonGuideFlowV2.needsPractice.text;
+      });
+    }
+    await _playPrompt(LessonGuideFlowV2.needsPractice);
+    await _advanceToNext(autoPlaySentence: true);
   }
 
   Future<void> _continue() => _advanceToNext(autoPlaySentence: false);
@@ -533,6 +838,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         widget.lesson.id,
         _sentenceIndex,
       );
+      if (_usesGuideV2) {
+        if (mounted) {
+          setState(() => _mediaBusy = true);
+        }
+        try {
+          await _playPrompt(
+            LessonGuideFlowV2.ending(
+              lessonCode: widget.lesson.code,
+              lessonTitleEn: widget.lesson.titleEn,
+            ),
+          );
+          await _playPrompt(LessonGuideFlowV2.completionChoice);
+        } finally {
+          if (mounted) {
+            setState(() => _mediaBusy = false);
+          }
+        }
+        await _listenForCompletionChoice();
+        return;
+      }
       await _openReview();
       return;
     }
@@ -559,7 +884,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     }
     _cancelIdleReminder();
     _hideCoachPopup();
-    await _playGuideCueWithBusyState(LessonGuideCue.praise);
+    if (!_usesGuideV2) {
+      await _playGuideCueWithBusyState(LessonGuideCue.praise);
+    }
     if (!mounted) {
       return;
     }
@@ -614,7 +941,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
         );
       });
     }
-    await _playGuideCueWithBusyState(LessonGuideCue.skip);
+    if (_usesGuideV2) {
+      await _playPrompt(LessonGuideFlowV2.needsPractice);
+    } else {
+      await _playGuideCueWithBusyState(LessonGuideCue.skip);
+    }
     await _advanceToNext(autoPlaySentence: true);
   }
 
@@ -678,6 +1009,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     return lessons[currentIndex + 1];
   }
 
+  ListeningLessonContent? get _previousLessonInTopic {
+    final content = widget.topicContent;
+    if (content == null) {
+      return null;
+    }
+    final lessons =
+        content.lessons.any((lesson) => lesson.id == widget.lesson.id)
+        ? content.lessons
+        : content.songs.any((lesson) => lesson.id == widget.lesson.id)
+        ? content.songs
+        : const <ListeningLessonContent>[];
+    final currentIndex = lessons.indexWhere(
+      (lesson) => lesson.id == widget.lesson.id,
+    );
+    if (currentIndex <= 0) {
+      return null;
+    }
+    return lessons[currentIndex - 1];
+  }
+
   Future<void> _openNextLesson(ListeningLessonContent lesson) async {
     await widget.mediaService.stopPlayback();
     await widget.progressStore.saveCurrentSentence(lesson.id, 0);
@@ -708,6 +1059,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
   Future<void> _restartCurrentLesson() async {
     try {
       await widget.progressStore.clearSkippedSentences(widget.lesson.id);
+      await widget.progressStore.clearNeedsPracticeSentences(widget.lesson.id);
     } catch (_) {
       // Restarting still works when local progress storage is unavailable.
     }
@@ -718,11 +1070,222 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     setState(() {
       _sentenceIndex = 0;
       _skippedSentenceIndexes.clear();
+      _needsPracticeSentenceIndexes.clear();
       _recordingPath = null;
       _recordingDuration = null;
       _message = null;
     });
     await _activateCurrentSentence(autoPlay: true);
+  }
+
+  Future<void> _listenForCompletionChoice() async {
+    if (!mounted || _completionChoiceRecording || _completionChoiceStopping) {
+      return;
+    }
+    setState(() {
+      _mediaBusy = true;
+      _recordingStartPending = true;
+      _message = 'Đang mở micro để nghe lựa chọn của con…';
+    });
+    try {
+      await widget.mediaService.startRecording(
+        lessonId: '${widget.lesson.id}-completion-choice',
+        sentenceNumber: 0,
+        lessonTitle: widget.lesson.titleVi,
+        sentenceId: '${widget.lesson.id}-completion-choice',
+        saveToHistory: false,
+      );
+      if (!mounted) {
+        await widget.mediaService.cancelRecording();
+        return;
+      }
+      setState(() {
+        _completionChoiceRecording = true;
+        _recording = true;
+        _recordingStartPending = false;
+        _mediaBusy = false;
+        _message = 'Con nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.';
+      });
+      _recordingAutoStopTimer?.cancel();
+      _recordingAutoStopTimer = Timer(
+        const Duration(seconds: 6),
+        () => unawaited(_stopCompletionChoiceRecording()),
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _recordingStartPending = false;
+          _mediaBusy = false;
+          _recording = false;
+        });
+      }
+      await _showCompletionChoiceFallback(error.toString());
+    }
+  }
+
+  Future<void> _stopCompletionChoiceRecording() async {
+    if (!_completionChoiceRecording || _completionChoiceStopping) {
+      return;
+    }
+    _completionChoiceStopping = true;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+    if (mounted) {
+      setState(() {
+        _mediaBusy = true;
+        _message = 'Đang nghe câu trả lời của con…';
+      });
+    }
+    LessonRecording? recording;
+    try {
+      recording = await widget.mediaService.stopRecording();
+      if (mounted) {
+        setState(() {
+          _completionChoiceRecording = false;
+          _recording = false;
+          _message = 'Đang nhận diện lựa chọn…';
+        });
+      }
+      final transcript = await _completionChoiceRecognizer.transcribe(
+        recording,
+      );
+      final choice = const LessonCompletionChoiceResolver().resolve(transcript);
+      if (!mounted) {
+        return;
+      }
+      if (choice == null) {
+        await _showCompletionChoiceFallback(
+          'Cô nghe được “$transcript” nhưng chưa rõ lựa chọn của con.',
+        );
+        return;
+      }
+      setState(() => _mediaBusy = false);
+      await _handleCompletionChoice(choice);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _completionChoiceRecording = false;
+          _recording = false;
+        });
+        await _showCompletionChoiceFallback(error.toString());
+      }
+    } finally {
+      if (recording != null) {
+        await widget.mediaService
+            .deleteRecording(recording.filePath)
+            .catchError((Object _) {});
+      }
+      _completionChoiceStopping = false;
+      if (mounted) {
+        setState(() => _mediaBusy = false);
+      }
+    }
+  }
+
+  Future<void> _handleCompletionChoice(LessonCompletionChoice choice) async {
+    switch (choice) {
+      case LessonCompletionChoice.restartLesson:
+        await _restartCurrentLesson();
+        return;
+      case LessonCompletionChoice.nextLesson:
+        final nextLesson = _nextLessonInTopic;
+        if (nextLesson != null) {
+          await _openNextLesson(nextLesson);
+          return;
+        }
+        if (mounted) {
+          setState(() => _mediaBusy = true);
+        }
+        try {
+          await _playPrompt(LessonGuideFlowV2.topicCompleted);
+        } finally {
+          if (mounted) {
+            setState(() => _mediaBusy = false);
+          }
+        }
+        _returnToListening();
+        return;
+    }
+  }
+
+  Future<void> _showCompletionChoiceFallback(String reason) async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _mediaBusy = false;
+      _message = 'Cô chưa nghe rõ. Con chọn một nút bên dưới nhé.';
+    });
+    final action = await showModalBottomSheet<_CompletionChoiceFallbackAction>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      showDragHandle: false,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                'Con muốn học thế nào?',
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                reason.replaceFirst('Bad state: ', ''),
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                key: const Key('restart-lesson-choice'),
+                onPressed: () => Navigator.of(
+                  sheetContext,
+                ).pop(_CompletionChoiceFallbackAction.restart),
+                icon: const Icon(Icons.replay_rounded),
+                label: const Text('Luyện lại từ đầu'),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const Key('next-lesson-choice'),
+                onPressed: () => Navigator.of(
+                  sheetContext,
+                ).pop(_CompletionChoiceFallbackAction.next),
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Bài tiếp theo'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('retry-voice-choice'),
+                onPressed: () => Navigator.of(
+                  sheetContext,
+                ).pop(_CompletionChoiceFallbackAction.retry),
+                icon: const Icon(Icons.mic_rounded),
+                label: const Text('Nói lại lựa chọn'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _CompletionChoiceFallbackAction.restart:
+        await _handleCompletionChoice(LessonCompletionChoice.restartLesson);
+        return;
+      case _CompletionChoiceFallbackAction.next:
+        await _handleCompletionChoice(LessonCompletionChoice.nextLesson);
+        return;
+      case _CompletionChoiceFallbackAction.retry:
+        await _playPrompt(LessonGuideFlowV2.completionChoice);
+        await _listenForCompletionChoice();
+        return;
+    }
   }
 
   void _returnToListening() {
@@ -749,12 +1312,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     return <int>{
       for (var index = 0; index < recordings.length; index++)
         if (recordings[index] == null) index,
+      ..._needsPracticeSentenceIndexes,
     };
   }
 
   void _scheduleIdleReminder() {
     _cancelIdleReminder();
-    if (!mounted || _recording || _recordingPath != null) {
+    if (_usesGuideV2 || !mounted || _recording || _recordingPath != null) {
       return;
     }
     _idleReminderTimer = Timer(const Duration(seconds: 5), () {
@@ -818,6 +1382,110 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen> {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<void> _startGuidedSentenceSequence() async {
+    if (_pausedForMainAssistant ||
+        _guidedSequenceStarted ||
+        _recording ||
+        _mediaBusy) {
+      return;
+    }
+    final sampleUri = _sentence.audioUri;
+    if (!_usesGuideV2) {
+      if (sampleUri != null) {
+        await _runMediaAction(() => widget.mediaService.play(sampleUri));
+      }
+      return;
+    }
+    if (_recordingPath != null) {
+      return;
+    }
+    _guidedSequenceStarted = true;
+    final pauseGeneration = _mainPauseGeneration;
+    if (mounted) {
+      setState(() {
+        _mediaBusy = true;
+        _message = LessonGuideFlowV2.beforeSentence.text;
+      });
+    }
+    try {
+      await _playPrompt(LessonGuideFlowV2.beforeSentence);
+      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
+        return;
+      }
+      await _playBilingualSentenceSample();
+      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
+        return;
+      }
+      await _playPrompt(LessonGuideFlowV2.afterSample);
+    } catch (error) {
+      _setMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _mediaBusy = false);
+      }
+    }
+    if (mounted && !_pausedForMainAssistant && _recordingPath == null) {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _playPrompt(LessonGuidePrompt prompt) async {
+    if (!mounted || _pausedForMainAssistant) {
+      return;
+    }
+    setState(() => _message = prompt.text);
+    final uri = await _guideAudioLibrary.uriForAudioCode(prompt.audioCode);
+    if (uri != null) {
+      await widget.mediaService.playToCompletion(
+        uri,
+        timeout: const Duration(seconds: 16),
+      );
+      return;
+    }
+    await _voicePromptService.speakAndWait(prompt.text);
+  }
+
+  Future<void> _playBilingualSentenceSample() async {
+    final englishUri = _sentence.audioUri;
+    if (englishUri != null) {
+      await widget.mediaService.playToCompletion(englishUri);
+    } else {
+      await _voicePromptService.speakAndWait(
+        _sentence.english,
+        locale: 'en-US',
+      );
+    }
+    if (!mounted || _pausedForMainAssistant) {
+      return;
+    }
+    final vietnameseUri = _sentence.vietnameseAudioUri;
+    if (vietnameseUri != null) {
+      await widget.mediaService.playToCompletion(vietnameseUri);
+    } else {
+      await _voicePromptService.speakAndWait(
+        _sentence.vietnamese,
+        locale: 'vi-VN',
+      );
+    }
+  }
+
+  Uri _recordingUri(String path) {
+    final parsed = Uri.tryParse(path);
+    return parsed != null && parsed.hasScheme ? parsed : Uri.file(path);
+  }
+
+  Future<void> _playSampleThenInviteRecording(Uri uri) async {
+    if (!_usesGuideV2) {
+      await _playLessonAudioThenRecordGuide(uri);
+      return;
+    }
+    await widget.mediaService.playToCompletion(uri);
+    if (!mounted) {
+      return;
+    }
+    await _playPrompt(LessonGuideFlowV2.afterSample);
   }
 
   Future<void> _playLessonAudioThenRecordGuide(Uri uri) async {
@@ -1416,6 +2084,8 @@ class _PraiseFireworkBurst extends StatelessWidget {
 }
 
 enum _LessonCoachPopupKind { firstReminder, secondReminder }
+
+enum _CompletionChoiceFallbackAction { restart, next, retry }
 
 class _LessonCoachPopup extends StatefulWidget {
   const _LessonCoachPopup({required this.kind, super.key});

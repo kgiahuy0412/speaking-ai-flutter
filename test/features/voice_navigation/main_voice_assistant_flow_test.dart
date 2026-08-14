@@ -1,23 +1,65 @@
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('enters Main speaking mode after the spoken confirmation', () async {
+  test('chooses continuous translation after the Main menu', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
 
     expect(flow.begin(), MainVoiceAssistantFlow.openingPrompt);
-    final turn = await flow.handle('Con ghi muốn luyện nói');
+    final translationTurn = await flow.handle('Con muốn luyện nói');
+    expect(
+      translationTurn.promptText,
+      'Con muốn dịch một câu hay dịch liên tục?',
+    );
+    expect(translationTurn.continueListening, isTrue);
 
-    expect(turn.promptText, 'Bắt đầu nói đi con');
+    final turn = await flow.handle('Dịch liên tục');
+
+    expect(turn.promptText, contains('Muốn dừng thì nói dừng lại'));
     expect(turn.continueListening, isFalse);
     expect(
       turn.navigationAfterPrompt?.destination,
       VoiceNavigationDestination.conversation,
     );
     expect(turn.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
+  });
+
+  test('offers all three top-level choices from Main', () async {
+    final vocabularyFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    expect(vocabularyFlow.begin(), MainVoiceAssistantFlow.openingPrompt);
+    final vocabulary = await vocabularyFlow.handle('Học từ mới');
+    expect(
+      vocabulary.navigationAfterPrompt?.destination,
+      VoiceNavigationDestination.vocabulary,
+    );
+
+    final singleFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    singleFlow.begin();
+    final translation = await singleFlow.handle('Dịch sang tiếng Anh');
+    expect(translation.continueListening, isTrue);
+    final single = await singleFlow.handle('Một câu');
+    expect(single.continueListening, isFalse);
+    expect(
+      single.navigationAfterPrompt?.destination,
+      VoiceNavigationDestination.conversation,
+    );
+    expect(single.navigationAfterPrompt?.enterMainSpeakingMode, isFalse);
+  });
+
+  test('maps active lesson help without changing lesson content', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    expect(
+      flow.beginActiveLearning(),
+      MainVoiceAssistantFlow.activeLearningPrompt,
+    );
+
+    final replay = await flow.handle('Con muốn nghe lại');
+    expect(replay.activeLearningCommand, ActiveLearningCommand.replayCurrent);
+    expect(replay.continueListening, isFalse);
   });
 
   test('selects age, topic 3 and lesson 1 across multiple turns', () async {
@@ -54,7 +96,7 @@ void main() {
 
     expect(
       vocabularyFlow.beginOtherLearning(),
-      'Có chứ. Con muốn học chủ đề hay học từ vựng nè',
+      MainVoiceAssistantFlow.otherLearningPrompt,
     );
     final vocabularyTurn = await vocabularyFlow.handle('Con muốn học từ vựng');
     expect(vocabularyTurn.promptText, 'Mình cùng học từ vựng nhé');

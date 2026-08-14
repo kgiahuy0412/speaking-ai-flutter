@@ -6,6 +6,7 @@ import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
+import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
@@ -161,6 +162,45 @@ void main() {
     expect(controller.transientMessage, contains('Chưa điều khiển APP'));
     controller.dispose();
   });
+
+  test(
+    'BLE long press stops once and release does not restart capture',
+    () async {
+      final aiv0 = _FakeAiv0BleControl(protocolConfirmed: true);
+      final input = _FakeAudioInput();
+      final controller = ConversationController(
+        audioInput: input,
+        hfpAudioControl: _FakeHfpAudioControl(),
+        aiv0BleControl: aiv0,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+      );
+      final coordinator = MainButtonCoordinator(
+        onScreenShortPress: (_) async => MainButtonActionResult.accepted,
+        onBleShortPress: controller.handleBleMainShortPress,
+        onLongPress: (_) => controller.stopCurrentMainAction(),
+      );
+      controller.setMainButtonDispatcher(coordinator.handle);
+      await controller.setH20HardwareTestMode(true);
+
+      aiv0.emitMain(sequence: 1);
+      await _flushAsyncEvents();
+      expect(controller.h20HardwareTestPhase, H20HardwareTestPhase.recording);
+
+      aiv0.emitMain(sequence: 2, gesture: Aiv0ButtonGesture.longPress);
+      await _flushAsyncEvents();
+      expect(controller.h20HardwareTestPhase, H20HardwareTestPhase.completed);
+      expect(input.stopCount, 1);
+
+      aiv0.emitMain(sequence: 2, gesture: Aiv0ButtonGesture.release);
+      await _flushAsyncEvents();
+      expect(controller.h20HardwareTestPhase, H20HardwareTestPhase.completed);
+      expect(input.startCount, 1);
+      expect(input.stopCount, 1);
+      controller.dispose();
+    },
+  );
 }
 
 Future<void> _flushAsyncEvents() async {
@@ -352,13 +392,23 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
   @override
   Stream<Aiv0ButtonEvent> get buttonEvents => _buttons.stream;
 
-  void emitMain({required int sequence, bool duplicate = false}) {
+  void emitMain({
+    required int sequence,
+    Aiv0ButtonGesture gesture = Aiv0ButtonGesture.shortPress,
+    bool duplicate = false,
+  }) {
+    final gestureByte = switch (gesture) {
+      Aiv0ButtonGesture.shortPress => 1,
+      Aiv0ButtonGesture.longPress => 2,
+      Aiv0ButtonGesture.release => 3,
+      Aiv0ButtonGesture.unknown => 0,
+    };
     _buttons.add(
       Aiv0ButtonEvent(
         rawBytes: Uint8List.fromList(<int>[
           1,
           1,
-          1,
+          gestureByte,
           0,
           sequence,
           0,
@@ -371,7 +421,7 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
         ]),
         receivedAt: DateTime.now(),
         button: Aiv0Button.main,
-        gesture: Aiv0ButtonGesture.shortPress,
+        gesture: gesture,
         sequence: sequence,
         isDraftPacket: true,
         isDuplicate: duplicate,

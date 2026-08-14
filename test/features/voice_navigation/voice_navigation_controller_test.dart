@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
@@ -68,7 +69,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 520));
 
     expect(voicePrompt.spokenTexts, <String>[
-      'Con muốn luyện nói hay học chủ đề nè',
+      MainVoiceAssistantFlow.openingPrompt,
     ]);
     expect(controller.isAwaitingCommand, isTrue);
     expect(controller.isListening, isTrue);
@@ -77,9 +78,11 @@ void main() {
       isTrue,
     );
     expect(voicePrompt.spokenTexts, <String>[
-      'Con muốn luyện nói hay học chủ đề nè',
-      'Bắt đầu nói đi con',
+      MainVoiceAssistantFlow.openingPrompt,
+      'Con muốn dịch một câu hay dịch liên tục?',
     ]);
+    expect(controller.isMainButtonSessionActive, isTrue);
+    expect(await controller.dispatchRecognizedText('Dịch liên tục'), isTrue);
     expect(
       receivedIntent?.destination,
       VoiceNavigationDestination.conversation,
@@ -123,7 +126,7 @@ void main() {
     expect(await controller.dispatchRecognizedText('Con học bài số 1'), isTrue);
 
     expect(voicePrompt.spokenTexts, <String>[
-      'Con muốn luyện nói hay học chủ đề nè',
+      MainVoiceAssistantFlow.openingPrompt,
       'Con mấy tuổi',
       'Có 10 chủ đề. Con muốn học chủ đề số mấy',
       'Có 2 bài học. Con muốn học bài số mấy',
@@ -154,7 +157,7 @@ void main() {
 
     expect(await controller.activateOtherLearningFromSpeaking(), isTrue);
     expect(voicePrompt.spokenTexts, <String>[
-      'Có chứ. Con muốn học chủ đề hay học từ vựng nè',
+      MainVoiceAssistantFlow.otherLearningPrompt,
     ]);
     expect(controller.isAwaitingCommand, isTrue);
 
@@ -169,6 +172,62 @@ void main() {
     controller.dispose();
     await speechInput.dispose();
   });
+
+  test('active lesson Main command is sent to the module bridge', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    ActiveLearningCommand? receivedCommand;
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      activeLearningCommandHandler: (command) async {
+        receivedCommand = command;
+        return const ActiveLearningCommandResult.handled();
+      },
+    );
+
+    expect(
+      await controller.activateFromMainButton(activeLearning: true),
+      isTrue,
+    );
+    expect(voicePrompt.spokenTexts, <String>[
+      MainVoiceAssistantFlow.activeLearningPrompt,
+    ]);
+    expect(await controller.dispatchRecognizedText('Nghe lại'), isTrue);
+    expect(receivedCommand, ActiveLearningCommand.replayCurrent);
+    expect(controller.isMainButtonSessionActive, isFalse);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
+  test(
+    'Main asks once after silence then exits on the second timeout',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 8),
+        restartDelay: const Duration(milliseconds: 1),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+        'Con muốn làm gì?',
+      ]);
+      expect(controller.isMainButtonSessionActive, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
 
   test(
     'pauses navigation recognizer before conversation can reuse it',

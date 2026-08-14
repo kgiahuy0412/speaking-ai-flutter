@@ -223,6 +223,9 @@ class _MemoryProgressStore extends ListeningProgressStore {
   Future<Set<int>> readSkippedSentences(String lessonId) async => <int>{};
 
   @override
+  Future<Set<int>> readNeedsPracticeSentences(String lessonId) async => <int>{};
+
+  @override
   Future<void> saveSkippedSentence(String lessonId, int sentenceIndex) async {}
 
   @override
@@ -230,6 +233,15 @@ class _MemoryProgressStore extends ListeningProgressStore {
 
   @override
   Future<void> clearSkippedSentences(String lessonId) async {}
+
+  @override
+  Future<void> clearNeedsPracticeSentence(
+    String lessonId,
+    int sentenceIndex,
+  ) async {}
+
+  @override
+  Future<void> clearNeedsPracticeSentences(String lessonId) async {}
 
   @override
   Future<void> saveLesson(String lessonId, int completed) async {

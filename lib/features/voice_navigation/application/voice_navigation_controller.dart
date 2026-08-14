@@ -4,11 +4,16 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/device/active_learning_module.dart';
 import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 typedef VoiceNavigationIntentHandler =
     FutureOr<void> Function(VoiceNavigationIntent intent);
+typedef ActiveLearningCommandHandler =
+    FutureOr<ActiveLearningCommandResult> Function(
+      ActiveLearningCommand command,
+    );
 
 /// Runs Android voice navigation independently from the conversation flow.
 ///
@@ -26,7 +31,8 @@ class VoiceNavigationController extends ChangeNotifier {
     bool ownsVoicePromptService = false,
     Duration restartDelay = const Duration(milliseconds: 300),
     Duration partialIntentDebounce = const Duration(milliseconds: 160),
-    Duration commandWindowDuration = const Duration(seconds: 8),
+    Duration commandWindowDuration = const Duration(seconds: 6),
+    ActiveLearningCommandHandler? activeLearningCommandHandler,
   }) : _speechInput = speechInput,
        _resolver = resolver,
        _mainAssistantFlow = mainAssistantFlow ?? MainVoiceAssistantFlow(),
@@ -35,7 +41,8 @@ class VoiceNavigationController extends ChangeNotifier {
        _ownsVoicePromptService = ownsVoicePromptService,
        _restartDelay = restartDelay,
        _partialIntentDebounce = partialIntentDebounce,
-       _commandWindowDuration = commandWindowDuration {
+       _commandWindowDuration = commandWindowDuration,
+       _activeLearningCommandHandler = activeLearningCommandHandler {
     _completedSubscription = _speechInput.completed.listen((_) {
       if (_listening && !_finishing) {
         unawaited(_finishSession(_generation));
@@ -52,7 +59,7 @@ class VoiceNavigationController extends ChangeNotifier {
         .listen(_handleAlternativeTranscripts);
   }
 
-  static const Duration _noSpeechTimeout = Duration(seconds: 8);
+  static const Duration _noSpeechTimeout = Duration(seconds: 6);
   static const Duration _maximumSessionDuration = Duration(seconds: 12);
   static const Duration _voicePromptTimeout = Duration(seconds: 8);
   static const Duration _commandListenRestartDelay = Duration(
@@ -71,6 +78,7 @@ class VoiceNavigationController extends ChangeNotifier {
   final Duration _restartDelay;
   final Duration _partialIntentDebounce;
   final Duration _commandWindowDuration;
+  final ActiveLearningCommandHandler? _activeLearningCommandHandler;
 
   StreamSubscription<void>? _completedSubscription;
   StreamSubscription<String>? _partialTextSubscription;
@@ -94,6 +102,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _buttonCommandSession = false;
   bool _disposed = false;
   int _generation = 0;
+  int _mainNoSpeechRetryCount = 0;
   Object? _lastError;
 
   bool get isListening => _listening;
@@ -129,8 +138,12 @@ class VoiceNavigationController extends ChangeNotifier {
   /// This does not require a wake phrase. Any existing recognition session is
   /// released first, the assistant replies, then Android listens for one
   /// navigation command until the normal command window expires.
-  Future<bool> activateFromMainButton() async {
-    return _activateMainAssistantFlow(_mainAssistantFlow.begin);
+  Future<bool> activateFromMainButton({bool activeLearning = false}) async {
+    return _activateMainAssistantFlow(
+      activeLearning
+          ? _mainAssistantFlow.beginActiveLearning
+          : _mainAssistantFlow.begin,
+    );
   }
 
   /// Leaves automatic speaking practice and offers the remaining learning
@@ -148,6 +161,7 @@ class VoiceNavigationController extends ChangeNotifier {
       return false;
     }
     _buttonCommandSession = true;
+    _mainNoSpeechRetryCount = 0;
     _continuousRequested = true;
     final generation = _generation;
     final acknowledged = await _acknowledgeWakeWord(
@@ -173,6 +187,7 @@ class VoiceNavigationController extends ChangeNotifier {
     }
     _continuousRequested = false;
     _buttonCommandSession = false;
+    _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
     _generation += 1;
     _cancelTimers();
@@ -291,8 +306,16 @@ class VoiceNavigationController extends ChangeNotifier {
 
     _buttonCommandSession = false;
     _continuousRequested = false;
+    _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
     notifyListeners();
+    final activeLearningCommand = turn.activeLearningCommand;
+    if (activeLearningCommand != null) {
+      final handler = _activeLearningCommandHandler;
+      if (handler != null) {
+        await handler(activeLearningCommand);
+      }
+    }
     final navigationAfterPrompt = turn.navigationAfterPrompt;
     if (navigationAfterPrompt != null) {
       await _dispatchIntent(navigationAfterPrompt);
@@ -344,8 +367,7 @@ class VoiceNavigationController extends ChangeNotifier {
         return;
       }
       if (_buttonCommandSession) {
-        _buttonCommandSession = false;
-        unawaited(pause());
+        unawaited(_handleMainCommandTimeout(generation));
         return;
       }
       _awaitingCommand = false;
@@ -353,6 +375,43 @@ class VoiceNavigationController extends ChangeNotifier {
     });
     notifyListeners();
     return true;
+  }
+
+  Future<void> _handleMainCommandTimeout(int generation) async {
+    if (_disposed ||
+        generation != _generation ||
+        !_buttonCommandSession ||
+        !_awaitingCommand) {
+      return;
+    }
+    _awaitingCommand = false;
+    _cancelSessionTimers();
+    final shouldCancelInput = _starting || _listening;
+    _starting = false;
+    _listening = false;
+    _speechDetected = false;
+    if (shouldCancelInput) {
+      await _speechInput.cancel().catchError((Object _) {});
+    }
+    if (_disposed || generation != _generation || !_buttonCommandSession) {
+      return;
+    }
+    if (_mainNoSpeechRetryCount == 0) {
+      _mainNoSpeechRetryCount = 1;
+      final prompted = await _acknowledgeWakeWord(
+        generation,
+        promptText: 'Con muốn làm gì?',
+      );
+      if (prompted && !_disposed && generation == _generation) {
+        _scheduleSession(_mainCommandListenRestartDelay);
+      }
+      return;
+    }
+    _buttonCommandSession = false;
+    _continuousRequested = false;
+    _mainNoSpeechRetryCount = 0;
+    _mainAssistantFlow.reset();
+    notifyListeners();
   }
 
   Future<bool> _dispatchIntent(VoiceNavigationIntent intent) async {

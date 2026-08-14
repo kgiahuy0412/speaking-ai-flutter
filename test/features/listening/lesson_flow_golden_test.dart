@@ -1,4 +1,5 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
@@ -133,6 +134,7 @@ void main() {
           progressStore: progressStore,
           mediaService: mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
+          voicePromptService: const _GoldenVoicePromptService(),
         ),
       ),
     );
@@ -306,6 +308,7 @@ void main() {
           progressStore: progressStore,
           mediaService: mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
+          voicePromptService: const _GoldenVoicePromptService(),
         ),
       ),
     );
@@ -430,6 +433,7 @@ class _GoldenMediaService extends LessonMediaService {
     String? sentenceId,
     String? english,
     String? vietnamese,
+    bool saveToHistory = true,
   }) async {
     recording = true;
   }
@@ -459,6 +463,22 @@ class _GoldenMediaService extends LessonMediaService {
   Future<void> dispose() async {}
 }
 
+class _GoldenVoicePromptService implements VoicePromptService {
+  const _GoldenVoicePromptService();
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 class _GoldenProgressStore extends ListeningProgressStore {
   const _GoldenProgressStore({
     this.currentSentence = 0,
@@ -481,6 +501,9 @@ class _GoldenProgressStore extends ListeningProgressStore {
   Future<Set<int>> readSkippedSentences(String lessonId) async => <int>{};
 
   @override
+  Future<Set<int>> readNeedsPracticeSentences(String lessonId) async => <int>{};
+
+  @override
   Future<void> saveSkippedSentence(String lessonId, int sentenceIndex) async {}
 
   @override
@@ -490,10 +513,25 @@ class _GoldenProgressStore extends ListeningProgressStore {
   Future<void> clearSkippedSentences(String lessonId) async {}
 
   @override
+  Future<void> clearNeedsPracticeSentence(
+    String lessonId,
+    int sentenceIndex,
+  ) async {}
+
+  @override
+  Future<void> clearNeedsPracticeSentences(String lessonId) async {}
+
+  @override
   Future<void> saveLesson(String lessonId, int completedSentences) async {}
 
   @override
   Future<void> saveCurrentSentence(String lessonId, int sentenceIndex) async {}
+
+  @override
+  Future<void> saveNeedsPracticeSentence(
+    String lessonId,
+    int sentenceIndex,
+  ) async {}
 }
 
 Future<void> _usePhoneSurface(WidgetTester tester) async {

@@ -50,6 +50,31 @@ void main() {
       expect(await fixture.store.readSkippedSentences('lesson-1'), isEmpty);
     },
   );
+
+  test('V2 guide and retry queue metadata do not change totals', () async {
+    final fixture = await _ProgressFixture.create();
+    addTearDown(fixture.dispose);
+
+    expect(await fixture.store.hasOpenedLearningGuide(), isFalse);
+    await fixture.store.markLearningGuideOpened();
+    await fixture.store.saveNeedsPracticeSentence('lesson-1', 1);
+    await fixture.store.saveNeedsPracticeSentence('lesson-1', 4);
+    await fixture.store.saveLesson('lesson-1', 2);
+
+    expect(await fixture.store.hasOpenedLearningGuide(), isTrue);
+    expect(await fixture.store.readNeedsPracticeSentences('lesson-1'), <int>{
+      1,
+      4,
+    });
+    expect(await fixture.store.readAll(), <String, int>{'lesson-1': 2});
+
+    await fixture.store.clearNeedsPracticeSentence('lesson-1', 1);
+    expect(await fixture.store.readNeedsPracticeSentences('lesson-1'), <int>{
+      4,
+    });
+    await fixture.store.clearNeedsPracticeSentences('lesson-1');
+    expect(await fixture.store.readNeedsPracticeSentences('lesson-1'), isEmpty);
+  });
 }
 
 class _ProgressFixture {

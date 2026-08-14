@@ -107,7 +107,7 @@ void main() {
   });
 
   test(
-    'five updated topics expose their retained lesson as lesson 1',
+    'five V2 topics expose both approved lessons while retaining songs',
     () async {
       final content = await AssetListeningContentRepository().load();
       const expectedLessons =
@@ -135,56 +135,36 @@ void main() {
           endAge: expected.endAge,
           topicNumber: expected.topicNumber,
         );
-        expect(topic.lessons, hasLength(1));
-        expect(topic.lessons.single.id, expected.lessonId);
-        expect(topic.lessons.single.number, 1);
+        expect(topic.lessons, hasLength(2));
+        expect(topic.lessons.last.id, expected.lessonId);
+        expect(topic.lessons.last.number, 2);
+        expect(topic.songs, hasLength(1));
       }
     },
   );
 
-  test('five new lessons have loadable opening audio', () async {
+  test('five restored V2 lessons expose stable guide codes', () async {
     final content = await AssetListeningContentRepository().load();
     final lessons = content.groups
         .expand((group) => group.topics)
         .expand((topic) => topic.lessons)
         .toList();
-    const expectedOpenings = <String, ({String intro, String assetPath})>{
-      'a067_t05_l02': (
-        intro:
-            'Chào con! Hôm nay mình sẽ học bài “Count and Move”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
-        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T05_L02_OPEN.mp3',
-      ),
-      'a067_t07_l02': (
-        intro:
-            'Chào con! Hôm nay mình sẽ học bài “Things I Do”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
-        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T07_L02_OPEN.mp3',
-      ),
-      'a067_t08_l02': (
-        intro:
-            'Chào con! Hôm nay mình sẽ học bài “Dress for Today”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
-        assetPath: 'assets/audio/A-6-7/LESSON_INTRO/A067_T08_L02_OPEN.mp3',
-      ),
+    const expectedLessons = <String, ({String code, String titleEn})>{
+      'a067_t05_l02': (code: 'A067_T05_L02', titleEn: 'Days and Time'),
+      'a067_t07_l02': (code: 'A067_T07_L02', titleEn: 'My Evening'),
+      'a067_t08_l02': (code: 'A067_T08_L02', titleEn: 'Choosing Clothes'),
       'a0810_t03_l02': (
-        intro:
-            'Chào con! Hôm nay mình sẽ học bài “My School Day”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
-        assetPath: 'assets/audio/A-8-10/LESSON_INTRO/A0810_T03_L02_OPEN.mp3',
+        code: 'A0810_T03_L02',
+        titleEn: 'Afternoon and Evening',
       ),
-      'a0810_t04_l02': (
-        intro:
-            'Chào con! Hôm nay mình sẽ học bài “Sports I Like”. Trước tiên, con nghe nội dung tổng, rồi học từng câu và ghi âm nhé!',
-        assetPath: 'assets/audio/A-8-10/LESSON_INTRO/A0810_T04_L02_OPEN.mp3',
-      ),
+      'a0810_t04_l02': (code: 'A0810_T04_L02', titleEn: 'Inviting a Friend'),
     };
 
-    for (final entry in expectedOpenings.entries) {
+    for (final entry in expectedLessons.entries) {
       final lesson = lessons.singleWhere((lesson) => lesson.id == entry.key);
-      expect(lesson.intro, entry.value.intro);
-      expect(
-        lesson.introAudioUri,
-        Uri.parse('asset:///${entry.value.assetPath}'),
-      );
-      final bytes = await rootBundle.load(entry.value.assetPath);
-      expect(bytes.lengthInBytes, greaterThan(100000));
+      expect(lesson.code, entry.value.code);
+      expect(lesson.titleEn, entry.value.titleEn);
+      expect(lesson.sentences, hasLength(6));
     }
   });
 
@@ -534,144 +514,24 @@ void main() {
         .expand((lesson) => lesson.sentences)
         .toList();
 
-    expect(lessons, hasLength(96));
-    expect(sentences, hasLength(608));
+    expect(lessons, hasLength(101));
+    expect(sentences, hasLength(634));
     expect(songs, hasLength(11));
     expect(songLines, hasLength(110));
 
-    final approvedSongLeadLessons =
-        <
-          String,
-          ({
-            String titleEn,
-            String titleVi,
-            List<String> english,
-            List<String> vietnamese,
-          })
-        >{
-          'a067_t05_l02': (
-            titleEn: 'Count and Move',
-            titleVi: 'Đếm và chuyển động',
-            english: <String>[
-              'One, two.',
-              'Three, four.',
-              'Five, six.',
-              'Seven, eight.',
-              'Nine, ten.',
-              'Clap your hands.',
-              'Turn around.',
-              'Touch the ground.',
-            ],
-            vietnamese: <String>[
-              'Một, hai.',
-              'Ba, bốn.',
-              'Năm, sáu.',
-              'Bảy, tám.',
-              'Chín, mười.',
-              'Vỗ tay nào.',
-              'Xoay một vòng.',
-              'Chạm xuống đất.',
-            ],
-          ),
-          'a067_t07_l02': (
-            titleEn: 'Things I Do',
-            titleVi: 'Những điều con làm',
-            english: <String>[
-              'Wake up.',
-              'Wash my face.',
-              'Eat breakfast.',
-              'Go to school.',
-              'Learn and play.',
-              'Time for bed.',
-            ],
-            vietnamese: <String>[
-              'Thức dậy.',
-              'Rửa mặt.',
-              'Ăn sáng.',
-              'Đi học.',
-              'Học và chơi.',
-              'Đến giờ đi ngủ.',
-            ],
-          ),
-          'a067_t08_l02': (
-            titleEn: 'Dress for Today',
-            titleVi: 'Đồ mặc hôm nay',
-            english: <String>[
-              'It’s sunny.',
-              'Put your hat on.',
-              'It’s rainy.',
-              'Put your coat on.',
-              'It’s cold.',
-              'Zip it up.',
-              'It’s hot.',
-              'Wear a T-shirt.',
-            ],
-            vietnamese: <String>[
-              'Trời nắng.',
-              'Đội mũ lên.',
-              'Trời mưa.',
-              'Mặc áo khoác vào.',
-              'Trời lạnh.',
-              'Kéo khóa lên.',
-              'Trời nóng.',
-              'Mặc áo thun.',
-            ],
-          ),
-          'a0810_t03_l02': (
-            titleEn: 'My School Day',
-            titleVi: 'Một ngày ở trường của mình',
-            english: <String>[
-              'I get dressed.',
-              'I pack my bag.',
-              'I’m on my way.',
-              'It’s a busy day.',
-              'I learn at school.',
-              'I play with friends.',
-            ],
-            vietnamese: <String>[
-              'Mình mặc quần áo.',
-              'Mình chuẩn bị cặp.',
-              'Mình lên đường rồi.',
-              'Hôm nay là một ngày bận rộn.',
-              'Mình học ở trường.',
-              'Mình chơi với bạn.',
-            ],
-          ),
-          'a0810_t04_l02': (
-            titleEn: 'Sports I Like',
-            titleVi: 'Môn thể thao mình thích',
-            english: <String>[
-              'Do you like soccer?',
-              'Yes, I do.',
-              'Do you like swimming?',
-              'I do too.',
-              'Let’s play together.',
-              'Run and jump with me.',
-            ],
-            vietnamese: <String>[
-              'Bạn có thích bóng đá không?',
-              'Có, mình thích.',
-              'Bạn có thích bơi không?',
-              'Mình cũng thích.',
-              'Mình cùng chơi nhé.',
-              'Chạy và nhảy cùng mình nhé.',
-            ],
-          ),
-        };
+    const approvedV2Lessons = <String, String>{
+      'a067_t05_l02': 'Days and Time',
+      'a067_t07_l02': 'My Evening',
+      'a067_t08_l02': 'Choosing Clothes',
+      'a0810_t03_l02': 'Afternoon and Evening',
+      'a0810_t04_l02': 'Inviting a Friend',
+    };
 
-    for (final entry in approvedSongLeadLessons.entries) {
+    for (final entry in approvedV2Lessons.entries) {
       final lesson = lessons.singleWhere((lesson) => lesson.id == entry.key);
-      expect(lesson.titleEn, entry.value.titleEn);
-      expect(lesson.titleVi, entry.value.titleVi);
-      expect(lesson.type, ListeningLessonType.standard);
-      expect(
-        lesson.sentences.map((sentence) => sentence.english).toList(),
-        entry.value.english,
-      );
-      expect(
-        lesson.sentences.map((sentence) => sentence.vietnamese).toList(),
-        entry.value.vietnamese,
-      );
+      expect(lesson.titleEn, entry.value);
+      expect(lesson.type, isNot(ListeningLessonType.song));
+      expect(lesson.sentences, hasLength(6));
     }
 
     expect(

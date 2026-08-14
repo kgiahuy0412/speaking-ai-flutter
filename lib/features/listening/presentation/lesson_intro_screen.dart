@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
+import '../application/lesson_guide_audio_library.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/lesson_guide_flow.dart';
 import 'lesson_practice_screen.dart';
-import 'lesson_review_screen.dart';
 import 'song_karaoke_screen.dart';
 
 class LessonIntroScreen extends StatefulWidget {
@@ -24,6 +26,8 @@ class LessonIntroScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.topicContent,
+    this.guideAudioLibrary,
+    this.voicePromptService,
     this.autoAdvance = true,
     super.key,
   });
@@ -37,6 +41,8 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningTopicContent? topicContent;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
+  final LessonGuideAudioLibrary? guideAudioLibrary;
+  final VoicePromptService? voicePromptService;
   final bool autoAdvance;
 
   @override
@@ -48,10 +54,18 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   late final AnimationController _animationController;
   bool _introPlaybackFailed = false;
   bool _movingForward = false;
+  late final LessonGuideAudioLibrary _guideAudioLibrary;
+  late final VoicePromptService _voicePromptService;
+  late final bool _ownsVoicePromptService;
+  String? _guideText;
 
   @override
   void initState() {
     super.initState();
+    _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
+    _ownsVoicePromptService = widget.voicePromptService == null;
+    _voicePromptService =
+        widget.voicePromptService ?? createVoicePromptService();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -62,6 +76,53 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   }
 
   Future<void> _beginIntro() async {
+    if (_usesSongKaraoke || !_usesGuideV2) {
+      await _playLegacyIntro();
+      return;
+    }
+    final completed = await widget.progressStore.readLesson(widget.lesson.id);
+    final currentSentence = await widget.progressStore.readCurrentSentence(
+      widget.lesson.id,
+    );
+    final opened = await widget.progressStore.hasOpenedLearningGuide();
+    final isInProgress =
+        currentSentence > 0 && completed < widget.lesson.sentences.length;
+    final prompt = LessonGuideFlowV2.entry(
+      lessonCode: widget.lesson.code,
+      lessonTitleEn: widget.lesson.titleEn,
+      kind: !opened
+          ? LessonEntryGuideKind.first
+          : isInProgress
+          ? LessonEntryGuideKind.resume
+          : LessonEntryGuideKind.newLesson,
+    );
+    if (mounted) {
+      setState(() => _guideText = prompt.text);
+    }
+    Uri? guideUri;
+    try {
+      guideUri = await _guideAudioLibrary.uriForAudioCode(prompt.audioCode);
+      if (guideUri != null) {
+        await widget.mediaService.playToCompletion(guideUri);
+      } else {
+        await _voicePromptService.speakAndWait(prompt.text);
+      }
+      await widget.progressStore.markLearningGuideOpened();
+      if (!widget.autoAdvance || !mounted || _movingForward) {
+        return;
+      }
+      await _openOverview();
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Lesson intro playback failed for ${widget.lesson.id} '
+        '($guideUri): $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      _showIntroPlaybackFailure();
+    }
+  }
+
+  Future<void> _playLegacyIntro() async {
     final uri = widget.lesson.introAudioUri;
     if (uri == null) {
       _showIntroPlaybackFailure();
@@ -69,10 +130,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     }
     try {
       await widget.mediaService.playToCompletion(uri);
-      if (!widget.autoAdvance || !mounted || _movingForward) {
-        return;
+      if (widget.autoAdvance && mounted && !_movingForward) {
+        await _openOverview();
       }
-      await _openOverview();
     } catch (error, stackTrace) {
       debugPrint(
         'Lesson intro playback failed for ${widget.lesson.id} ($uri): $error',
@@ -92,6 +152,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    if (_ownsVoicePromptService) {
+      _voicePromptService.dispose();
+    }
     if (!_movingForward) {
       widget.mediaService.stopPlayback();
     }
@@ -194,7 +257,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 ],
                               ),
                               child: Text(
-                                widget.lesson.intro,
+                                _guideText ?? widget.lesson.intro,
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyLarge?.copyWith(
                                   color: colorScheme.onSurface,
@@ -271,21 +334,17 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     }
     await Navigator.of(context).pushReplacement<void, void>(
       MaterialPageRoute<void>(
-        builder: (_) => LessonReviewScreen(
+        builder: (_) => LessonPracticeScreen(
           language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
+          topic: widget.topic,
           lesson: widget.lesson,
+          controller: widget.controller,
+          topicContent: widget.topicContent,
+          progressStore: widget.progressStore,
           mediaService: widget.mediaService,
-          learnNowBuilder: (_) => LessonPracticeScreen(
-            language: widget.language,
-            startAge: widget.startAge,
-            endAge: widget.endAge,
-            topic: widget.topic,
-            lesson: widget.lesson,
-            controller: widget.controller,
-            topicContent: widget.topicContent,
-            progressStore: widget.progressStore,
-            mediaService: widget.mediaService,
-          ),
+          guideAudioLibrary: _guideAudioLibrary,
         ),
       ),
     );
@@ -321,6 +380,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   bool get _usesSongKaraoke =>
       shouldUseSongKaraoke(startAge: widget.startAge, lesson: widget.lesson);
 
+  bool get _usesGuideV2 =>
+      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(widget.lesson.code);
+
   Widget _buildPracticeScreen(BuildContext context) => LessonPracticeScreen(
     language: widget.language,
     startAge: widget.startAge,
@@ -331,5 +393,6 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     topicContent: widget.topicContent,
     progressStore: widget.progressStore,
     mediaService: widget.mediaService,
+    guideAudioLibrary: _guideAudioLibrary,
   );
 }

@@ -265,13 +265,31 @@ class AssetListeningContentRepository {
   final String assetPath;
   final bool _usesSharedDefaultCache;
   Future<ListeningContentCatalog>? _catalogFuture;
+  static ListeningContentCatalog? _sharedDefaultCatalog;
   static Future<ListeningContentCatalog>? _sharedDefaultCatalogFuture;
 
   Future<ListeningContentCatalog> load() {
     if (_usesSharedDefaultCache) {
-      return _sharedDefaultCatalogFuture ??= _load();
+      return _loadSharedDefault();
     }
     return _catalogFuture ??= _load();
+  }
+
+  Future<ListeningContentCatalog> _loadSharedDefault() async {
+    final cached = _sharedDefaultCatalog;
+    if (cached != null) {
+      return cached;
+    }
+    final pending = _sharedDefaultCatalogFuture ??= _load();
+    try {
+      final catalog = await pending;
+      _sharedDefaultCatalog = catalog;
+      return catalog;
+    } finally {
+      if (identical(_sharedDefaultCatalogFuture, pending)) {
+        _sharedDefaultCatalogFuture = null;
+      }
+    }
   }
 
   Future<ListeningContentCatalog> _load() async {

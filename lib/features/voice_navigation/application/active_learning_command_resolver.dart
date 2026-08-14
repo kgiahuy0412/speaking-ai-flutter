@@ -1,0 +1,73 @@
+import '../../../core/device/active_learning_module.dart';
+
+/// Small deterministic grammar for commands spoken after MAIN is pressed
+/// while a lesson is active. It deliberately does not interpret lesson
+/// content; it only maps navigation/control phrases to the shared adapter.
+class ActiveLearningCommandResolver {
+  const ActiveLearningCommandResolver();
+
+  ActiveLearningCommand? resolve(String transcript) {
+    final value = _normalize(transcript);
+    if (value.isEmpty) {
+      return null;
+    }
+    if (_has(value, 'dung lai') || _has(value, 'tam dung') || value == 'dung') {
+      return ActiveLearningCommand.stop;
+    }
+    if (_has(value, 'tiep tuc') ||
+        _has(value, 'hoc tiep') ||
+        _has(value, 'lam tiep')) {
+      return ActiveLearningCommand.resume;
+    }
+    if (_has(value, 'luyen lai tu dau') ||
+        _has(value, 'hoc lai tu dau') ||
+        _has(value, 'lam lai tu dau')) {
+      return ActiveLearningCommand.restart;
+    }
+    if (_has(value, 'bai tiep theo') || _has(value, 'bai ke tiep')) {
+      return ActiveLearningCommand.nextLesson;
+    }
+    if (_has(value, 'bai truoc') || _has(value, 'bai vua roi')) {
+      return ActiveLearningCommand.previousLesson;
+    }
+    if (_has(value, 'cau tiep theo') ||
+        _has(value, 'dong tiep theo') ||
+        value == 'tiep theo') {
+      return ActiveLearningCommand.nextItem;
+    }
+    if (_has(value, 'cau truoc') ||
+        _has(value, 'dong truoc') ||
+        value == 'quay lai') {
+      return ActiveLearningCommand.previousItem;
+    }
+    if (_has(value, 'nghe lai') ||
+        _has(value, 'doc lai') ||
+        _has(value, 'lap lai')) {
+      return ActiveLearningCommand.replayCurrent;
+    }
+    return null;
+  }
+
+  static bool _has(String value, String phrase) =>
+      ' $value '.contains(' $phrase ');
+
+  static String _normalize(String value) {
+    var normalized = value.trim().toLowerCase();
+    const replacements = <String, String>{
+      'a': 'àáạảãâầấậẩẫăằắặẳẵ',
+      'e': 'èéẹẻẽêềếệểễ',
+      'i': 'ìíịỉĩ',
+      'o': 'òóọỏõôồốộổỗơờớợởỡ',
+      'u': 'ùúụủũưừứựửữ',
+      'y': 'ỳýỵỷỹ',
+      'd': 'đ',
+    };
+    for (final entry in replacements.entries) {
+      normalized = normalized.replaceAll(RegExp('[${entry.value}]'), entry.key);
+    }
+    return normalized
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+}
