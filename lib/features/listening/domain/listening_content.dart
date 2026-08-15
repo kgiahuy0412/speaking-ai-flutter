@@ -275,21 +275,28 @@ class AssetListeningContentRepository {
     return _catalogFuture ??= _load();
   }
 
-  Future<ListeningContentCatalog> _loadSharedDefault() async {
+  Future<ListeningContentCatalog> _loadSharedDefault() {
     final cached = _sharedDefaultCatalog;
     if (cached != null) {
-      return cached;
+      return Future<ListeningContentCatalog>.value(cached);
     }
-    final pending = _sharedDefaultCatalogFuture ??= _load();
-    try {
-      final catalog = await pending;
+    final existing = _sharedDefaultCatalogFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final pending = _load();
+    _sharedDefaultCatalogFuture = pending;
+    pending.then<void>((catalog) {
       _sharedDefaultCatalog = catalog;
-      return catalog;
-    } finally {
       if (identical(_sharedDefaultCatalogFuture, pending)) {
         _sharedDefaultCatalogFuture = null;
       }
-    }
+    }, onError: (Object _, StackTrace _) {
+      if (identical(_sharedDefaultCatalogFuture, pending)) {
+        _sharedDefaultCatalogFuture = null;
+      }
+    });
+    return pending;
   }
 
   Future<ListeningContentCatalog> _load() async {

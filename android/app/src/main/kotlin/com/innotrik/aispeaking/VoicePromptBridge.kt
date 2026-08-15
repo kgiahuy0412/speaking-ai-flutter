@@ -1,6 +1,8 @@
 package com.innotrik.aispeaking
 
 import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -28,6 +30,9 @@ class VoicePromptBridge(
     private var pendingPrompt: PendingPrompt? = null
     private var awaitedUtteranceId: String? = null
     private var awaitedResult: MethodChannel.Result? = null
+    private var readyCueGenerator: ToneGenerator? = null
+    private var readyCueCompletion: Runnable? = null
+    private var readyCueResult: MethodChannel.Result? = null
     private var utteranceSequence = 0L
 
     init {
@@ -102,9 +107,11 @@ class VoicePromptBridge(
                     )
                 }
             }
+            "playSpeechReadyCue" -> playSpeechReadyCue(result)
             "stop" -> {
                 completePendingPrompt()
                 completeActiveAwaited()
+                completeReadyCue()
                 textToSpeech?.stop()
                 result.success(null)
             }
@@ -127,6 +134,7 @@ class VoicePromptBridge(
             completion?.error("TTS_UNAVAILABLE", "Text to speech is unavailable.", null)
             return
         }
+        completeReadyCue()
         completeActiveAwaited()
         val requestedLocale = Locale.forLanguageTag(localeTag)
         val languageResult = engine.setLanguage(requestedLocale)
@@ -180,13 +188,46 @@ class VoicePromptBridge(
         completion?.success(null)
     }
 
+    private fun playSpeechReadyCue(result: MethodChannel.Result) {
+        completeReadyCue()
+        val generator = try {
+            readyCueGenerator ?: ToneGenerator(AudioManager.STREAM_MUSIC, 85).also {
+                readyCueGenerator = it
+            }
+        } catch (error: RuntimeException) {
+            result.error("READY_CUE_UNAVAILABLE", error.message, null)
+            return
+        }
+        if (!generator.startTone(ToneGenerator.TONE_PROP_BEEP, 170)) {
+            result.error("READY_CUE_UNAVAILABLE", "Unable to play the ready cue.", null)
+            return
+        }
+        readyCueResult = result
+        // Include a short gap so the microphone never records the tail of the tone.
+        val completion = Runnable { completeReadyCue() }
+        readyCueCompletion = completion
+        mainHandler.postDelayed(completion, 260L)
+    }
+
+    private fun completeReadyCue() {
+        readyCueCompletion?.let(mainHandler::removeCallbacks)
+        readyCueCompletion = null
+        readyCueGenerator?.stopTone()
+        val completion = readyCueResult
+        readyCueResult = null
+        completion?.success(null)
+    }
+
     fun dispose() {
         completePendingPrompt()
         completeActiveAwaited()
+        completeReadyCue()
         initialized = false
         methodChannel.setMethodCallHandler(null)
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         textToSpeech = null
+        readyCueGenerator?.release()
+        readyCueGenerator = null
     }
 }

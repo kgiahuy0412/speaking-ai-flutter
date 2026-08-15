@@ -1,3 +1,5 @@
+import 'dart:async';
+
 enum MainButtonSource { screen, ble }
 
 enum MainButtonGesture { shortPress, longPress, release }
@@ -39,8 +41,23 @@ class MainButtonCoordinator {
   final MainButtonAction _onLongPress;
   final Map<MainButtonSource, int?> _activeLongPressSequences =
       <MainButtonSource, int?>{};
+  Future<void> _operationTail = Future<void>.value();
 
-  Future<MainButtonActionResult> handle(MainButtonInputEvent event) async {
+  Future<MainButtonActionResult> handle(MainButtonInputEvent event) {
+    final completer = Completer<MainButtonActionResult>();
+    _operationTail = _operationTail.then<void>((_) async {
+      try {
+        completer.complete(await _handleSerially(event));
+      } catch (_) {
+        completer.complete(MainButtonActionResult.busy);
+      }
+    });
+    return completer.future;
+  }
+
+  Future<MainButtonActionResult> _handleSerially(
+    MainButtonInputEvent event,
+  ) async {
     switch (event.gesture) {
       case MainButtonGesture.release:
         _activeLongPressSequences.remove(event.source);

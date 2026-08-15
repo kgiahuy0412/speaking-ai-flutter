@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/data/vocabulary_store.dart';
@@ -6,8 +8,56 @@ import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabul
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('opens the three vocabulary journeys from the redesigned home', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = _MemoryVocabularyStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: DisplayLanguageScope(
+          language: DisplayLanguage.vietnamese,
+          child: VocabularyHomeScreen(
+            isReady: true,
+            store: store,
+            voicePromptService: const _FakeVoicePromptService(),
+            onReturnToConversation: () {},
+            onHistory: () {},
+            onSettings: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('vocabulary-family-card')), findsOneWidget);
+    expect(find.byKey(const Key('vocabulary-stars-card')), findsOneWidget);
+    expect(find.byKey(const Key('vocabulary-review-card')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vocabulary-family-card')));
+    await tester.pumpAndSettle();
+    expect(find.text('Gia đình'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vocabulary-back-to-journeys')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('vocabulary-stars-card')));
+    await tester.pumpAndSettle();
+    expect(find.text('Ngôi sao của con'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vocabulary-back-to-journeys')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('vocabulary-review-card')));
+    await tester.pumpAndSettle();
+    expect(find.text('Luyện lại'), findsOneWidget);
+  });
+
   testWidgets('adds a Vietnamese vocabulary entry and persists it', (
     tester,
   ) async {
@@ -46,6 +96,105 @@ void main() {
     expect(store.entries.first.meaning, 'Quả táo');
     expect(find.text('Apple'), findsOneWidget);
     expect(find.text('Quả táo'), findsOneWidget);
+  });
+
+  testWidgets('shows lesson sentences in Stars and Review collections', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime(2026, 8, 14);
+    final store = _MemoryVocabularyStore(<VocabularyEntry>[
+      VocabularyEntry(
+        id: 'star',
+        word: "I'm An",
+        meaning: 'Con là An',
+        addedAt: now,
+        collection: VocabularyCollection.star,
+        sourceSentenceId: 'S1',
+      ),
+      VocabularyEntry(
+        id: 'review',
+        word: 'This is my bag',
+        meaning: 'Đây là cặp của con',
+        addedAt: now,
+        collection: VocabularyCollection.review,
+        sourceSentenceId: 'S2',
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: DisplayLanguageScope(
+          language: DisplayLanguage.vietnamese,
+          child: VocabularyHomeScreen(
+            isReady: true,
+            store: store,
+            voicePromptService: const _FakeVoicePromptService(),
+            onReturnToConversation: () {},
+            onHistory: () {},
+            onSettings: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 từ yêu thích'), findsOneWidget);
+    expect(find.text('1 từ cần ôn'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vocabulary-stars-card')));
+    await tester.pumpAndSettle();
+    expect(find.text("I'm An"), findsOneWidget);
+    expect(find.text('This is my bag'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('vocabulary-back-to-journeys')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('vocabulary-review-card')));
+    await tester.tap(find.byKey(const Key('vocabulary-review-card')));
+    await tester.pumpAndSettle();
+    expect(find.text('This is my bag'), findsOneWidget);
+    expect(find.text("I'm An"), findsNothing);
+  });
+
+  testWidgets('refreshes collection counts after a lesson saves a sentence', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'innotrik.vocabulary.v1': jsonEncode(<Object>[]),
+    });
+    const store = VocabularyStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: DisplayLanguageScope(
+          language: DisplayLanguage.vietnamese,
+          child: VocabularyHomeScreen(
+            isReady: true,
+            store: store,
+            voicePromptService: const _FakeVoicePromptService(),
+            onReturnToConversation: () {},
+            onHistory: () {},
+            onSettings: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('0 từ yêu thích'), findsOneWidget);
+
+    await store.upsertLessonSentence(
+      lessonCode: 'A035_T01_L01',
+      sentenceId: 'S1',
+      english: "I'm An",
+      vietnamese: 'Con là An',
+      collection: VocabularyCollection.star,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 từ yêu thích'), findsOneWidget);
   });
 
   testWidgets(
@@ -106,7 +255,10 @@ void main() {
 }
 
 class _MemoryVocabularyStore extends VocabularyStore {
-  List<VocabularyEntry> entries = <VocabularyEntry>[];
+  _MemoryVocabularyStore([List<VocabularyEntry>? entries])
+    : entries = List.of(entries ?? const <VocabularyEntry>[]);
+
+  List<VocabularyEntry> entries;
 
   @override
   Future<List<VocabularyEntry>> read() async => entries;

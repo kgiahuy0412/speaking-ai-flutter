@@ -152,6 +152,19 @@ class VoiceNavigationController extends ChangeNotifier {
     return _activateMainAssistantFlow(_mainAssistantFlow.beginOtherLearning);
   }
 
+  /// Continues the guided topic journey after the child completes a topic.
+  Future<bool> activateTopicSelectionAfterCompletion({
+    required int childAge,
+    required List<int> completedTopicNumbers,
+  }) async {
+    return _activateMainAssistantFlow(
+      () => _mainAssistantFlow.beginTopicSelectionAfterCompletion(
+        childAge: childAge,
+        completedTopicNumbers: completedTopicNumbers,
+      ),
+    );
+  }
+
   Future<bool> _activateMainAssistantFlow(String Function() beginFlow) async {
     if (_disposed) {
       return false;
@@ -308,7 +321,6 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
-    notifyListeners();
     final activeLearningCommand = turn.activeLearningCommand;
     if (activeLearningCommand != null) {
       final handler = _activeLearningCommandHandler;
@@ -320,6 +332,7 @@ class VoiceNavigationController extends ChangeNotifier {
     if (navigationAfterPrompt != null) {
       await _dispatchIntent(navigationAfterPrompt);
     }
+    notifyListeners();
     return true;
   }
 
@@ -359,6 +372,19 @@ class VoiceNavigationController extends ChangeNotifier {
       _awaitingCommand = false;
       notifyListeners();
       return true;
+    }
+    try {
+      final readyCuePlayer = _voicePromptService;
+      if (readyCuePlayer is SpeechReadyCuePlayer) {
+        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+      }
+    } catch (error) {
+      if (!_disposed && generation == _generation) {
+        _lastError = error;
+      }
+    }
+    if (_disposed || generation != _generation) {
+      return false;
     }
     _awaitingCommand = true;
     _commandWindowTimer = Timer(_commandWindowDuration, () {

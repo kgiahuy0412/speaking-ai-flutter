@@ -1215,6 +1215,13 @@ class ConversationController extends ChangeNotifier {
             .unlockForUserGesture();
       }
       await _playbackService.stop();
+      final readyCuePlayer = _voicePromptService;
+      if (readyCuePlayer is SpeechReadyCuePlayer) {
+        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+      }
+      if (_disposed) {
+        return;
+      }
       errorMessage = null;
       transientMessage = null;
       qualityApproved = null;

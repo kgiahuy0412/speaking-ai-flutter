@@ -41,6 +41,25 @@
     window.innotrikVoicePromptStop = function () {
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
+    window.innotrikSpeechReadyCue = function () {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      window.innotrikReadyCueContext =
+        window.innotrikReadyCueContext || new AudioContextClass();
+      const context = window.innotrikReadyCueContext;
+      if (context.state === 'suspended') context.resume();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.16);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(context.currentTime);
+      oscillator.stop(context.currentTime + 0.17);
+    };
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

@@ -53,4 +53,24 @@ void main() {
       });
     },
   );
+
+  test('waits for the speech-ready cue through the native bridge', () async {
+    const channel = MethodChannel('test_speech_ready_cue');
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    const service = MethodChannelVoicePromptService(channel: channel);
+    await service.playSpeechReadyCue();
+
+    expect(receivedCall?.method, 'playSpeechReadyCue');
+    expect(receivedCall?.arguments, isNull);
+  });
 }

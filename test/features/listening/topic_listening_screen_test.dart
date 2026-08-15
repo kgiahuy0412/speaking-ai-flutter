@@ -1,7 +1,9 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_lesson_list_screen.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +19,9 @@ void main() {
     ThemeMode themeMode = ThemeMode.light,
     Future<void> Function()? onVoiceNavigationPause,
     VoidCallback? onVoiceNavigationResume,
+    Future<ListeningContentCatalog>? contentFuture,
+    ListeningProgressStore progressStore = const ListeningProgressStore(),
+    TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion,
   }) {
     return MaterialApp(
       theme: buildAppTheme(),
@@ -32,6 +37,9 @@ void main() {
           childAge: childAge,
           onVoiceNavigationPause: onVoiceNavigationPause,
           onVoiceNavigationResume: onVoiceNavigationResume,
+          contentFuture: contentFuture,
+          progressStore: progressStore,
+          onTopicSelectionAfterCompletion: onTopicSelectionAfterCompletion,
         ),
       ),
     );
@@ -378,24 +386,61 @@ void main() {
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.text('Nghe tổng quan'), findsOneWidget);
-    expect(find.byKey(const Key('unrecorded-sentences-banner')), findsNothing);
-    expect(find.text('Sẵn sàng nghe lại'), findsNothing);
-
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.pump();
-    await tester.tap(learnNowButton);
-    await tester.pumpAndSettle();
-
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.text('Hello!'), findsOneWidget);
     expect(find.text('Xin chào!'), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'reports completed topics again after replaying a completed topic',
+    (tester) async {
+      final content = await AssetListeningContentRepository().load();
+      final progressStore = _MemoryProgressStore();
+      final requests = <({int childAge, List<int> completedTopicNumbers})>[];
+      final topic = content.topic(startAge: 6, endAge: 7, topicNumber: 1);
+      for (final lesson in topic.lessons) {
+        await progressStore.saveLesson(lesson.id, lesson.sentences.length);
+      }
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        buildSubject(
+          childAge: 6,
+          contentFuture: Future<ListeningContentCatalog>.value(content),
+          progressStore: progressStore,
+          onTopicSelectionAfterCompletion:
+              ({required childAge, required completedTopicNumbers}) async {
+                requests.add((
+                  childAge: childAge,
+                  completedTopicNumbers: completedTopicNumbers,
+                ));
+              },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstTopic = find.byKey(const ValueKey('topic-6-7-0'));
+      await tester.ensureVisible(firstTopic);
+      await tester.tap(firstTopic);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
+
+      tester
+          .widget<TopicLessonListScreen>(find.byType(TopicLessonListScreen))
+          .onTopicCompleted
+          ?.call();
+      Navigator.of(
+        tester.element(find.byKey(const Key('topic-lesson-list-screen'))),
+      ).pop();
+      await tester.pumpAndSettle();
+
+      expect(requests, hasLength(1));
+      expect(requests.single.childAge, 6);
+      expect(requests.single.completedTopicNumbers, <int>[1]);
+    },
+  );
 
   testWidgets('hides song and chant content for ages three to five', (
     tester,
@@ -446,16 +491,6 @@ void main() {
     expect(find.byKey(const Key('skip-lesson-intro')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.byKey(const Key('auto-play-lesson-review')), findsOneWidget);
-    expect(find.byKey(const Key('complete-lesson-review')), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.tap(learnNowButton);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
@@ -644,14 +679,6 @@ void main() {
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.text('Nghe tổng quan'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.pump();
-    await tester.tap(learnNowButton);
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -691,4 +718,19 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+}
+
+class _MemoryProgressStore extends ListeningProgressStore {
+  final Map<String, int> _progress = <String, int>{};
+
+  @override
+  Future<Map<String, int>> readAll() async => Map<String, int>.of(_progress);
+
+  @override
+  Future<void> saveLesson(String lessonId, int completedSentences) async {
+    final previous = _progress[lessonId] ?? 0;
+    if (completedSentences > previous) {
+      _progress[lessonId] = completedSentences;
+    }
+  }
 }

@@ -6,9 +6,14 @@ import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
-import '../../home/presentation/scenic_app_header.dart';
 import '../data/vocabulary_store.dart';
 import '../domain/vocabulary_entry.dart';
+
+const _familyAsset = 'assets/images/topics/my-family.jpg';
+const _starAsset = 'assets/images/vocabulary/golden-star.png';
+const _reviewAsset = 'assets/images/vocabulary/review-book.png';
+const _avatarAsset = 'assets/images/mascot/penguin-avatar.png';
+const _waveAsset = 'assets/images/mascot/penguin-wave.png';
 
 class VocabularyHomeScreen extends StatefulWidget {
   const VocabularyHomeScreen({
@@ -36,9 +41,12 @@ class VocabularyHomeScreen extends StatefulWidget {
 
 class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  StreamSubscription<void>? _storeSubscription;
   late final VoicePromptService _voicePromptService;
   late final bool _ownsVoicePromptService;
   List<VocabularyEntry> _entries = const <VocabularyEntry>[];
+  _VocabularyJourney? _selectedJourney;
   bool _loading = true;
   bool _deleteMode = false;
   bool _translating = false;
@@ -50,6 +58,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     _voicePromptService =
         widget.voicePromptService ?? createVoicePromptService();
     _searchController.addListener(_refreshSearch);
+    _storeSubscription = widget.store.changes.listen((_) => unawaited(_load()));
     unawaited(_load());
   }
 
@@ -58,6 +67,8 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     _searchController
       ..removeListener(_refreshSearch)
       ..dispose();
+    _searchFocusNode.dispose();
+    _storeSubscription?.cancel();
     if (_ownsVoicePromptService) {
       unawaited(_voicePromptService.dispose());
     }
@@ -66,10 +77,6 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final horizontalPadding = width < 370 ? 52.0 : 60.0;
-    final visibleEntries = _filteredEntries;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: LearningScenery(
@@ -77,60 +84,21 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
           bottom: false,
           child: Column(
             children: <Widget>[
-              ScenicAppHeader(
+              _VocabularyHeader(
                 isReady: widget.isReady,
-                onHistory: widget.onHistory,
-                onSettings: widget.onSettings,
+                onBrandPressed: widget.onReturnToConversation,
+                onSearchPressed: _openSearch,
+                onAddPressed: _translating ? null : _showAddDialog,
+                adding: _translating,
               ),
               Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: SingleChildScrollView(
-                      key: const Key('vocabulary-home-scroll'),
-                      padding: EdgeInsets.fromLTRB(
-                        horizontalPadding,
-                        68,
-                        horizontalPadding,
-                        20,
-                      ),
-                      child: Column(
-                        children: <Widget>[
-                          _buildTitleRow(context),
-                          const SizedBox(height: 18),
-                          _buildSearchField(context),
-                          const SizedBox(height: 24),
-                          Text(
-                            context.tr(
-                              '${visibleEntries.length} từ đã lưu',
-                              '已保存 ${visibleEntries.length} 个词',
-                            ),
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Theme.of(context).colorScheme.primary
-                                      : AppColors.indigoDark,
-                                  fontWeight: FontWeight.w800,
-                                  shadows: const <Shadow>[
-                                    Shadow(color: Colors.white, blurRadius: 8),
-                                  ],
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildVocabularyCard(context, visibleEntries),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-                  child: _buildPracticeButton(context),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 240),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _selectedJourney == null
+                      ? _buildJourneyLanding(context)
+                      : _buildJourneyDetail(context),
                 ),
               ),
             ],
@@ -140,71 +108,291 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     );
   }
 
-  Widget _buildTitleRow(BuildContext context) {
+  Widget _buildJourneyLanding(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              context.tr('Từ vựng của con', '孩子的词汇'),
-              maxLines: 1,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: isDark
-                    ? Theme.of(context).colorScheme.primary
-                    : AppColors.indigoDark,
-                fontSize: 25,
-                shadows: const <Shadow>[
-                  Shadow(color: Colors.white, blurRadius: 10),
+    final titleColor = isDark
+        ? Theme.of(context).colorScheme.primary
+        : const Color(0xFF102653);
+    final savedCount = _entriesForJourney(_VocabularyJourney.family).length;
+    final starCount = _entriesForJourney(_VocabularyJourney.stars).length;
+    final reviewCount = _entriesForJourney(_VocabularyJourney.review).length;
+
+    return Center(
+      key: const ValueKey<String>('vocabulary-journey-landing'),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          key: const Key('vocabulary-home-scroll'),
+          padding: const EdgeInsets.fromLTRB(40, 36, 40, 104),
+          child: Column(
+            children: <Widget>[
+              Text(
+                context.tr('Từ vựng của con', '孩子的词汇'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: titleColor,
+                  fontSize: 31,
+                  letterSpacing: -0.9,
+                  shadows: const <Shadow>[
+                    Shadow(color: Colors.white, blurRadius: 9),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                context.tr('Chọn hành trình của con', '选择你的学习旅程'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.muted,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 30),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: _JourneyCard(
+                    key: const Key('vocabulary-family-card'),
+                    height: 156,
+                    backgroundColor: const Color(0xFFFFF0E8),
+                    borderColor: const Color(0xFFF6CDBE),
+                    accentColor: const Color(0xFFFF664B),
+                    onPressed: () => _openJourney(_VocabularyJourney.family),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          flex: 6,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Image.asset(
+                                _familyAsset,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 5,
+                          child: _JourneyCopy(
+                            title: context.tr('Gia đình', '家庭'),
+                            count: context.tr(
+                              '$savedCount từ',
+                              '$savedCount 个词',
+                            ),
+                            countColor: const Color(0xFFF4573F),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              SizedBox(
+                height: 158,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Positioned(
+                      left: -18,
+                      bottom: 0,
+                      width: 112,
+                      height: 142,
+                      child: IgnorePointer(
+                        child: Image.asset(
+                          _waveAsset,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 71,
+                      right: -14,
+                      top: 0,
+                      child: _JourneyCard(
+                        key: const Key('vocabulary-stars-card'),
+                        height: 148,
+                        backgroundColor: const Color(0xFFFFF8DD),
+                        borderColor: const Color(0xFFF5DEA2),
+                        accentColor: const Color(0xFFFFB719),
+                        onPressed: () => _openJourney(_VocabularyJourney.stars),
+                        child: Row(
+                          children: <Widget>[
+                            Expanded(
+                              flex: 5,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  8,
+                                  14,
+                                  0,
+                                  10,
+                                ),
+                                child: Image.asset(
+                                  _starAsset,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 6,
+                              child: _JourneyCopy(
+                                title: context.tr('Ngôi sao', '小星星'),
+                                count: context.tr(
+                                  '$starCount từ yêu thích',
+                                  '$starCount 个收藏词',
+                                ),
+                                countColor: const Color(0xFFFFAC13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: _JourneyCard(
+                    key: const Key('vocabulary-review-card'),
+                    height: 148,
+                    backgroundColor: const Color(0xFFF5F0FF),
+                    borderColor: const Color(0xFFD7C7F3),
+                    accentColor: const Color(0xFF8354DF),
+                    onPressed: () => _openJourney(_VocabularyJourney.review),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          flex: 6,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 2, 8),
+                            child: Image.asset(
+                              _reviewAsset,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 5,
+                          child: _JourneyCopy(
+                            title: context.tr('Luyện lại', '复习'),
+                            count: context.tr(
+                              '$reviewCount từ cần ôn',
+                              '$reviewCount 个待复习词',
+                            ),
+                            countColor: const Color(0xFF8354DF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJourneyDetail(BuildContext context) {
+    final journey = _selectedJourney!;
+    final visibleEntries = _filteredEntries;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      key: ValueKey<_VocabularyJourney>(journey),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(52, 24, 52, 110),
+          child: Column(
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  IconButton.filledTonal(
+                    key: const Key('vocabulary-back-to-journeys'),
+                    onPressed: _closeJourney,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    tooltip: context.tr('Quay lại', '返回'),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.9),
+                      foregroundColor: AppColors.indigoDark,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _journeyTitle(context, journey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: isDark
+                                ? Theme.of(context).colorScheme.primary
+                                : AppColors.indigoDark,
+                            fontSize: 27,
+                          ),
+                    ),
+                  ),
+                  IconButton.filledTonal(
+                    key: const Key('toggle-delete-vocabulary'),
+                    onPressed: visibleEntries.isEmpty
+                        ? null
+                        : () => setState(() => _deleteMode = !_deleteMode),
+                    icon: Icon(
+                      _deleteMode
+                          ? Icons.close_rounded
+                          : Icons.delete_outline_rounded,
+                    ),
+                    tooltip: _deleteMode
+                        ? context.tr('Đóng chế độ xóa', '退出删除模式')
+                        : context.tr('Xóa từ vựng', '删除词汇'),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.9),
+                      foregroundColor: _deleteMode
+                          ? AppColors.coral
+                          : AppColors.indigo,
+                    ),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 18),
+              _buildSearchField(context),
+              const SizedBox(height: 22),
+              Text(
+                context.tr(
+                  '${visibleEntries.length} từ đã lưu',
+                  '已保存 ${visibleEntries.length} 个词',
+                ),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: isDark
+                      ? Theme.of(context).colorScheme.primary
+                      : AppColors.indigoDark,
+                  fontWeight: FontWeight.w800,
+                  shadows: const <Shadow>[
+                    Shadow(color: Colors.white, blurRadius: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildVocabularyCard(context, visibleEntries),
+            ],
           ),
         ),
-        IconButton.filled(
-          key: const Key('add-vocabulary-button'),
-          onPressed: _translating ? null : _showAddDialog,
-          icon: _translating
-              ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
-                  ),
-                )
-              : const Icon(Icons.add_rounded),
-          tooltip: context.tr('Thêm từ vựng', '添加词汇'),
-          style: IconButton.styleFrom(
-            minimumSize: const Size.square(46),
-            maximumSize: const Size.square(46),
-            backgroundColor: AppColors.indigo,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        const SizedBox(width: 6),
-        IconButton.filledTonal(
-          key: const Key('toggle-delete-vocabulary'),
-          onPressed: () => setState(() => _deleteMode = !_deleteMode),
-          icon: Icon(
-            _deleteMode ? Icons.close_rounded : Icons.delete_outline_rounded,
-          ),
-          tooltip: _deleteMode
-              ? context.tr('Đóng chế độ xóa', '退出删除模式')
-              : context.tr('Xóa từ vựng', '删除词汇'),
-          style: IconButton.styleFrom(
-            minimumSize: const Size.square(46),
-            maximumSize: const Size.square(46),
-            backgroundColor: isDark
-                ? Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.9)
-                : Colors.white.withValues(alpha: 0.86),
-            foregroundColor: _deleteMode ? AppColors.coral : AppColors.indigo,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -212,6 +400,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: _searchController,
+      focusNode: _searchFocusNode,
       decoration: InputDecoration(
         hintText: context.tr('Tìm từ vựng…', '搜索词汇…'),
         prefixIcon: const Icon(Icons.search_rounded),
@@ -303,48 +492,69 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     );
   }
 
-  Widget _buildPracticeButton(BuildContext context) {
-    return FilledButton(
-      key: const Key('vocabulary-practice-button'),
-      onPressed: widget.onReturnToConversation,
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(double.infinity, 68),
-        backgroundColor: AppColors.indigo,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.auto_stories_rounded, size: 27),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              context.tr('Tạo tình huống luyện tập', '生成练习场景'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  void _openJourney(_VocabularyJourney journey, {bool focusSearch = false}) {
+    setState(() {
+      _selectedJourney = journey;
+      _deleteMode = false;
+      _searchController.clear();
+    });
+    if (focusSearch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _searchFocusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  void _openSearch() {
+    if (_selectedJourney == null) {
+      _openJourney(_VocabularyJourney.family, focusSearch: true);
+      return;
+    }
+    _searchFocusNode.requestFocus();
+  }
+
+  void _closeJourney() {
+    _searchFocusNode.unfocus();
+    setState(() {
+      _selectedJourney = null;
+      _deleteMode = false;
+      _searchController.clear();
+    });
+  }
+
+  String _journeyTitle(BuildContext context, _VocabularyJourney journey) {
+    return switch (journey) {
+      _VocabularyJourney.family => context.tr('Gia đình', '家庭'),
+      _VocabularyJourney.stars => context.tr('Ngôi sao của con', '我的星星'),
+      _VocabularyJourney.review => context.tr('Luyện lại', '复习'),
+    };
   }
 
   List<VocabularyEntry> get _filteredEntries {
+    final journey = _selectedJourney ?? _VocabularyJourney.family;
+    final journeyEntries = _entriesForJourney(journey);
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) {
-      return _entries;
+      return journeyEntries;
     }
-    return _entries
+    return journeyEntries
         .where((entry) {
           return entry.word.toLowerCase().contains(query) ||
               entry.meaning.toLowerCase().contains(query);
         })
+        .toList(growable: false);
+  }
+
+  List<VocabularyEntry> _entriesForJourney(_VocabularyJourney journey) {
+    final collection = switch (journey) {
+      _VocabularyJourney.family => VocabularyCollection.saved,
+      _VocabularyJourney.stars => VocabularyCollection.star,
+      _VocabularyJourney.review => VocabularyCollection.review,
+    };
+    return _entries
+        .where((entry) => entry.collection == collection)
         .toList(growable: false);
   }
 
@@ -396,6 +606,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
       }
       setState(() {
         _entries = entries;
+        _selectedJourney = _VocabularyJourney.family;
         _deleteMode = false;
         _searchController.clear();
       });
@@ -504,6 +715,354 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
     r'[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]',
     caseSensitive: false,
   ).hasMatch(value);
+}
+
+enum _VocabularyJourney { family, stars, review }
+
+class _VocabularyHeader extends StatelessWidget {
+  const _VocabularyHeader({
+    required this.isReady,
+    required this.onBrandPressed,
+    required this.onSearchPressed,
+    required this.onAddPressed,
+    required this.adding,
+  });
+
+  final bool isReady;
+  final VoidCallback onBrandPressed;
+  final VoidCallback onSearchPressed;
+  final VoidCallback? onAddPressed;
+  final bool adding;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark
+        ? Theme.of(context).colorScheme.primary
+        : const Color(0xFF102653);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(26, 26, 18, 6),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: InkWell(
+                  key: const Key('vocabulary-practice-button'),
+                  onTap: onBrandPressed,
+                  borderRadius: BorderRadius.circular(36),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: <Widget>[
+                        Container(
+                          width: 64,
+                          height: 64,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.95),
+                              width: 2.5,
+                            ),
+                            boxShadow: const <BoxShadow>[
+                              BoxShadow(
+                                color: Color(0x24142451),
+                                blurRadius: 15,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Transform.scale(
+                            scale: 1.14,
+                            child: Image.asset(
+                              _avatarAsset,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'INNOTRIK',
+                                  maxLines: 1,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        color: foreground,
+                                        fontSize: 23,
+                                        letterSpacing: -0.35,
+                                      ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: isReady
+                                          ? AppColors.success
+                                          : AppColors.muted,
+                                      shape: BoxShape.circle,
+                                      boxShadow: isReady
+                                          ? const <BoxShadow>[
+                                              BoxShadow(
+                                                color: Color(0x3323A05A),
+                                                blurRadius: 5,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      isReady
+                                          ? context.tr('Sẵn sàng', '已就绪')
+                                          : context.tr('Chưa kết nối', '未连接'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: isReady
+                                                ? AppColors.success
+                                                : AppColors.muted,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              _VocabularyHeaderButton(
+                key: const Key('search-vocabulary-button'),
+                icon: Icons.search_rounded,
+                tooltip: context.tr('Tìm từ vựng', '搜索词汇'),
+                onPressed: onSearchPressed,
+              ),
+              const SizedBox(width: 8),
+              _VocabularyHeaderButton(
+                key: const Key('add-vocabulary-button'),
+                icon: Icons.add_rounded,
+                tooltip: context.tr('Thêm từ vựng', '添加词汇'),
+                onPressed: onAddPressed,
+                loading: adding,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VocabularyHeaderButton extends StatelessWidget {
+  const _VocabularyHeaderButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.loading = false,
+    super.key,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: loading
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            )
+          : Icon(icon, size: 30),
+      style: IconButton.styleFrom(
+        minimumSize: const Size.square(48),
+        maximumSize: const Size.square(48),
+        backgroundColor: isDark
+            ? Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.9),
+        foregroundColor: isDark
+            ? Theme.of(context).colorScheme.primary
+            : const Color(0xFF153B9A),
+        side: BorderSide(
+          color: isDark
+              ? Theme.of(context).colorScheme.outline
+              : const Color(0xFFD4E5ED),
+          width: 1.4,
+        ),
+        elevation: 2,
+        shadowColor: const Color(0x24142451),
+      ),
+    );
+  }
+}
+
+class _JourneyCard extends StatelessWidget {
+  const _JourneyCard({
+    required this.height,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.accentColor,
+    required this.onPressed,
+    required this.child,
+    super.key,
+  });
+
+  final double height;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color accentColor;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(34),
+        child: Ink(
+          height: height,
+          decoration: BoxDecoration(
+            color: backgroundColor.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(34),
+            border: Border.all(color: borderColor, width: 2),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x21142451),
+                blurRadius: 18,
+                offset: Offset(0, 9),
+              ),
+              BoxShadow(
+                color: Color(0xA6FFFFFF),
+                blurRadius: 1,
+                spreadRadius: 1,
+                offset: Offset(0, -1),
+              ),
+            ],
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Padding(padding: const EdgeInsets.only(right: 8), child: child),
+              Positioned(
+                right: 11,
+                bottom: 11,
+                child: Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: accentColor.withValues(alpha: 0.28),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyCopy extends StatelessWidget {
+  const _JourneyCopy({
+    required this.title,
+    required this.count,
+    required this.countColor,
+  });
+
+  final String title;
+  final String count;
+  final Color countColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 22, 12, 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: const Color(0xFF102653),
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            count,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: countColor,
+              fontSize: 16,
+              height: 1.16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _VocabularyRow extends StatelessWidget {

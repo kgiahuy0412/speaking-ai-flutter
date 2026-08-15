@@ -5,7 +5,8 @@ import 'voice_prompt_service_base.dart';
 VoicePromptService createPlatformVoicePromptService() =>
     const MethodChannelVoicePromptService();
 
-class MethodChannelVoicePromptService implements VoicePromptService {
+class MethodChannelVoicePromptService
+    implements VoicePromptService, SpeechReadyCuePlayer {
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
   }) : _channel = channel;
@@ -41,6 +42,17 @@ class MethodChannelVoicePromptService implements VoicePromptService {
     } on PlatformException {
       // A device may not have a Vietnamese TTS voice installed. Do not turn a
       // recognition retry into another user-facing error.
+    }
+  }
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    try {
+      await _channel.invokeMethod<void>('playSpeechReadyCue');
+    } on MissingPluginException {
+      // Optional native capability.
+    } on PlatformException {
+      // A missing audio route must not prevent the child from speaking.
     }
   }
 

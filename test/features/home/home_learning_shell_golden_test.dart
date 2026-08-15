@@ -5,6 +5,7 @@ import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,22 +35,18 @@ void main() {
     );
   });
 
-  testWidgets('topic rail expands before opening the catalog', (tester) async {
+  testWidgets('topic rail opens the catalog directly', (tester) async {
     final controller = await _pumpGoldenApp(tester);
     addTearDown(controller.dispose);
 
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 280));
+    await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('expanded-home-mode-rail')), findsOneWidget);
-    expect(find.text('50 chủ đề'), findsNothing);
+    expect(find.byType(TopicListeningScreen), findsOneWidget);
     await expectLater(
-      find.byType(HomeLearningShell),
+      find.byType(TopicListeningScreen),
       matchesGoldenFile('goldens/home-topic-expanded-390x844.png'),
     );
-
-    await tester.pumpAndSettle();
   });
 
   testWidgets('add vocabulary dialog matches image three', (tester) async {
@@ -101,6 +98,10 @@ Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
         AssetImage('assets/images/learning-minimal-sky-background.png'),
         AssetImage('assets/images/mascot/penguin-avatar.png'),
         AssetImage('assets/images/mascot/penguin-listen.png'),
+        AssetImage('assets/images/mascot/penguin-wave.png'),
+        AssetImage('assets/images/topics/my-family.jpg'),
+        AssetImage('assets/images/vocabulary/golden-star.png'),
+        AssetImage('assets/images/vocabulary/review-book.png'),
       ].map((provider) => precacheImage(provider, context)),
     );
   });

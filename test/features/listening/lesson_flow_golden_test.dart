@@ -287,7 +287,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('lesson learned review matches the approved direction', (
+  testWidgets('lesson completion choice matches the approved direction', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -322,12 +322,13 @@ void main() {
     await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Đã học'), findsOneWidget);
-    expect(find.text('Bài tiếp theo'), findsOneWidget);
-    expect(find.text('Luyện lại từ đầu'), findsOneWidget);
-    expect(find.text('Đã ghi âm'), findsNWidgets(3));
-    expect(find.text('Chưa ghi âm'), findsNWidgets(2));
-    expect(find.byKey(const Key('review-first-sentence-mascot')), findsNothing);
+    expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
+    expect(find.byKey(const Key('lesson-review-screen')), findsNothing);
+    expect(
+      find.text('Con nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.'),
+      findsOneWidget,
+    );
+    expect(mediaService.recording, isTrue);
 
     await expectLater(
       find.byType(MaterialApp),

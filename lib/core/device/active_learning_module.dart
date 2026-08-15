@@ -17,6 +17,7 @@ enum ActiveLearningCommand {
   previousLesson,
   restart,
   stop,
+  exitToHome,
 }
 
 enum ActiveLearningModuleKind { listeningLesson, vocabulary }
@@ -44,6 +45,9 @@ class ActiveLearningCommandResult {
 abstract interface class ActiveLearningModuleController {
   ActiveLearningModuleKind get moduleKind;
 
+  /// Whether the visible learning activity is currently paused by MAIN.
+  bool get isPausedForMain;
+
   /// Stops audio/recording immediately but preserves the exact learning
   /// position so MAIN can ask for a command without destroying the route.
   Future<void> pauseForMainAssistant();
@@ -60,16 +64,18 @@ abstract interface class ActiveLearningModuleController {
 class ActiveLearningModuleRegistry extends ChangeNotifier {
   ActiveLearningModuleController? _controller;
   Object? _ownerToken;
+  bool _notificationScheduled = false;
 
   ActiveLearningModuleController? get controller => _controller;
   bool get hasActiveModule => _controller != null;
+  bool get isActiveModulePaused => _controller?.isPausedForMain ?? false;
   ActiveLearningModuleKind? get activeKind => _controller?.moduleKind;
 
   Object register(ActiveLearningModuleController controller) {
     final token = Object();
     _controller = controller;
     _ownerToken = token;
-    notifyListeners();
+    _notifySafely();
     return token;
   }
 
@@ -79,7 +85,20 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
     }
     _controller = null;
     _ownerToken = null;
-    notifyListeners();
+    _notifySafely();
+  }
+
+  void _notifySafely() {
+    if (_notificationScheduled) {
+      return;
+    }
+    _notificationScheduled = true;
+    scheduleMicrotask(() {
+      _notificationScheduled = false;
+      if (hasListeners) {
+        notifyListeners();
+      }
+    });
   }
 
   Future<bool> pauseForMainAssistant() async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -108,5 +110,43 @@ void main() {
     );
 
     expect(longPresses, 2);
+  });
+
+  test('serializes simultaneous screen and BLE actions', () async {
+    final firstAction = Completer<void>();
+    final calls = <String>[];
+    final coordinator = MainButtonCoordinator(
+      onScreenShortPress: (_) async {
+        calls.add('screen-start');
+        await firstAction.future;
+        calls.add('screen-end');
+        return MainButtonActionResult.accepted;
+      },
+      onBleShortPress: (_) async {
+        calls.add('ble');
+        return MainButtonActionResult.accepted;
+      },
+      onLongPress: (_) async => MainButtonActionResult.accepted,
+    );
+
+    final screen = coordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.screen,
+        gesture: MainButtonGesture.shortPress,
+      ),
+    );
+    final ble = coordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.ble,
+        gesture: MainButtonGesture.shortPress,
+        sequence: 31,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls, <String>['screen-start']);
+    firstAction.complete();
+    await Future.wait(<Future<MainButtonActionResult>>[screen, ble]);
+    expect(calls, <String>['screen-start', 'screen-end', 'ble']);
   });
 }

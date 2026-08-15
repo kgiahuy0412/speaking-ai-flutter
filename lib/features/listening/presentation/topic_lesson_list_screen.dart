@@ -28,6 +28,7 @@ class TopicLessonListScreen extends StatefulWidget {
     this.progressStore = const ListeningProgressStore(),
     this.mediaService,
     this.initialLessonNumber,
+    this.onTopicCompleted,
     super.key,
   });
 
@@ -42,6 +43,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService? mediaService;
   final int? initialLessonNumber;
+  final VoidCallback? onTopicCompleted;
 
   bool get showsSongs => startAge >= 6 && content.songs.isNotEmpty;
 
@@ -292,6 +294,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
             topicContent: widget.content,
             progressStore: widget.progressStore,
             mediaService: _mediaService,
+            onTopicCompleted: widget.onTopicCompleted,
           ),
         ),
       );

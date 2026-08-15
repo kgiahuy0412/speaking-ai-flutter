@@ -31,6 +31,7 @@ class LessonMediaService {
   String? _activePath;
   _ActiveLessonRecording? _activeContext;
   Completer<void>? _activePlaybackCompletion;
+  Future<void> _recordingOperation = Future<void>.value();
 
   AudioRecorder get _activeRecorder => _recorder ??= AudioRecorder();
 
@@ -188,7 +189,7 @@ class LessonMediaService {
     String? english,
     String? vietnamese,
     bool saveToHistory = true,
-  }) async {
+  }) => _serializeRecordingOperation(() async {
     await stopPlayback();
     final recorder = _activeRecorder;
     if (!await recorder.hasPermission()) {
@@ -226,67 +227,78 @@ class LessonMediaService {
       saveToHistory: saveToHistory,
     );
     _recordingStartedAt = DateTime.now();
-  }
+  });
 
-  Future<LessonRecording> stopRecording() async {
-    final recorder = _recorder;
-    final startedAt = _recordingStartedAt;
-    final expectedPath = _activePath;
-    final context = _activeContext;
-    if (recorder == null ||
-        startedAt == null ||
-        expectedPath == null ||
-        context == null) {
-      throw const LessonMediaException('Chưa có bản ghi đang thực hiện.');
-    }
-    final recordedPath = await recorder.stop();
-    _recordingStartedAt = null;
-    _activePath = null;
-    _activeContext = null;
-    final resolvedPath = await resolveLessonRecording(
-      recordedPath,
-      expectedPath,
-    );
-    if (resolvedPath == null) {
-      throw const LessonMediaException('Không tìm thấy bản ghi vừa tạo.');
-    }
-    final recording = LessonRecording(
-      filePath: resolvedPath,
-      duration: DateTime.now().difference(startedAt),
-    );
-    if (context.saveToHistory) {
-      final createdAt = DateTime.now();
-      final evictedPaths = await historyStore.addSuccessful(
-        LessonRecordingHistoryEntry(
-          id: '${context.sentenceId}-${createdAt.microsecondsSinceEpoch}',
-          lessonId: context.lessonId,
-          lessonTitle: context.lessonTitle,
-          sentenceId: context.sentenceId,
-          sentenceNumber: context.sentenceNumber,
-          english: context.english,
-          vietnamese: context.vietnamese,
+  Future<LessonRecording> stopRecording() =>
+      _serializeRecordingOperation(() async {
+        final recorder = _recorder;
+        final startedAt = _recordingStartedAt;
+        final expectedPath = _activePath;
+        final context = _activeContext;
+        if (recorder == null ||
+            startedAt == null ||
+            expectedPath == null ||
+            context == null) {
+          throw const LessonMediaException('Chưa có bản ghi đang thực hiện.');
+        }
+        final recordedPath = await recorder.stop();
+        _recordingStartedAt = null;
+        _activePath = null;
+        _activeContext = null;
+        final resolvedPath = await resolveLessonRecording(
+          recordedPath,
+          expectedPath,
+        );
+        if (resolvedPath == null) {
+          throw const LessonMediaException('Không tìm thấy bản ghi vừa tạo.');
+        }
+        final recording = LessonRecording(
           filePath: resolvedPath,
-          duration: recording.duration,
-          createdAt: createdAt,
-        ),
-      );
-      for (final path in evictedPaths) {
-        await deleteLessonRecording(path);
-      }
-    }
-    return recording;
-  }
+          duration: DateTime.now().difference(startedAt),
+        );
+        if (context.saveToHistory) {
+          final createdAt = DateTime.now();
+          final evictedPaths = await historyStore.addSuccessful(
+            LessonRecordingHistoryEntry(
+              id: '${context.sentenceId}-${createdAt.microsecondsSinceEpoch}',
+              lessonId: context.lessonId,
+              lessonTitle: context.lessonTitle,
+              sentenceId: context.sentenceId,
+              sentenceNumber: context.sentenceNumber,
+              english: context.english,
+              vietnamese: context.vietnamese,
+              filePath: resolvedPath,
+              duration: recording.duration,
+              createdAt: createdAt,
+            ),
+          );
+          for (final path in evictedPaths) {
+            await deleteLessonRecording(path);
+          }
+        }
+        return recording;
+      });
 
-  Future<void> cancelRecording() async {
+  Future<void> cancelRecording() => _serializeRecordingOperation(() async {
     await _recorder?.cancel();
     _recordingStartedAt = null;
     _activePath = null;
     _activeContext = null;
+  });
+
+  Future<T> _serializeRecordingOperation<T>(Future<T> Function() action) {
+    final operation = _recordingOperation.then<T>((_) => action());
+    _recordingOperation = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
   }
 
   Future<void> deleteRecording(String path) => deleteLessonRecording(path);
 
   Future<void> dispose() async {
+    await _recordingOperation;
     await _recorder?.dispose();
     await _playbackService?.dispose();
   }

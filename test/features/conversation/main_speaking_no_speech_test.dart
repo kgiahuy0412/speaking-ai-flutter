@@ -29,6 +29,7 @@ void main() {
         speakNoSpeechPrompt: false,
       );
       expect(controller.isRecording, isTrue);
+      expect(promptService.readyCueCount, 1);
 
       await Future<void>.delayed(const Duration(milliseconds: 700));
 
@@ -108,8 +109,15 @@ class _FakePlaybackService implements AudioPlaybackService {
   Future<void> dispose() async {}
 }
 
-class _FakeVoicePromptService implements VoicePromptService {
+class _FakeVoicePromptService
+    implements VoicePromptService, SpeechReadyCuePlayer {
   final List<String> spokenTexts = <String>[];
+  int readyCueCount = 0;
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    readyCueCount += 1;
+  }
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {

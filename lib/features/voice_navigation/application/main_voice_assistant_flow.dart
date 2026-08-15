@@ -1,7 +1,6 @@
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
-import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 enum MainVoiceAssistantStage {
@@ -12,6 +11,8 @@ enum MainVoiceAssistantStage {
   activeLearning,
   askAge,
   chooseTopic,
+  chooseTopicAfterCompletion,
+  confirmReplayTopic,
   chooseLesson,
 }
 
@@ -46,18 +47,18 @@ class MainVoiceAssistantFlow {
       'Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String otherLearningPrompt =
       'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
-  static const String activeLearningPrompt = 'Con cần mình giúp gì không?';
+  static const String activeLearningPrompt = 'Con có muốn học nữa không?';
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
-  final ActiveLearningCommandResolver _activeLearningCommandResolver =
-      const ActiveLearningCommandResolver();
 
   MainVoiceAssistantStage _stage = MainVoiceAssistantStage.idle;
   int? _selectedAge;
   ListeningAgeCatalog? _selectedCatalog;
   int? _selectedTopicNumber;
   ListeningTopicContent? _selectedTopicContent;
+  Set<int> _completedTopicNumbers = const <int>{};
+  int? _pendingReplayTopicNumber;
 
   MainVoiceAssistantStage get stage => _stage;
 
@@ -79,12 +80,45 @@ class MainVoiceAssistantFlow {
     return activeLearningPrompt;
   }
 
+  String beginTopicSelectionAfterCompletion({
+    required int childAge,
+    required List<int> completedTopicNumbers,
+  }) {
+    reset();
+    ListeningAgeCatalog? catalog;
+    for (final candidate in _catalogs) {
+      if (childAge >= candidate.startAge && childAge <= candidate.endAge) {
+        catalog = candidate;
+        break;
+      }
+    }
+    if (catalog == null) {
+      _stage = MainVoiceAssistantStage.chooseFeature;
+      return openingPrompt;
+    }
+
+    final validCompletedTopicNumbers = completedTopicNumbers
+        .where(
+          (topicNumber) =>
+              topicNumber >= 1 && topicNumber <= catalog!.topics.length,
+        )
+        .toSet();
+
+    _selectedAge = childAge;
+    _selectedCatalog = catalog;
+    _completedTopicNumbers = validCompletedTopicNumbers;
+    _stage = MainVoiceAssistantStage.chooseTopicAfterCompletion;
+    return _topicSelectionPrompt;
+  }
+
   void reset() {
     _stage = MainVoiceAssistantStage.idle;
     _selectedAge = null;
     _selectedCatalog = null;
     _selectedTopicNumber = null;
     _selectedTopicContent = null;
+    _completedTopicNumbers = const <int>{};
+    _pendingReplayTopicNumber = null;
   }
 
   bool canHandle(String recognizedText) {
@@ -105,9 +139,12 @@ class MainVoiceAssistantFlow {
       MainVoiceAssistantStage.chooseTranslationMode =>
         _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
-        _activeLearningCommandResolver.resolve(recognizedText) != null,
+        _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
+      MainVoiceAssistantStage.confirmReplayTopic =>
+        _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
       MainVoiceAssistantStage.askAge ||
       MainVoiceAssistantStage.chooseTopic ||
+      MainVoiceAssistantStage.chooseTopicAfterCompletion ||
       MainVoiceAssistantStage.chooseLesson =>
         _extractSpokenNumber(normalized) != null,
       MainVoiceAssistantStage.idle => false,
@@ -137,6 +174,10 @@ class MainVoiceAssistantFlow {
         recognizedText,
         normalized,
       ),
+      MainVoiceAssistantStage.chooseTopicAfterCompletion =>
+        await _handleTopicAfterCompletion(recognizedText, normalized),
+      MainVoiceAssistantStage.confirmReplayTopic =>
+        await _handleReplayTopicConfirmation(recognizedText, normalized),
       MainVoiceAssistantStage.chooseLesson => _handleLesson(
         recognizedText,
         normalized,
@@ -277,32 +318,25 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
-    final command = _activeLearningCommandResolver.resolve(normalized);
-    if (command == null) {
+    if (_isAffirmativeChoice(normalized)) {
       return const MainVoiceAssistantTurn(
-        promptText:
-            'Con có thể nói tiếp tục, nghe lại, câu tiếp theo, bài tiếp theo hoặc dừng lại.',
-        continueListening: true,
+        promptText: 'Tiếp tục học nhé con',
+        continueListening: false,
+        activeLearningCommand: ActiveLearningCommand.resume,
       );
     }
-    return MainVoiceAssistantTurn(
-      promptText: _activeLearningReply(command),
-      continueListening: false,
-      activeLearningCommand: command,
+    if (_isNegativeChoice(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: 'Tạm biệt con',
+        continueListening: false,
+        activeLearningCommand: ActiveLearningCommand.exitToHome,
+      );
+    }
+    return const MainVoiceAssistantTurn(
+      promptText: 'Con có muốn học nữa không? Con hãy nói có hoặc không nhé.',
+      continueListening: true,
     );
   }
-
-  static String _activeLearningReply(ActiveLearningCommand command) =>
-      switch (command) {
-        ActiveLearningCommand.resume => 'Mình cùng tiếp tục học nhé.',
-        ActiveLearningCommand.replayCurrent => 'Mình nghe lại nhé.',
-        ActiveLearningCommand.nextItem => 'Mình sang câu tiếp theo nhé.',
-        ActiveLearningCommand.previousItem => 'Mình quay lại câu trước nhé.',
-        ActiveLearningCommand.nextLesson => 'Mình sang bài tiếp theo nhé.',
-        ActiveLearningCommand.previousLesson => 'Mình quay lại bài trước nhé.',
-        ActiveLearningCommand.restart => 'Mình luyện lại từ đầu nhé.',
-        ActiveLearningCommand.stop => 'Đã dừng.',
-      };
 
   MainVoiceAssistantTurn _handleAge(String normalized) {
     final age = _extractSpokenNumber(normalized);
@@ -370,7 +404,22 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    return _openTopic(recognizedText: recognizedText, topicNumber: topicNumber);
+  }
 
+  Future<MainVoiceAssistantTurn> _openTopic({
+    required String recognizedText,
+    required int topicNumber,
+  }) async {
+    final catalog = _selectedCatalog;
+    final age = _selectedAge;
+    if (catalog == null || age == null) {
+      _stage = MainVoiceAssistantStage.askAge;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con mấy tuổi',
+        continueListening: true,
+      );
+    }
     try {
       final content = await _contentLoader();
       final topicContent = content.topic(
@@ -408,6 +457,83 @@ class MainVoiceAssistantFlow {
       );
     }
   }
+
+  Future<MainVoiceAssistantTurn> _handleTopicAfterCompletion(
+    String recognizedText,
+    String normalized,
+  ) async {
+    if (_looksLikePromptEcho(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: _topicSelectionPrompt,
+        continueListening: true,
+      );
+    }
+    final catalog = _selectedCatalog;
+    final topicNumber = _extractSpokenNumber(normalized);
+    if (catalog == null || _selectedAge == null) {
+      _stage = MainVoiceAssistantStage.askAge;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con mấy tuổi',
+        continueListening: true,
+      );
+    }
+    if (topicNumber == null ||
+        topicNumber < 1 ||
+        topicNumber > catalog.topics.length) {
+      return MainVoiceAssistantTurn(
+        promptText:
+            'Có ${catalog.topics.length} chủ đề. Con hãy chọn chủ đề từ số 1 đến số ${catalog.topics.length}',
+        continueListening: true,
+      );
+    }
+    if (_completedTopicNumbers.contains(topicNumber)) {
+      _pendingReplayTopicNumber = topicNumber;
+      _stage = MainVoiceAssistantStage.confirmReplayTopic;
+      return MainVoiceAssistantTurn(
+        promptText:
+            'Chủ đề số $topicNumber con đã học rồi. Con có muốn học lại không?',
+        continueListening: true,
+      );
+    }
+    return _openTopic(recognizedText: recognizedText, topicNumber: topicNumber);
+  }
+
+  Future<MainVoiceAssistantTurn> _handleReplayTopicConfirmation(
+    String recognizedText,
+    String normalized,
+  ) async {
+    final topicNumber = _pendingReplayTopicNumber;
+    if (_looksLikePromptEcho(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText:
+            'Chủ đề số ${topicNumber ?? ''} con đã học rồi. Con có muốn học lại không?',
+        continueListening: true,
+      );
+    }
+    if (_isAffirmativeChoice(normalized) && topicNumber != null) {
+      _pendingReplayTopicNumber = null;
+      return _openTopic(
+        recognizedText: recognizedText,
+        topicNumber: topicNumber,
+      );
+    }
+    if (_isNegativeChoice(normalized)) {
+      _pendingReplayTopicNumber = null;
+      _stage = MainVoiceAssistantStage.chooseTopicAfterCompletion;
+      return MainVoiceAssistantTurn(
+        promptText: _topicSelectionPrompt,
+        continueListening: true,
+      );
+    }
+    return MainVoiceAssistantTurn(
+      promptText:
+          'Con có muốn học lại chủ đề số ${topicNumber ?? ''} không? Con hãy nói có hoặc không nhé',
+      continueListening: true,
+    );
+  }
+
+  String get _topicSelectionPrompt =>
+      'Có ${_selectedCatalog?.topics.length ?? 0} chủ đề. Con muốn học chủ đề số mấy';
 
   MainVoiceAssistantTurn _handleLesson(
     String recognizedText,
@@ -486,6 +612,26 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'dich lien tuc') ||
       _containsPhrase(normalized, 'noi lien tuc');
 
+  static bool _isAffirmativeChoice(String normalized) =>
+      normalized == 'co' ||
+      normalized == 'co a' ||
+      normalized == 'da co' ||
+      _containsPhrase(normalized, 'con co') ||
+      _containsPhrase(normalized, 'muon hoc lai') ||
+      _containsPhrase(normalized, 'hoc lai') ||
+      _containsPhrase(normalized, 'tiep tuc') ||
+      _containsPhrase(normalized, 'hoc tiep');
+
+  static bool _isNegativeChoice(String normalized) =>
+      normalized == 'khong' ||
+      normalized == 'khong a' ||
+      normalized == 'da khong' ||
+      _containsPhrase(normalized, 'con khong') ||
+      _containsPhrase(normalized, 'khong dau') ||
+      _containsPhrase(normalized, 'khong muon') ||
+      _containsPhrase(normalized, 'khong hoc') ||
+      _containsPhrase(normalized, 'dung hoc');
+
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');
 
@@ -505,7 +651,7 @@ class MainVoiceAssistantFlow {
             _containsPhrase(normalized, 'mot cau hay dich lien tuc'),
       MainVoiceAssistantStage.activeLearning => _containsPhrase(
         normalized,
-        'con can minh giup gi khong',
+        'con co muon hoc nua khong',
       ),
       MainVoiceAssistantStage.askAge => normalized == 'con may tuoi',
       MainVoiceAssistantStage.chooseTopic =>
@@ -515,6 +661,17 @@ class MainVoiceAssistantFlow {
                   normalized,
                   'co ${_selectedCatalog!.topics.length} chu de',
                 )),
+      MainVoiceAssistantStage.chooseTopicAfterCompletion =>
+        _containsPhrase(normalized, 'con muon hoc chu de so may') ||
+            _containsPhrase(normalized, 'chu de so may') ||
+            (_selectedCatalog != null &&
+                _containsPhrase(
+                  normalized,
+                  'co ${_selectedCatalog!.topics.length} chu de',
+                )),
+      MainVoiceAssistantStage.confirmReplayTopic =>
+        _containsPhrase(normalized, 'con da hoc roi') ||
+            _containsPhrase(normalized, 'co muon hoc lai khong'),
       MainVoiceAssistantStage.chooseLesson =>
         _containsPhrase(normalized, 'bai so may') ||
             (_selectedTopicContent != null &&

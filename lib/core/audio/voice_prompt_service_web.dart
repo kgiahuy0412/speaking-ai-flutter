@@ -11,7 +11,11 @@ external void _speakPrompt(JSString text, JSString locale);
 @JS('innotrikVoicePromptStop')
 external void _stopPrompt();
 
-class WebVoicePromptService implements VoicePromptService {
+@JS('innotrikSpeechReadyCue')
+external void _playSpeechReadyCue();
+
+class WebVoicePromptService
+    implements VoicePromptService, SpeechReadyCuePlayer {
   const WebVoicePromptService();
 
   @override
@@ -30,6 +34,13 @@ class WebVoicePromptService implements VoicePromptService {
         Duration(milliseconds: 450 + (text.trim().length * 55)),
       );
     }
+  }
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    _playSpeechReadyCue();
+    // Keep the microphone closed until the tone and a short anti-echo gap end.
+    await Future<void>.delayed(const Duration(milliseconds: 260));
   }
 
   @override

@@ -1,4 +1,6 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
@@ -152,6 +154,92 @@ void main() {
     expect(primaryAction, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('MAIN commands pause, resume, and leave the lesson for home', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final lesson = _lessonWithSentences(1);
+    final mediaService = _SilentMediaService(
+      existingRecordingPath: 'C:\\recordings\\previous-attempt.m4a',
+    );
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: Builder(
+            builder: (context) => Scaffold(
+              key: const Key('test-home'),
+              body: FilledButton(
+                key: const Key('open-test-lesson'),
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LessonPracticeScreen(
+                      language: DisplayLanguage.vietnamese,
+                      startAge: 3,
+                      endAge: 5,
+                      topic: listeningCatalogs.first.topics.first,
+                      lesson: lesson,
+                      progressStore: _MemoryProgressStore(),
+                      mediaService: mediaService,
+                      voicePromptService: _SilentVoicePromptService(),
+                      guideAudioLibrary: LessonGuideAudioLibrary(
+                        assetPaths: const <String>[],
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('Mở bài học'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('open-test-lesson')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    expect(navigator.canPop(), isTrue);
+    expect(registry.hasActiveModule, isTrue);
+    expect(registry.isActiveModulePaused, isFalse);
+    expect(mediaService.recording, isFalse);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.stop)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.recording, isFalse);
+    expect(find.text('Đã dừng. Nhấn MAIN để tiếp tục.'), findsOneWidget);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.resume)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    expect(registry.isActiveModulePaused, isFalse);
+    expect(mediaService.recording, isTrue);
+    expect(mediaService.startRecordingCount, 1);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.exitToHome)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(navigator.canPop(), isFalse);
+    expect(find.byKey(const Key('test-home')), findsOneWidget);
+    expect(find.byKey(const Key('lesson-practice-screen')), findsNothing);
+    expect(registry.hasActiveModule, isFalse);
+  });
 }
 
 Widget _subject(
@@ -257,14 +345,38 @@ class _MemoryProgressStore extends ListeningProgressStore {
 }
 
 class _SilentMediaService extends LessonMediaService {
+  _SilentMediaService({this.existingRecordingPath});
+
+  final String? existingRecordingPath;
   final List<Uri> playedUris = <Uri>[];
+  bool recording = false;
+  int startRecordingCount = 0;
 
   @override
   Future<String?> existingRecording({
     required String lessonId,
     required int sentenceNumber,
     String? sentenceId,
-  }) async => null;
+  }) async => existingRecordingPath;
+
+  @override
+  Future<void> startRecording({
+    required String lessonId,
+    required int sentenceNumber,
+    String? lessonTitle,
+    String? sentenceId,
+    String? english,
+    String? vietnamese,
+    bool saveToHistory = true,
+  }) async {
+    recording = true;
+    startRecordingCount += 1;
+  }
+
+  @override
+  Future<void> cancelRecording() async {
+    recording = false;
+  }
 
   @override
   Future<void> play(Uri uri) async => playedUris.add(uri);
@@ -277,6 +389,20 @@ class _SilentMediaService extends LessonMediaService {
 
   @override
   Future<void> stopPlayback() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _SilentVoicePromptService implements VoicePromptService {
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> stop() async {}
 
   @override
   Future<void> dispose() async {}

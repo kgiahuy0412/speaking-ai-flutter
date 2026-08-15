@@ -260,6 +260,7 @@ void main() {
 
       expect(controller.asrMode, AsrMode.batchChunks);
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -322,6 +323,7 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -366,6 +368,7 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -475,6 +478,7 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -505,6 +509,7 @@ void main() {
 
     await controller.startRecording();
     input.emit(<int>[17, 18, 19, 20]);
+    await _emitDetectedSpeech(input);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     await controller.stopRecording(manual: true);
 
@@ -536,6 +541,7 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -584,6 +590,7 @@ void main() {
       realtimeCompleter.complete(realtimeSession);
       await Future<void>.delayed(Duration.zero);
       input.emit(<int>[3, 4]);
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -634,7 +641,7 @@ void main() {
     },
   );
 
-  test('short Web utterance keeps the direct WAV upload path', () async {
+  test('short Web utterance promotes buffered audio before finalizing', () async {
     final input = _FakeChunkedInput(
       available: true,
       bluetooth: false,
@@ -656,9 +663,9 @@ void main() {
     await _emitDetectedSpeech(input);
     await controller.stopRecording(manual: true);
 
-    expect(repository.batchStarted, 0);
-    expect(repository.fullFileUploads, 1);
-    expect(controller.result?.conversationId, 'file-result');
+    expect(repository.batchStarted, 1);
+    expect(repository.fullFileUploads, 0);
+    expect(controller.result?.conversationId, 'batch-result');
     controller.dispose();
   });
 
@@ -958,6 +965,7 @@ void main() {
       final repository = _FallbackRepository(
         audioResultCompleter: resultCompleter,
       );
+      repository.batchSession.resultCompleter = resultCompleter;
       final playback = _BlockingPlaybackService();
       final controller = ConversationController(
         audioInput: input,
@@ -1178,6 +1186,7 @@ void main() {
     );
 
     await controller.startRecording();
+    await _emitDetectedSpeech(input);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 100), () {
@@ -1213,6 +1222,7 @@ void main() {
       );
 
       await controller.startRecording();
+      await _emitDetectedSpeech(input);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
@@ -1244,6 +1254,7 @@ void main() {
     );
 
     await controller.startRecording();
+    await _emitDetectedSpeech(input);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final stopwatch = Stopwatch()..start();
     await controller.stopRecording(manual: true);
@@ -1912,6 +1923,7 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
   bool discarded = false;
   Object? finalizeError;
   ConversationResult? resultOverride;
+  Completer<ConversationResult>? resultCompleter;
   AudioCapture? capture;
   int terminalPreviewRequests = 0;
   int speechDetectedCalls = 0;
@@ -1936,6 +1948,10 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
     final error = finalizeError;
     if (error != null) {
       throw error;
+    }
+    final completer = resultCompleter;
+    if (completer != null) {
+      return completer.future;
     }
     return resultOverride ?? _result('batch-result');
   }
