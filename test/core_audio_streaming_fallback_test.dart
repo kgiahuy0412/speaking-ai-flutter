@@ -260,7 +260,7 @@ void main() {
 
       expect(controller.asrMode, AsrMode.batchChunks);
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.realtimeStarted, 0);
@@ -322,7 +322,7 @@ void main() {
       );
 
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(controller.phase, ConversationPhase.error);
@@ -475,7 +475,7 @@ void main() {
       );
 
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.realtimeStarted, 0);
@@ -505,7 +505,7 @@ void main() {
 
     await controller.startRecording();
     input.emit(<int>[17, 18, 19, 20]);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _emitDetectedSpeech(input);
     await controller.stopRecording(manual: true);
 
     expect(repository.realtimeStarted, 0);
@@ -536,7 +536,7 @@ void main() {
       );
 
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.realtimeStarted, 1);
@@ -581,6 +581,7 @@ void main() {
       expect(controller.phase, ConversationPhase.recording);
       expect(realtimeSession.chunks, isEmpty);
 
+      await _emitDetectedSpeech(input);
       realtimeCompleter.complete(realtimeSession);
       await Future<void>.delayed(Duration.zero);
       input.emit(<int>[3, 4]);
@@ -634,7 +635,7 @@ void main() {
     },
   );
 
-  test('short Web utterance keeps the direct WAV upload path', () async {
+  test('short Web utterance promotes buffered audio to Batch at stop', () async {
     final input = _FakeChunkedInput(
       available: true,
       bluetooth: false,
@@ -656,9 +657,9 @@ void main() {
     await _emitDetectedSpeech(input);
     await controller.stopRecording(manual: true);
 
-    expect(repository.batchStarted, 0);
-    expect(repository.fullFileUploads, 1);
-    expect(controller.result?.conversationId, 'file-result');
+    expect(repository.batchStarted, 1);
+    expect(repository.fullFileUploads, 0);
+    expect(controller.result?.conversationId, 'batch-result');
     controller.dispose();
   });
 
@@ -958,6 +959,7 @@ void main() {
       final repository = _FallbackRepository(
         audioResultCompleter: resultCompleter,
       );
+      repository.batchSession.finalizeCompleter = resultCompleter;
       final playback = _BlockingPlaybackService();
       final controller = ConversationController(
         audioInput: input,
@@ -972,7 +974,7 @@ void main() {
       await controller.startRecording();
       await _emitDetectedSpeech(input);
       final stopping = controller.stopRecording(manual: true);
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(controller.phase, ConversationPhase.processing);
       expect(
@@ -1178,7 +1180,7 @@ void main() {
     );
 
     await controller.startRecording();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _emitDetectedSpeech(input);
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 100), () {
         realtimeCompleter.complete(realtimeSession);
@@ -1213,7 +1215,7 @@ void main() {
       );
 
       await controller.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await _emitDetectedSpeech(input);
       await controller.stopRecording(manual: true);
 
       expect(repository.batchStarted, 1);
@@ -1244,7 +1246,7 @@ void main() {
     );
 
     await controller.startRecording();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _emitDetectedSpeech(input);
     final stopwatch = Stopwatch()..start();
     await controller.stopRecording(manual: true);
     stopwatch.stop();
@@ -1375,7 +1377,38 @@ void main() {
     controller.dispose();
   });
 
-  test('standard Android ASR archives its microphone recording', () async {
+  test(
+    'standard Android ASR prefers direct streaming over recorded-audio injection',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final repository = _FallbackRepository();
+      final recognizer = _FakeRecordedAudioStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: recognizer,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(recognizer.startCount, 1);
+      expect(recognizer.recordedCapture, isNull);
+      expect(input.startCount, 0);
+      expect(repository.streamingCapture?.asrMode, 'android_streaming');
+      controller.dispose();
+    },
+  );
+
+  test('recorded Android audio archive remains an explicit opt-in', () async {
     final input = _FakeChunkedInput(
       available: true,
       bluetooth: false,
@@ -1390,6 +1423,7 @@ void main() {
       repository: repository,
       childAge: 6,
       initialAsrMode: AsrMode.androidStreaming,
+      recordAndroidAudioForArchive: true,
     );
 
     await controller.startRecording();
@@ -1424,6 +1458,7 @@ void main() {
         repository: repository,
         childAge: 6,
         initialAsrMode: AsrMode.androidStreaming,
+        recordAndroidAudioForArchive: true,
       );
 
       await controller.startRecording();
@@ -1458,6 +1493,7 @@ void main() {
         repository: repository,
         childAge: 6,
         initialAsrMode: AsrMode.androidStreaming,
+        recordAndroidAudioForArchive: true,
       );
 
       await controller.startRecording(
@@ -1533,6 +1569,7 @@ void main() {
       repository: repository,
       childAge: 6,
       initialAsrMode: AsrMode.androidStreaming,
+      recordAndroidAudioForArchive: true,
     );
 
     await controller.startRecording();
@@ -1912,6 +1949,7 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
   bool discarded = false;
   Object? finalizeError;
   ConversationResult? resultOverride;
+  Completer<ConversationResult>? finalizeCompleter;
   AudioCapture? capture;
   int terminalPreviewRequests = 0;
   int speechDetectedCalls = 0;
@@ -1936,6 +1974,10 @@ class _RecordingBatchSession implements BatchChunkUploadSession {
     final error = finalizeError;
     if (error != null) {
       throw error;
+    }
+    final completer = finalizeCompleter;
+    if (completer != null) {
+      return completer.future;
     }
     return resultOverride ?? _result('batch-result');
   }

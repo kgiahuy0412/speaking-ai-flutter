@@ -197,9 +197,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await _activateCurrentSentence(autoPlay: true);
   }
 
-  Future<void> _activateCurrentSentence({required bool autoPlay}) async {
+  Future<void> _activateCurrentSentence({
+    required bool autoPlay,
+    bool preservePraise = false,
+  }) async {
     _cancelIdleReminder();
-    _hideCoachPopup();
+    _hideCoachPopup(hideFireworks: !preservePraise);
     if (mounted) {
       setState(() {
         _showSkip = false;
@@ -629,7 +632,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     final request = ++_recordingStartRequest;
     _cancelIdleReminder();
-    _hideCoachPopup();
+    // Praise is intentionally non-blocking and may remain visible while the
+    // next guided sentence starts recording.
+    _hideCoachPopup(hideFireworks: false);
     setState(() {
       _mediaBusy = true;
       _recordingStartPending = true;
@@ -828,7 +833,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     _cancelIdleReminder();
-    _hideCoachPopup();
+    final preservePraise =
+        _usesGuideV2 && autoPlaySentence && _praiseFireworksVisible;
+    _hideCoachPopup(hideFireworks: !preservePraise);
     await widget.progressStore.saveLesson(widget.lesson.id, _sentenceIndex + 1);
     if (!mounted) {
       return;
@@ -875,7 +882,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = null;
     });
-    await _activateCurrentSentence(autoPlay: autoPlaySentence);
+    await _activateCurrentSentence(
+      autoPlay: autoPlaySentence,
+      preservePraise: preservePraise,
+    );
   }
 
   Future<void> _previous() async {
@@ -1548,15 +1558,21 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     });
   }
 
-  void _hideCoachPopup() {
+  void _hideCoachPopup({bool hideFireworks = true}) {
     _coachPopupTimer?.cancel();
     _coachPopupTimer = null;
-    _praiseFireworksTimer?.cancel();
-    _praiseFireworksTimer = null;
-    if (mounted && (_coachPopupKind != null || _praiseFireworksVisible)) {
+    if (hideFireworks) {
+      _praiseFireworksTimer?.cancel();
+      _praiseFireworksTimer = null;
+    }
+    if (mounted &&
+        (_coachPopupKind != null ||
+            (hideFireworks && _praiseFireworksVisible))) {
       setState(() {
         _coachPopupKind = null;
-        _praiseFireworksVisible = false;
+        if (hideFireworks) {
+          _praiseFireworksVisible = false;
+        }
       });
     }
   }

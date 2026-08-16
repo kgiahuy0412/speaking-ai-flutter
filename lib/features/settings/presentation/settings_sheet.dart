@@ -247,8 +247,8 @@ class SettingsSheet extends StatelessWidget {
                     ),
                     Text(
                       context.tr(
-                        '900 ms là mặc định; có thể tăng nếu trẻ thường ngắt câu.',
-                        '默认 900 毫秒；如果孩子说话经常停顿，可以调高。',
+                        '700 ms là mặc định; có thể tăng nếu trẻ thường ngắt câu.',
+                        '默认 700 毫秒；如果孩子说话经常停顿，可以调高。',
                       ),
                       style: Theme.of(
                         context,

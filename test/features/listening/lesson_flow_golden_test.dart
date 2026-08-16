@@ -3,6 +3,7 @@ import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
+import 'package:ai_speaking_flutter_app/features/listening/domain/lesson_guide_flow.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart';
@@ -153,7 +154,7 @@ void main() {
     );
   });
 
-  testWidgets('friendly reminder popup matches the approved direction', (
+  testWidgets('guided practice starts recording without the legacy reminder', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -168,6 +169,7 @@ void main() {
           progressStore: progressStore,
           mediaService: mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
+          voicePromptService: const _GoldenVoicePromptService(),
         ),
       ),
     );
@@ -176,13 +178,14 @@ void main() {
       find.byType(LessonPracticeScreen),
       const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
     );
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(mediaService.recording, isTrue);
 
-    await expectLater(
-      find.byType(LessonPracticeScreen),
-      matchesGoldenFile('goldens/lesson-reminder-popup-390x844.png'),
+    await tester.pump(const Duration(seconds: 5));
+    expect(mediaService.recording, isTrue);
+    expect(
+      find.byKey(const Key('lesson-coach-popup-firstReminder')),
+      findsNothing,
     );
   });
 
@@ -201,6 +204,8 @@ void main() {
           progressStore: progressStore,
           mediaService: mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
+          attemptEvaluator: const RecordedAttemptEvaluator(),
+          voicePromptService: const _GoldenVoicePromptService(),
         ),
       ),
     );
@@ -209,13 +214,16 @@ void main() {
       find.byType(LessonPracticeScreen),
       const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(mediaService.recording, isTrue);
+
     final recordButton = find.byKey(const Key('record-lesson-sentence'));
     await tester.tap(recordButton);
     await tester.pump();
-    await tester.tap(recordButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('lesson-praise-fireworks')), findsOneWidget);
 
     await expectLater(
       find.byType(LessonPracticeScreen),
@@ -293,34 +301,21 @@ void main() {
     await _usePhoneSurface(tester);
     final lesson = topicContent.lessons.first;
     mediaService.recordedSentenceNumbers = const <int>{1, 3, 5};
-    progressStore = _GoldenProgressStore(
-      currentSentence: lesson.sentences.length - 1,
-    );
     await tester.pumpWidget(
       _GoldenApp(
-        child: LessonPracticeScreen(
+        child: LessonReviewScreen(
           language: DisplayLanguage.vietnamese,
-          startAge: 3,
-          endAge: 5,
-          topic: listeningCatalogs.first.topics.first,
           lesson: lesson,
-          topicContent: topicContent,
-          progressStore: progressStore,
           mediaService: mediaService,
-          guideAudioLibrary: _silentGuideAudioLibrary(),
-          voicePromptService: const _GoldenVoicePromptService(),
+          mode: LessonReviewMode.learned,
+          hasNextLesson: true,
+          unrecordedSentenceIndexes: const <int>{1, 3},
         ),
       ),
     );
-    await _precache(
-      tester,
-      find.byType(LessonPracticeScreen),
-      const <AssetImage>[AssetImage('assets/images/mascot/penguin-speak.png')],
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
-    await tester.pump();
+    await _precache(tester, find.byType(LessonReviewScreen), const <AssetImage>[
+      AssetImage('assets/images/mascot/penguin-speak.png'),
+    ]);
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Đã học'), findsOneWidget);
     expect(find.text('Bài tiếp theo'), findsOneWidget);
@@ -481,11 +476,9 @@ class _GoldenVoicePromptService implements VoicePromptService {
 
 class _GoldenProgressStore extends ListeningProgressStore {
   const _GoldenProgressStore({
-    this.currentSentence = 0,
     this.progress = const <String, int>{},
   });
 
-  final int currentSentence;
   final Map<String, int> progress;
 
   @override
@@ -495,7 +488,7 @@ class _GoldenProgressStore extends ListeningProgressStore {
   Future<int> readLesson(String lessonId) async => progress[lessonId] ?? 0;
 
   @override
-  Future<int> readCurrentSentence(String lessonId) async => currentSentence;
+  Future<int> readCurrentSentence(String lessonId) async => 0;
 
   @override
   Future<Set<int>> readSkippedSentences(String lessonId) async => <int>{};

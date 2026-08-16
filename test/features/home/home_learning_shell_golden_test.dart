@@ -34,22 +34,15 @@ void main() {
     );
   });
 
-  testWidgets('topic rail expands before opening the catalog', (tester) async {
+  testWidgets('topic rail opens the catalog directly', (tester) async {
     final controller = await _pumpGoldenApp(tester);
     addTearDown(controller.dispose);
 
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 280));
-
-    expect(find.byKey(const Key('expanded-home-mode-rail')), findsOneWidget);
-    expect(find.text('50 chủ đề'), findsNothing);
-    await expectLater(
-      find.byType(HomeLearningShell),
-      matchesGoldenFile('goldens/home-topic-expanded-390x844.png'),
-    );
-
     await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
+    expect(find.byKey(const Key('expanded-home-mode-rail')), findsNothing);
   });
 
   testWidgets('add vocabulary dialog matches image three', (tester) async {

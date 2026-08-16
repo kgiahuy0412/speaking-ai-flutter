@@ -242,7 +242,8 @@ class MainVoiceAssistantFlow {
     }
     if (_isSingleSentenceChoice(normalized)) {
       return MainVoiceAssistantTurn(
-        promptText: 'Con hãy nói một câu.',
+        promptText:
+            'Con bấm nút MAIN để bắt đầu nói. Khi nói xong, con bấm nút MAIN lần nữa nhé. Muốn dừng và gọi mình, con nhấn giữ nút MAIN.',
         continueListening: false,
         navigationAfterPrompt: VoiceNavigationIntent(
           destination: VoiceNavigationDestination.conversation,

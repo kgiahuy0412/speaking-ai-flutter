@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
@@ -40,9 +42,76 @@ void main() {
       expect(promptService.spokenTexts, <String>['tạm biệt con nhé']);
     },
   );
+
+  test('long MAIN cancels a single sentence without translating it', () async {
+    final audioInput = _SilentAudioInput();
+    final promptService = _FakeVoicePromptService();
+    final controller = ConversationController(
+      audioInput: audioInput,
+      playbackService: const _FakePlaybackService(),
+      voicePromptService: promptService,
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: false,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.startRecording(
+      noSpeechTimeout: const Duration(seconds: 10),
+    );
+    expect(controller.isRecording, isTrue);
+
+    final result = await controller.cancelSingleSentenceMainAction();
+
+    expect(result, MainButtonActionResult.accepted);
+    expect(controller.phase, ConversationPhase.idle);
+    expect(
+      controller.lastTurnEndReason,
+      ConversationTurnEndReason.commandHandled,
+    );
+    expect(audioInput.cancelCount, 1);
+    expect(promptService.spokenTexts, isEmpty);
+  });
+
+  test('long MAIN suppresses a translation already processing', () async {
+    final controller = ConversationController(
+      audioInput: _SilentAudioInput(),
+      streamingSpeechInput: const _ImmediateStreamingSpeechInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      webRuntimeOverride: false,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.startRecording(
+      noSpeechTimeout: const Duration(seconds: 10),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final stopFuture = controller.stopRecording(manual: true);
+    for (var attempt = 0; attempt < 50; attempt += 1) {
+      if (controller.phase == ConversationPhase.processing) {
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(controller.phase, ConversationPhase.processing);
+
+    final cancelResult = await controller.cancelSingleSentenceMainAction();
+    expect(cancelResult, MainButtonActionResult.accepted);
+    expect(controller.phase, ConversationPhase.idle);
+
+    await stopFuture;
+    expect(controller.phase, ConversationPhase.idle);
+    expect(controller.result, isNull);
+  });
 }
 
 class _SilentAudioInput implements ChunkedAudioInput {
+  int cancelCount = 0;
+
   @override
   String get label => 'Mic kiểm thử';
 
@@ -75,7 +144,9 @@ class _SilentAudioInput implements ChunkedAudioInput {
   );
 
   @override
-  Future<void> cancel() async {}
+  Future<void> cancel() async {
+    cancelCount += 1;
+  }
 
   @override
   Future<void> dispose() async {}
@@ -122,6 +193,44 @@ class _FakeVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _ImmediateStreamingSpeechInput implements StreamingSpeechInput {
+  const _ImmediateStreamingSpeechInput();
+
+  @override
+  String get label => 'ASR Android kiểm thử';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
+    sourceText: 'Con muốn đi công viên',
+    duration: Duration(seconds: 1),
+    inputLabel: 'ASR Android kiểm thử',
+    confidence: 0.9,
+    firstResultMs: 100,
+    finalAfterStopMs: 20,
+  );
+
+  @override
+  Future<void> cancel() async {}
 
   @override
   Future<void> dispose() async {}

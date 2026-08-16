@@ -86,6 +86,7 @@ class ConversationController extends ChangeNotifier {
     AsrMode? initialAsrMode,
     bool? webRuntimeOverride,
     Duration? adaptiveWebUploadDelay,
+    bool recordAndroidAudioForArchive = false,
     Future<void> Function()? beforeRecordingStart,
     bool Function(String recognizedText)? recognizedSpeechCommandMatcher,
     Future<void> Function(String recognizedText)? onRecognizedSpeechCommand,
@@ -107,6 +108,7 @@ class ConversationController extends ChangeNotifier {
        _isWebRuntime = webRuntimeOverride ?? kIsWeb,
        _hfpInputSelected = initialAsrMode == AsrMode.hfpStreaming,
        _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
+       _recordAndroidAudioForArchive = recordAndroidAudioForArchive,
        _beforeRecordingStart = beforeRecordingStart,
        _recognizedSpeechCommandMatcher = recognizedSpeechCommandMatcher,
        _onRecognizedSpeechCommand = onRecognizedSpeechCommand,
@@ -207,6 +209,7 @@ class ConversationController extends ChangeNotifier {
   final bool _realtimeBatchFallback;
   final bool _isWebRuntime;
   final Duration _adaptiveWebUploadDelay;
+  final bool _recordAndroidAudioForArchive;
   final Future<void> Function()? _beforeRecordingStart;
   final bool Function(String recognizedText)? _recognizedSpeechCommandMatcher;
   final Future<void> Function(String recognizedText)?
@@ -243,6 +246,8 @@ class ConversationController extends ChangeNotifier {
   DateTime? _responseReceivedAt;
   bool _stopInProgress = false;
   bool _speechDetected = false;
+  bool _stopOnSilence = true;
+  bool _pushToTalkPressed = false;
   bool _speakNoSpeechPrompt = true;
   ConversationTurnEndReason? _lastTurnEndReason;
   bool _noisyRecording = false;
@@ -268,6 +273,7 @@ class ConversationController extends ChangeNotifier {
   int? _offlineIntentFirstResultMs;
   bool _disposed = false;
   int _previewGeneration = 0;
+  int _conversationTurnGeneration = 0;
   String? _lastPreviewText;
   ConversationPreview? _preview;
   Uri? _preferredPlaybackUri;
@@ -279,7 +285,7 @@ class ConversationController extends ChangeNotifier {
       ConversationProcessingStage.recognizing;
   PracticeContext context = PracticeContext.home;
   AsrMode asrMode;
-  int vadSilenceMs = 900;
+  int vadSilenceMs = 700;
   double amplitude = 0;
   ConversationResult? result;
   bool? qualityApproved;
@@ -594,6 +600,41 @@ class ConversationController extends ChangeNotifier {
     await startRecording();
   }
 
+  /// Starts a single-sentence turn immediately when the child presses down.
+  /// Silence cannot finish the turn while the button is still held; the
+  /// existing maximum recording timer remains the safety limit.
+  Future<void> startPushToTalk() async {
+    if (_pushToTalkPressed || isBusy) {
+      return;
+    }
+    _pushToTalkPressed = true;
+    await startRecording(
+      noSpeechTimeout: const Duration(seconds: 12),
+      stopOnSilence: false,
+    );
+    if (_disposed) {
+      return;
+    }
+    if (phase == ConversationPhase.recording && !_pushToTalkPressed) {
+      await stopRecording(manual: true);
+    } else if (phase != ConversationPhase.recording) {
+      _pushToTalkPressed = false;
+    }
+  }
+
+  /// Finishes and translates the sentence on pointer-up. If the microphone is
+  /// still opening, [startPushToTalk] observes the released state and stops as
+  /// soon as the recorder becomes ready.
+  Future<void> stopPushToTalk() async {
+    if (!_pushToTalkPressed) {
+      return;
+    }
+    _pushToTalkPressed = false;
+    if (phase == ConversationPhase.recording) {
+      await stopRecording(manual: true);
+    }
+  }
+
   Future<List<Aiv0BleDevice>> scanAiv0Devices() async {
     final control = _aiv0BleControl;
     if (control == null || isBusy) return const [];
@@ -762,6 +803,61 @@ class ConversationController extends ChangeNotifier {
       return MainButtonActionResult.accepted;
     }
     return MainButtonActionResult.ignored;
+  }
+
+  /// Cancels the current single-sentence turn without translating it.
+  ///
+  /// This is intentionally separate from [stopCurrentMainAction], whose short
+  /// press behavior finalizes a recording. A long MAIN press uses this method
+  /// to leave single-sentence mode and reopen the assistant menu.
+  Future<MainButtonActionResult> cancelSingleSentenceMainAction() async {
+    if (_preparingMicrophone) {
+      return MainButtonActionResult.busy;
+    }
+
+    _conversationTurnGeneration += 1;
+    _pushToTalkPressed = false;
+    _partialPreviewTimer?.cancel();
+    _previewGeneration += 1;
+    _silenceTimer?.cancel();
+    _noSpeechTimer?.cancel();
+    _maximumDurationTimer?.cancel();
+    _offlineFallbackTimer?.cancel();
+    _offlineFallbackTimer = null;
+    _processingStageTimer?.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
+    await _batchPreviewSubscription?.cancel();
+    _batchPreviewSubscription = null;
+    _realtimeFallbackBuffer.clear();
+
+    if (phase == ConversationPhase.recording && !_stopInProgress) {
+      _stopInProgress = true;
+      final previousSpeakNoSpeechPrompt = _speakNoSpeechPrompt;
+      _speakNoSpeechPrompt = false;
+      try {
+        await _finishNoSpeechTurn(inputAlreadyStopped: false);
+      } finally {
+        _speakNoSpeechPrompt = previousSpeakNoSpeechPrompt;
+      }
+    }
+
+    if (_playbackPlaying) {
+      await _playbackService.stop();
+    }
+    await _stopHfpRoute();
+    transientMessage = null;
+    errorMessage = null;
+    amplitude = 0;
+    _preview = null;
+    _preferredPlaybackUri = null;
+    _speculativePreloadUri = null;
+    _lastTurnEndReason = ConversationTurnEndReason.commandHandled;
+    phase = ConversationPhase.idle;
+    _stopInProgress = false;
+    unawaited(_syncAiv0AppState());
+    notifyListeners();
+    return MainButtonActionResult.accepted;
   }
 
   Aiv0AppState get _currentAiv0AppState {
@@ -1192,6 +1288,7 @@ class ConversationController extends ChangeNotifier {
   Future<void> startRecording({
     Duration noSpeechTimeout = const Duration(seconds: 3),
     bool speakNoSpeechPrompt = true,
+    bool stopOnSilence = true,
   }) async {
     if (!_audioInput.isAvailable || isBusy) {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
@@ -1201,6 +1298,7 @@ class ConversationController extends ChangeNotifier {
       _setError('Hãy tìm và kết nối thiết bị HFP trước khi bắt đầu nói.');
       return;
     }
+    _conversationTurnGeneration += 1;
 
     try {
       _preparingMicrophone = true;
@@ -1221,6 +1319,7 @@ class ConversationController extends ChangeNotifier {
       _processingStageTimer?.cancel();
       processingStage = ConversationProcessingStage.recognizing;
       _speechDetected = false;
+      _stopOnSilence = stopOnSilence;
       _speakNoSpeechPrompt = speakNoSpeechPrompt;
       _lastTurnEndReason = null;
       _noisyRecording = false;
@@ -1306,8 +1405,14 @@ class ConversationController extends ChangeNotifier {
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
           }
+          // Live translation must stay on Android SpeechRecognizer so partial
+          // recognition overlaps the child's speech. Capturing a WAV first and
+          // injecting it only after stop is retained as an explicit archival
+          // compatibility mode, but is deliberately off in the production app
+          // because it adds a full post-recording ASR stage.
           final recordedAudioRecognizer =
-              _streamingSpeechInput is RecordedAudioStreamingSpeechInput
+              _recordAndroidAudioForArchive &&
+                  _streamingSpeechInput is RecordedAudioStreamingSpeechInput
               ? _streamingSpeechInput! as RecordedAudioStreamingSpeechInput
               : null;
           final hasRecordedAudioPipeline =
@@ -1790,7 +1895,8 @@ class ConversationController extends ChangeNotifier {
         _adaptiveWebUpload?.markSpeculativeVoiceActive();
         _silenceTimer?.cancel();
         _silenceTimer = null;
-      } else if (_speechDetected &&
+      } else if (_stopOnSilence &&
+          _speechDetected &&
           !activity.isCalibrating &&
           _silenceTimer == null) {
         _batchSpeechGate?.markVoiceInactive();
@@ -1889,6 +1995,8 @@ class ConversationController extends ChangeNotifier {
     if (phase != ConversationPhase.recording || _stopInProgress) {
       return;
     }
+    final turnGeneration = _conversationTurnGeneration;
+    _pushToTalkPressed = false;
     _stopInProgress = true;
     _adaptiveWebUpload?.markStopRequested(manual: manual);
     _partialPreviewTimer?.cancel();
@@ -2134,6 +2242,12 @@ class ConversationController extends ChangeNotifier {
       _batchSpeechGate = null;
       _realtimeFallbackBuffer.clear();
       _usingOfflineIntent = false;
+      if (turnGeneration != _conversationTurnGeneration) {
+        await batchUpload
+            ?.discard(reason: 'single_sentence_mode_cancelled')
+            .catchError((Object _) {});
+        return;
+      }
       final streamingCommandText = streamingCapture?.sourceText.trim();
       if (streamingCommandText != null &&
           streamingCommandText.isNotEmpty &&
@@ -2200,6 +2314,9 @@ class ConversationController extends ChangeNotifier {
             : Future<void>.value(),
         resultFuture,
       ]);
+      if (turnGeneration != _conversationTurnGeneration) {
+        return;
+      }
       final nextResult = processing[1]! as ConversationResult;
       _responseReceivedAt = DateTime.now();
       final batchCommandText = nextResult.vietnameseText.trim();
@@ -2303,11 +2420,17 @@ class ConversationController extends ChangeNotifier {
       stoppedAdaptiveWebUpload = null;
       await _batchPreviewSubscription?.cancel();
       _batchPreviewSubscription = null;
+      if (turnGeneration != _conversationTurnGeneration) {
+        return;
+      }
       _lastTurnEndReason = ConversationTurnEndReason.completed;
       phase = ConversationPhase.ready;
       unawaited(_syncAiv0AppState());
       notifyListeners();
     } catch (error) {
+      if (turnGeneration != _conversationTurnGeneration) {
+        return;
+      }
       _lastTurnEndReason = ConversationTurnEndReason.failed;
       _handleConversationError(error);
     } finally {

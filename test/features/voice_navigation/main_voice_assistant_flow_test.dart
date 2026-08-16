@@ -43,6 +43,9 @@ void main() {
     expect(translation.continueListening, isTrue);
     final single = await singleFlow.handle('Một câu');
     expect(single.continueListening, isFalse);
+    expect(single.promptText, contains('bấm nút MAIN để bắt đầu nói'));
+    expect(single.promptText, contains('bấm nút MAIN lần nữa'));
+    expect(single.promptText, contains('nhấn giữ nút MAIN'));
     expect(
       single.navigationAfterPrompt?.destination,
       VoiceNavigationDestination.conversation,

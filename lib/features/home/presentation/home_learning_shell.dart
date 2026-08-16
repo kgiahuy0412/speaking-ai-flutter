@@ -30,6 +30,7 @@ class HomeLearningShell extends StatefulWidget {
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
     this.onMainSpeakingModeStarted,
+    this.onSingleSentenceModeChanged,
     this.onModalVisibilityChanged,
     this.onboardingStore,
     this.listeningContentFuture,
@@ -42,6 +43,7 @@ class HomeLearningShell extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
+  final ValueChanged<bool>? onSingleSentenceModeChanged;
   final ValueChanged<bool>? onModalVisibilityChanged;
   final OnboardingProgressStore? onboardingStore;
   final Future<ListeningContentCatalog>? listeningContentFuture;
@@ -375,7 +377,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       case VoiceNavigationDestination.conversation:
         _showConversation();
         if (intent.enterMainSpeakingMode) {
+          widget.onSingleSentenceModeChanged?.call(false);
           widget.onMainSpeakingModeStarted?.call();
+        } else if (intent.matchedPhrase == 'mot cau') {
+          widget.onSingleSentenceModeChanged?.call(true);
         }
       case VoiceNavigationDestination.vocabulary:
         _showVocabulary();
@@ -609,6 +614,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   void _showVocabulary() {
+    widget.onSingleSentenceModeChanged?.call(false);
     _pageController.animateToPage(
       1,
       duration: _motionDuration,
@@ -630,6 +636,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     if (_openingTopics) {
       return;
     }
+    widget.onSingleSentenceModeChanged?.call(false);
     _openingTopics = true;
     final routeClosedCompleter = Completer<void>();
     _topicRouteClosedCompleter = routeClosedCompleter;

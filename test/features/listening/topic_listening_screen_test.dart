@@ -10,6 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late ListeningContentCatalog bundledContent;
+
+  setUpAll(() async {
+    // Load outside a widget test's FakeAsync zone. Reusing the completed
+    // catalog also keeps the asset-heavy suite deterministic on Windows.
+    bundledContent = await AssetListeningContentRepository().load();
+  });
+
   Widget buildSubject({
     int childAge = 6,
     DisplayLanguage language = DisplayLanguage.vietnamese,
@@ -30,6 +38,7 @@ void main() {
         child: TopicListeningScreen(
           language: language,
           childAge: childAge,
+          contentFuture: Future<ListeningContentCatalog>.value(bundledContent),
           onVoiceNavigationPause: onVoiceNavigationPause,
           onVoiceNavigationResume: onVoiceNavigationResume,
         ),
@@ -378,18 +387,6 @@ void main() {
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.text('Nghe tổng quan'), findsOneWidget);
-    expect(find.byKey(const Key('unrecorded-sentences-banner')), findsNothing);
-    expect(find.text('Sẵn sàng nghe lại'), findsNothing);
-
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.pump();
-    await tester.tap(learnNowButton);
-    await tester.pumpAndSettle();
-
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.text('Hello!'), findsOneWidget);
     expect(find.text('Xin chào!'), findsOneWidget);
@@ -448,16 +445,6 @@ void main() {
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.byKey(const Key('auto-play-lesson-review')), findsOneWidget);
-    expect(find.byKey(const Key('complete-lesson-review')), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.tap(learnNowButton);
-    await tester.pumpAndSettle();
-
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.byKey(const Key('play-lesson-sample')), findsOneWidget);
     expect(find.byKey(const Key('play-vietnamese-meaning')), findsOneWidget);
@@ -497,10 +484,8 @@ void main() {
     expect(firstSong, findsOneWidget);
   });
 
-  testWidgets('bundled lesson content matches the approved Word catalog', (
-    tester,
-  ) async {
-    final content = await AssetListeningContentRepository().load();
+  test('bundled lesson content matches the approved Word catalog', () {
+    final content = bundledContent;
     final topics = content.groups.expand((group) => group.topics).toList();
     final lessons = topics.expand((topic) => topic.lessons).toList();
     final sentences = lessons.expand((lesson) => lesson.sentences).toList();
@@ -643,14 +628,6 @@ void main() {
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('lesson-review-screen')), findsOneWidget);
-    expect(find.text('Nghe tổng quan'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 6));
-    final learnNowButton = find.byKey(const Key('complete-lesson-review'));
-    await tester.ensureVisible(learnNowButton);
-    await tester.pump();
-    await tester.tap(learnNowButton);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
     expect(find.byKey(const Key('record-lesson-sentence')), findsOneWidget);

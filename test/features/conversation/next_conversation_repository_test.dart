@@ -1794,7 +1794,12 @@ void main() {
         client: MockClient((request) async {
           if (request.url.path == '/api/audio-sessions') {
             return http.Response(
-              jsonEncode(<String, dynamic>{'audioSessionId': 'audio_legacy'}),
+              jsonEncode(<String, dynamic>{
+                'audioSessionId': 'audio_legacy',
+                'capabilities': <String, dynamic>{
+                  'pcm16WavFinalize': false,
+                },
+              }),
               200,
             );
           }

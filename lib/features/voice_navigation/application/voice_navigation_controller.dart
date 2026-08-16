@@ -15,11 +15,12 @@ typedef ActiveLearningCommandHandler =
       ActiveLearningCommand command,
     );
 
-/// Runs Android voice navigation independently from the conversation flow.
+/// Runs MAIN voice navigation independently from the conversation flow.
 ///
-/// It shares the platform speech recognizer with conversation recording, but
-/// never changes [ConversationController] state and never forwards unmatched
-/// speech to the conversation backend.
+/// Android shares its platform recognizer with conversation recording. Web's
+/// virtual MAIN supplies the same interface through Cloudflare Batch Chunks.
+/// Neither path changes [ConversationController] state or forwards an
+/// unmatched navigation command into the normal speaking result UI.
 class VoiceNavigationController extends ChangeNotifier {
   VoiceNavigationController({
     required StreamingSpeechInput speechInput,

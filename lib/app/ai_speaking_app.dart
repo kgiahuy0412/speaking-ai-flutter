@@ -33,6 +33,7 @@ import '../features/listening/domain/listening_content.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
 import '../features/voice_navigation/application/main_speaking_command_resolver.dart';
 import '../features/voice_navigation/application/voice_navigation_controller.dart';
+import '../features/voice_navigation/data/web_batch_streaming_speech_input.dart';
 import '../features/voice_navigation/presentation/main_voice_assistant_button.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
@@ -72,6 +73,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
+  bool _singleSentenceMainModeActive = false;
 
   @override
   void initState() {
@@ -173,10 +175,23 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         ? AndroidStreamingSpeechInput()
         : null;
     _androidStreamingSpeechInput = streamingSpeechInput;
+    final StreamingSpeechInput? voiceNavigationSpeechInput =
+        streamingSpeechInput ??
+        (kIsWeb
+            ? WebBatchStreamingSpeechInput(
+                audioInput: phoneMicrophoneInput,
+                repository: repository,
+                childAge: _config.childAge,
+              )
+            : null);
     final voiceNavigationController =
-        streamingSpeechInput != null && _config.enableVoiceNavigation
+        voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(
-            speechInput: streamingSpeechInput,
+            speechInput: voiceNavigationSpeechInput,
+            // Android's recognizer is shared with ConversationController and
+            // remains owned there. The Web adapter is exclusive to MAIN and
+            // may close its own event streams with this controller.
+            ownsSpeechInput: kIsWeb,
             voicePromptService: createVoicePromptService(),
             ownsVoicePromptService: true,
             activeLearningCommandHandler: _handleActiveLearningCommand,
@@ -201,15 +216,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       preferBleStreaming: _config.preferBleStreaming,
       realtimeBatchFallback: _config.realtimeBatchFallback,
       realtimeFallbackBufferBytes: _config.realtimeFallbackBufferBytes,
-      // iOS browsers all use WebKit. Open their Batch session on the record
-      // gesture so network upload overlaps the entire utterance; keep the
-      // existing adaptive delay for other web platforms.
-      adaptiveWebUploadDelay:
-          kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
-          ? Duration.zero
-          : kIsWeb
-          ? const Duration(seconds: 8)
-          : Duration.zero,
+      // Open the Batch session on the record gesture on every browser so
+      // session creation and chunk upload overlap the child's whole utterance.
+      // No-speech turns are discarded by the adaptive upload gate.
+      adaptiveWebUploadDelay: Duration.zero,
       initialAsrMode: supportsAndroidNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
@@ -344,6 +354,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         (controller?.h20HardwareTestModeEnabled ?? false)) {
       return controller!.handleBleMainShortPress(event);
     }
+    if (_singleSentenceMainModeActive) {
+      if (controller == null ||
+          controller.isPreparingMicrophone ||
+          controller.phase == ConversationPhase.processing ||
+          controller.isPlaybackPlaying) {
+        return MainButtonActionResult.busy;
+      }
+      await controller.onPrimaryAction();
+      return MainButtonActionResult.accepted;
+    }
     final activated = await _activateMainAssistant();
     return activated
         ? MainButtonActionResult.accepted
@@ -384,6 +404,26 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   Future<MainButtonActionResult> _handleMainLongPress(
     MainButtonInputEvent event,
   ) async {
+    if (_singleSentenceMainModeActive) {
+      final controller = _controller;
+      if (controller == null) {
+        return MainButtonActionResult.ignored;
+      }
+      final stopped = await controller.cancelSingleSentenceMainAction();
+      if (stopped == MainButtonActionResult.busy) {
+        return stopped;
+      }
+      if (mounted) {
+        setState(() => _singleSentenceMainModeActive = false);
+      } else {
+        _singleSentenceMainModeActive = false;
+      }
+      final activated = await _activateMainAssistant();
+      return activated
+          ? MainButtonActionResult.accepted
+          : MainButtonActionResult.busy;
+    }
+
     final voiceController = _voiceNavigationController;
     if (voiceController?.isMainButtonSessionActive ?? false) {
       _activeModulePausedForMain = false;
@@ -450,9 +490,29 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   }
 
   void _startMainSpeakingMode() {
+    if (mounted) {
+      setState(() => _singleSentenceMainModeActive = false);
+    } else {
+      _singleSentenceMainModeActive = false;
+    }
     _hasMainSpeakingTurnStarted = false;
     _mainSpeakingSessionController.enter();
     _synchronizeMainSpeakingSession();
+  }
+
+  void _setSingleSentenceMainMode(bool active) {
+    if (_singleSentenceMainModeActive == active) {
+      return;
+    }
+    if (active && _mainSpeakingSessionController.isActive) {
+      _hasMainSpeakingTurnStarted = false;
+      _mainSpeakingSessionController.exit();
+    }
+    if (mounted) {
+      setState(() => _singleSentenceMainModeActive = active);
+    } else {
+      _singleSentenceMainModeActive = active;
+    }
   }
 
   void _synchronizeMainSpeakingSession() {
@@ -694,6 +754,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
                       voiceController: voiceController,
                       conversationController: controller,
                       speakingSessionController: _mainSpeakingSessionController,
+                      singleSentenceModeActive: _singleSentenceMainModeActive,
                       isActivationPending: _isActivatingMainAssistant,
                       onPressed: () async {
                         await _mainButtonCoordinator.handle(
@@ -722,6 +783,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             themeMode: _themeMode,
             onThemeModeChanged: _setThemeMode,
             onMainSpeakingModeStarted: _startMainSpeakingMode,
+            onSingleSentenceModeChanged: _setSingleSentenceMainMode,
             onModalVisibilityChanged: _setGlobalModalOpen,
           ),
         ),
