@@ -8,10 +8,20 @@ VoicePromptService createPlatformVoicePromptService() =>
 @JS('innotrikVoicePromptSpeak')
 external void _speakPrompt(JSString text, JSString locale);
 
+@JS('innotrikVoicePromptSpeakAndWait')
+external JSPromise<JSString> _speakPromptAndWait(
+  JSString text,
+  JSString locale,
+);
+
 @JS('innotrikVoicePromptStop')
 external void _stopPrompt();
 
-class WebVoicePromptService implements VoicePromptService {
+@JS('innotrikSpeechReadyCue')
+external void _playSpeechReadyCue();
+
+class WebVoicePromptService
+    implements VoicePromptService, SpeechReadyCuePlayer {
   const WebVoicePromptService();
 
   @override
@@ -24,12 +34,27 @@ class WebVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
-    await speak(text, locale: locale);
-    if (text.trim().isNotEmpty) {
-      await Future<void>.delayed(
-        Duration(milliseconds: 450 + (text.trim().length * 55)),
-      );
+    final normalizedText = text.trim();
+    if (normalizedText.isEmpty) {
+      return;
     }
+    try {
+      await _speakPromptAndWait(
+        normalizedText.toJS,
+        locale.toJS,
+      ).toDart.timeout(const Duration(seconds: 20));
+    } catch (_) {
+      // Browser speech is supplementary. Stop a stalled utterance so the
+      // lesson can continue instead of blocking forever on a WebKit edge case.
+      _stopPrompt();
+    }
+  }
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    _playSpeechReadyCue();
+    // Keep the microphone closed until the tone and a short anti-echo gap end.
+    await Future<void>.delayed(const Duration(milliseconds: 260));
   }
 
   @override

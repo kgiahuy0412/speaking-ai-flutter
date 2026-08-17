@@ -16,6 +16,12 @@ import 'lesson_recording_history_sheet.dart';
 import 'listening_navigation_bar.dart';
 import 'topic_lesson_list_screen.dart';
 
+typedef TopicSelectionAfterCompletionPrompt =
+    Future<void> Function({
+      required int childAge,
+      required List<int> completedTopicNumbers,
+    });
+
 class TopicListeningScreen extends StatefulWidget {
   const TopicListeningScreen({
     required this.language,
@@ -25,6 +31,7 @@ class TopicListeningScreen extends StatefulWidget {
     this.onVoiceNavigationResume,
     this.initialVoiceTarget,
     this.onTopicSelected,
+    this.onTopicSelectionAfterCompletion,
     this.contentFuture,
     this.progressStore = const ListeningProgressStore(),
     super.key,
@@ -37,6 +44,7 @@ class TopicListeningScreen extends StatefulWidget {
   final VoidCallback? onVoiceNavigationResume;
   final ListeningVoiceNavigationTarget? initialVoiceTarget;
   final ValueChanged<int>? onTopicSelected;
+  final TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion;
   final Future<ListeningContentCatalog>? contentFuture;
   final ListeningProgressStore progressStore;
 
@@ -324,12 +332,13 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
   }
 
-  Future<void> _reloadProgress() async {
+  Future<Map<String, int>> _reloadProgress() async {
     final progress = await widget.progressStore.readAll();
     if (!mounted) {
-      return;
+      return progress;
     }
     setState(() => _lessonProgress = progress);
+    return progress;
   }
 
   _TopicProgress _topicProgress(int topicIndex) {
@@ -396,17 +405,19 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         return;
       }
       widget.onTopicSelected?.call(topicIndex);
+      final selectedAgeCatalog = _catalog;
       final content = catalog.topic(
-        startAge: _catalog.startAge,
-        endAge: _catalog.endAge,
+        startAge: selectedAgeCatalog.startAge,
+        endAge: selectedAgeCatalog.endAge,
         topicNumber: topicIndex + 1,
       );
+      var topicCompletedDuringVisit = false;
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => TopicLessonListScreen(
             language: widget.language,
-            startAge: _catalog.startAge,
-            endAge: _catalog.endAge,
+            startAge: selectedAgeCatalog.startAge,
+            endAge: selectedAgeCatalog.endAge,
             topic: topic,
             content: content,
             controller: widget.controller,
@@ -414,10 +425,32 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             onVoiceNavigationResume: widget.onVoiceNavigationResume,
             progressStore: widget.progressStore,
             initialLessonNumber: initialLessonNumber,
+            onTopicCompleted: () => topicCompletedDuringVisit = true,
           ),
         ),
       );
-      await _reloadProgress();
+      final progressAfter = await _reloadProgress();
+      if (topicCompletedDuringVisit) {
+        final completedTopicNumbers = _completedTopicNumbers(
+          catalog,
+          selectedAgeCatalog,
+          progressAfter,
+        );
+        final prompt = widget.onTopicSelectionAfterCompletion;
+        if (prompt != null) {
+          try {
+            await prompt(
+              childAge: selectedAgeCatalog.startAge,
+              completedTopicNumbers: completedTopicNumbers,
+            );
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Could not start the post-completion topic prompt: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
+          }
+        }
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -433,6 +466,39 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         ),
       );
     }
+  }
+
+  bool _isTopicCompleted(
+    ListeningTopicContent content,
+    Map<String, int> progress,
+  ) {
+    return content.lessons.isNotEmpty &&
+        content.lessons.every(
+          (lesson) => (progress[lesson.id] ?? 0) >= lesson.sentences.length,
+        );
+  }
+
+  List<int> _completedTopicNumbers(
+    ListeningContentCatalog catalog,
+    ListeningAgeCatalog ageCatalog,
+    Map<String, int> progress,
+  ) {
+    final completed = <int>[];
+    for (var index = 0; index < ageCatalog.topics.length; index += 1) {
+      try {
+        final content = catalog.topic(
+          startAge: ageCatalog.startAge,
+          endAge: ageCatalog.endAge,
+          topicNumber: index + 1,
+        );
+        if (_isTopicCompleted(content, progress)) {
+          completed.add(index + 1);
+        }
+      } catch (_) {
+        // Topics without loadable lesson content cannot be marked completed.
+      }
+    }
+    return completed;
   }
 }
 

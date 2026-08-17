@@ -15,9 +15,11 @@ void main() {
     expect(await registry.pauseForMainAssistant(), isTrue);
     expect(second.pauses, 1);
     expect(first.pauses, 0);
+    expect(registry.isActiveModulePaused, isTrue);
 
     final result = await registry.execute(ActiveLearningCommand.resume);
     expect(result.wasHandled, isTrue);
+    expect(registry.isActiveModulePaused, isFalse);
     expect(second.commands, <ActiveLearningCommand>[
       ActiveLearningCommand.resume,
     ]);
@@ -30,6 +32,7 @@ void main() {
 
 class _FakeActiveModule implements ActiveLearningModuleController {
   int pauses = 0;
+  bool paused = false;
   final List<ActiveLearningCommand> commands = <ActiveLearningCommand>[];
 
   @override
@@ -37,15 +40,24 @@ class _FakeActiveModule implements ActiveLearningModuleController {
       ActiveLearningModuleKind.listeningLesson;
 
   @override
+  bool get isPausedForMain => paused;
+
+  @override
   Future<ActiveLearningCommandResult> handleMainCommand(
     ActiveLearningCommand command,
   ) async {
     commands.add(command);
+    if (command == ActiveLearningCommand.stop) {
+      paused = true;
+    } else if (command == ActiveLearningCommand.resume) {
+      paused = false;
+    }
     return const ActiveLearningCommandResult.handled();
   }
 
   @override
   Future<void> pauseForMainAssistant() async {
     pauses += 1;
+    paused = true;
   }
 }

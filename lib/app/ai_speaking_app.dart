@@ -74,6 +74,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
   bool _singleSentenceMainModeActive = false;
+  bool _isResumingActiveModule = false;
 
   @override
   void initState() {
@@ -326,6 +327,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       if (hasActiveModule) {
         _activeModulePausedForMain = await _activeLearningModules
             .pauseForMainAssistant();
+        if (!_activeModulePausedForMain) {
+          return false;
+        }
       }
       if (!mounted) {
         return false;
@@ -373,8 +377,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   Future<ActiveLearningCommandResult> _handleActiveLearningCommand(
     ActiveLearningCommand command,
   ) async {
-    _activeModulePausedForMain = false;
-    final result = await _activeLearningModules.execute(command);
+    ActiveLearningCommandResult result;
+    try {
+      result = await _activeLearningModules.execute(command);
+    } catch (_) {
+      result = const ActiveLearningCommandResult.busy(
+        spokenReply: 'Bi cô chưa thực hiện được. Con thử lại nhé.',
+      );
+    }
+    if (result.wasHandled) {
+      _activeModulePausedForMain = false;
+    }
     final reply = result.spokenReply;
     if (!result.wasHandled && reply != null && reply.trim().isNotEmpty) {
       await _controller?.speakAssistantPrompt(reply);
@@ -394,11 +407,24 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   }
 
   Future<void> _resumeActiveModuleAfterMain() async {
-    if (!_activeModulePausedForMain) {
+    if (!_activeModulePausedForMain || _isResumingActiveModule) {
       return;
     }
-    _activeModulePausedForMain = false;
-    await _activeLearningModules.execute(ActiveLearningCommand.resume);
+    _isResumingActiveModule = true;
+    try {
+      final result = await _activeLearningModules.execute(
+        ActiveLearningCommand.resume,
+      );
+      if (result.wasHandled ||
+          !_activeLearningModules.hasActiveModule ||
+          !_activeLearningModules.isActiveModulePaused) {
+        _activeModulePausedForMain = false;
+      }
+    } catch (_) {
+      // Keep the paused flag so a later assistant state change can retry.
+    } finally {
+      _isResumingActiveModule = false;
+    }
   }
 
   Future<MainButtonActionResult> _handleMainLongPress(
@@ -426,25 +452,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
     final voiceController = _voiceNavigationController;
     if (voiceController?.isMainButtonSessionActive ?? false) {
-      _activeModulePausedForMain = false;
       await voiceController!.pause();
-      final stopped = await _activeLearningModules.execute(
-        ActiveLearningCommand.stop,
-      );
-      if (stopped.wasHandled) {
-        await _controller?.speakAssistantPrompt('Đã dừng.');
-        return MainButtonActionResult.accepted;
+      final learningResult = await _toggleActiveLearningFromLongPress();
+      if (learningResult != null) {
+        return learningResult;
       }
       return MainButtonActionResult.accepted;
     }
 
-    final stoppedModule = await _activeLearningModules.execute(
-      ActiveLearningCommand.stop,
-    );
-    if (stoppedModule.wasHandled) {
-      _activeModulePausedForMain = false;
-      await _controller?.speakAssistantPrompt('Đã dừng.');
-      return MainButtonActionResult.accepted;
+    final learningResult = await _toggleActiveLearningFromLongPress();
+    if (learningResult != null) {
+      return learningResult;
     }
 
     final controller = _controller;
@@ -469,6 +487,39 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     }
 
     return MainButtonActionResult.ignored;
+  }
+
+  Future<MainButtonActionResult?> _toggleActiveLearningFromLongPress() async {
+    if (!_activeLearningModules.hasActiveModule) {
+      return null;
+    }
+
+    if (_activeLearningModules.isActiveModulePaused) {
+      try {
+        await _controller?.speakAssistantPrompt('Cùng học tiếp nhé');
+      } catch (_) {
+        // A prompt failure must not leave the lesson permanently paused.
+      }
+      final resumed = await _activeLearningModules.execute(
+        ActiveLearningCommand.resume,
+      );
+      if (resumed.wasHandled) {
+        _activeModulePausedForMain = false;
+      }
+      return resumed.wasHandled
+          ? MainButtonActionResult.accepted
+          : MainButtonActionResult.ignored;
+    }
+
+    final stopped = await _activeLearningModules.execute(
+      ActiveLearningCommand.stop,
+    );
+    if (!stopped.wasHandled) {
+      return MainButtonActionResult.ignored;
+    }
+    _activeModulePausedForMain = false;
+    await _controller?.speakAssistantPrompt('Đã dừng');
+    return MainButtonActionResult.accepted;
   }
 
   Future<void> _handleScreenMainLongPress() async {

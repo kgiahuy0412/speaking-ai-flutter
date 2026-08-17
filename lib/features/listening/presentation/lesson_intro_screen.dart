@@ -29,6 +29,7 @@ class LessonIntroScreen extends StatefulWidget {
     this.guideAudioLibrary,
     this.voicePromptService,
     this.autoAdvance = true,
+    this.onTopicCompleted,
     super.key,
   });
 
@@ -44,6 +45,7 @@ class LessonIntroScreen extends StatefulWidget {
   final LessonGuideAudioLibrary? guideAudioLibrary;
   final VoicePromptService? voicePromptService;
   final bool autoAdvance;
+  final VoidCallback? onTopicCompleted;
 
   @override
   State<LessonIntroScreen> createState() => _LessonIntroScreenState();
@@ -345,6 +347,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: _guideAudioLibrary,
+          onTopicCompleted: widget.onTopicCompleted,
         ),
       ),
     );
@@ -394,5 +397,6 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     progressStore: widget.progressStore,
     mediaService: widget.mediaService,
     guideAudioLibrary: _guideAudioLibrary,
+    onTopicCompleted: widget.onTopicCompleted,
   );
 }

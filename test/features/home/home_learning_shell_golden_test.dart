@@ -5,6 +5,7 @@ import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,8 +42,11 @@ void main() {
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
-    expect(find.byKey(const Key('expanded-home-mode-rail')), findsNothing);
+    expect(find.byType(TopicListeningScreen), findsOneWidget);
+    await expectLater(
+      find.byType(TopicListeningScreen),
+      matchesGoldenFile('goldens/home-topic-expanded-390x844.png'),
+    );
   });
 
   testWidgets('add vocabulary dialog matches image three', (tester) async {
@@ -94,6 +98,10 @@ Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
         AssetImage('assets/images/learning-minimal-sky-background.png'),
         AssetImage('assets/images/mascot/penguin-avatar.png'),
         AssetImage('assets/images/mascot/penguin-listen.png'),
+        AssetImage('assets/images/mascot/penguin-wave.png'),
+        AssetImage('assets/images/topics/my-family.jpg'),
+        AssetImage('assets/images/vocabulary/golden-star.png'),
+        AssetImage('assets/images/vocabulary/review-book.png'),
       ].map((provider) => precacheImage(provider, context)),
     );
   });

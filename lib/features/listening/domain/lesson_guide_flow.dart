@@ -1,6 +1,6 @@
 enum LessonEntryGuideKind { first, newLesson, resume }
 
-enum LessonAttemptOutcome { good, retry, needsPractice }
+enum LessonAttemptOutcome { good, unclear, retry, needsPractice }
 
 class LessonGuidePrompt {
   const LessonGuidePrompt({required this.audioCode, required this.text});
@@ -21,10 +21,8 @@ abstract interface class LessonAttemptEvaluator {
   });
 }
 
-/// Compatibility evaluator used until the English pronunciation-scoring
-/// endpoint is connected. It never invents a pronunciation score: a recording
-/// that the media layer successfully saved follows the previous app's success
-/// path, while tests and the future backend adapter can inject retry outcomes.
+/// Test/compatibility evaluator. Production lessons use the backend English
+/// content recognizer instead of accepting every successfully saved recording.
 class RecordedAttemptEvaluator implements LessonAttemptEvaluator {
   const RecordedAttemptEvaluator();
 
@@ -43,9 +41,17 @@ class RecordedAttemptEvaluator implements LessonAttemptEvaluator {
 class LessonGuideFlowV2 {
   const LessonGuideFlowV2._();
 
+  /// A short breathing gap keeps the beginning of the English sample from
+  /// touching or clipping the final syllable of the spoken guide.
+  static const Duration guideToSamplePause = Duration(milliseconds: 300);
+
+  /// The bilingual lesson script requires a clear two-second pause after the
+  /// English sample before its Vietnamese meaning is played.
+  static const Duration englishToVietnamesePause = Duration(seconds: 2);
+
   static const LessonGuidePrompt beforeSentence = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_BEFORE_SENTENCE',
-    text: 'Nghe cô nhé.',
+    text: 'Nói theo cô nhé.',
   );
 
   static const LessonGuidePrompt afterSample = LessonGuidePrompt(
@@ -58,6 +64,11 @@ class LessonGuideFlowV2 {
     text: 'Con hãy nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.',
   );
 
+  static const LessonGuidePrompt completionChoiceUnclear = LessonGuidePrompt(
+    audioCode: 'AI_GUIDE_COMPLETION_CHOICE_UNCLEAR',
+    text: 'Nói lại lựa chọn của con nhé',
+  );
+
   static const LessonGuidePrompt topicCompleted = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_TOPIC_COMPLETED',
     text: 'Con đã học xong chủ đề này rồi. Con chọn tiếp chủ đề mới nhé.',
@@ -65,7 +76,22 @@ class LessonGuideFlowV2 {
 
   static const LessonGuidePrompt good = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_GOOD',
-    text: 'Tốt lắm! Cùng học câu tiếp theo nhé.',
+    text: 'Con làm tốt lắm',
+  );
+
+  static const LessonGuidePrompt unclear = LessonGuidePrompt(
+    audioCode: 'AI_GUIDE_UNCLEAR',
+    text: 'Cô chưa nghe rõ. Con nói lại nhé.',
+  );
+
+  static const LessonGuidePrompt focusAndRetry = LessonGuidePrompt(
+    audioCode: 'AI_GUIDE_FOCUS_RETRY',
+    text: 'Con tập trung học đi',
+  );
+
+  static const LessonGuidePrompt moveToNext = LessonGuidePrompt(
+    audioCode: 'AI_GUIDE_MOVE_TO_NEXT',
+    text: 'Mình cùng học câu khác nhé!',
   );
 
   static const LessonGuidePrompt retryFirst = LessonGuidePrompt(

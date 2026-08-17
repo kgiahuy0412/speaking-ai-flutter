@@ -1784,7 +1784,7 @@ void main() {
   );
 
   test(
-    'keeps legacy header upload when backend lacks the capability',
+    'uses finalize metadata when the backend omits optional capabilities',
     () async {
       final uploadedSequences = <int>[];
       Map<String, dynamic>? finalizeBody;
@@ -1794,12 +1794,7 @@ void main() {
         client: MockClient((request) async {
           if (request.url.path == '/api/audio-sessions') {
             return http.Response(
-              jsonEncode(<String, dynamic>{
-                'audioSessionId': 'audio_legacy',
-                'capabilities': <String, dynamic>{
-                  'pcm16WavFinalize': false,
-                },
-              }),
+              jsonEncode(<String, dynamic>{'audioSessionId': 'audio_legacy'}),
               200,
             );
           }
@@ -1861,12 +1856,18 @@ void main() {
         vadSilenceMs: 700,
       );
 
-      expect(uploadedSequences..sort(), <int>[0, 1]);
-      expect(finalizeBody!.containsKey('pcm16Wav'), isFalse);
+      expect(uploadedSequences, <int>[0]);
+      expect(finalizeBody!['pcm16Wav'], <String, dynamic>{
+        'sampleRate': 24000,
+        'channelCount': 1,
+        'bitsPerSample': 16,
+        'pcmByteLength': 8000,
+        'chunkCount': 1,
+      });
       expect(
         (finalizeBody!['benchmark']
             as Map<String, dynamic>)['wavHeaderStrategy'],
-        'uploaded_chunk',
+        'finalize_metadata',
       );
       expect(
         (finalizeBody!['benchmark']

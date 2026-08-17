@@ -1,7 +1,7 @@
 name: ai_speaking_flutter_app
 description: INNOTRIK speaking assistant for Android and installable web.
 publish_to: none
-version: 1.0.4+6
+version: 1.0.4+7
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -78,6 +78,7 @@ flutter:
     - assets/images/learning-minimal-sky-background.png
     - assets/images/mascot/
     - assets/images/topics/
+    - assets/images/vocabulary/
   fonts:
     - family: Roboto
       fonts:

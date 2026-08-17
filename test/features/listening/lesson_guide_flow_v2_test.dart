@@ -2,15 +2,37 @@ import 'package:ai_speaking_flutter_app/features/listening/domain/lesson_guide_f
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('defines the six authoritative common guide prompts', () {
+  test('uses the required pauses for the bilingual sentence guide', () {
+    expect(
+      LessonGuideFlowV2.guideToSamplePause,
+      const Duration(milliseconds: 300),
+    );
+    expect(
+      LessonGuideFlowV2.englishToVietnamesePause,
+      const Duration(seconds: 2),
+    );
+    expect(LessonGuideFlowV2.beforeSentence.text, 'Nói theo cô nhé.');
+  });
+
+  test('defines the authoritative common guide prompts', () {
     expect(
       LessonGuideFlowV2.beforeSentence.audioCode,
       'AI_GUIDE_BEFORE_SENTENCE',
     );
     expect(LessonGuideFlowV2.afterSample.audioCode, 'AI_GUIDE_AFTER_SAMPLE');
+    expect(
+      LessonGuideFlowV2.completionChoiceUnclear.audioCode,
+      'AI_GUIDE_COMPLETION_CHOICE_UNCLEAR',
+    );
+    expect(
+      LessonGuideFlowV2.completionChoiceUnclear.text,
+      'Nói lại lựa chọn của con nhé',
+    );
     expect(LessonGuideFlowV2.good.audioCode, 'AI_GUIDE_GOOD');
     expect(LessonGuideFlowV2.retryFirst.audioCode, 'AI_GUIDE_RETRY_1');
     expect(LessonGuideFlowV2.retrySecond.audioCode, 'AI_GUIDE_RETRY_2');
+    expect(LessonGuideFlowV2.moveToNext.audioCode, 'AI_GUIDE_MOVE_TO_NEXT');
+    expect(LessonGuideFlowV2.moveToNext.text, 'Mình cùng học câu khác nhé!');
     expect(
       LessonGuideFlowV2.needsPractice.audioCode,
       'AI_GUIDE_NEEDS_PRACTICE',

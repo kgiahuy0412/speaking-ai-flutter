@@ -38,8 +38,56 @@
       utterance.pitch = 1.05;
       window.speechSynthesis.speak(utterance);
     };
+    window.innotrikVoicePromptSpeakAndWait = function (text, locale) {
+      return new Promise(function (resolve) {
+        if (!('speechSynthesis' in window) || !text) {
+          resolve('skipped');
+          return;
+        }
+
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = locale || 'vi-VN';
+        utterance.rate = 0.92;
+        utterance.pitch = 1.05;
+
+        let finished = false;
+        const finish = function () {
+          if (finished) return;
+          finished = true;
+          window.clearTimeout(safetyTimeout);
+          resolve('completed');
+        };
+        utterance.onend = finish;
+        utterance.onerror = finish;
+        const safetyTimeout = window.setTimeout(
+          finish,
+          Math.max(4000, 1500 + (String(text).length * 180)),
+        );
+        window.speechSynthesis.speak(utterance);
+      });
+    };
     window.innotrikVoicePromptStop = function () {
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    };
+    window.innotrikSpeechReadyCue = function () {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      window.innotrikReadyCueContext =
+        window.innotrikReadyCueContext || new AudioContextClass();
+      const context = window.innotrikReadyCueContext;
+      if (context.state === 'suspended') context.resume();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.16);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(context.currentTime);
+      oscillator.stop(context.currentTime + 0.17);
     };
   </script>
   <script src="flutter_bootstrap.js" async></script>

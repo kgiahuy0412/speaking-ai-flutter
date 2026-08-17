@@ -9,6 +9,9 @@ import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
+import '../../vocabulary/data/vocabulary_store.dart';
+import '../../vocabulary/domain/vocabulary_entry.dart';
+import '../application/lesson_attempt_evaluator.dart';
 import '../application/lesson_guide_audio_library.dart';
 import '../application/lesson_completion_choice_recognizer.dart';
 import '../application/lesson_media_service.dart';
@@ -31,12 +34,14 @@ class LessonPracticeScreen extends StatefulWidget {
     required this.lesson,
     required this.progressStore,
     required this.mediaService,
+    this.vocabularyStore = const VocabularyStore(),
     this.controller,
     this.guideAudioLibrary,
     this.attemptEvaluator,
     this.completionChoiceRecognizer,
     this.voicePromptService,
     this.topicContent,
+    this.onTopicCompleted,
     super.key,
   });
 
@@ -48,11 +53,13 @@ class LessonPracticeScreen extends StatefulWidget {
   final ConversationController? controller;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
+  final VocabularyStore vocabularyStore;
   final LessonGuideAudioLibrary? guideAudioLibrary;
   final LessonAttemptEvaluator? attemptEvaluator;
   final LessonCompletionChoiceRecognizer? completionChoiceRecognizer;
   final VoicePromptService? voicePromptService;
   final ListeningTopicContent? topicContent;
+  final VoidCallback? onTopicCompleted;
 
   @override
   State<LessonPracticeScreen> createState() => _LessonPracticeScreenState();
@@ -77,9 +84,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   Timer? _recordingAutoStopTimer;
   late final LessonGuideAudioLibrary _guideAudioLibrary;
   late final LessonAttemptEvaluator _attemptEvaluator;
+  late final bool _ownsAttemptEvaluator;
   late final VoicePromptService _voicePromptService;
   late final LessonCompletionChoiceRecognizer _completionChoiceRecognizer;
   late final bool _ownsVoicePromptService;
+  bool _ownedVoicePromptReleased = false;
   late final bool _ownsCompletionChoiceRecognizer;
   int _attemptNumber = 1;
   bool _guidedSequenceStarted = false;
@@ -92,6 +101,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   bool _completionChoiceStopping = false;
   bool _pausedForMainAssistant = false;
   int _mainPauseGeneration = 0;
+  int _recordingLifecycleGeneration = 0;
+  int _attemptEvaluationRequest = 0;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -106,11 +117,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       ActiveLearningModuleKind.listeningLesson;
 
   @override
+  bool get isPausedForMain => _pausedForMainAssistant;
+
+  @override
   void initState() {
     super.initState();
     _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
+    _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
-        widget.attemptEvaluator ?? const RecordedAttemptEvaluator();
+        widget.attemptEvaluator ?? BackendLessonAttemptEvaluator();
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
         widget.voicePromptService ?? createVoicePromptService();
@@ -144,6 +159,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _activeModuleRegistry?.unregister(registration);
     }
     _recordingStartRequest += 1;
+    _recordingLifecycleGeneration += 1;
+    _attemptEvaluationRequest += 1;
     _cancelIdleReminder();
     _coachPopupTimer?.cancel();
     _praiseFireworksTimer?.cancel();
@@ -154,11 +171,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!_handingOffMediaPlayback) {
       widget.mediaService.stopPlayback();
     }
-    if (_ownsVoicePromptService) {
+    if (_ownsVoicePromptService && !_ownedVoicePromptReleased) {
+      _ownedVoicePromptReleased = true;
       _voicePromptService.dispose();
     }
     if (_ownsCompletionChoiceRecognizer) {
       _completionChoiceRecognizer.dispose();
+    }
+    final attemptEvaluator = _attemptEvaluator;
+    if (_ownsAttemptEvaluator &&
+        attemptEvaluator is BackendLessonAttemptEvaluator) {
+      attemptEvaluator.dispose();
     }
     super.dispose();
   }
@@ -197,12 +220,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await _activateCurrentSentence(autoPlay: true);
   }
 
-  Future<void> _activateCurrentSentence({
-    required bool autoPlay,
-    bool preservePraise = false,
-  }) async {
+  Future<void> _activateCurrentSentence({required bool autoPlay}) async {
     _cancelIdleReminder();
-    _hideCoachPopup(hideFireworks: !preservePraise);
+    _hideCoachPopup();
     if (mounted) {
       setState(() {
         _showSkip = false;
@@ -238,6 +258,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _pausedForMainAssistant = true;
     _mainPauseGeneration += 1;
     _recordingStartRequest += 1;
+    _recordingLifecycleGeneration += 1;
+    _attemptEvaluationRequest += 1;
     _cancelIdleReminder();
     _hideCoachPopup();
     _recordingAutoStopTimer?.cancel();
@@ -281,7 +303,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       case ActiveLearningCommand.resume:
         _pausedForMainAssistant = false;
         _guidedSequenceStarted = false;
-        await _activateCurrentSentence(autoPlay: true);
+        setState(() {
+          // Resuming from MAIN always creates a fresh attempt. Keeping the
+          // previous path here made the guided sequence return early and left
+          // the microphone closed after "Cùng học tiếp nhé".
+          _recordingPath = null;
+          _recordingDuration = null;
+          _message = null;
+          _showSkip = false;
+        });
+        await _startRecording();
         return const ActiveLearningCommandResult.handled();
       case ActiveLearningCommand.replayCurrent:
         _pausedForMainAssistant = false;
@@ -325,6 +356,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       case ActiveLearningCommand.restart:
         _pausedForMainAssistant = false;
         await _restartCurrentLesson();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.exitToHome:
+        await pauseForMainAssistant();
+        if (!mounted) {
+          return const ActiveLearningCommandResult.unavailable();
+        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
         return const ActiveLearningCommandResult.handled();
     }
   }
@@ -599,6 +637,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_mediaBusy || _recording) {
       return;
     }
+    final pauseGeneration = _mainPauseGeneration;
     setState(() {
       _mediaBusy = true;
       _message = null;
@@ -608,7 +647,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (error) {
       _setMessage(error.toString());
     } finally {
-      if (mounted) {
+      if (mounted && pauseGeneration == _mainPauseGeneration) {
         setState(() => _mediaBusy = false);
       }
     }
@@ -632,15 +671,20 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     final request = ++_recordingStartRequest;
     _cancelIdleReminder();
-    // Praise is intentionally non-blocking and may remain visible while the
-    // next guided sentence starts recording.
-    _hideCoachPopup(hideFireworks: false);
+    _hideCoachPopup();
     setState(() {
       _mediaBusy = true;
       _recordingStartPending = true;
       _message = null;
     });
     try {
+      final readyCuePlayer = _voicePromptService;
+      if (readyCuePlayer is SpeechReadyCuePlayer) {
+        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+      }
+      if (!mounted || request != _recordingStartRequest) {
+        return;
+      }
       await widget.mediaService.startRecording(
         lessonId: widget.lesson.id,
         sentenceNumber: _sentence.number,
@@ -703,10 +747,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!_recording || _mediaBusy) {
       return;
     }
+    final recordingGeneration = _recordingLifecycleGeneration;
     setState(() => _mediaBusy = true);
     try {
       final recording = await widget.mediaService.stopRecording();
-      if (!mounted) {
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          recordingGeneration != _recordingLifecycleGeneration) {
         return;
       }
       setState(() {
@@ -726,14 +773,21 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         // The successful recording remains usable even if progress sync fails.
       }
       if (_usesGuideV2) {
+        final evaluationRequest = ++_attemptEvaluationRequest;
+        final evaluatedSentenceIndex = _sentenceIndex;
+        final evaluatedSentence = _sentence;
+        final evaluatedAttemptNumber = _attemptNumber;
         setState(() => _evaluatingAttempt = true);
         try {
-          await widget.mediaService.playToCompletion(
-            _recordingUri(recording.filePath),
+          await _evaluateAttempt(
+            recording,
+            evaluationRequest: evaluationRequest,
+            sentenceIndex: evaluatedSentenceIndex,
+            sentence: evaluatedSentence,
+            attemptNumber: evaluatedAttemptNumber,
           );
-          await _evaluateAttempt(recording);
         } finally {
-          if (mounted) {
+          if (mounted && evaluationRequest == _attemptEvaluationRequest) {
             setState(() => _evaluatingAttempt = false);
           }
         }
@@ -742,6 +796,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         unawaited(_playGuideCue(LessonGuideCue.praise));
       }
     } catch (error) {
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          recordingGeneration != _recordingLifecycleGeneration) {
+        return;
+      }
       if (mounted) {
         setState(() {
           _recording = false;
@@ -755,75 +814,199 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
   }
 
-  Future<void> _evaluateAttempt(LessonRecording recording) async {
+  Future<void> _evaluateAttempt(
+    LessonRecording recording, {
+    required int evaluationRequest,
+    required int sentenceIndex,
+    required ListeningSentenceContent sentence,
+    required int attemptNumber,
+  }) async {
     final outcome = await _attemptEvaluator.evaluate(
       lessonCode: widget.lesson.code,
-      sentenceId: _sentence.id,
-      expectedEnglish: _sentence.english,
+      sentenceId: sentence.id,
+      expectedEnglish: sentence.english,
       recordingPath: recording.filePath,
       recordingDuration: recording.duration,
-      attemptNumber: _attemptNumber,
+      attemptNumber: attemptNumber,
       childAge: widget.startAge,
     );
-    if (!mounted) {
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
       return;
     }
     switch (outcome) {
       case LessonAttemptOutcome.good:
+        await _saveSentenceToVocabulary(
+          VocabularyCollection.star,
+          sentence: sentence,
+        );
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
         try {
           await widget.progressStore.clearNeedsPracticeSentence(
             widget.lesson.id,
-            _sentenceIndex,
+            sentenceIndex,
           );
         } catch (_) {
           // A restricted browser session must not block the lesson flow.
         }
-        _needsPracticeSentenceIndexes.remove(_sentenceIndex);
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
+        _needsPracticeSentenceIndexes.remove(sentenceIndex);
         _showPraiseFireworks();
         await _playPrompt(LessonGuideFlowV2.good);
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
         await _advanceToNext(autoPlaySentence: true);
         return;
+      case LessonAttemptOutcome.unclear:
+        setState(() {
+          _recordingPath = null;
+          _recordingDuration = null;
+          _message = LessonGuideFlowV2.unclear.text;
+        });
+        await _playPrompt(LessonGuideFlowV2.unclear);
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
+        await _startRecording();
+        return;
       case LessonAttemptOutcome.retry:
-        if (_attemptNumber >= 2) {
-          await _markNeedsPracticeAndAdvance();
+        await _markSentenceNeedsPractice(sentenceIndex, sentence);
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
+        if (attemptNumber >= 2) {
+          setState(() {
+            _recordingPath = null;
+            _recordingDuration = null;
+            _message = LessonGuideFlowV2.moveToNext.text;
+          });
+          await _playPrompt(LessonGuideFlowV2.moveToNext);
+          if (!_isCurrentEvaluation(
+            evaluationRequest,
+            sentenceIndex,
+            sentence.id,
+          )) {
+            return;
+          }
+          await _advanceToNext(autoPlaySentence: true);
           return;
         }
         setState(() {
-          _attemptNumber = 2;
+          _attemptNumber += 1;
           _recordingPath = null;
           _recordingDuration = null;
-          _message = LessonGuideFlowV2.retryFirst.text;
+          _message = LessonGuideFlowV2.focusAndRetry.text;
         });
-        await _playPrompt(LessonGuideFlowV2.retryFirst);
-        await _playBilingualSentenceSample();
-        await _playPrompt(LessonGuideFlowV2.retrySecond);
+        await _playPrompt(LessonGuideFlowV2.focusAndRetry);
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return;
+        }
         await _startRecording();
         return;
       case LessonAttemptOutcome.needsPractice:
-        await _markNeedsPracticeAndAdvance();
+        await _markNeedsPracticeAndAdvance(
+          evaluationRequest: evaluationRequest,
+          sentenceIndex: sentenceIndex,
+          sentence: sentence,
+        );
         return;
     }
   }
 
-  Future<void> _markNeedsPracticeAndAdvance() async {
-    _needsPracticeSentenceIndexes.add(_sentenceIndex);
+  bool _isCurrentEvaluation(
+    int evaluationRequest,
+    int sentenceIndex,
+    String sentenceId,
+  ) =>
+      mounted &&
+      !_pausedForMainAssistant &&
+      evaluationRequest == _attemptEvaluationRequest &&
+      sentenceIndex == _sentenceIndex &&
+      sentenceId == _sentence.id;
+
+  Future<void> _markSentenceNeedsPractice(
+    int sentenceIndex,
+    ListeningSentenceContent sentence,
+  ) async {
+    _needsPracticeSentenceIndexes.add(sentenceIndex);
     try {
       await widget.progressStore.saveNeedsPracticeSentence(
         widget.lesson.id,
-        _sentenceIndex,
+        sentenceIndex,
       );
     } catch (_) {
       // Keep the in-memory retry queue when persistence is unavailable.
     }
-    if (mounted) {
-      setState(() {
-        _recordingPath = null;
-        _recordingDuration = null;
-        _message = LessonGuideFlowV2.needsPractice.text;
-      });
+    await _saveSentenceToVocabulary(
+      VocabularyCollection.review,
+      sentence: sentence,
+    );
+  }
+
+  Future<void> _markNeedsPracticeAndAdvance({
+    required int evaluationRequest,
+    required int sentenceIndex,
+    required ListeningSentenceContent sentence,
+  }) async {
+    await _markSentenceNeedsPractice(sentenceIndex, sentence);
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
+      return;
     }
-    await _playPrompt(LessonGuideFlowV2.needsPractice);
+    setState(() {
+      _recordingPath = null;
+      _recordingDuration = null;
+      _message = LessonGuideFlowV2.moveToNext.text;
+    });
+    await _playPrompt(LessonGuideFlowV2.moveToNext);
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
+      return;
+    }
     await _advanceToNext(autoPlaySentence: true);
+  }
+
+  Future<void> _saveSentenceToVocabulary(
+    VocabularyCollection collection, {
+    required ListeningSentenceContent sentence,
+  }) async {
+    try {
+      await widget.vocabularyStore.upsertLessonSentence(
+        lessonCode: widget.lesson.code,
+        sentenceId: sentence.id,
+        english: sentence.english,
+        vietnamese: sentence.vietnamese,
+        collection: collection,
+      );
+    } catch (_) {
+      // Local vocabulary persistence must never interrupt the active lesson.
+    }
   }
 
   Future<void> _continue() => _advanceToNext(autoPlaySentence: false);
@@ -833,9 +1016,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     _cancelIdleReminder();
-    final preservePraise =
-        _usesGuideV2 && autoPlaySentence && _praiseFireworksVisible;
-    _hideCoachPopup(hideFireworks: !preservePraise);
+    _hideCoachPopup();
     await widget.progressStore.saveLesson(widget.lesson.id, _sentenceIndex + 1);
     if (!mounted) {
       return;
@@ -882,10 +1063,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = null;
     });
-    await _activateCurrentSentence(
-      autoPlay: autoPlaySentence,
-      preservePraise: preservePraise,
-    );
+    await _activateCurrentSentence(autoPlay: autoPlaySentence);
   }
 
   Future<void> _previous() async {
@@ -1061,6 +1239,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           topicContent: widget.topicContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
+          onTopicCompleted: widget.onTopicCompleted,
         ),
       ),
     );
@@ -1098,6 +1277,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _message = 'Đang mở micro để nghe lựa chọn của con…';
     });
     try {
+      final readyCuePlayer = _voicePromptService;
+      if (readyCuePlayer is SpeechReadyCuePlayer) {
+        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+      }
+      if (!mounted) {
+        return;
+      }
       await widget.mediaService.startRecording(
         lessonId: '${widget.lesson.id}-completion-choice',
         sentenceNumber: 0,
@@ -1213,12 +1399,30 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
             setState(() => _mediaBusy = false);
           }
         }
+        // The lesson and Main assistant use separate Dart service instances
+        // backed by the same native Android TTS engine. Release this route's
+        // owned service before opening the next prompt so dispose() cannot
+        // stop Bi cô's topic-selection question during the pop transition.
+        await _releaseOwnedVoicePromptService();
+        widget.onTopicCompleted?.call();
         _returnToListening();
         return;
     }
   }
 
+  Future<void> _releaseOwnedVoicePromptService() async {
+    if (!_ownsVoicePromptService || _ownedVoicePromptReleased) {
+      return;
+    }
+    _ownedVoicePromptReleased = true;
+    await _voicePromptService.dispose();
+  }
+
   Future<void> _showCompletionChoiceFallback(String reason) async {
+    if (!mounted) {
+      return;
+    }
+    await _playPrompt(LessonGuideFlowV2.completionChoiceUnclear);
     if (!mounted) {
       return;
     }
@@ -1424,6 +1628,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
         return;
       }
+      await Future<void>.delayed(LessonGuideFlowV2.guideToSamplePause);
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          pauseGeneration != _mainPauseGeneration) {
+        return;
+      }
       await _playBilingualSentenceSample();
       if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
         return;
@@ -1445,8 +1655,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted || _pausedForMainAssistant) {
       return;
     }
+    final pauseGeneration = _mainPauseGeneration;
     setState(() => _message = prompt.text);
     final uri = await _guideAudioLibrary.uriForAudioCode(prompt.audioCode);
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        pauseGeneration != _mainPauseGeneration) {
+      return;
+    }
     if (uri != null) {
       await widget.mediaService.playToCompletion(
         uri,
@@ -1470,6 +1686,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted || _pausedForMainAssistant) {
       return;
     }
+    await Future<void>.delayed(LessonGuideFlowV2.englishToVietnamesePause);
+    if (!mounted || _pausedForMainAssistant) {
+      return;
+    }
     final vietnameseUri = _sentence.vietnameseAudioUri;
     if (vietnameseUri != null) {
       await widget.mediaService.playToCompletion(vietnameseUri);
@@ -1479,11 +1699,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         locale: 'vi-VN',
       );
     }
-  }
-
-  Uri _recordingUri(String path) {
-    final parsed = Uri.tryParse(path);
-    return parsed != null && parsed.hasScheme ? parsed : Uri.file(path);
   }
 
   Future<void> _playSampleThenInviteRecording(Uri uri) async {
@@ -1558,21 +1773,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     });
   }
 
-  void _hideCoachPopup({bool hideFireworks = true}) {
+  void _hideCoachPopup() {
     _coachPopupTimer?.cancel();
     _coachPopupTimer = null;
-    if (hideFireworks) {
-      _praiseFireworksTimer?.cancel();
-      _praiseFireworksTimer = null;
-    }
-    if (mounted &&
-        (_coachPopupKind != null ||
-            (hideFireworks && _praiseFireworksVisible))) {
+    _praiseFireworksTimer?.cancel();
+    _praiseFireworksTimer = null;
+    if (mounted && (_coachPopupKind != null || _praiseFireworksVisible)) {
       setState(() {
         _coachPopupKind = null;
-        if (hideFireworks) {
-          _praiseFireworksVisible = false;
-        }
+        _praiseFireworksVisible = false;
       });
     }
   }

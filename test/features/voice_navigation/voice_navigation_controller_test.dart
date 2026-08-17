@@ -33,6 +33,7 @@ void main() {
 
       expect(await controller.dispatchRecognizedText('Hey Pico'), isTrue);
       expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+      expect(voicePrompt.readyCueCount, 1);
       expect(controller.isAwaitingCommand, isTrue);
 
       expect(
@@ -71,6 +72,7 @@ void main() {
     expect(voicePrompt.spokenTexts, <String>[
       MainVoiceAssistantFlow.openingPrompt,
     ]);
+    expect(voicePrompt.readyCueCount, 1);
     expect(controller.isAwaitingCommand, isTrue);
     expect(controller.isListening, isTrue);
     expect(
@@ -144,6 +146,58 @@ void main() {
     await speechInput.dispose();
   });
 
+  test('completed topic prompt continues through topic and lesson', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      mainAssistantFlow: MainVoiceAssistantFlow(
+        contentLoader: _loadMainAssistantContent,
+      ),
+      restartDelay: const Duration(milliseconds: 1),
+    );
+    final receivedIntents = <VoiceNavigationIntent>[];
+    controller.setIntentHandler(receivedIntents.add);
+
+    expect(
+      await controller.activateTopicSelectionAfterCompletion(
+        childAge: 6,
+        completedTopicNumbers: const <int>[3, 5],
+      ),
+      isTrue,
+    );
+    expect(voicePrompt.spokenTexts, <String>[
+      'Có 10 chủ đề. Con muốn học chủ đề số mấy',
+    ]);
+    expect(controller.isMainButtonSessionActive, isTrue);
+
+    expect(
+      await controller.dispatchRecognizedText('Con chọn chủ đề số 3'),
+      isTrue,
+    );
+    expect(receivedIntents, isEmpty);
+    expect(
+      voicePrompt.spokenTexts.last,
+      'Chủ đề số 3 con đã học rồi. Con có muốn học lại không?',
+    );
+
+    expect(await controller.dispatchRecognizedText('Có'), isTrue);
+    expect(receivedIntents.single.topicNumber, 3);
+    expect(
+      voicePrompt.spokenTexts.last,
+      'Có 2 bài học. Con muốn học bài số mấy',
+    );
+
+    expect(await controller.dispatchRecognizedText('Bài số 1'), isTrue);
+    expect(receivedIntents.last.openLesson, isTrue);
+    expect(receivedIntents.last.lessonNumber, 1);
+    expect(voicePrompt.spokenTexts.last, 'Bắt đầu học thôi con');
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
   test('speaking command opens the other-learning voice menu', () async {
     final speechInput = _FakeNavigationSpeechInput();
     final voicePrompt = _FakeVoicePromptService();
@@ -173,33 +227,66 @@ void main() {
     await speechInput.dispose();
   });
 
-  test('active lesson Main command is sent to the module bridge', () async {
-    final speechInput = _FakeNavigationSpeechInput();
-    final voicePrompt = _FakeVoicePromptService();
-    ActiveLearningCommand? receivedCommand;
-    final controller = VoiceNavigationController(
-      speechInput: speechInput,
-      voicePromptService: voicePrompt,
-      activeLearningCommandHandler: (command) async {
-        receivedCommand = command;
-        return const ActiveLearningCommandResult.handled();
-      },
-    );
+  test(
+    'active lesson Main yes answer resumes through the module bridge',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      ActiveLearningCommand? receivedCommand;
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        activeLearningCommandHandler: (command) async {
+          receivedCommand = command;
+          return const ActiveLearningCommandResult.handled();
+        },
+      );
 
-    expect(
-      await controller.activateFromMainButton(activeLearning: true),
-      isTrue,
-    );
-    expect(voicePrompt.spokenTexts, <String>[
-      MainVoiceAssistantFlow.activeLearningPrompt,
-    ]);
-    expect(await controller.dispatchRecognizedText('Nghe lại'), isTrue);
-    expect(receivedCommand, ActiveLearningCommand.replayCurrent);
-    expect(controller.isMainButtonSessionActive, isFalse);
+      expect(
+        await controller.activateFromMainButton(activeLearning: true),
+        isTrue,
+      );
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.activeLearningPrompt,
+      ]);
+      expect(await controller.dispatchRecognizedText('Có'), isTrue);
+      expect(voicePrompt.spokenTexts.last, 'Tiếp tục học nhé con');
+      expect(receivedCommand, ActiveLearningCommand.resume);
+      expect(controller.isMainButtonSessionActive, isFalse);
 
-    controller.dispose();
-    await speechInput.dispose();
-  });
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'active lesson Main no answer exits through the module bridge',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      ActiveLearningCommand? receivedCommand;
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        activeLearningCommandHandler: (command) async {
+          receivedCommand = command;
+          return const ActiveLearningCommandResult.handled();
+        },
+      );
+
+      expect(
+        await controller.activateFromMainButton(activeLearning: true),
+        isTrue,
+      );
+      expect(await controller.dispatchRecognizedText('Không'), isTrue);
+      expect(voicePrompt.spokenTexts.last, 'Tạm biệt con');
+      expect(receivedCommand, ActiveLearningCommand.exitToHome);
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
 
   test(
     'Main asks once after silence then exits on the second timeout',
@@ -552,8 +639,15 @@ class _FakeNavigationSpeechInput
   }
 }
 
-class _FakeVoicePromptService implements VoicePromptService {
+class _FakeVoicePromptService
+    implements VoicePromptService, SpeechReadyCuePlayer {
   final List<String> spokenTexts = <String>[];
+  int readyCueCount = 0;
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    readyCueCount += 1;
+  }
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {

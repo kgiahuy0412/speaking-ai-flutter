@@ -119,3 +119,58 @@ Xem [kiến trúc](docs/architecture.md),
 debug signing để unblock phát triển. Trước khi phát hành phải thay package ID
 nếu cần và cấu hình keystore chính thức; tuyệt đối không commit keystore hoặc
 mật khẩu ký APK.
+
+
+
+Em gửi anh/chị một số thông tin về brand để mình tham khảo và tư vấn hướng phát triển giúp em nhé ạ.
+
+**1. Tên brand:**
+Himi Chinese (HiMi Chinese)
+
+**2. Lĩnh vực:**
+Giáo dục – đào tạo tiếng Trung, tập trung vào việc giúp người Việt học tiếng Trung theo hướng dễ hiểu, thực tế và thân thiện.
+
+**3. Định hướng brand:**
+Himi Chinese muốn xây dựng hình ảnh là một thương hiệu học tiếng Trung **thân thiện, hiện đại, dễ tiếp cận và tạo cảm giác học ngoại ngữ không quá áp lực**.
+
+Brand không muốn đi theo hướng quá học thuật hoặc quá “trung tâm giáo dục” truyền thống, mà muốn tạo cảm giác gần gũi, trẻ trung và có tính cộng đồng.
+
+**4. Đối tượng khách hàng:**
+
+* Người Việt có nhu cầu học tiếng Trung.
+* Người mới bắt đầu hoặc đang muốn xây dựng lại nền tảng tiếng Trung.
+* Học sinh, sinh viên và người trẻ đi làm.
+* Những người muốn học tiếng Trung để giao tiếp, công việc, du lịch hoặc phát triển bản thân.
+
+**5. Tính cách thương hiệu:**
+
+* Thân thiện
+* Trẻ trung
+* Tích cực
+* Dễ hiểu
+* Chuyên nghiệp nhưng không quá cứng nhắc
+* Có tính giáo dục nhưng vẫn vui vẻ, gần gũi
+
+**6. Hình ảnh nhận diện:**
+Brand đang định hướng sử dụng hình ảnh **chim cánh cụt** làm mascot. Nhân vật có phong cách 3D dễ thương, thân thiện và có thể xuất hiện trong các nội dung giáo dục.
+
+Logo hiện tại đang phát triển theo hướng chữ **HiMi / Himi Chinese**, sử dụng tone **xanh dương – xanh da trời**, kết hợp một chút màu vàng/cam làm điểm nhấn.
+
+Mình muốn hình ảnh tổng thể mang cảm giác:
+**Learning – Friendly – Modern – Positive – Chinese Education.**
+
+7. Nội dung dự kiến:
+Fanpage có thể tập trung vào:
+
+* Từ vựng tiếng Trung
+* Câu giao tiếp thực tế
+* Ngữ pháp dễ hiểu
+* Phát âm
+* Mẹo học tiếng Trung
+* Kiến thức văn hóa Trung Quốc
+* Nội dung tương tác/quiz
+* Các tình huống tiếng Trung trong đời sống
+* Nội dung xây dựng hình ảnh mascot Himi
+
+8. Định hướng marketing:
+Hiện tại em muốn xây dựng Himi Chinese trước hết thành một **thương hiệu giáo dục tiếng Trung có nhận diện riêng**, sau đó phát triển cộng đồng và tạo niềm tin với người học.

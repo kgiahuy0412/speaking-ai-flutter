@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_completion_choice_recognizer.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
@@ -13,6 +14,8 @@ import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_i
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_practice_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_review_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/listening_route_names.dart';
+import 'package:ai_speaking_flutter_app/features/vocabulary/data/vocabulary_store.dart';
+import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +26,8 @@ void main() {
     (tester) async {
       await _usePhoneSurface(tester);
       final mediaService = _GuidedMediaService();
-      final voicePrompts = _FakeVoicePromptService();
+      final voicePrompts = _ReadyCueVoicePromptService();
+      final vocabularyStore = _MemoryVocabularyStore();
       await tester.pumpWidget(
         _subject(
           _lesson(code: 'A035_T01_L01', sentenceCount: 2),
@@ -31,6 +35,7 @@ void main() {
           guideAudioLibrary: _silentGuideAudioLibrary(),
           attemptEvaluator: const RecordedAttemptEvaluator(),
           voicePromptService: voicePrompts,
+          vocabularyStore: vocabularyStore,
         ),
       );
       await tester.pumpAndSettle();
@@ -38,24 +43,32 @@ void main() {
       expect(
         voicePrompts.spoken,
         containsAllInOrder(<String>[
-          'vi-VN|Nghe cô nhé.',
+          'vi-VN|Nói theo cô nhé.',
           'en-US|Sentence 1',
           'vi-VN|Câu 1',
           'vi-VN|Bây giờ đến lượt con. Con nói lại nhé.',
         ]),
       );
       expect(mediaService.recording, isTrue);
+      expect(voicePrompts.readyCueCount, 1);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
 
       expect(find.text('Sentence 2'), findsOneWidget);
       expect(mediaService.recording, isTrue);
+      expect(voicePrompts.readyCueCount, 2);
+      expect(vocabularyStore.entries, hasLength(1));
+      expect(vocabularyStore.entries.single.word, 'Sentence 1');
+      expect(
+        vocabularyStore.entries.single.collection,
+        VocabularyCollection.star,
+      );
       expect(
         voicePrompts.spoken,
         containsAllInOrder(<String>[
-          'vi-VN|Tốt lắm! Cùng học câu tiếp theo nhé.',
-          'vi-VN|Nghe cô nhé.',
+          'vi-VN|Con làm tốt lắm',
+          'vi-VN|Nói theo cô nhé.',
           'en-US|Sentence 2',
           'vi-VN|Câu 2',
           'vi-VN|Bây giờ đến lượt con. Con nói lại nhé.',
@@ -87,6 +100,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump();
+    await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+    await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
+    await tester.pump();
 
     expect(find.text('Sentence 2'), findsOneWidget);
     expect(mediaService.startedSentenceIds, contains('GUIDED-FLOW_S2'));
@@ -96,12 +112,114 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('MAIN pause then resume accepts a correct fresh lesson attempt', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final mediaService = _GuidedMediaService();
+    final voicePrompts = _FakeVoicePromptService();
+    final vocabularyStore = _MemoryVocabularyStore();
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          attemptEvaluator: _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+            LessonAttemptOutcome.good,
+          ]),
+          voicePromptService: voicePrompts,
+          vocabularyStore: vocabularyStore,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(mediaService.recording, isTrue);
+    expect(mediaService.startedSentenceIds, hasLength(1));
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.stop)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.recording, isFalse);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.resume)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    expect(registry.isActiveModulePaused, isFalse);
+    expect(mediaService.recording, isTrue);
+    expect(mediaService.startedSentenceIds, hasLength(2));
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sentence 2'), findsOneWidget);
+    expect(voicePrompts.spoken, contains('vi-VN|Con làm tốt lắm'));
+    expect(voicePrompts.spoken, isNot(contains('vi-VN|Con tập trung học đi')));
+    expect(vocabularyStore.entries, hasLength(1));
+    expect(
+      vocabularyStore.entries.single.collection,
+      VocabularyCollection.star,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('MAIN invalidates an evaluation that finishes after pause', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final mediaService = _GuidedMediaService();
+    final evaluator = _DeferredAttemptEvaluator();
+    final voicePrompts = _FakeVoicePromptService();
+    final vocabularyStore = _MemoryVocabularyStore();
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          attemptEvaluator: evaluator,
+          voicePromptService: voicePrompts,
+          vocabularyStore: vocabularyStore,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pump();
+    await evaluator.started.future;
+    expect(await registry.pauseForMainAssistant(), isTrue);
+    evaluator.complete(LessonAttemptOutcome.good);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sentence 1'), findsOneWidget);
+    expect(mediaService.recording, isFalse);
+    expect(vocabularyStore.entries, isEmpty);
+    expect(voicePrompts.spoken, isNot(contains('vi-VN|Con làm tốt lắm')));
+  });
+
   testWidgets(
-    'V2 retries once then adds the sentence to the practice-again queue',
+    'V2 rejects wrong content and automatically records the same sentence again',
     (tester) async {
       await _usePhoneSurface(tester);
       final mediaService = _GuidedMediaService();
       final progressStore = _MemoryProgressStore();
+      final vocabularyStore = _MemoryVocabularyStore();
       final voicePrompts = _FakeVoicePromptService();
       final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
         LessonAttemptOutcome.retry,
@@ -109,12 +227,13 @@ void main() {
       ]);
       await tester.pumpWidget(
         _subject(
-          _lesson(code: 'A035_T01_L01'),
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
           mediaService,
           guideAudioLibrary: _silentGuideAudioLibrary(),
           progressStore: progressStore,
           attemptEvaluator: evaluator,
           voicePromptService: voicePrompts,
+          vocabularyStore: vocabularyStore,
         ),
       );
       await tester.pumpAndSettle();
@@ -122,30 +241,125 @@ void main() {
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
       expect(mediaService.recording, isTrue);
+      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(voicePrompts.spoken, contains('vi-VN|Con tập trung học đi'));
+      expect(progressStore.needsPractice, contains(0));
+      expect(vocabularyStore.entries, hasLength(1));
       expect(
-        voicePrompts.spoken,
-        containsAllInOrder(<String>[
-          'vi-VN|Gần được rồi! Con nghe lại câu này nhé.',
-          'en-US|Sentence 1',
-          'vi-VN|Bây giờ con thử nói lại lần nữa nhé.',
-        ]),
+        vocabularyStore.entries.single.collection,
+        VocabularyCollection.review,
       );
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(progressStore.needsPractice, <int>{0});
       expect(mediaService.recording, isTrue);
+      expect(find.text('Sentence 2'), findsOneWidget);
+      expect(progressStore.needsPractice, contains(0));
+      expect(
+        voicePrompts.spoken.where(
+          (message) => message == 'vi-VN|Con tập trung học đi',
+        ),
+        hasLength(1),
+      );
       expect(
         voicePrompts.spoken,
-        containsAllInOrder(<String>[
-          'vi-VN|Con đã cố gắng rồi! Mình sẽ luyện thêm sau. Cùng học câu tiếp nào.',
-          'vi-VN|Giỏi lắm! Con đã học xong bài “Guided lesson” rồi. Con muốn luyện lại từ đầu hay học bài tiếp theo?',
-          'vi-VN|Con hãy nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.',
-        ]),
+        contains('vi-VN|Mình cùng học câu khác nhé!'),
       );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'V2 asks neutrally and retries when ASR could not hear the sentence',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService();
+      final progressStore = _MemoryProgressStore();
+      final vocabularyStore = _MemoryVocabularyStore();
+      final voicePrompts = _FakeVoicePromptService();
+      final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+        LessonAttemptOutcome.unclear,
+      ]);
+      await tester.pumpWidget(
+        _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          progressStore: progressStore,
+          attemptEvaluator: evaluator,
+          voicePromptService: voicePrompts,
+          vocabularyStore: vocabularyStore,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+      await tester.pumpAndSettle();
+
+      expect(mediaService.recording, isTrue);
+      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(
+        voicePrompts.spoken,
+        contains('vi-VN|Cô chưa nghe rõ. Con nói lại nhé.'),
+      );
+      expect(
+        voicePrompts.spoken,
+        isNot(contains('vi-VN|Con tập trung học đi')),
+      );
+      expect(progressStore.needsPractice, isEmpty);
+      expect(vocabularyStore.entries, isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'V2 promotes a retry sentence from Review to Stars when correct',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService();
+      final progressStore = _MemoryProgressStore();
+      final vocabularyStore = _MemoryVocabularyStore();
+      final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+        LessonAttemptOutcome.retry,
+        LessonAttemptOutcome.good,
+      ]);
+      await tester.pumpWidget(
+        _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          progressStore: progressStore,
+          attemptEvaluator: evaluator,
+          voicePromptService: _FakeVoicePromptService(),
+          vocabularyStore: vocabularyStore,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+      await tester.pumpAndSettle();
+      expect(
+        vocabularyStore.entries.single.collection,
+        VocabularyCollection.review,
+      );
+      expect(progressStore.needsPractice, contains(0));
+
+      await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+      await tester.pumpAndSettle();
+
+      expect(vocabularyStore.entries, hasLength(1));
+      expect(
+        vocabularyStore.entries.single.collection,
+        VocabularyCollection.star,
+      );
+      expect(vocabularyStore.entries.single.word, 'Sentence 1');
+      expect(progressStore.needsPractice, isNot(contains(0)));
+      expect(find.text('Sentence 2'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -180,6 +394,9 @@ void main() {
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
     await tester.pump();
+    await tester.pump();
+    await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+    await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
     await tester.pump();
 
     expect(mediaService.startedSentenceIds.last, 'GUIDED-FLOW_S1');
@@ -248,6 +465,41 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('V2 asks the child to repeat an unclear completion choice', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final voicePrompts = _FakeVoicePromptService();
+    await tester.pumpWidget(
+      _subject(
+        _lesson(code: 'A035_T01_L01'),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        voicePromptService: voicePrompts,
+        completionChoiceRecognizer: _FakeCompletionChoiceRecognizer(
+          'Con chưa biết',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(mediaService.startedSentenceIds.last, contains('completion-choice'));
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pumpAndSettle();
+
+    expect(voicePrompts.spoken, contains('vi-VN|Nói lại lựa chọn của con nhé'));
+    expect(find.byKey(const Key('retry-voice-choice')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets('V2 announces topic completion after its last lesson', (
     tester,
   ) async {
@@ -255,6 +507,7 @@ void main() {
     final lesson = _lesson(code: 'A035_T01_L02', number: 2);
     final mediaService = _GuidedMediaService();
     final voicePrompts = _FakeVoicePromptService();
+    var topicCompletedCount = 0;
     await tester.pumpWidget(
       _subject(
         lesson,
@@ -265,6 +518,7 @@ void main() {
         completionChoiceRecognizer: _FakeCompletionChoiceRecognizer(
           'Bài tiếp theo',
         ),
+        onTopicCompleted: () => topicCompletedCount += 1,
       ),
     );
     await tester.pumpAndSettle();
@@ -283,6 +537,7 @@ void main() {
         'vi-VN|Con đã học xong chủ đề này rồi. Con chọn tiếp chủ đề mới nhé.',
       ),
     );
+    expect(topicCompletedCount, 1);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -1118,6 +1373,8 @@ Widget _subject(
   LessonAttemptEvaluator? attemptEvaluator,
   VoicePromptService? voicePromptService,
   LessonCompletionChoiceRecognizer? completionChoiceRecognizer,
+  VocabularyStore? vocabularyStore,
+  VoidCallback? onTopicCompleted,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -1131,10 +1388,14 @@ Widget _subject(
       topicContent: topicContent,
       progressStore: progressStore ?? _MemoryProgressStore(),
       mediaService: mediaService,
+      vocabularyStore: vocabularyStore ?? _MemoryVocabularyStore(),
       guideAudioLibrary: guideAudioLibrary,
-      attemptEvaluator: attemptEvaluator,
-      voicePromptService: voicePromptService,
+      attemptEvaluator: attemptEvaluator ?? const RecordedAttemptEvaluator(),
+      // Keep widget tests independent from the platform-channel speech-ready
+      // cue used by the preserved single-sentence flow.
+      voicePromptService: voicePromptService ?? _FakeVoicePromptService(),
       completionChoiceRecognizer: completionChoiceRecognizer,
+      onTopicCompleted: onTopicCompleted,
     ),
   );
 }
@@ -1226,6 +1487,30 @@ class _ScriptedAttemptEvaluator implements LessonAttemptEvaluator {
   }
 }
 
+class _DeferredAttemptEvaluator implements LessonAttemptEvaluator {
+  final Completer<void> started = Completer<void>();
+  final Completer<LessonAttemptOutcome> _result =
+      Completer<LessonAttemptOutcome>();
+
+  void complete(LessonAttemptOutcome outcome) => _result.complete(outcome);
+
+  @override
+  Future<LessonAttemptOutcome> evaluate({
+    required String lessonCode,
+    required String sentenceId,
+    required String expectedEnglish,
+    required String recordingPath,
+    required Duration recordingDuration,
+    required int attemptNumber,
+    required int childAge,
+  }) {
+    if (!started.isCompleted) {
+      started.complete();
+    }
+    return _result.future;
+  }
+}
+
 class _FakeVoicePromptService implements VoicePromptService {
   final List<String> spoken = <String>[];
 
@@ -1243,6 +1528,16 @@ class _FakeVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _ReadyCueVoicePromptService extends _FakeVoicePromptService
+    implements SpeechReadyCuePlayer {
+  int readyCueCount = 0;
+
+  @override
+  Future<void> playSpeechReadyCue() async {
+    readyCueCount += 1;
+  }
 }
 
 class _FakeCompletionChoiceRecognizer
@@ -1306,6 +1601,11 @@ class _GuidedMediaService extends LessonMediaService {
       filePath: 'C:\\recordings\\latest.m4a',
       duration: Duration(seconds: 2),
     );
+  }
+
+  @override
+  Future<void> cancelRecording() async {
+    recording = false;
   }
 
   @override
@@ -1430,6 +1730,18 @@ class _ControlledNextIntroMediaService extends _GuidedMediaService {
     if (_nextIntroStarted && !_nextIntroCompletion.isCompleted) {
       _nextIntroCompletion.complete();
     }
+  }
+}
+
+class _MemoryVocabularyStore extends VocabularyStore {
+  List<VocabularyEntry> entries = <VocabularyEntry>[];
+
+  @override
+  Future<List<VocabularyEntry>> read() async => List.of(entries);
+
+  @override
+  Future<void> write(List<VocabularyEntry> value) async {
+    entries = List.of(value);
   }
 }
 
