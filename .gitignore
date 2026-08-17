@@ -45,3 +45,12 @@ node_modules/
 .codegraph/
 dist/
 flutter_*.log
+
+# Generated release/test artifacts belong in GitHub Releases or object storage,
+# not in Git history. Use `git add -f` only for a deliberate source archive.
+*.apk
+*.aab
+*.ipa
+*.zip
+/.codex-tmp/
+/test/**/failures/
