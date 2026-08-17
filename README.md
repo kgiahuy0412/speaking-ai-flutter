@@ -3,7 +3,7 @@
 Ứng dụng Flutter này là mobile client mới cho backend Next.js hiện tại. Luồng
 AI vẫn chạy hoàn toàn ở backend: ASR tiếng Việt → normalize/rule/cache →
 Cloudflare AI → TTS streaming → history/telemetry. APK không chứa khóa API
-của nhà cung cấp AI.
+của nhà cung cấp AI..
 
 Thiết kế đang triển khai là hướng **Live Conversation**:
 

@@ -57,35 +57,43 @@ abstract interface class ActiveLearningModuleController {
   );
 }
 
-/// One microphone owner and one active learning owner at a time.
+/// One microphone owner and one visible learning owner at a time.
 ///
-/// Screens register on mount and unregister on dispose. A token prevents an
-/// older route from accidentally removing the newer route during replacement.
+/// Learning routes can temporarily stack (for example, the review route sits
+/// above the practice route). The last registered route receives MAIN commands;
+/// removing it restores the route immediately below it.
 class ActiveLearningModuleRegistry extends ChangeNotifier {
-  ActiveLearningModuleController? _controller;
-  Object? _ownerToken;
+  final List<_ActiveLearningModuleRegistration> _registrations =
+      <_ActiveLearningModuleRegistration>[];
   bool _notificationScheduled = false;
 
-  ActiveLearningModuleController? get controller => _controller;
-  bool get hasActiveModule => _controller != null;
-  bool get isActiveModulePaused => _controller?.isPausedForMain ?? false;
-  ActiveLearningModuleKind? get activeKind => _controller?.moduleKind;
+  ActiveLearningModuleController? get controller =>
+      _registrations.lastOrNull?.controller;
+  bool get hasActiveModule => controller != null;
+  bool get isActiveModulePaused => controller?.isPausedForMain ?? false;
+  ActiveLearningModuleKind? get activeKind => controller?.moduleKind;
 
   Object register(ActiveLearningModuleController controller) {
     final token = Object();
-    _controller = controller;
-    _ownerToken = token;
+    _registrations.add(
+      _ActiveLearningModuleRegistration(controller: controller, token: token),
+    );
     _notifySafely();
     return token;
   }
 
   void unregister(Object token) {
-    if (!identical(token, _ownerToken)) {
+    final index = _registrations.indexWhere(
+      (registration) => identical(registration.token, token),
+    );
+    if (index < 0) {
       return;
     }
-    _controller = null;
-    _ownerToken = null;
-    _notifySafely();
+    final wasActive = index == _registrations.length - 1;
+    _registrations.removeAt(index);
+    if (wasActive) {
+      _notifySafely();
+    }
   }
 
   void _notifySafely() {
@@ -102,23 +110,33 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
   }
 
   Future<bool> pauseForMainAssistant() async {
-    final active = _controller;
+    final active = controller;
     if (active == null) {
       return false;
     }
     await active.pauseForMainAssistant();
-    return identical(active, _controller);
+    return identical(active, controller);
   }
 
   Future<ActiveLearningCommandResult> execute(
     ActiveLearningCommand command,
   ) async {
-    final active = _controller;
+    final active = controller;
     if (active == null) {
       return const ActiveLearningCommandResult.unavailable();
     }
     return active.handleMainCommand(command);
   }
+}
+
+class _ActiveLearningModuleRegistration {
+  const _ActiveLearningModuleRegistration({
+    required this.controller,
+    required this.token,
+  });
+
+  final ActiveLearningModuleController controller;
+  final Object token;
 }
 
 class ActiveLearningModuleScope

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
@@ -40,7 +41,8 @@ class SongKaraokeScreen extends StatefulWidget {
   State<SongKaraokeScreen> createState() => _SongKaraokeScreenState();
 }
 
-class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
+class _SongKaraokeScreenState extends State<SongKaraokeScreen>
+    implements ActiveLearningModuleController {
   Timer? _autoPlayTimer;
   Timer? _countdownTimer;
   StreamSubscription<bool>? _playingSubscription;
@@ -52,8 +54,22 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
   bool _playing = false;
   bool _mediaBusy = false;
   bool _leaving = false;
+  bool _pausedForMainAssistant = false;
+  bool _resumePlaybackAfterMain = false;
+  bool _resumeAutoPlayAfterMain = false;
+  bool _autoPlayPreparationPending = true;
+  bool _endDialogOpen = false;
   late int _secondsUntilAutoPlay;
   String? _message;
+  ActiveLearningModuleRegistry? _activeModuleRegistry;
+  Object? _activeModuleRegistration;
+
+  @override
+  ActiveLearningModuleKind get moduleKind =>
+      ActiveLearningModuleKind.listeningLesson;
+
+  @override
+  bool get isPausedForMain => _pausedForMainAssistant;
 
   Uri? get _songUri => widget.lesson.fullAudioUri;
 
@@ -74,14 +90,14 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     _playingSubscription = widget.mediaService.playbackPlayingStream.listen((
       playing,
     ) {
-      if (mounted) {
+      if (mounted && !_pausedForMainAssistant) {
         setState(() => _playing = playing);
       }
     });
     _positionSubscription = widget.mediaService.playbackPositionStream.listen((
       position,
     ) {
-      if (mounted) {
+      if (mounted && !_pausedForMainAssistant) {
         setState(() => _position = position);
       }
     });
@@ -95,6 +111,22 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _prepareAndSchedule());
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final registry = ActiveLearningModuleScope.maybeOf(context);
+    if (identical(registry, _activeModuleRegistry)) {
+      return;
+    }
+    final oldRegistry = _activeModuleRegistry;
+    final oldRegistration = _activeModuleRegistration;
+    if (oldRegistry != null && oldRegistration != null) {
+      oldRegistry.unregister(oldRegistration);
+    }
+    _activeModuleRegistry = registry;
+    _activeModuleRegistration = registry?.register(this);
+  }
+
   Future<void> _prepareAndSchedule() async {
     final uri = _songUri;
     if (uri != null) {
@@ -104,7 +136,11 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
         // Playback still gets one normal attempt after the countdown.
       }
     }
-    if (!mounted) {
+    if (!_autoPlayPreparationPending) {
+      return;
+    }
+    _autoPlayPreparationPending = false;
+    if (!mounted || _pausedForMainAssistant || _leaving) {
       return;
     }
     if (widget.autoPlayDelay <= Duration.zero) {
@@ -112,7 +148,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
       return;
     }
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
+      if (!mounted || _pausedForMainAssistant || _leaving) {
         timer.cancel();
         return;
       }
@@ -122,7 +158,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     });
     _autoPlayTimer = Timer(widget.autoPlayDelay, () {
       _countdownTimer?.cancel();
-      if (mounted) {
+      if (mounted && !_pausedForMainAssistant && !_leaving) {
         setState(() => _secondsUntilAutoPlay = 0);
         unawaited(_playSong());
       }
@@ -131,8 +167,13 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
 
   @override
   void dispose() {
+    final registration = _activeModuleRegistration;
+    if (registration != null) {
+      _activeModuleRegistry?.unregister(registration);
+    }
     _autoPlayTimer?.cancel();
     _countdownTimer?.cancel();
+    _autoPlayPreparationPending = false;
     unawaited(_playingSubscription?.cancel());
     unawaited(_positionSubscription?.cancel());
     unawaited(_durationSubscription?.cancel());
@@ -147,37 +188,40 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     final snapshot = _karaokeSnapshot();
     return DisplayLanguageScope(
       language: widget.language,
-      child: Scaffold(
-        key: const Key('song-karaoke-screen'),
-        body: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            Image.asset(
-              widget.backgroundAsset,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              filterQuality: FilterQuality.high,
-            ),
-            const _SongReadabilityOverlay(),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: SafeArea(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: Align(
-                        alignment: Alignment.bottomRight,
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            right: 22,
-                            bottom: 150,
-                          ),
-                          child: Image.asset(
-                            MascotAssets.sing,
-                            width: 112,
-                            height: 112,
-                            fit: BoxFit.contain,
-                            filterQuality: FilterQuality.high,
+      child: IgnorePointer(
+        ignoring: _pausedForMainAssistant,
+        child: Scaffold(
+          key: const Key('song-karaoke-screen'),
+          body: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Image.asset(
+                widget.backgroundAsset,
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                filterQuality: FilterQuality.high,
+              ),
+              const _SongReadabilityOverlay(),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: SafeArea(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: Align(
+                          alignment: Alignment.bottomRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              right: 22,
+                              bottom: 150,
+                            ),
+                            child: Image.asset(
+                              MascotAssets.sing,
+                              width: 112,
+                              height: 112,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
+                            ),
                           ),
                         ),
                       ),
@@ -185,61 +229,61 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
                   ),
                 ),
               ),
-            ),
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxHeight < 720;
-                  return Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          compact ? 16 : 20,
-                          10,
-                          compact ? 16 : 20,
-                          compact ? 12 : 18,
-                        ),
-                        child: Column(
-                          children: <Widget>[
-                            _SongHeader(
-                              title: _songTitle,
-                              subtitle: widget.topicTitle,
-                              onEnd: _showEndDialog,
-                            ),
-                            SizedBox(height: compact ? 22 : 44),
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.topLeft,
-                                child: _KaraokeLyrics(
-                                  currentLine: snapshot.currentLine,
-                                  translationLine: snapshot.translationLine,
-                                  highlightedWordCount:
-                                      snapshot.highlightedWordCount,
-                                  compact: compact,
+              SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxHeight < 720;
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 16 : 20,
+                            10,
+                            compact ? 16 : 20,
+                            compact ? 12 : 18,
+                          ),
+                          child: Column(
+                            children: <Widget>[
+                              _SongHeader(
+                                title: _songTitle,
+                                subtitle: widget.topicTitle,
+                                onEnd: _showEndDialog,
+                              ),
+                              SizedBox(height: compact ? 22 : 44),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.topLeft,
+                                  child: _KaraokeLyrics(
+                                    currentLine: snapshot.currentLine,
+                                    translationLine: snapshot.translationLine,
+                                    highlightedWordCount:
+                                        snapshot.highlightedWordCount,
+                                    compact: compact,
+                                  ),
                                 ),
                               ),
-                            ),
-                            _SongPlayer(
-                              title: _songTitle,
-                              progress: _progress,
-                              position: _position,
-                              duration: _effectiveDuration,
-                              playing: _playing,
-                              busy: _mediaBusy,
-                              secondsUntilAutoPlay: _secondsUntilAutoPlay,
-                              message: _message,
-                              onPlayPause: _togglePlayback,
-                            ),
-                          ],
+                              _SongPlayer(
+                                title: _songTitle,
+                                progress: _progress,
+                                position: _position,
+                                duration: _effectiveDuration,
+                                playing: _playing,
+                                busy: _mediaBusy,
+                                secondsUntilAutoPlay: _secondsUntilAutoPlay,
+                                message: _message,
+                                onPlayPause: _togglePlayback,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -372,6 +416,9 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
   }
 
   Future<void> _togglePlayback() async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     _autoPlayTimer?.cancel();
     _countdownTimer?.cancel();
     if (mounted) {
@@ -388,7 +435,7 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
   }
 
   Future<void> _playSong() async {
-    if (_mediaBusy || _leaving) {
+    if (_mediaBusy || _leaving || _pausedForMainAssistant) {
       return;
     }
     final uri = _songUri;
@@ -425,19 +472,155 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen> {
     }
   }
 
-  Future<void> _showEndDialog() async {
-    if (_leaving) {
+  @override
+  Future<void> pauseForMainAssistant() async {
+    if (_pausedForMainAssistant || _leaving) {
       return;
     }
-    final action = await showDialog<_SongEndAction>(
-      context: context,
-      builder: (dialogContext) => _SongEndDialog(
-        songTitle: _songTitle,
-        onPractice: () =>
-            Navigator.of(dialogContext).pop(_SongEndAction.practice),
-        onExit: () => Navigator.of(dialogContext).pop(_SongEndAction.exit),
-      ),
+    _resumePlaybackAfterMain = _playing || _mediaBusy;
+    _resumeAutoPlayAfterMain =
+        (_autoPlayTimer?.isActive ?? false) || _autoPlayPreparationPending;
+    _pausedForMainAssistant = true;
+    _autoPlayPreparationPending = false;
+    _autoPlayTimer?.cancel();
+    _countdownTimer?.cancel();
+    if (_endDialogOpen && mounted) {
+      _endDialogOpen = false;
+      Navigator.of(context).pop();
+    }
+    if (mounted) {
+      setState(() {
+        _playing = false;
+        _mediaBusy = false;
+        _message = context.tr('Bài hát đang tạm dừng.', '歌曲已暂停。');
+      });
+    }
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
+  }
+
+  Future<void> _resumeFromMain({bool replay = false}) async {
+    if (!mounted || _leaving) {
+      return;
+    }
+    final resumePlayback = _resumePlaybackAfterMain;
+    final resumeAutoPlay = _resumeAutoPlayAfterMain;
+    _pausedForMainAssistant = false;
+    _resumePlaybackAfterMain = false;
+    _resumeAutoPlayAfterMain = false;
+    setState(() => _message = null);
+    if (replay || resumePlayback) {
+      await _playSong();
+    } else if (resumeAutoPlay) {
+      _scheduleRemainingAutoPlay();
+    }
+  }
+
+  void _scheduleRemainingAutoPlay() {
+    if (_pausedForMainAssistant || _leaving) {
+      return;
+    }
+    _autoPlayTimer?.cancel();
+    _countdownTimer?.cancel();
+    final seconds = math.max(0, _secondsUntilAutoPlay);
+    if (seconds == 0) {
+      unawaited(_playSong());
+      return;
+    }
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _pausedForMainAssistant || _leaving) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _secondsUntilAutoPlay = math.max(0, _secondsUntilAutoPlay - 1);
+      });
+    });
+    _autoPlayTimer = Timer(Duration(seconds: seconds), () {
+      _countdownTimer?.cancel();
+      if (mounted && !_pausedForMainAssistant && !_leaving) {
+        setState(() => _secondsUntilAutoPlay = 0);
+        unawaited(_playSong());
+      }
+    });
+  }
+
+  Future<void> _openPracticeFromMain() async {
+    if (!mounted || _leaving) {
+      return;
+    }
+    _pausedForMainAssistant = false;
+    _leaving = true;
+    _autoPlayPreparationPending = false;
+    _autoPlayTimer?.cancel();
+    _countdownTimer?.cancel();
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(builder: widget.practiceBuilder),
     );
+  }
+
+  @override
+  Future<ActiveLearningCommandResult> handleMainCommand(
+    ActiveLearningCommand command,
+  ) async {
+    if (!mounted) {
+      return const ActiveLearningCommandResult.unavailable();
+    }
+    switch (command) {
+      case ActiveLearningCommand.stop:
+        await pauseForMainAssistant();
+        return const ActiveLearningCommandResult.handled(
+          spokenReply: 'Đã dừng.',
+        );
+      case ActiveLearningCommand.resume:
+        await _resumeFromMain();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.replayCurrent:
+      case ActiveLearningCommand.previousItem:
+      case ActiveLearningCommand.restart:
+        await _resumeFromMain(replay: true);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.nextItem:
+        await _openPracticeFromMain();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.nextLesson:
+      case ActiveLearningCommand.previousLesson:
+        return const ActiveLearningCommandResult.unavailable(
+          spokenReply: 'Con hãy học xong bài hát này trước nhé.',
+        );
+      case ActiveLearningCommand.exitToHome:
+        await pauseForMainAssistant();
+        if (!mounted) {
+          return const ActiveLearningCommandResult.unavailable();
+        }
+        _leaving = true;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return const ActiveLearningCommandResult.handled();
+    }
+  }
+
+  Future<void> _showEndDialog() async {
+    if (_leaving || _pausedForMainAssistant) {
+      return;
+    }
+    _endDialogOpen = true;
+    final _SongEndAction? action;
+    try {
+      action = await showDialog<_SongEndAction>(
+        context: context,
+        builder: (dialogContext) => _SongEndDialog(
+          songTitle: _songTitle,
+          onPractice: () =>
+              Navigator.of(dialogContext).pop(_SongEndAction.practice),
+          onExit: () => Navigator.of(dialogContext).pop(_SongEndAction.exit),
+        ),
+      );
+    } finally {
+      _endDialogOpen = false;
+    }
     if (!mounted || action == null) {
       return;
     }

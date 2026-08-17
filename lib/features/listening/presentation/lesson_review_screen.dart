@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
@@ -37,7 +38,8 @@ class LessonReviewScreen extends StatefulWidget {
   State<LessonReviewScreen> createState() => _LessonReviewScreenState();
 }
 
-class _LessonReviewScreenState extends State<LessonReviewScreen> {
+class _LessonReviewScreenState extends State<LessonReviewScreen>
+    implements ActiveLearningModuleController {
   static const int _completionDelaySeconds = 6;
 
   int? _playingIndex;
@@ -49,6 +51,17 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   Timer? _completionUnlockTimer;
   Completer<bool>? _reviewGapCompleter;
   bool _handingOffMediaPlayback = false;
+  bool _pausedForMainAssistant = false;
+  bool _resumeAutoReviewAfterMain = false;
+  ActiveLearningModuleRegistry? _activeModuleRegistry;
+  Object? _activeModuleRegistration;
+
+  @override
+  ActiveLearningModuleKind get moduleKind =>
+      ActiveLearningModuleKind.listeningLesson;
+
+  @override
+  bool get isPausedForMain => _pausedForMainAssistant;
 
   @override
   void initState() {
@@ -61,7 +74,27 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final registry = ActiveLearningModuleScope.maybeOf(context);
+    if (identical(registry, _activeModuleRegistry)) {
+      return;
+    }
+    final oldRegistry = _activeModuleRegistry;
+    final oldRegistration = _activeModuleRegistration;
+    if (oldRegistry != null && oldRegistration != null) {
+      oldRegistry.unregister(oldRegistration);
+    }
+    _activeModuleRegistry = registry;
+    _activeModuleRegistration = registry?.register(this);
+  }
+
+  @override
   void dispose() {
+    final registration = _activeModuleRegistration;
+    if (registration != null) {
+      _activeModuleRegistry?.unregister(registration);
+    }
     _playbackRequest += 1;
     _cancelReviewGap();
     _completionUnlockTimer?.cancel();
@@ -75,85 +108,94 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   Widget build(BuildContext context) {
     return DisplayLanguageScope(
       language: widget.language,
-      child: Scaffold(
-        key: const Key('lesson-review-screen'),
-        backgroundColor: Colors.transparent,
-        body: LearningScenery(
-          child: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
-                    child: Row(
-                      children: <Widget>[
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          tooltip: context.tr('Quay lại bài học', '返回课程'),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _title(context),
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        IconButton(
-                          key: const Key('replay-lesson-review'),
-                          onPressed: _playReview,
-                          icon: const Icon(Icons.replay_rounded),
-                          tooltip: context.tr('Phát lại từ đầu', '从头播放'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                    itemCount: widget.lesson.sentences.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 9),
-                    itemBuilder: (context, index) {
-                      final sentence = widget.lesson.sentences[index];
-                      return _ReviewSentenceTile(
-                        index: index,
-                        sentence: sentence,
-                        lessonType: widget.lesson.type,
-                        playing: _playingIndex == index,
-                        recordingStatus: widget.mode == LessonReviewMode.learned
-                            ? widget.unrecordedSentenceIndexes.contains(index)
-                                  ? _ReviewRecordingStatus.unrecorded
-                                  : _ReviewRecordingStatus.recorded
-                            : null,
-                        redesigned: widget.mode == LessonReviewMode.overview,
-                        featured:
-                            widget.mode == LessonReviewMode.overview &&
-                            index == 0,
-                        onPlay: () => _playSentence(index),
-                      );
-                    },
-                  ),
-                  if (_message != null)
+      child: IgnorePointer(
+        ignoring: _pausedForMainAssistant,
+        child: Scaffold(
+          key: const Key('lesson-review-screen'),
+          backgroundColor: Colors.transparent,
+          body: LearningScenery(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: <Widget>[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                      child: Text(
-                        _message!,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Theme.of(context).colorScheme.onSurfaceVariant
-                              : AppColors.muted,
-                        ),
+                      padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
+                      child: Row(
+                        children: <Widget>[
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                            tooltip: context.tr('Quay lại bài học', '返回课程'),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _title(context),
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            key: const Key('replay-lesson-review'),
+                            onPressed: _playReview,
+                            icon: const Icon(Icons.replay_rounded),
+                            tooltip: context.tr('Phát lại từ đầu', '从头播放'),
+                          ),
+                        ],
                       ),
                     ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-                    child: widget.mode == LessonReviewMode.learned
-                        ? _buildLearnedActions(context)
-                        : _buildOverviewActions(context),
-                  ),
-                ],
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                      itemCount: widget.lesson.sentences.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 9),
+                      itemBuilder: (context, index) {
+                        final sentence = widget.lesson.sentences[index];
+                        return _ReviewSentenceTile(
+                          index: index,
+                          sentence: sentence,
+                          lessonType: widget.lesson.type,
+                          playing: _playingIndex == index,
+                          recordingStatus:
+                              widget.mode == LessonReviewMode.learned
+                              ? widget.unrecordedSentenceIndexes.contains(index)
+                                    ? _ReviewRecordingStatus.unrecorded
+                                    : _ReviewRecordingStatus.recorded
+                              : null,
+                          redesigned: widget.mode == LessonReviewMode.overview,
+                          featured:
+                              widget.mode == LessonReviewMode.overview &&
+                              index == 0,
+                          onPlay: () => _playSentence(index),
+                        );
+                      },
+                    ),
+                    if (_message != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        child: Text(
+                          _message!,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant
+                                    : AppColors.muted,
+                              ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                      child: widget.mode == LessonReviewMode.learned
+                          ? _buildLearnedActions(context)
+                          : _buildOverviewActions(context),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -325,7 +367,120 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     );
   }
 
+  @override
+  Future<void> pauseForMainAssistant() async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
+    _resumeAutoReviewAfterMain = _autoPlayActive;
+    _pausedForMainAssistant = true;
+    _playbackRequest += 1;
+    _cancelReviewGap();
+    _completionUnlockTimer?.cancel();
+    _completionUnlockTimer = null;
+    if (mounted) {
+      setState(() {
+        _autoPlayActive = false;
+        _playingIndex = null;
+        _message = context.tr('Bài học đang tạm dừng.', '课程已暂停。');
+      });
+    }
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
+  }
+
+  void _resumeFromMain({bool replay = false}) {
+    if (!mounted) {
+      return;
+    }
+    final resumeAutoReview = _resumeAutoReviewAfterMain;
+    _pausedForMainAssistant = false;
+    _resumeAutoReviewAfterMain = false;
+    setState(() => _message = null);
+    if (widget.mode == LessonReviewMode.overview &&
+        _completionUnlockSeconds > 0) {
+      _startCompletionUnlockTimer();
+    }
+    if (replay || resumeAutoReview) {
+      unawaited(_playReview());
+    }
+  }
+
+  @override
+  Future<ActiveLearningCommandResult> handleMainCommand(
+    ActiveLearningCommand command,
+  ) async {
+    if (!mounted) {
+      return const ActiveLearningCommandResult.unavailable();
+    }
+    switch (command) {
+      case ActiveLearningCommand.stop:
+        await pauseForMainAssistant();
+        return const ActiveLearningCommandResult.handled(
+          spokenReply: 'Đã dừng.',
+        );
+      case ActiveLearningCommand.resume:
+        _resumeFromMain();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.replayCurrent:
+        _resumeFromMain(replay: true);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.nextItem:
+        if (widget.mode == LessonReviewMode.overview) {
+          if (_completionUnlockSeconds > 0) {
+            return const ActiveLearningCommandResult.unavailable(
+              spokenReply: 'Con nghe tổng quan thêm một chút nhé.',
+            );
+          }
+          _resumeFromMain();
+          await _startLearning();
+        } else {
+          _resumeFromMain();
+          await _finishLearnedReview(
+            widget.hasNextLesson
+                ? LessonReviewAction.nextLesson
+                : LessonReviewAction.returnToListening,
+          );
+        }
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.previousItem:
+        return const ActiveLearningCommandResult.unavailable(
+          spokenReply: 'Đây là phần tổng kết của bài học rồi.',
+        );
+      case ActiveLearningCommand.nextLesson:
+        if (widget.mode != LessonReviewMode.learned || !widget.hasNextLesson) {
+          return const ActiveLearningCommandResult.unavailable(
+            spokenReply: 'Chưa có bài tiếp theo.',
+          );
+        }
+        _resumeFromMain();
+        await _finishLearnedReview(LessonReviewAction.nextLesson);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.previousLesson:
+        return const ActiveLearningCommandResult.unavailable(
+          spokenReply: 'Con hãy quay lại danh sách để chọn bài trước nhé.',
+        );
+      case ActiveLearningCommand.restart:
+        if (widget.mode == LessonReviewMode.learned) {
+          _resumeFromMain();
+          await _finishLearnedReview(LessonReviewAction.restartLesson);
+        } else {
+          _resumeFromMain(replay: true);
+        }
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.exitToHome:
+        await pauseForMainAssistant();
+        if (!mounted) {
+          return const ActiveLearningCommandResult.unavailable();
+        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return const ActiveLearningCommandResult.handled();
+    }
+  }
+
   Future<void> _finishLearnedReview(LessonReviewAction action) async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     await _stopAutoReview();
     if (!mounted) {
       return;
@@ -338,6 +493,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Future<void> _startLearning() async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     await _stopAutoReview();
     if (!mounted) {
       return;
@@ -354,6 +512,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Future<void> _toggleAutoReview() async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     if (_autoPlayActive) {
       await _stopAutoReview();
       return;
@@ -366,8 +527,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     _completionUnlockTimer = Timer.periodic(const Duration(seconds: 1), (
       timer,
     ) {
-      if (!mounted) {
+      if (!mounted || _pausedForMainAssistant) {
         timer.cancel();
+        _completionUnlockTimer = null;
         return;
       }
       if (_completionUnlockSeconds <= 1) {
@@ -381,10 +543,13 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Future<void> _playReview() async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     final request = ++_playbackRequest;
     _cancelReviewGap();
     await widget.mediaService.stopPlayback();
-    if (!mounted || request != _playbackRequest) {
+    if (!mounted || _pausedForMainAssistant || request != _playbackRequest) {
       return;
     }
     setState(() {
@@ -414,7 +579,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
     }
 
     for (var index = 0; index < widget.lesson.sentences.length; index++) {
-      if (!mounted || request != _playbackRequest) {
+      if (!mounted || _pausedForMainAssistant || request != _playbackRequest) {
         return;
       }
       setState(() => _playingIndex = index);
@@ -448,6 +613,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen> {
   }
 
   Future<void> _playSentence(int index) async {
+    if (_pausedForMainAssistant) {
+      return;
+    }
     await _stopAutoReview();
     if (!mounted) {
       return;

@@ -213,6 +213,54 @@ void main() {
     expect(voicePrompts.spoken, isNot(contains('vi-VN|Con làm tốt lắm')));
   });
 
+  testWidgets('MAIN waits for a pending lesson microphone start to be closed', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final mediaService = _BlockingRecordingStartMediaService();
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          voicePromptService: _FakeVoicePromptService(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+    await tester.pump();
+    await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
+    await tester.pump();
+    await mediaService.startRequested.future;
+
+    var pauseCompleted = false;
+    final pauseFuture = registry.pauseForMainAssistant().then((value) {
+      pauseCompleted = true;
+      return value;
+    });
+    await tester.pump();
+    expect(pauseCompleted, isFalse);
+
+    mediaService.releaseStart();
+    await tester.pump();
+    expect(await pauseFuture, isTrue);
+    await tester.pump();
+
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.recording, isFalse);
+    expect(mediaService.cancelCalls, greaterThanOrEqualTo(2));
+    expect(find.text('Bài học đang tạm dừng.'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets(
     'V2 rejects wrong content and automatically records the same sentence again',
     (tester) async {
@@ -1264,11 +1312,12 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('lesson intro opens practice directly after audio finishes', (
+  testWidgets('V2 lesson intro uses introAudioUrl before opening practice', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
     final mediaService = _ControlledIntroMediaService();
+    final introUri = Uri.parse('https://example.test/intro.mp3');
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
@@ -1277,9 +1326,7 @@ void main() {
           startAge: 3,
           endAge: 5,
           topic: listeningCatalogs.first.topics.first,
-          lesson: _lesson(
-            introAudioUri: Uri.parse('https://example.test/intro.mp3'),
-          ),
+          lesson: _lesson(code: 'A067_T01_L01', introAudioUri: introUri),
           progressStore: _MemoryProgressStore(),
           mediaService: mediaService,
         ),
@@ -1289,6 +1336,7 @@ void main() {
     await tester.pump(const Duration(seconds: 20));
     expect(find.byType(LessonIntroScreen), findsOneWidget);
     expect(find.byType(LessonPracticeScreen), findsNothing);
+    expect(mediaService.playedUri, introUri);
 
     mediaService.finishIntro();
     await tester.pump();
@@ -1296,6 +1344,105 @@ void main() {
     expect(find.byType(LessonReviewScreen), findsNothing);
     expect(find.text('Nghe tổng quan'), findsNothing);
     expect(find.byType(LessonPracticeScreen), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('MAIN pauses review audio and its completion countdown', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final audioUri = Uri.parse('https://example.test/main-review.mp3');
+    final mediaService = _ControlledLessonAudioMediaService();
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: LessonReviewScreen(
+            language: DisplayLanguage.vietnamese,
+            lesson: _lesson(sentenceCount: 2, sentenceAudioUri: audioUri),
+            mediaService: mediaService,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('auto-play-lesson-review')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(mediaService.playedUris, <Uri>[audioUri]);
+    final stopsBeforeMain = mediaService.stopCalls;
+    expect(await registry.pauseForMainAssistant(), isTrue);
+    await tester.pump();
+
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.stopCalls, stopsBeforeMain + 1);
+    expect(find.text('Bài học đang tạm dừng.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('Học ngay sau 6 giây'), findsOneWidget);
+    expect(mediaService.playedUris, <Uri>[audioUri]);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.resume)).wasHandled,
+      isTrue,
+    );
+    await tester.pump();
+    expect(mediaService.playedUris, <Uri>[audioUri, audioUri]);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Học ngay sau 5 giây'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('MAIN stops intro audio and prevents automatic navigation', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final mediaService = _ControlledIntroMediaService();
+    final introUri = Uri.parse('https://example.test/main-paused-intro.mp3');
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: LessonIntroScreen(
+            language: DisplayLanguage.vietnamese,
+            startAge: 3,
+            endAge: 5,
+            topic: listeningCatalogs.first.topics.first,
+            lesson: _lesson(code: 'A067_T01_L01', introAudioUri: introUri),
+            progressStore: _MemoryProgressStore(),
+            mediaService: mediaService,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(registry.hasActiveModule, isTrue);
+    expect(mediaService.playedUri, introUri);
+    expect(await registry.pauseForMainAssistant(), isTrue);
+    await tester.pump();
+
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.stopCalls, 1);
+    expect(find.text('Bài học đang tạm dừng.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 20));
+    expect(find.byType(LessonIntroScreen), findsOneWidget);
+    expect(find.byType(LessonPracticeScreen), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -1630,6 +1777,7 @@ class _GuidedMediaService extends LessonMediaService {
 
 class _ControlledLessonAudioMediaService extends _GuidedMediaService {
   final List<Completer<void>> _pendingLessonAudio = <Completer<void>>[];
+  int stopCalls = 0;
 
   @override
   Future<void> playToCompletion(
@@ -1651,6 +1799,7 @@ class _ControlledLessonAudioMediaService extends _GuidedMediaService {
 
   @override
   Future<void> stopPlayback() async {
+    stopCalls += 1;
     final pending = List<Completer<void>>.of(_pendingLessonAudio);
     _pendingLessonAudio.clear();
     for (final completion in pending) {
@@ -1661,8 +1810,46 @@ class _ControlledLessonAudioMediaService extends _GuidedMediaService {
   }
 }
 
+class _BlockingRecordingStartMediaService extends _GuidedMediaService {
+  final Completer<void> startRequested = Completer<void>();
+  final Completer<void> _startRelease = Completer<void>();
+  int cancelCalls = 0;
+
+  void releaseStart() {
+    if (!_startRelease.isCompleted) {
+      _startRelease.complete();
+    }
+  }
+
+  @override
+  Future<void> startRecording({
+    required String lessonId,
+    required int sentenceNumber,
+    String? lessonTitle,
+    String? sentenceId,
+    String? english,
+    String? vietnamese,
+    bool saveToHistory = true,
+  }) async {
+    if (!startRequested.isCompleted) {
+      startRequested.complete();
+    }
+    await _startRelease.future;
+    recording = true;
+    startedSentenceIds.add(sentenceId ?? '');
+  }
+
+  @override
+  Future<void> cancelRecording() async {
+    cancelCalls += 1;
+    recording = false;
+  }
+}
+
 class _ControlledIntroMediaService extends LessonMediaService {
   final Completer<void> _completion = Completer<void>();
+  Uri? playedUri;
+  int stopCalls = 0;
 
   void finishIntro() => _completion.complete();
 
@@ -1670,10 +1857,14 @@ class _ControlledIntroMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
-  }) => _completion.future;
+  }) {
+    playedUri = uri;
+    return _completion.future;
+  }
 
   @override
   Future<void> stopPlayback() async {
+    stopCalls += 1;
     if (!_completion.isCompleted) {
       _completion.complete();
     }

@@ -93,6 +93,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   int _attemptNumber = 1;
   bool _guidedSequenceStarted = false;
   bool _recordingStartPending = false;
+  Future<void>? _recordingDeviceStartInProgress;
   int _recordingStartRequest = 0;
   int _praiseFireworksSequence = 0;
   bool _praiseFireworksVisible = false;
@@ -265,23 +266,35 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
 
-    if (_recording || _completionChoiceRecording || _recordingStartPending) {
+    final shouldCancelRecording =
+        _recording ||
+        _completionChoiceRecording ||
+        _recordingStartPending ||
+        _recordingDeviceStartInProgress != null;
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _completionChoiceRecording = false;
+        _completionChoiceStopping = false;
+        _recordingStartPending = false;
+        _mediaBusy = false;
+        _evaluatingAttempt = false;
+        _message = 'Bài học đang tạm dừng.';
+      });
+    }
+
+    if (shouldCancelRecording) {
+      await widget.mediaService.cancelRecording().catchError((Object _) {});
+    }
+    final pendingDeviceStart = _recordingDeviceStartInProgress;
+    if (pendingDeviceStart != null) {
+      await pendingDeviceStart.catchError((Object _) {});
+      // A native start can finish after the first cancellation request. Cancel
+      // once more before MAIN is allowed to play its question.
       await widget.mediaService.cancelRecording().catchError((Object _) {});
     }
     await widget.mediaService.stopPlayback().catchError((Object _) {});
     await _voicePromptService.stop().catchError((Object _) {});
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _recording = false;
-      _completionChoiceRecording = false;
-      _completionChoiceStopping = false;
-      _recordingStartPending = false;
-      _mediaBusy = false;
-      _evaluatingAttempt = false;
-      _message = 'Bài học đang tạm dừng.';
-    });
   }
 
   @override
@@ -373,177 +386,188 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     final interactionBusy = _recording || _mediaBusy || _evaluatingAttempt;
     return DisplayLanguageScope(
       language: widget.language,
-      child: Scaffold(
-        key: const Key('lesson-practice-screen'),
-        backgroundColor: Colors.transparent,
-        body: LearningScenery(
-          imageAlignment: Alignment.center,
-          overlayOpacity: 0.14,
-          child: Stack(
-            children: <Widget>[
-              SafeArea(
-                bottom: false,
-                child: Column(
-                  children: <Widget>[
-                    _LessonHeader(
-                      current: _sentenceIndex + 1,
-                      total: total,
-                      onBack: _exitLesson,
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 720),
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                            child: Column(
-                              children: <Widget>[
-                                _SentenceCard(
-                                  sentence: _sentence,
-                                  lessonType: widget.lesson.type,
-                                  current: _sentenceIndex + 1,
-                                  total: total,
-                                  onPlaySample: _playSample,
-                                  onPlayVietnamese: _playVietnamese,
-                                ),
-                                if (_recordingPath == null) ...<Widget>[
-                                  const SizedBox(height: 14),
-                                  const _LessonCoachHint(),
-                                  const SizedBox(height: 14),
-                                ] else
-                                  const SizedBox(height: 18),
-                                _RecordButton(
-                                  recording: _recording,
-                                  busy: _mediaBusy || _evaluatingAttempt,
-                                  onTap: _toggleRecording,
-                                  onLongPressStart: _startRecording,
-                                  onLongPressEnd: _stopRecording,
-                                ),
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 220),
-                                  child: _recordingPath == null
-                                      ? const SizedBox(height: 14)
-                                      : Padding(
-                                          key: ValueKey(_recordingPath),
-                                          padding: const EdgeInsets.only(
-                                            top: 16,
-                                          ),
-                                          child: _RecordingCard(
-                                            duration: _recordingDuration,
-                                            onPlay: _playRecording,
-                                          ),
-                                        ),
-                                ),
-                                if (_message != null) ...<Widget>[
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _message!,
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(color: AppColors.muted),
-                                  ),
-                                ],
-                                const SizedBox(height: 18),
-                                if (_recordingPath != null)
-                                  _PostRecordingActions(
-                                    busy: interactionBusy,
-                                    onPlaySample: _playSample,
-                                    onPlayRecording: _playRecording,
-                                    onRecordAgain: _startRecording,
-                                    onContinue: _continue,
-                                    onPrevious: _previous,
-                                    canGoPrevious: _sentenceIndex > 0,
-                                    finalSentence: _sentenceIndex == total - 1,
-                                  )
-                                else
-                                  _LessonNavigationActions(
-                                    current: _sentenceIndex,
+      child: IgnorePointer(
+        ignoring: _pausedForMainAssistant,
+        child: Scaffold(
+          key: const Key('lesson-practice-screen'),
+          backgroundColor: Colors.transparent,
+          body: LearningScenery(
+            imageAlignment: Alignment.center,
+            overlayOpacity: 0.14,
+            child: Stack(
+              children: <Widget>[
+                SafeArea(
+                  bottom: false,
+                  child: Column(
+                    children: <Widget>[
+                      _LessonHeader(
+                        current: _sentenceIndex + 1,
+                        total: total,
+                        onBack: _exitLesson,
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 720),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                12,
+                                20,
+                                24,
+                              ),
+                              child: Column(
+                                children: <Widget>[
+                                  _SentenceCard(
+                                    sentence: _sentence,
+                                    lessonType: widget.lesson.type,
+                                    current: _sentenceIndex + 1,
                                     total: total,
-                                    busy: interactionBusy,
-                                    onPrevious: _previous,
-                                    onContinue: _continue,
+                                    onPlaySample: _playSample,
+                                    onPlayVietnamese: _playVietnamese,
                                   ),
-                                if (_showSkip &&
-                                    _recordingPath == null) ...<Widget>[
-                                  const SizedBox(height: 10),
-                                  TextButton.icon(
-                                    key: const Key('skip-lesson-sentence'),
-                                    onPressed: interactionBusy ? null : _skip,
-                                    icon: const Icon(
-                                      Icons.fast_forward_rounded,
-                                    ),
-                                    label: Text(
-                                      context.tr('Bỏ qua câu này', '跳过本句'),
-                                    ),
+                                  if (_recordingPath == null) ...<Widget>[
+                                    const SizedBox(height: 14),
+                                    const _LessonCoachHint(),
+                                    const SizedBox(height: 14),
+                                  ] else
+                                    const SizedBox(height: 18),
+                                  _RecordButton(
+                                    recording: _recording,
+                                    busy: _mediaBusy || _evaluatingAttempt,
+                                    onTap: _toggleRecording,
+                                    onLongPressStart: _startRecording,
+                                    onLongPressEnd: _stopRecording,
                                   ),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    child: _recordingPath == null
+                                        ? const SizedBox(height: 14)
+                                        : Padding(
+                                            key: ValueKey(_recordingPath),
+                                            padding: const EdgeInsets.only(
+                                              top: 16,
+                                            ),
+                                            child: _RecordingCard(
+                                              duration: _recordingDuration,
+                                              onPlay: _playRecording,
+                                            ),
+                                          ),
+                                  ),
+                                  if (_message != null) ...<Widget>[
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _message!,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(color: AppColors.muted),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 18),
+                                  if (_recordingPath != null)
+                                    _PostRecordingActions(
+                                      busy: interactionBusy,
+                                      onPlaySample: _playSample,
+                                      onPlayRecording: _playRecording,
+                                      onRecordAgain: _startRecording,
+                                      onContinue: _continue,
+                                      onPrevious: _previous,
+                                      canGoPrevious: _sentenceIndex > 0,
+                                      finalSentence:
+                                          _sentenceIndex == total - 1,
+                                    )
+                                  else
+                                    _LessonNavigationActions(
+                                      current: _sentenceIndex,
+                                      total: total,
+                                      busy: interactionBusy,
+                                      onPrevious: _previous,
+                                      onContinue: _continue,
+                                    ),
+                                  if (_showSkip &&
+                                      _recordingPath == null) ...<Widget>[
+                                    const SizedBox(height: 10),
+                                    TextButton.icon(
+                                      key: const Key('skip-lesson-sentence'),
+                                      onPressed: interactionBusy ? null : _skip,
+                                      icon: const Icon(
+                                        Icons.fast_forward_rounded,
+                                      ),
+                                      label: Text(
+                                        context.tr('Bỏ qua câu này', '跳过本句'),
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  key: const Key('lesson-praise-fireworks-interaction'),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    reverseDuration: const Duration(milliseconds: 180),
-                    child: _praiseFireworksVisible
-                        ? _LessonPraiseFireworks(
-                            key: ValueKey(_praiseFireworksSequence),
-                          )
-                        : const SizedBox.shrink(),
+                    ],
                   ),
                 ),
-              ),
-              Positioned.fill(
-                child: AbsorbPointer(
-                  key: const Key('lesson-coach-popup-interaction-blocker'),
-                  absorbing:
-                      _coachPopupKind == _LessonCoachPopupKind.firstReminder ||
-                      _coachPopupKind == _LessonCoachPopupKind.secondReminder,
+                Positioned.fill(
                   child: IgnorePointer(
-                    ignoring:
-                        _coachPopupKind !=
-                            _LessonCoachPopupKind.firstReminder &&
-                        _coachPopupKind != _LessonCoachPopupKind.secondReminder,
+                    key: const Key('lesson-praise-fireworks-interaction'),
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 260),
-                      reverseDuration: Duration.zero,
-                      transitionBuilder: (child, animation) {
-                        final curved = CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutBack,
-                          reverseCurve: Curves.easeInCubic,
-                        );
-                        return FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(scale: curved, child: child),
-                        );
-                      },
-                      child: _coachPopupKind == null
-                          ? const SizedBox.shrink()
-                          : _LessonCoachPopup(
-                              key: ValueKey(_coachPopupKind),
-                              kind: _coachPopupKind!,
-                            ),
+                      duration: const Duration(milliseconds: 180),
+                      reverseDuration: const Duration(milliseconds: 180),
+                      child: _praiseFireworksVisible
+                          ? _LessonPraiseFireworks(
+                              key: ValueKey(_praiseFireworksSequence),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
                 ),
-              ),
-            ],
+                Positioned.fill(
+                  child: AbsorbPointer(
+                    key: const Key('lesson-coach-popup-interaction-blocker'),
+                    absorbing:
+                        _coachPopupKind ==
+                            _LessonCoachPopupKind.firstReminder ||
+                        _coachPopupKind == _LessonCoachPopupKind.secondReminder,
+                    child: IgnorePointer(
+                      ignoring:
+                          _coachPopupKind !=
+                              _LessonCoachPopupKind.firstReminder &&
+                          _coachPopupKind !=
+                              _LessonCoachPopupKind.secondReminder,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        reverseDuration: Duration.zero,
+                        transitionBuilder: (child, animation) {
+                          final curved = CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutBack,
+                            reverseCurve: Curves.easeInCubic,
+                          );
+                          return FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(scale: curved, child: child),
+                          );
+                        },
+                        child: _coachPopupKind == null
+                            ? const SizedBox.shrink()
+                            : _LessonCoachPopup(
+                                key: ValueKey(_coachPopupKind),
+                                kind: _coachPopupKind!,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        bottomNavigationBar: ListeningNavigationBar(
-          onCommunication: () =>
-              Navigator.of(context).popUntil((route) => route.isFirst),
-          onHistory: _showHistory,
+          bottomNavigationBar: ListeningNavigationBar(
+            onCommunication: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+            onHistory: _showHistory,
+          ),
         ),
       ),
     );
@@ -685,7 +709,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (!mounted || request != _recordingStartRequest) {
         return;
       }
-      await widget.mediaService.startRecording(
+      final deviceStart = widget.mediaService.startRecording(
         lessonId: widget.lesson.id,
         sentenceNumber: _sentence.number,
         lessonTitle: widget.lesson.titleVi,
@@ -693,6 +717,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         english: _sentence.english,
         vietnamese: _sentence.vietnamese,
       );
+      _recordingDeviceStartInProgress = deviceStart;
+      try {
+        await deviceStart;
+      } finally {
+        if (identical(_recordingDeviceStartInProgress, deviceStart)) {
+          _recordingDeviceStartInProgress = null;
+        }
+      }
       if (!mounted || request != _recordingStartRequest) {
         await widget.mediaService.cancelRecording();
         return;
@@ -1268,9 +1300,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _listenForCompletionChoice() async {
-    if (!mounted || _completionChoiceRecording || _completionChoiceStopping) {
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        _completionChoiceRecording ||
+        _completionChoiceStopping) {
       return;
     }
+    final pauseGeneration = _mainPauseGeneration;
     setState(() {
       _mediaBusy = true;
       _recordingStartPending = true;
@@ -1281,17 +1317,29 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (readyCuePlayer is SpeechReadyCuePlayer) {
         await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
       }
-      if (!mounted) {
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          pauseGeneration != _mainPauseGeneration) {
         return;
       }
-      await widget.mediaService.startRecording(
+      final deviceStart = widget.mediaService.startRecording(
         lessonId: '${widget.lesson.id}-completion-choice',
         sentenceNumber: 0,
         lessonTitle: widget.lesson.titleVi,
         sentenceId: '${widget.lesson.id}-completion-choice',
         saveToHistory: false,
       );
-      if (!mounted) {
+      _recordingDeviceStartInProgress = deviceStart;
+      try {
+        await deviceStart;
+      } finally {
+        if (identical(_recordingDeviceStartInProgress, deviceStart)) {
+          _recordingDeviceStartInProgress = null;
+        }
+      }
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          pauseGeneration != _mainPauseGeneration) {
         await widget.mediaService.cancelRecording();
         return;
       }
@@ -1308,6 +1356,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         () => unawaited(_stopCompletionChoiceRecording()),
       );
     } catch (error) {
+      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
+        await widget.mediaService.cancelRecording().catchError((Object _) {});
+        return;
+      }
       if (mounted) {
         setState(() {
           _recordingStartPending = false;

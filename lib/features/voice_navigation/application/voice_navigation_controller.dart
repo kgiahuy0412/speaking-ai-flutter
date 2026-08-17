@@ -101,6 +101,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _awaitingCommand = false;
   bool _acknowledgingWakeWord = false;
   bool _buttonCommandSession = false;
+  bool _mainButtonActivationInProgress = false;
   bool _disposed = false;
   int _generation = 0;
   int _mainNoSpeechRetryCount = 0;
@@ -118,7 +119,8 @@ class VoiceNavigationController extends ChangeNotifier {
   bool get continuousRequested => _continuousRequested;
   bool get isAwaitingCommand => _awaitingCommand;
   bool get isAcknowledgingWakeWord => _acknowledgingWakeWord;
-  bool get isMainButtonSessionActive => _buttonCommandSession;
+  bool get isMainButtonSessionActive =>
+      _buttonCommandSession || _mainButtonActivationInProgress;
   MainVoiceAssistantStage get mainAssistantStage => _mainAssistantFlow.stage;
   Object? get lastError => _lastError;
 
@@ -174,28 +176,37 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed) {
       return false;
     }
-    await pause();
-    if (_disposed) {
-      return false;
+    _mainButtonActivationInProgress = true;
+    notifyListeners();
+    try {
+      await pause();
+      if (_disposed) {
+        return false;
+      }
+      _buttonCommandSession = true;
+      _mainNoSpeechRetryCount = 0;
+      _continuousRequested = true;
+      final generation = _generation;
+      final acknowledged = await _acknowledgeWakeWord(
+        generation,
+        promptText: beginFlow(),
+      );
+      if (!acknowledged || _disposed || generation != _generation) {
+        _buttonCommandSession = false;
+        _continuousRequested = false;
+        _mainAssistantFlow.reset();
+        return false;
+      }
+      // Give Android audio focus and the speaker a short time to settle so the
+      // recognizer does not capture the tail of Bi cô's own sentence.
+      _scheduleSession(_mainCommandListenRestartDelay);
+      return true;
+    } finally {
+      _mainButtonActivationInProgress = false;
+      if (!_disposed) {
+        notifyListeners();
+      }
     }
-    _buttonCommandSession = true;
-    _mainNoSpeechRetryCount = 0;
-    _continuousRequested = true;
-    final generation = _generation;
-    final acknowledged = await _acknowledgeWakeWord(
-      generation,
-      promptText: beginFlow(),
-    );
-    if (!acknowledged || _disposed || generation != _generation) {
-      _buttonCommandSession = false;
-      _continuousRequested = false;
-      _mainAssistantFlow.reset();
-      return false;
-    }
-    // Give Android audio focus and the speaker a short time to settle so the
-    // recognizer does not capture the tail of Bi cô's own sentence.
-    _scheduleSession(_mainCommandListenRestartDelay);
-    return true;
   }
 
   /// Releases the recognizer so the conversation microphone can use it.

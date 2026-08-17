@@ -96,6 +96,30 @@ void main() {
     await speechInput.dispose();
   });
 
+  test('Main activation never exposes a transient inactive session', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: _FakeVoicePromptService(),
+    );
+    var exposedInactiveSession = false;
+    controller.addListener(() {
+      if (!controller.isMainButtonSessionActive && !controller.isActive) {
+        exposedInactiveSession = true;
+      }
+    });
+
+    expect(
+      await controller.activateFromMainButton(activeLearning: true),
+      isTrue,
+    );
+
+    expect(exposedInactiveSession, isFalse);
+    expect(controller.isMainButtonSessionActive, isTrue);
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
   test('Main button keeps listening through age, topic and lesson', () async {
     final speechInput = _FakeNavigationSpeechInput();
     final voicePrompt = _FakeVoicePromptService();

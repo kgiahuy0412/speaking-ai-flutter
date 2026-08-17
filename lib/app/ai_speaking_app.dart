@@ -572,7 +572,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   void _synchronizeMainAssistantSession() {
     final voiceController = _voiceNavigationController;
-    if (!_activeModulePausedForMain || voiceController == null) {
+    if (!_activeModulePausedForMain ||
+        _isActivatingMainAssistant ||
+        voiceController == null) {
       return;
     }
     if (!voiceController.isMainButtonSessionActive &&

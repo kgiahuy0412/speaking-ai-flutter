@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
@@ -78,6 +79,52 @@ void main() {
     await tester.pump();
     expect(mediaService.playCalls, 1);
     expect(find.text('Tạm dừng'), findsOneWidget);
+  });
+
+  testWidgets('MAIN stops karaoke playback and countdown until resume', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final mediaService = _KaraokeMediaService();
+    addTearDown(mediaService.dispose);
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: _TestApp(
+          child: _screen(
+            mediaService: mediaService,
+            autoPlayDelay: const Duration(seconds: 3),
+          ),
+        ),
+      ),
+    );
+    await _precacheBackground(tester);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(await registry.pauseForMainAssistant(), isTrue);
+    await tester.pump();
+    expect(registry.isActiveModulePaused, isTrue);
+    expect(mediaService.stopCalls, 1);
+
+    mediaService.emitPosition(const Duration(seconds: 9));
+    await tester.pump(const Duration(seconds: 10));
+    expect(mediaService.playCalls, 0);
+    expect(find.text('Bài hát đang tạm dừng.'), findsOneWidget);
+
+    expect(
+      (await registry.execute(ActiveLearningCommand.resume)).wasHandled,
+      isTrue,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(mediaService.playCalls, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 
   testWidgets('karaoke follows playback position line by line', (tester) async {
