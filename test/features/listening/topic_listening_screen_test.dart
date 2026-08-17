@@ -313,28 +313,22 @@ void main() {
     }
   });
 
-  testWidgets('selects the matching age group and changes its topic catalog', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(buildSubject());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'uses the configured age group without exposing a child control',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
 
-    expect(find.text('Tên và tuổi của con'), findsOneWidget);
-    expect(find.text('10 chủ đề'), findsOneWidget);
+      expect(find.text('Tên và tuổi của con'), findsOneWidget);
+      expect(find.text('10 chủ đề'), findsOneWidget);
 
-    await tester.drag(
-      find.byKey(const Key('topic-age-selector')),
-      const Offset(-220, 0),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('age-8-10')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Con và những người bạn'), findsOneWidget);
-    expect(find.text('Tên và tuổi của con'), findsNothing);
-  });
+      expect(find.byKey(const Key('topic-age-selector')), findsNothing);
+      expect(find.byKey(const ValueKey('age-8-10')), findsNothing);
+      expect(find.text('Con và những người bạn'), findsNothing);
+    },
+  );
 
   testWidgets('opens the selected topic lesson journey', (tester) async {
     var voiceNavigationPauseCount = 0;
@@ -710,7 +704,7 @@ void main() {
     await tester.pumpWidget(buildSubject(textScale: 2));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('topic-age-selector')), findsOneWidget);
+    expect(find.byKey(const Key('topic-age-selector')), findsNothing);
     expect(find.byKey(const Key('continue-listening-card')), findsOneWidget);
     expect(
       find.byKey(const Key('listening-bottom-navigation')),

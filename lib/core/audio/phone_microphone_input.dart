@@ -73,6 +73,19 @@ class PhoneMicrophoneInput
   @override
   Stream<Uint8List> get audioChunks => _audioChunkController.stream;
 
+  /// Requests microphone access before the child reaches a MAIN interaction.
+  ///
+  /// `record` uses the native Android permission dialog and the browser media
+  /// permission prompt on web. The granted flag is shared with the normal
+  /// recording preparation path so permission is not requested twice.
+  Future<bool> requestPermission() async {
+    final granted = await _recorder.hasPermission();
+    if (granted) {
+      _microphonePermissionGranted = true;
+    }
+    return granted;
+  }
+
   @override
   SelectableAudioInputDevice? get selectedAudioInputDevice {
     final selected = _selectedInputDevice;
@@ -119,7 +132,7 @@ class PhoneMicrophoneInput
 
   Future<void> _prepareRecording() async {
     if (!_microphonePermissionGranted) {
-      if (!await _recorder.hasPermission()) {
+      if (!await requestPermission()) {
         throw const AudioInputException(
           'Ứng dụng cần quyền micro để nghe con nói.',
         );

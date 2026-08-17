@@ -20,6 +20,7 @@ class ConversationScreen extends StatelessWidget {
     required this.config,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onChildAgeChanged,
     this.onStartTutorial,
     this.onModalVisibilityChanged,
     this.speakActionKey,
@@ -33,6 +34,7 @@ class ConversationScreen extends StatelessWidget {
   final AppConfig config;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
   final ValueChanged<bool>? onModalVisibilityChanged;
   final Key? speakActionKey;
@@ -140,6 +142,7 @@ class ConversationScreen extends StatelessWidget {
           controller: controller,
           themeMode: themeMode,
           onThemeModeChanged: onThemeModeChanged,
+          onChildAgeChanged: onChildAgeChanged,
           onStartTutorial: onStartTutorial,
         ),
       );

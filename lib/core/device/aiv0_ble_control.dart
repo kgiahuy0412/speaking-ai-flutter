@@ -310,14 +310,22 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     if (map != null) _updateStatus(map);
   }
 
+  /// Requests the Nearby devices/Bluetooth permissions used by AIV0 before
+  /// the child operates the physical MAIN button.
+  Future<bool> requestPermissions() async {
+    if (!_enabled) return true;
+    await initialize();
+    return await _methodChannel.invokeMethod<bool>('requestPermissions') ??
+        false;
+  }
+
   @override
   Future<List<Aiv0BleDevice>> scan({
     Duration timeout = const Duration(seconds: 8),
   }) async {
     if (!_enabled) return const [];
     await initialize();
-    final permissionGranted =
-        await _methodChannel.invokeMethod<bool>('requestPermissions') ?? false;
+    final permissionGranted = await requestPermissions();
     if (!permissionGranted) {
       throw PlatformException(
         code: 'PERMISSION_REQUIRED',

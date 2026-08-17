@@ -29,6 +29,7 @@ class HomeLearningShell extends StatefulWidget {
     this.voiceNavigationController,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onChildAgeChanged,
     this.onMainSpeakingModeStarted,
     this.onSingleSentenceModeChanged,
     this.onModalVisibilityChanged,
@@ -42,6 +43,7 @@ class HomeLearningShell extends StatefulWidget {
   final VoiceNavigationController? voiceNavigationController;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
   final ValueChanged<bool>? onSingleSentenceModeChanged;
   final ValueChanged<bool>? onModalVisibilityChanged;
@@ -180,6 +182,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                       config: widget.config,
                       themeMode: widget.themeMode,
                       onThemeModeChanged: widget.onThemeModeChanged,
+                      onChildAgeChanged: widget.onChildAgeChanged,
                       onStartTutorial: _startTutorial,
                       speakActionKey: _speakActionKey,
                       resultPanelKey: _resultPanelKey,
@@ -654,7 +657,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           reverseTransitionDuration: routeDuration,
           pageBuilder: (_, _, _) => TopicListeningScreen(
             language: widget.controller.displayLanguage,
-            childAge: widget.config.childAge,
+            childAge: widget.controller.childAge,
             controller: widget.controller,
             onVoiceNavigationPause: () =>
                 _pauseVoiceNavigation('listening_media_opened'),
@@ -719,6 +722,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           controller: widget.controller,
           themeMode: widget.themeMode,
           onThemeModeChanged: widget.onThemeModeChanged,
+          onChildAgeChanged: widget.onChildAgeChanged,
           onStartTutorial: _startTutorial,
         ),
       );

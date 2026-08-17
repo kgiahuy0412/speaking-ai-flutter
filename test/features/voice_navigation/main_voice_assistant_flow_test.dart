@@ -53,29 +53,80 @@ void main() {
     expect(single.navigationAfterPrompt?.enterMainSpeakingMode, isFalse);
   });
 
-  test('continues an active lesson when the child answers yes', () async {
+  test('moves to the next sentence in an active lesson', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     expect(
       flow.beginActiveLearning(),
       MainVoiceAssistantFlow.activeLearningPrompt,
     );
-    expect(flow.canHandle('Có'), isTrue);
+    expect(flow.canHandle('Câu tiếp theo'), isTrue);
 
-    final turn = await flow.handle('Có');
-    expect(turn.promptText, 'Tiếp tục học nhé con');
-    expect(turn.activeLearningCommand, ActiveLearningCommand.resume);
+    final turn = await flow.handle('Câu tiếp theo');
+    expect(turn.promptText, 'Mình học câu tiếp theo nhé');
+    expect(turn.activeLearningCommand, ActiveLearningCommand.nextItem);
     expect(turn.continueListening, isFalse);
   });
 
-  test('leaves an active lesson when the child answers no', () async {
+  test('accepts a natural phrase containing next', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     flow.beginActiveLearning();
-    expect(flow.canHandle('Không'), isTrue);
 
-    final turn = await flow.handle('Không');
-    expect(turn.promptText, 'Tạm biệt con');
-    expect(turn.activeLearningCommand, ActiveLearningCommand.exitToHome);
+    expect(flow.canHandle('Con muốn tiếp theo'), isTrue);
+    final turn = await flow.handle('Con muốn tiếp theo');
+
+    expect(turn.activeLearningCommand, ActiveLearningCommand.nextItem);
+  });
+
+  test('moves to the previous sentence in an active lesson', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    flow.beginActiveLearning();
+    expect(flow.canHandle('Nghe câu trước'), isTrue);
+
+    final turn = await flow.handle('Nghe câu trước');
+    expect(turn.promptText, 'Mình nghe lại câu trước nhé');
+    expect(turn.activeLearningCommand, ActiveLearningCommand.previousItem);
     expect(turn.continueListening, isFalse);
+  });
+
+  test(
+    'offers translation or vocabulary after leaving an active lesson',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.beginActiveLearning();
+
+      final leaveTurn = await flow.handle('Con muốn học cái khác');
+      expect(
+        leaveTurn.promptText,
+        MainVoiceAssistantFlow.alternativeAfterLearningPrompt,
+      );
+      expect(leaveTurn.continueListening, isTrue);
+      expect(
+        flow.stage,
+        MainVoiceAssistantStage.chooseAlternativeAfterLearning,
+      );
+
+      final vocabularyTurn = await flow.handle('Con muốn học từ vựng');
+      expect(vocabularyTurn.promptText, 'Mình cùng học từ vựng nhé');
+      expect(vocabularyTurn.continueListening, isFalse);
+      expect(
+        vocabularyTurn.navigationAfterPrompt?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+    },
+  );
+
+  test('can choose translation after leaving an active lesson', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    flow.beginActiveLearning();
+    await flow.handle('Con không muốn học nữa');
+
+    final translationTurn = await flow.handle('Dịch sang tiếng Anh');
+    expect(
+      translationTurn.promptText,
+      'Con muốn dịch một câu hay dịch liên tục?',
+    );
+    expect(translationTurn.continueListening, isTrue);
+    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
   });
 
   test('selects age, topic 3 and lesson 1 across multiple turns', () async {
@@ -105,6 +156,25 @@ void main() {
     expect(lessonTurn.navigationAfterPrompt?.topicNumber, 3);
     expect(lessonTurn.navigationAfterPrompt?.lessonNumber, 1);
     expect(lessonTurn.navigationAfterPrompt?.openLesson, isTrue);
+  });
+
+  test('uses the saved age and skips asking age for topic learning', () async {
+    final flow = MainVoiceAssistantFlow(
+      contentLoader: _loadContent,
+      childAge: 6,
+    );
+
+    flow.begin();
+    final featureTurn = await flow.handle('Con muốn học theo chủ đề');
+
+    expect(featureTurn.promptText, 'Có 10 chủ đề. Con muốn học chủ đề số mấy');
+    expect(featureTurn.promptText, isNot(contains('mấy tuổi')));
+    expect(flow.stage, MainVoiceAssistantStage.chooseTopic);
+
+    final topicTurn = await flow.handle('Chủ đề số 3');
+    expect(topicTurn.navigationBeforePrompt?.childAge, 6);
+    expect(topicTurn.navigationBeforePrompt?.topicNumber, 3);
+    expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
   });
 
   test('offers topics or vocabulary after leaving speaking practice', () async {

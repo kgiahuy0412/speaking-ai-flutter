@@ -128,12 +128,19 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     }
   }
 
+  /// Requests the Android Bluetooth connect permission during app setup.
+  Future<bool> requestPermissions() async {
+    if (!enabled) return true;
+    await initialize();
+    return await _methodChannel.invokeMethod<bool>('requestPermissions') ??
+        false;
+  }
+
   @override
   Future<List<HfpAudioDevice>> findDevices() async {
     await initialize();
     _requireSupport();
-    final permissions =
-        await _methodChannel.invokeMethod<bool>('requestPermissions') ?? false;
+    final permissions = await requestPermissions();
     if (!permissions) {
       throw const HfpAudioException(
         'Cần cho phép Thiết bị ở gần/Bluetooth để tìm thiết bị HFP.',
@@ -153,8 +160,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
   Future<void> connect(HfpAudioDevice device) async {
     await initialize();
     _requireSupport();
-    final permissions =
-        await _methodChannel.invokeMethod<bool>('requestPermissions') ?? false;
+    final permissions = await requestPermissions();
     if (!permissions) {
       throw const HfpAudioException(
         'Cần cho phép Thiết bị ở gần/Bluetooth để dùng HFP.',

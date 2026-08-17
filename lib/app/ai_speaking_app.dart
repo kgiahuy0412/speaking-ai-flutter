@@ -30,6 +30,8 @@ import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
+import '../features/onboarding/presentation/startup_setup_screen.dart';
+import '../features/settings/data/child_age_store.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
 import '../features/voice_navigation/application/main_speaking_command_resolver.dart';
 import '../features/voice_navigation/application/voice_navigation_controller.dart';
@@ -52,10 +54,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   ConversationController? _controller;
   VoiceNavigationController? _voiceNavigationController;
   AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
+  PhoneMicrophoneInput? _phoneMicrophoneInput;
+  MethodChannelAiv0BleControl? _aiv0BleControl;
+  MethodChannelHfpAudioControl? _androidHfpAudioControl;
+  WebBatchStreamingSpeechInput? _webBatchStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
   ConversationRepository? _repository;
   final ClientIdentity _clientIdentity = ClientIdentity();
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
+  final ChildAgeStore _childAgeStore = const ChildAgeStore();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
@@ -75,6 +82,25 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _activeModulePausedForMain = false;
   bool _singleSentenceMainModeActive = false;
   bool _isResumingActiveModule = false;
+  bool _startupProfileLoading = true;
+  bool _startupPermissionRequestInProgress = false;
+  bool _microphonePermissionGranted = false;
+  bool _bluetoothPermissionGranted = false;
+  int? _childAge;
+  int? _pendingStartupAge;
+  String? _startupPermissionError;
+
+  bool get _bluetoothPermissionRequired {
+    return !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        (_config.enableAiv0BleControl || _config.enableHfpAudio);
+  }
+
+  bool get _startupReady =>
+      !_startupProfileLoading &&
+      _childAge != null &&
+      _microphonePermissionGranted &&
+      (!_bluetoothPermissionRequired || _bluetoothPermissionGranted);
 
   @override
   void initState() {
@@ -86,6 +112,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     _createRuntime();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startBackgroundStartup();
+      unawaited(_initializeStartupSetup());
     });
   }
 
@@ -104,6 +131,129 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       ]),
     );
     unawaited(_warmTopicImagesWhenIdle());
+  }
+
+  Future<void> _initializeStartupSetup() async {
+    int? storedAge;
+    try {
+      storedAge = _validChildAge(await _childAgeStore.read());
+    } catch (error) {
+      debugPrint('Could not load child age: $error');
+    }
+    if (!mounted) {
+      return;
+    }
+    if (storedAge != null) {
+      _propagateChildAge(storedAge);
+    }
+    setState(() {
+      _childAge = storedAge;
+      _pendingStartupAge = storedAge;
+      _startupProfileLoading = false;
+    });
+    await _requestStartupPermissions();
+  }
+
+  int? _validChildAge(int? age) {
+    if (age == null) {
+      return null;
+    }
+    for (final catalog in listeningCatalogs) {
+      if (age >= catalog.startAge && age <= catalog.endAge) {
+        return age;
+      }
+    }
+    return null;
+  }
+
+  void _propagateChildAge(int age) {
+    _controller?.setChildAge(age);
+    _voiceNavigationController?.setChildAge(age);
+    _webBatchStreamingSpeechInput?.setChildAge(age);
+  }
+
+  void _setChildAge(int age) {
+    final validAge = _validChildAge(age);
+    if (validAge == null) {
+      return;
+    }
+    _propagateChildAge(validAge);
+    if (mounted) {
+      setState(() {
+        _childAge = validAge;
+        _pendingStartupAge = validAge;
+      });
+    } else {
+      _childAge = validAge;
+      _pendingStartupAge = validAge;
+    }
+    unawaited(
+      _childAgeStore.write(validAge).catchError((Object error) {
+        debugPrint('Could not persist child age: $error');
+      }),
+    );
+    unawaited(_warmTopicImagesWhenIdle());
+  }
+
+  void _confirmStartupAge() {
+    final age = _pendingStartupAge;
+    if (age != null) {
+      _setChildAge(age);
+    }
+  }
+
+  Future<void> _requestStartupPermissions() async {
+    if (_startupPermissionRequestInProgress) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _startupPermissionRequestInProgress = true;
+        _startupPermissionError = null;
+      });
+    }
+
+    var microphoneGranted = false;
+    var bluetoothGranted = !_bluetoothPermissionRequired;
+    final errors = <String>[];
+    try {
+      microphoneGranted =
+          await _phoneMicrophoneInput?.requestPermission() ?? false;
+      if (!microphoneGranted) {
+        errors.add('Cần cấp quyền Micro để nghe trẻ nói.');
+      }
+    } catch (error) {
+      errors.add('Không thể yêu cầu quyền Micro: $error');
+    }
+
+    if (_bluetoothPermissionRequired) {
+      try {
+        if (_config.enableAiv0BleControl) {
+          bluetoothGranted =
+              await _aiv0BleControl?.requestPermissions() ?? false;
+        } else {
+          bluetoothGranted =
+              await _androidHfpAudioControl?.requestPermissions() ?? false;
+        }
+        if (!bluetoothGranted) {
+          errors.add(
+            'Cần cấp quyền Thiết bị ở gần/Bluetooth để dùng cục AIV0.',
+          );
+        }
+      } catch (error) {
+        errors.add('Không thể yêu cầu quyền Bluetooth: $error');
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _microphonePermissionGranted = microphoneGranted;
+      _bluetoothPermissionGranted = bluetoothGranted;
+      _startupPermissionRequestInProgress = false;
+      _startupPermissionError = errors.isEmpty ? null : errors.join('\n');
+    });
   }
 
   Future<void> _runStartupTask(Future<void> Function() task) async {
@@ -129,8 +279,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     if (!mounted) {
       return;
     }
+    final childAge = _controller?.childAge ?? _config.childAge;
     var catalogIndex = listeningCatalogs.lastIndexWhere(
-      (catalog) => _config.childAge >= catalog.startAge,
+      (catalog) => childAge >= catalog.startAge,
     );
     if (catalogIndex < 0) {
       catalogIndex = 0;
@@ -160,14 +311,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       enabled: supportsAndroidNativeSpeech && _config.enableLegacyBleAudio,
     );
     final phoneMicrophoneInput = PhoneMicrophoneInput();
-    final HfpAudioControl hfpAudioControl = kIsWeb
-        ? BrowserHfpAudioControl(
-            enabled: _config.enableHfpAudio,
-            audioInput: phoneMicrophoneInput,
-          )
-        : MethodChannelHfpAudioControl(
-            enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
-          );
+    final MethodChannelHfpAudioControl? androidHfpAudioControl;
+    final HfpAudioControl hfpAudioControl;
+    if (kIsWeb) {
+      androidHfpAudioControl = null;
+      hfpAudioControl = BrowserHfpAudioControl(
+        enabled: _config.enableHfpAudio,
+        audioInput: phoneMicrophoneInput,
+      );
+    } else {
+      androidHfpAudioControl = MethodChannelHfpAudioControl(
+        enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
+      );
+      hfpAudioControl = androidHfpAudioControl;
+    }
     final aiv0BleControl = MethodChannelAiv0BleControl(
       enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
@@ -176,15 +333,22 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         ? AndroidStreamingSpeechInput()
         : null;
     _androidStreamingSpeechInput = streamingSpeechInput;
-    final StreamingSpeechInput? voiceNavigationSpeechInput =
-        streamingSpeechInput ??
-        (kIsWeb
-            ? WebBatchStreamingSpeechInput(
-                audioInput: phoneMicrophoneInput,
-                repository: repository,
-                childAge: _config.childAge,
-              )
-            : null);
+    final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
+    final StreamingSpeechInput? voiceNavigationSpeechInput;
+    if (streamingSpeechInput != null) {
+      webBatchStreamingSpeechInput = null;
+      voiceNavigationSpeechInput = streamingSpeechInput;
+    } else if (kIsWeb) {
+      webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
+        audioInput: phoneMicrophoneInput,
+        repository: repository,
+        childAge: _config.childAge,
+      );
+      voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
+    } else {
+      webBatchStreamingSpeechInput = null;
+      voiceNavigationSpeechInput = null;
+    }
     final voiceNavigationController =
         voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(
@@ -198,6 +362,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             activeLearningCommandHandler: _handleActiveLearningCommand,
           )
         : null;
+    voiceNavigationController?.setChildAge(_config.childAge);
     final controller = ConversationController(
       audioInput: PreferredAudioInput(
         preferred: _config.preferBleStreaming ? innotrikInput : null,
@@ -237,6 +402,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     _mainButtonCoordinator = mainButtonCoordinator;
     _repository = repository;
     _deviceAudioCache = deviceAudioCache;
+    _phoneMicrophoneInput = phoneMicrophoneInput;
+    _aiv0BleControl = aiv0BleControl;
+    _androidHfpAudioControl = androidHfpAudioControl;
+    _webBatchStreamingSpeechInput = webBatchStreamingSpeechInput;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;
     voiceNavigationController?.addListener(_synchronizeMainAssistantSession);
@@ -303,6 +472,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   }
 
   Future<bool> _activateMainAssistant() async {
+    if (!_startupReady) {
+      return false;
+    }
     final voiceController = _voiceNavigationController;
     final conversationController = _controller;
     if (_isActivatingMainAssistant ||
@@ -351,6 +523,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   Future<MainButtonActionResult> _handleUnifiedMainShortPress(
     MainButtonInputEvent event,
   ) async {
+    if (!_startupReady) {
+      return MainButtonActionResult.busy;
+    }
     final controller = _controller;
     // Keep the existing offline H20 diagnostic available until the real
     // hardware packet contract is confirmed.
@@ -430,6 +605,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   Future<MainButtonActionResult> _handleMainLongPress(
     MainButtonInputEvent event,
   ) async {
+    if (!_startupReady) {
+      return MainButtonActionResult.busy;
+    }
     if (_singleSentenceMainModeActive) {
       final controller = _controller;
       if (controller == null) {
@@ -795,7 +973,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
             fit: StackFit.expand,
             children: <Widget>[
               child ?? const SizedBox.shrink(),
-              if (voiceController != null && !_isGlobalModalOpen)
+              if (voiceController != null &&
+                  !_isGlobalModalOpen &&
+                  _startupReady)
                 Positioned(
                   right: 16,
                   bottom: 0,
@@ -824,21 +1004,35 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
           ),
         );
       },
-      home: AndroidUpdateGate(
-        config: _config,
-        child: PwaInstallGate(
-          child: HomeLearningShell(
-            controller: controller,
-            config: _config,
-            voiceNavigationController: _voiceNavigationController,
-            themeMode: _themeMode,
-            onThemeModeChanged: _setThemeMode,
-            onMainSpeakingModeStarted: _startMainSpeakingMode,
-            onSingleSentenceModeChanged: _setSingleSentenceMainMode,
-            onModalVisibilityChanged: _setGlobalModalOpen,
-          ),
-        ),
-      ),
+      home: _startupReady
+          ? AndroidUpdateGate(
+              config: _config,
+              child: PwaInstallGate(
+                child: HomeLearningShell(
+                  controller: controller,
+                  config: _config,
+                  voiceNavigationController: _voiceNavigationController,
+                  themeMode: _themeMode,
+                  onThemeModeChanged: _setThemeMode,
+                  onChildAgeChanged: _setChildAge,
+                  onMainSpeakingModeStarted: _startMainSpeakingMode,
+                  onSingleSentenceModeChanged: _setSingleSentenceMainMode,
+                  onModalVisibilityChanged: _setGlobalModalOpen,
+                ),
+              ),
+            )
+          : StartupSetupScreen(
+              profileLoading: _startupProfileLoading,
+              permissionRequestInProgress: _startupPermissionRequestInProgress,
+              microphoneGranted: _microphonePermissionGranted,
+              bluetoothRequired: _bluetoothPermissionRequired,
+              bluetoothGranted: _bluetoothPermissionGranted,
+              selectedAge: _pendingStartupAge,
+              permissionError: _startupPermissionError,
+              onRetryPermissions: () => unawaited(_requestStartupPermissions()),
+              onAgeSelected: (age) => setState(() => _pendingStartupAge = age),
+              onConfirmAge: _confirmStartupAge,
+            ),
     );
   }
 }

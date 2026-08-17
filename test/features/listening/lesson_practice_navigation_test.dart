@@ -98,6 +98,46 @@ void main() {
     );
   });
 
+  testWidgets('MAIN previous command replays the previous sentence flow', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final store = _MemoryProgressStore(currentSentence: 1);
+    final lesson = _lessonWithSentences(3);
+    final mediaService = _SilentMediaService();
+
+    await tester.pumpWidget(
+      ActiveLearningModuleScope(
+        registry: registry,
+        child: _subject(
+          lesson,
+          store,
+          const Key('main-previous-command'),
+          mediaService: mediaService,
+          voicePromptService: _SilentVoicePromptService(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Sentence 2'), findsOneWidget);
+    mediaService.playedUris.clear();
+
+    await registry.execute(ActiveLearningCommand.stop);
+    final operation = registry.execute(ActiveLearningCommand.previousItem);
+    await tester.pump();
+    final result = await operation;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(result.wasHandled, isTrue);
+    expect(find.text('Sentence 1'), findsOneWidget);
+    expect(store.currentSentence, 0);
+    expect(mediaService.playedUris, contains(lesson.sentences.first.audioUri));
+  });
+
   testWidgets('review from beginning resets the resume sentence', (
     tester,
   ) async {
@@ -248,6 +288,7 @@ Widget _subject(
   Key sessionKey, {
   LessonMediaService? mediaService,
   LessonGuideAudioLibrary? guideAudioLibrary,
+  VoicePromptService? voicePromptService,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -261,6 +302,7 @@ Widget _subject(
       lesson: lesson,
       progressStore: store,
       mediaService: mediaService ?? _SilentMediaService(),
+      voicePromptService: voicePromptService,
       guideAudioLibrary:
           guideAudioLibrary ??
           LessonGuideAudioLibrary(assetPaths: const <String>[]),

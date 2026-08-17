@@ -32,7 +32,7 @@ class WebBatchStreamingSpeechInput
 
   final ChunkedAudioInput _audioInput;
   final ConversationRepository _repository;
-  final int _childAge;
+  int _childAge;
   final Duration vadSilenceDuration;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector;
 
@@ -54,6 +54,11 @@ class WebBatchStreamingSpeechInput
   bool _active = false;
   bool _stopping = false;
   bool _speechDetected = false;
+
+  void setChildAge(int age) {
+    _childAge = age;
+  }
+
   bool _completionEmitted = false;
   bool _disposed = false;
   int _generation = 0;

@@ -126,6 +126,10 @@ class VoiceNavigationController extends ChangeNotifier {
     _intentHandler = handler;
   }
 
+  void setChildAge(int age) {
+    _mainAssistantFlow.setChildAge(age);
+  }
+
   void startContinuous({Duration delay = Duration.zero}) {
     if (_disposed) {
       return;

@@ -7,6 +7,7 @@ enum MainVoiceAssistantStage {
   idle,
   chooseFeature,
   chooseOtherLearning,
+  chooseAlternativeAfterLearning,
   chooseTranslationMode,
   activeLearning,
   askAge,
@@ -40,18 +41,24 @@ class MainVoiceAssistantFlow {
   MainVoiceAssistantFlow({
     List<ListeningAgeCatalog> catalogs = listeningCatalogs,
     Future<ListeningContentCatalog> Function()? contentLoader,
+    int? childAge,
   }) : _catalogs = catalogs,
-       _contentLoader = contentLoader ?? _loadDefaultContent;
+       _contentLoader = contentLoader ?? _loadDefaultContent,
+       _configuredChildAge = childAge;
 
   static const String openingPrompt =
       'Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String otherLearningPrompt =
       'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
-  static const String activeLearningPrompt = 'Con có muốn học nữa không?';
+  static const String activeLearningPrompt =
+      'Con muốn học câu tiếp theo, nghe câu trước hay con không học nữa?';
+  static const String alternativeAfterLearningPrompt =
+      'Con muốn dịch sang tiếng Anh hay học từ vựng?';
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
 
+  int? _configuredChildAge;
   MainVoiceAssistantStage _stage = MainVoiceAssistantStage.idle;
   int? _selectedAge;
   ListeningAgeCatalog? _selectedCatalog;
@@ -61,6 +68,14 @@ class MainVoiceAssistantFlow {
   int? _pendingReplayTopicNumber;
 
   MainVoiceAssistantStage get stage => _stage;
+
+  void setChildAge(int age) {
+    if (_configuredChildAge == age) {
+      return;
+    }
+    _configuredChildAge = age;
+    reset();
+  }
 
   String begin() {
     reset();
@@ -136,10 +151,14 @@ class MainVoiceAssistantFlow {
         _isTopicChoice(normalized) ||
             _isVocabularyChoice(normalized) ||
             _isTranslationChoice(normalized),
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
       MainVoiceAssistantStage.chooseTranslationMode =>
         _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
-        _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
+        _isNextSentenceChoice(normalized) ||
+            _isPreviousSentenceChoice(normalized) ||
+            _isLeaveActiveLearningChoice(normalized),
       MainVoiceAssistantStage.confirmReplayTopic =>
         _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
       MainVoiceAssistantStage.askAge ||
@@ -162,6 +181,8 @@ class MainVoiceAssistantFlow {
         recognizedText,
         normalized,
       ),
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        _handleAlternativeAfterLearning(recognizedText, normalized),
       MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
         recognizedText,
         normalized,
@@ -189,6 +210,37 @@ class MainVoiceAssistantFlow {
     };
   }
 
+  MainVoiceAssistantTurn _beginConfiguredTopicSelection() {
+    final age = _configuredChildAge;
+    final catalog = age == null ? null : _catalogForAge(age);
+    if (age == null || catalog == null) {
+      _stage = MainVoiceAssistantStage.askAge;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con mấy tuổi',
+        continueListening: true,
+      );
+    }
+    _selectedAge = age;
+    _selectedCatalog = catalog;
+    _selectedTopicNumber = null;
+    _selectedTopicContent = null;
+    _stage = MainVoiceAssistantStage.chooseTopic;
+    return MainVoiceAssistantTurn(
+      promptText:
+          'Có ${catalog.topics.length} chủ đề. Con muốn học chủ đề số mấy',
+      continueListening: true,
+    );
+  }
+
+  ListeningAgeCatalog? _catalogForAge(int age) {
+    for (final candidate in _catalogs) {
+      if (age >= candidate.startAge && age <= candidate.endAge) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   MainVoiceAssistantTurn _handleFeature(
     String recognizedText,
     String normalized,
@@ -200,11 +252,7 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isTopicChoice(normalized)) {
-      _stage = MainVoiceAssistantStage.askAge;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con mấy tuổi',
-        continueListening: true,
-      );
+      return _beginConfiguredTopicSelection();
     }
     if (_isVocabularyChoice(normalized)) {
       return MainVoiceAssistantTurn(
@@ -252,11 +300,7 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isTopicChoice(normalized)) {
-      _stage = MainVoiceAssistantStage.askAge;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con mấy tuổi',
-        continueListening: true,
-      );
+      return _beginConfiguredTopicSelection();
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
       _stage = MainVoiceAssistantStage.chooseTranslationMode;
@@ -312,6 +356,40 @@ class MainVoiceAssistantFlow {
     );
   }
 
+  MainVoiceAssistantTurn _handleAlternativeAfterLearning(
+    String recognizedText,
+    String normalized,
+  ) {
+    if (_looksLikePromptEcho(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: alternativeAfterLearningPrompt,
+        continueListening: true,
+      );
+    }
+    if (_isVocabularyChoice(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình cùng học từ vựng nhé',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.vocabulary,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'hoc tu vung',
+        ),
+      );
+    }
+    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
+    return const MainVoiceAssistantTurn(
+      promptText: alternativeAfterLearningPrompt,
+      continueListening: true,
+    );
+  }
+
   MainVoiceAssistantTurn _handleActiveLearning(String normalized) {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
@@ -319,22 +397,29 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
-    if (_isAffirmativeChoice(normalized)) {
+    if (_isNextSentenceChoice(normalized)) {
       return const MainVoiceAssistantTurn(
-        promptText: 'Tiếp tục học nhé con',
+        promptText: 'Mình học câu tiếp theo nhé',
         continueListening: false,
-        activeLearningCommand: ActiveLearningCommand.resume,
+        activeLearningCommand: ActiveLearningCommand.nextItem,
       );
     }
-    if (_isNegativeChoice(normalized)) {
+    if (_isPreviousSentenceChoice(normalized)) {
       return const MainVoiceAssistantTurn(
-        promptText: 'Tạm biệt con',
+        promptText: 'Mình nghe lại câu trước nhé',
         continueListening: false,
-        activeLearningCommand: ActiveLearningCommand.exitToHome,
+        activeLearningCommand: ActiveLearningCommand.previousItem,
+      );
+    }
+    if (_isLeaveActiveLearningChoice(normalized)) {
+      _stage = MainVoiceAssistantStage.chooseAlternativeAfterLearning;
+      return const MainVoiceAssistantTurn(
+        promptText: alternativeAfterLearningPrompt,
+        continueListening: true,
       );
     }
     return const MainVoiceAssistantTurn(
-      promptText: 'Con có muốn học nữa không? Con hãy nói có hoặc không nhé.',
+      promptText: activeLearningPrompt,
       continueListening: true,
     );
   }
@@ -348,13 +433,7 @@ class MainVoiceAssistantFlow {
       );
     }
 
-    ListeningAgeCatalog? catalog;
-    for (final candidate in _catalogs) {
-      if (age >= candidate.startAge && age <= candidate.endAge) {
-        catalog = candidate;
-        break;
-      }
-    }
+    final catalog = _catalogForAge(age);
     if (catalog == null) {
       final minimumAge = _catalogs.isEmpty ? 0 : _catalogs.first.startAge;
       final maximumAge = _catalogs.isEmpty ? 0 : _catalogs.last.endAge;
@@ -390,11 +469,7 @@ class MainVoiceAssistantFlow {
     }
     final topicNumber = _extractSpokenNumber(normalized);
     if (catalog == null || age == null) {
-      _stage = MainVoiceAssistantStage.askAge;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con mấy tuổi',
-        continueListening: true,
-      );
+      return _beginConfiguredTopicSelection();
     }
     if (topicNumber == null ||
         topicNumber < 1 ||
@@ -415,11 +490,7 @@ class MainVoiceAssistantFlow {
     final catalog = _selectedCatalog;
     final age = _selectedAge;
     if (catalog == null || age == null) {
-      _stage = MainVoiceAssistantStage.askAge;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con mấy tuổi',
-        continueListening: true,
-      );
+      return _beginConfiguredTopicSelection();
     }
     try {
       final content = await _contentLoader();
@@ -472,11 +543,7 @@ class MainVoiceAssistantFlow {
     final catalog = _selectedCatalog;
     final topicNumber = _extractSpokenNumber(normalized);
     if (catalog == null || _selectedAge == null) {
-      _stage = MainVoiceAssistantStage.askAge;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con mấy tuổi',
-        continueListening: true,
-      );
+      return _beginConfiguredTopicSelection();
     }
     if (topicNumber == null ||
         topicNumber < 1 ||
@@ -613,6 +680,28 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'dich lien tuc') ||
       _containsPhrase(normalized, 'noi lien tuc');
 
+  static bool _isNextSentenceChoice(String normalized) =>
+      _containsPhrase(normalized, 'tiep theo') ||
+      normalized == 'cau tiep' ||
+      _containsPhrase(normalized, 'cau tiep theo') ||
+      _containsPhrase(normalized, 'hoc cau tiep') ||
+      _containsPhrase(normalized, 'qua cau tiep');
+
+  static bool _isPreviousSentenceChoice(String normalized) =>
+      normalized == 'cau truoc' ||
+      normalized == 'quay lai' ||
+      _containsPhrase(normalized, 'nghe cau truoc') ||
+      _containsPhrase(normalized, 'quay lai cau truoc') ||
+      _containsPhrase(normalized, 'cau vua roi');
+
+  static bool _isLeaveActiveLearningChoice(String normalized) =>
+      normalized == 'khong' ||
+      _containsPhrase(normalized, 'khong hoc nua') ||
+      _containsPhrase(normalized, 'khong muon hoc') ||
+      _containsPhrase(normalized, 'muon hoc cai khac') ||
+      _containsPhrase(normalized, 'hoc cai khac') ||
+      _containsPhrase(normalized, 'dung hoc');
+
   static bool _isAffirmativeChoice(String normalized) =>
       normalized == 'co' ||
       normalized == 'co a' ||
@@ -646,14 +735,19 @@ class MainVoiceAssistantFlow {
         (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc tu vung ne') ||
             normalized == 'hoc tu vung ne',
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        _isTranslationChoice(normalized) && _isVocabularyChoice(normalized),
       MainVoiceAssistantStage.chooseTranslationMode =>
         (_isSingleSentenceChoice(normalized) &&
                 _isContinuousChoice(normalized)) ||
             _containsPhrase(normalized, 'mot cau hay dich lien tuc'),
-      MainVoiceAssistantStage.activeLearning => _containsPhrase(
-        normalized,
-        'con co muon hoc nua khong',
-      ),
+      MainVoiceAssistantStage.activeLearning =>
+        (_isNextSentenceChoice(normalized) &&
+                _isPreviousSentenceChoice(normalized)) ||
+            (_isNextSentenceChoice(normalized) &&
+                _isLeaveActiveLearningChoice(normalized)) ||
+            (_isPreviousSentenceChoice(normalized) &&
+                _isLeaveActiveLearningChoice(normalized)),
       MainVoiceAssistantStage.askAge => normalized == 'con may tuoi',
       MainVoiceAssistantStage.chooseTopic =>
         _containsPhrase(normalized, 'chu de so may') ||

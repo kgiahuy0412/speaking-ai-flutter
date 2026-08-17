@@ -204,7 +204,7 @@ class ConversationController extends ChangeNotifier {
   final ConversationRepository _repository;
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
   final DisplayLanguageStore? _displayLanguageStore;
-  final int _childAge;
+  int _childAge;
   final bool _preferBleStreaming;
   final bool _realtimeBatchFallback;
   final bool _isWebRuntime;
@@ -297,6 +297,16 @@ class ConversationController extends ChangeNotifier {
   H20HardwareTestPhase h20HardwareTestPhase = H20HardwareTestPhase.idle;
   H20HardwareTestResult? h20HardwareTestResult;
   String? h20HardwareTestMessage;
+
+  int get childAge => _childAge;
+
+  void setChildAge(int age) {
+    if (_childAge == age) {
+      return;
+    }
+    _childAge = age;
+    notifyListeners();
+  }
 
   Future<void> _loadDisplayLanguage() async {
     final stored = await _displayLanguageStore!.read();

@@ -8,6 +8,7 @@ import '../../../core/device/aiv0_ble_control.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
+import '../../listening/domain/listening_catalog.dart';
 import 'history_sheet.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -15,6 +16,7 @@ class SettingsSheet extends StatelessWidget {
     required this.controller,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onChildAgeChanged,
     this.onStartTutorial,
     super.key,
   });
@@ -22,6 +24,7 @@ class SettingsSheet extends StatelessWidget {
   final ConversationController controller;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
 
   @override
@@ -79,6 +82,16 @@ class SettingsSheet extends StatelessWidget {
                         onSelectionChanged: (selection) =>
                             controller.setDisplayLanguage(selection.first),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+                    _SectionLabel(
+                      label: context.tr('Nhóm tuổi của trẻ', '孩子年龄组'),
+                    ),
+                    const SizedBox(height: 10),
+                    _ChildAgeGroupSelector(
+                      childAge: controller.childAge,
+                      enabled: !controller.isBusy && onChildAgeChanged != null,
+                      onChanged: onChildAgeChanged,
                     ),
                     const SizedBox(height: 24),
                     _SectionLabel(label: context.tr('Nguồn âm thanh', '音频输入')),
@@ -777,6 +790,104 @@ class _SettingsActionTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChildAgeGroupSelector extends StatelessWidget {
+  const _ChildAgeGroupSelector({
+    required this.childAge,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final int childAge;
+  final bool enabled;
+  final ValueChanged<int>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      key: const Key('settings-child-age-group'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark
+            ? theme.colorScheme.surfaceContainerHigh
+            : AppColors.lavenderSoft,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.child_care_rounded,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Text(
+                  context.tr(
+                    'Chọn một lần, dùng cho mọi bài học',
+                    '选择一次，适用于所有课程',
+                  ),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final catalog in listeningCatalogs)
+                ChoiceChip(
+                  key: ValueKey('settings-age-${catalog.id}'),
+                  showCheckmark: true,
+                  label: Text(
+                    context.tr(
+                      '${catalog.startAge}–${catalog.endAge} tuổi',
+                      '${catalog.startAge}–${catalog.endAge} 岁',
+                    ),
+                  ),
+                  selected:
+                      childAge >= catalog.startAge &&
+                      childAge <= catalog.endAge,
+                  onSelected: enabled
+                      ? (_) => onChanged?.call(catalog.startAge)
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            context.tr(
+              'Trợ lý MAIN và mục Chủ đề sẽ tự dùng nhóm tuổi này. Phụ huynh có thể đổi lại tại đây.',
+              'MAIN 助手和主题课程会自动使用此年龄组。家长可在此更改。',
+            ),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -113,7 +113,6 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                     child: _buildHeader(context),
                   ),
                 ),
-                SliverToBoxAdapter(child: _buildAgeSelector()),
                 SliverToBoxAdapter(
                   child: _CenteredSection(
                     maxWidth: _contentMaxWidth,
@@ -252,38 +251,6 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAgeSelector() {
-    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
-    return _CenteredSection(
-      maxWidth: _contentMaxWidth,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: SizedBox(
-        height: 70 + ((textScale - 1) * 20),
-        child: ListView.separated(
-          key: const Key('topic-age-selector'),
-          padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
-          scrollDirection: Axis.horizontal,
-          itemCount: listeningCatalogs.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 2),
-          itemBuilder: (context, index) {
-            final catalog = listeningCatalogs[index];
-            return _AgeTab(
-              key: ValueKey('age-${catalog.id}'),
-              label: context.tr(
-                '${catalog.startAge}–${catalog.endAge}'
-                    '${index == _selectedCatalogIndex ? ' tuổi' : ''}',
-                '${catalog.startAge}–${catalog.endAge}'
-                    '${index == _selectedCatalogIndex ? ' 岁' : ''}',
-              ),
-              selected: index == _selectedCatalogIndex,
-              onPressed: () => setState(() => _selectedCatalogIndex = index),
-            );
-          },
-        ),
-      ),
     );
   }
 
@@ -519,82 +486,6 @@ class _CenteredSection extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: Padding(padding: padding, child: child),
-      ),
-    );
-  }
-}
-
-class _AgeTab extends StatelessWidget {
-  const _AgeTab({
-    required this.label,
-    required this.selected,
-    required this.onPressed,
-    super.key,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: selected ? 78 : 62),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (selected)
-                    Icon(
-                      Icons.star_rounded,
-                      size: 15,
-                      color: isDark ? colorScheme.primary : AppColors.indigo,
-                    )
-                  else
-                    const SizedBox(height: 15),
-                  const SizedBox(height: 1),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: selected
-                          ? isDark
-                                ? colorScheme.primary
-                                : AppColors.indigo
-                          : isDark
-                          ? colorScheme.onSurface
-                          : AppColors.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: selected ? 54 : 0,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.indigo,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

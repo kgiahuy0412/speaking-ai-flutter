@@ -80,6 +80,42 @@ void main() {
     );
   });
 
+  testWidgets('settings changes the child age group', (tester) async {
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+    int? selectedAge;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: SettingsSheet(
+            controller: controller,
+            onChildAgeChanged: (age) {
+              selectedAge = age;
+              controller.setChildAge(age);
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-age-8-10')));
+    await tester.pump();
+
+    expect(selectedAge, 8);
+    expect(controller.childAge, 8);
+    final chip = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('settings-age-8-10')),
+    );
+    expect(chip.selected, isTrue);
+  });
+
   testWidgets(
     'Android settings separates standard recognition from audio source',
     (tester) async {

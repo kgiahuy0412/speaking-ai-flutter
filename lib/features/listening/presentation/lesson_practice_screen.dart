@@ -330,7 +330,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           );
         }
         _pausedForMainAssistant = false;
-        await _previous();
+        await _previous(autoPlaySentence: true);
         return const ActiveLearningCommandResult.handled();
       case ActiveLearningCommand.nextLesson:
         final nextLesson = _nextLessonInTopic;
@@ -1066,7 +1066,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await _activateCurrentSentence(autoPlay: autoPlaySentence);
   }
 
-  Future<void> _previous() async {
+  Future<void> _previous({bool autoPlaySentence = false}) async {
     if (_sentenceIndex == 0) {
       return;
     }
@@ -1092,7 +1092,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = null;
     });
-    await _activateCurrentSentence(autoPlay: false);
+    await _activateCurrentSentence(autoPlay: autoPlaySentence);
   }
 
   Future<void> _exitLesson() async {

@@ -146,6 +146,47 @@ void main() {
     await speechInput.dispose();
   });
 
+  test(
+    'saved age lets MAIN go directly from feature to topic number',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        mainAssistantFlow: MainVoiceAssistantFlow(
+          contentLoader: _loadMainAssistantContent,
+        ),
+        restartDelay: const Duration(milliseconds: 1),
+      );
+      final receivedIntents = <VoiceNavigationIntent>[];
+      controller.setIntentHandler(receivedIntents.add);
+      controller.setChildAge(6);
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      expect(
+        await controller.dispatchRecognizedText('Con muốn học theo chủ đề'),
+        isTrue,
+      );
+
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+        'Có 10 chủ đề. Con muốn học chủ đề số mấy',
+      ]);
+      expect(voicePrompt.spokenTexts, isNot(contains('Con mấy tuổi')));
+
+      expect(
+        await controller.dispatchRecognizedText('Con muốn học chủ đề số 3'),
+        isTrue,
+      );
+      expect(receivedIntents.single.childAge, 6);
+      expect(receivedIntents.single.topicNumber, 3);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
   test('completed topic prompt continues through topic and lesson', () async {
     final speechInput = _FakeNavigationSpeechInput();
     final voicePrompt = _FakeVoicePromptService();
@@ -228,7 +269,7 @@ void main() {
   });
 
   test(
-    'active lesson Main yes answer resumes through the module bridge',
+    'active lesson Main next answer advances through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
       final voicePrompt = _FakeVoicePromptService();
@@ -249,9 +290,9 @@ void main() {
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.activeLearningPrompt,
       ]);
-      expect(await controller.dispatchRecognizedText('Có'), isTrue);
-      expect(voicePrompt.spokenTexts.last, 'Tiếp tục học nhé con');
-      expect(receivedCommand, ActiveLearningCommand.resume);
+      expect(await controller.dispatchRecognizedText('Câu tiếp theo'), isTrue);
+      expect(voicePrompt.spokenTexts.last, 'Mình học câu tiếp theo nhé');
+      expect(receivedCommand, ActiveLearningCommand.nextItem);
       expect(controller.isMainButtonSessionActive, isFalse);
 
       controller.dispose();
@@ -260,7 +301,7 @@ void main() {
   );
 
   test(
-    'active lesson Main no answer exits through the module bridge',
+    'active lesson Main previous answer moves back through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
       final voicePrompt = _FakeVoicePromptService();
@@ -278,9 +319,56 @@ void main() {
         await controller.activateFromMainButton(activeLearning: true),
         isTrue,
       );
-      expect(await controller.dispatchRecognizedText('Không'), isTrue);
-      expect(voicePrompt.spokenTexts.last, 'Tạm biệt con');
-      expect(receivedCommand, ActiveLearningCommand.exitToHome);
+      expect(await controller.dispatchRecognizedText('Nghe câu trước'), isTrue);
+      expect(voicePrompt.spokenTexts.last, 'Mình nghe lại câu trước nhé');
+      expect(receivedCommand, ActiveLearningCommand.previousItem);
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'active lesson exit choice keeps listening then opens vocabulary',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      ActiveLearningCommand? receivedCommand;
+      VoiceNavigationIntent? receivedIntent;
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        activeLearningCommandHandler: (command) async {
+          receivedCommand = command;
+          return const ActiveLearningCommandResult.handled();
+        },
+      );
+      controller.setIntentHandler((intent) => receivedIntent = intent);
+
+      expect(
+        await controller.activateFromMainButton(activeLearning: true),
+        isTrue,
+      );
+      expect(
+        await controller.dispatchRecognizedText('Con không muốn học nữa'),
+        isTrue,
+      );
+      expect(
+        voicePrompt.spokenTexts.last,
+        MainVoiceAssistantFlow.alternativeAfterLearningPrompt,
+      );
+      expect(controller.isMainButtonSessionActive, isTrue);
+      expect(receivedCommand, isNull);
+
+      expect(
+        await controller.dispatchRecognizedText('Con muốn học từ vựng'),
+        isTrue,
+      );
+      expect(
+        receivedIntent?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
       expect(controller.isMainButtonSessionActive, isFalse);
 
       controller.dispose();
