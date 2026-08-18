@@ -9,6 +9,11 @@ class VocabularyStore {
   const VocabularyStore();
 
   static const _key = 'innotrik.vocabulary.v1';
+  static const Set<String> _legacyStarterIds = <String>{
+    'family',
+    'school',
+    'happy',
+  };
   static final StreamController<void> _changes =
       StreamController<void>.broadcast(sync: true);
 
@@ -18,29 +23,7 @@ class VocabularyStore {
     final preferences = await SharedPreferences.getInstance();
     final encoded = preferences.getString(_key);
     if (encoded == null || encoded.isEmpty) {
-      final now = DateTime.now();
-      final starters = <VocabularyEntry>[
-        VocabularyEntry(
-          id: 'family',
-          word: 'Family',
-          meaning: 'Gia đình',
-          addedAt: now,
-        ),
-        VocabularyEntry(
-          id: 'school',
-          word: 'School',
-          meaning: 'Trường học',
-          addedAt: now.subtract(const Duration(days: 1)),
-        ),
-        VocabularyEntry(
-          id: 'happy',
-          word: 'Happy',
-          meaning: 'Vui vẻ',
-          addedAt: now.subtract(const Duration(days: 2)),
-        ),
-      ];
-      await write(starters);
-      return starters;
+      return const <VocabularyEntry>[];
     }
 
     try {
@@ -48,10 +31,17 @@ class VocabularyStore {
       if (decoded is! List<Object?>) {
         return const <VocabularyEntry>[];
       }
-      return decoded
+      final entries = decoded
           .whereType<Map<String, Object?>>()
           .map(VocabularyEntry.fromJson)
           .toList(growable: false);
+      final migrated = entries
+          .where((entry) => !_legacyStarterIds.contains(entry.id))
+          .toList(growable: false);
+      if (migrated.length != entries.length) {
+        await write(migrated);
+      }
+      return migrated;
     } catch (_) {
       return const <VocabularyEntry>[];
     }
@@ -64,6 +54,31 @@ class VocabularyStore {
       jsonEncode(entries.map((entry) => entry.toJson()).toList()),
     );
     _changes.add(null);
+  }
+
+  /// Marks parent-added words as already introduced by the MAIN assistant.
+  /// They remain visible in Family, but are no longer announced as new on the
+  /// next vocabulary session.
+  Future<void> markIntroduced(Iterable<String> entryIds) async {
+    final ids = entryIds.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    final entries = await read();
+    final now = DateTime.now();
+    var changed = false;
+    final updated = entries
+        .map((entry) {
+          if (!ids.contains(entry.id) || entry.introducedAt != null) {
+            return entry;
+          }
+          changed = true;
+          return entry.copyWith(introducedAt: now);
+        })
+        .toList(growable: false);
+    if (changed) {
+      await write(updated);
+    }
   }
 
   /// Adds a lesson sentence to a learning collection, or moves the existing

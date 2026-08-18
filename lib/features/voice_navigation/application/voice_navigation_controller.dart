@@ -322,10 +322,25 @@ class VoiceNavigationController extends ChangeNotifier {
     final promptCompleted = await _acknowledgeWakeWord(
       generation,
       promptText: turn.promptText,
+      promptSequence: turn.promptSequence,
       openCommandWindow: turn.continueListening,
     );
     if (!promptCompleted || _disposed || generation != _generation) {
       return false;
+    }
+
+    final onPromptCompleted = turn.onPromptCompleted;
+    if (onPromptCompleted != null) {
+      try {
+        await onPromptCompleted();
+      } catch (error) {
+        if (!_disposed && generation == _generation) {
+          _lastError = error;
+        }
+      }
+      if (_disposed || generation != _generation) {
+        return false;
+      }
     }
 
     if (turn.continueListening) {
@@ -355,6 +370,8 @@ class VoiceNavigationController extends ChangeNotifier {
   Future<bool> _acknowledgeWakeWord(
     int generation, {
     String promptText = 'Pipo nghe đây',
+    List<MainVoiceAssistantUtterance> promptSequence =
+        const <MainVoiceAssistantUtterance>[],
     bool openCommandWindow = true,
   }) async {
     if (_acknowledgingWakeWord) {
@@ -368,12 +385,22 @@ class VoiceNavigationController extends ChangeNotifier {
     try {
       final promptService = _voicePromptService;
       if (promptService != null) {
-        await promptService
-            .speakAndWait(promptText)
-            .timeout(
-              _voicePromptTimeout,
-              onTimeout: () => promptService.stop(),
-            );
+        final utterances = promptSequence.isEmpty
+            ? <MainVoiceAssistantUtterance>[
+                MainVoiceAssistantUtterance(promptText),
+              ]
+            : promptSequence;
+        for (final utterance in utterances) {
+          if (_disposed || generation != _generation) {
+            return false;
+          }
+          await promptService
+              .speakAndWait(utterance.text, locale: utterance.locale)
+              .timeout(
+                _voicePromptTimeout,
+                onTimeout: () => promptService.stop(),
+              );
+        }
       }
     } catch (error) {
       if (!_disposed && generation == _generation) {

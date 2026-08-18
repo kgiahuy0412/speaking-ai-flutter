@@ -1,6 +1,8 @@
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
+import '../../vocabulary/data/vocabulary_store.dart';
+import '../../vocabulary/domain/vocabulary_entry.dart';
 import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
@@ -10,6 +12,7 @@ enum MainVoiceAssistantStage {
   chooseOtherLearning,
   chooseAlternativeAfterLearning,
   chooseTranslationMode,
+  chooseVocabularyCollection,
   activeLearning,
   askAge,
   chooseTopic,
@@ -18,10 +21,19 @@ enum MainVoiceAssistantStage {
   chooseLesson,
 }
 
+class MainVoiceAssistantUtterance {
+  const MainVoiceAssistantUtterance(this.text, {this.locale = 'vi-VN'});
+
+  final String text;
+  final String locale;
+}
+
 class MainVoiceAssistantTurn {
   const MainVoiceAssistantTurn({
     required this.promptText,
     required this.continueListening,
+    this.promptSequence = const <MainVoiceAssistantUtterance>[],
+    this.onPromptCompleted,
     this.navigationBeforePrompt,
     this.navigationAfterPrompt,
     this.activeLearningCommand,
@@ -29,6 +41,8 @@ class MainVoiceAssistantTurn {
 
   final String promptText;
   final bool continueListening;
+  final List<MainVoiceAssistantUtterance> promptSequence;
+  final Future<void> Function()? onPromptCompleted;
   final VoiceNavigationIntent? navigationBeforePrompt;
   final VoiceNavigationIntent? navigationAfterPrompt;
   final ActiveLearningCommand? activeLearningCommand;
@@ -42,9 +56,14 @@ class MainVoiceAssistantFlow {
   MainVoiceAssistantFlow({
     List<ListeningAgeCatalog> catalogs = listeningCatalogs,
     Future<ListeningContentCatalog> Function()? contentLoader,
+    Future<List<VocabularyEntry>> Function()? vocabularyLoader,
+    Future<void> Function(Iterable<String>)? vocabularyIntroducedMarker,
     int? childAge,
   }) : _catalogs = catalogs,
        _contentLoader = contentLoader ?? _loadDefaultContent,
+       _vocabularyLoader = vocabularyLoader ?? _loadDefaultVocabulary,
+       _vocabularyIntroducedMarker =
+           vocabularyIntroducedMarker ?? _markDefaultVocabularyIntroduced,
        _configuredChildAge = childAge;
 
   static const String openingPrompt =
@@ -63,6 +82,8 @@ class MainVoiceAssistantFlow {
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
+  final Future<List<VocabularyEntry>> Function() _vocabularyLoader;
+  final Future<void> Function(Iterable<String>) _vocabularyIntroducedMarker;
 
   int? _configuredChildAge;
   MainVoiceAssistantStage _stage = MainVoiceAssistantStage.idle;
@@ -161,6 +182,9 @@ class MainVoiceAssistantFlow {
         _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
       MainVoiceAssistantStage.chooseTranslationMode =>
         _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
+      MainVoiceAssistantStage.chooseVocabularyCollection =>
+        _isReviewVocabularyChoice(normalized) ||
+            _isStarVocabularyChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
         _activeLearningCommandResolver.resolve(normalized) != null ||
             _isLeaveActiveLearningChoice(normalized),
@@ -178,20 +202,22 @@ class MainVoiceAssistantFlow {
   Future<MainVoiceAssistantTurn> handle(String recognizedText) async {
     final normalized = _normalize(recognizedText);
     return switch (_stage) {
-      MainVoiceAssistantStage.chooseFeature => _handleFeature(
+      MainVoiceAssistantStage.chooseFeature => await _handleFeature(
         recognizedText,
         normalized,
       ),
-      MainVoiceAssistantStage.chooseOtherLearning => _handleOtherLearning(
+      MainVoiceAssistantStage.chooseOtherLearning => await _handleOtherLearning(
         recognizedText,
         normalized,
       ),
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
-        _handleAlternativeAfterLearning(recognizedText, normalized),
+        await _handleAlternativeAfterLearning(recognizedText, normalized),
       MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
         recognizedText,
         normalized,
       ),
+      MainVoiceAssistantStage.chooseVocabularyCollection =>
+        await _handleVocabularyCollection(normalized),
       MainVoiceAssistantStage.activeLearning => _handleActiveLearning(
         normalized,
       ),
@@ -246,10 +272,10 @@ class MainVoiceAssistantFlow {
     return null;
   }
 
-  MainVoiceAssistantTurn _handleFeature(
+  Future<MainVoiceAssistantTurn> _handleFeature(
     String recognizedText,
     String normalized,
-  ) {
+  ) async {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
         promptText: openingPrompt,
@@ -260,14 +286,9 @@ class MainVoiceAssistantFlow {
       return _beginConfiguredTopicSelection();
     }
     if (_isVocabularyChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: 'Mình cùng học từ mới nhé',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.vocabulary,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'hoc tu moi',
-        ),
+      return _beginVocabularyLearning(
+        recognizedText: recognizedText,
+        matchedPhrase: 'hoc tu moi',
       );
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
@@ -283,10 +304,10 @@ class MainVoiceAssistantFlow {
     );
   }
 
-  MainVoiceAssistantTurn _handleOtherLearning(
+  Future<MainVoiceAssistantTurn> _handleOtherLearning(
     String recognizedText,
     String normalized,
-  ) {
+  ) async {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
         promptText: otherLearningPrompt,
@@ -294,14 +315,9 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isVocabularyChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: 'Mình cùng học từ vựng nhé',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.vocabulary,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'hoc tu vung',
-        ),
+      return _beginVocabularyLearning(
+        recognizedText: recognizedText,
+        matchedPhrase: 'hoc tu vung',
       );
     }
     if (_isTopicChoice(normalized)) {
@@ -361,10 +377,10 @@ class MainVoiceAssistantFlow {
     );
   }
 
-  MainVoiceAssistantTurn _handleAlternativeAfterLearning(
+  Future<MainVoiceAssistantTurn> _handleAlternativeAfterLearning(
     String recognizedText,
     String normalized,
-  ) {
+  ) async {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
         promptText: alternativeAfterLearningPrompt,
@@ -372,14 +388,9 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isVocabularyChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: 'Mình cùng học từ vựng nhé',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.vocabulary,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'hoc tu vung',
-        ),
+      return _beginVocabularyLearning(
+        recognizedText: recognizedText,
+        matchedPhrase: 'hoc tu vung',
       );
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
@@ -394,6 +405,179 @@ class MainVoiceAssistantFlow {
       continueListening: true,
     );
   }
+
+  Future<MainVoiceAssistantTurn> _beginVocabularyLearning({
+    required String recognizedText,
+    required String matchedPhrase,
+  }) async {
+    final navigation = VoiceNavigationIntent(
+      destination: VoiceNavigationDestination.vocabulary,
+      recognizedText: recognizedText.trim(),
+      matchedPhrase: matchedPhrase,
+    );
+    final entries = await _loadVocabularyOrNull();
+    if (entries == null) {
+      reset();
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình chưa tải được từ vựng. Con thử lại sau nhé.',
+        continueListening: false,
+        navigationBeforePrompt: navigation,
+      );
+    }
+
+    final family = _entriesIn(
+      entries,
+      VocabularyCollection.saved,
+    ).where((entry) => entry.introducedAt == null).toList(growable: false);
+    if (family.isEmpty) {
+      _stage = MainVoiceAssistantStage.chooseVocabularyCollection;
+      return MainVoiceAssistantTurn(
+        promptText: 'Con muốn luyện lại hay nghe những ngôi sao của con?',
+        continueListening: true,
+        navigationBeforePrompt: navigation,
+      );
+    }
+
+    final utterances = <MainVoiceAssistantUtterance>[
+      const MainVoiceAssistantUtterance(
+        'Ở đây đã có từ mới. Chúng mình cùng học nhé.',
+      ),
+    ];
+    _appendVocabularyEntries(utterances, family);
+    utterances.add(
+      const MainVoiceAssistantUtterance(
+        'Mình qua phần luyện lại và ngôi sao nhé.',
+      ),
+    );
+    _appendVocabularyCollection(
+      utterances,
+      title: 'Phần luyện lại.',
+      emptyPrompt: 'Phần luyện lại chưa có từ nào.',
+      entries: _entriesIn(entries, VocabularyCollection.review),
+    );
+    _appendVocabularyCollection(
+      utterances,
+      title: 'Phần ngôi sao.',
+      emptyPrompt: 'Phần ngôi sao chưa có từ nào.',
+      entries: _entriesIn(entries, VocabularyCollection.star),
+    );
+    utterances.add(
+      const MainVoiceAssistantUtterance('Mình đã học xong từ vựng rồi.'),
+    );
+    reset();
+    return MainVoiceAssistantTurn(
+      promptText: _plainPrompt(utterances),
+      promptSequence: utterances,
+      onPromptCompleted: () =>
+          _vocabularyIntroducedMarker(family.map((entry) => entry.id)),
+      continueListening: false,
+      navigationBeforePrompt: navigation,
+    );
+  }
+
+  Future<MainVoiceAssistantTurn> _handleVocabularyCollection(
+    String normalized,
+  ) async {
+    if (_looksLikePromptEcho(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn luyện lại hay nghe những ngôi sao của con?',
+        continueListening: true,
+      );
+    }
+    final collection = _isReviewVocabularyChoice(normalized)
+        ? VocabularyCollection.review
+        : _isStarVocabularyChoice(normalized)
+        ? VocabularyCollection.star
+        : null;
+    if (collection == null) {
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn luyện lại hay nghe những ngôi sao của con?',
+        continueListening: true,
+      );
+    }
+
+    final entries = await _loadVocabularyOrNull();
+    if (entries == null) {
+      reset();
+      return const MainVoiceAssistantTurn(
+        promptText: 'Mình chưa tải được từ vựng. Con thử lại sau nhé.',
+        continueListening: false,
+      );
+    }
+    final selected = _entriesIn(entries, collection);
+    final title = collection == VocabularyCollection.review
+        ? 'Phần luyện lại.'
+        : 'Những ngôi sao của con.';
+    final emptyPrompt = collection == VocabularyCollection.review
+        ? 'Phần luyện lại chưa có từ nào.'
+        : 'Con chưa có từ ngôi sao nào.';
+    final utterances = <MainVoiceAssistantUtterance>[];
+    _appendVocabularyCollection(
+      utterances,
+      title: title,
+      emptyPrompt: emptyPrompt,
+      entries: selected,
+    );
+    utterances.add(
+      const MainVoiceAssistantUtterance('Mình đã học xong từ vựng rồi.'),
+    );
+    reset();
+    return MainVoiceAssistantTurn(
+      promptText: _plainPrompt(utterances),
+      promptSequence: utterances,
+      continueListening: false,
+    );
+  }
+
+  Future<List<VocabularyEntry>?> _loadVocabularyOrNull() async {
+    try {
+      return await _vocabularyLoader();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<VocabularyEntry> _entriesIn(
+    List<VocabularyEntry> entries,
+    VocabularyCollection collection,
+  ) => entries
+      .where(
+        (entry) =>
+            entry.collection == collection && entry.word.trim().isNotEmpty,
+      )
+      .toList(growable: false);
+
+  static void _appendVocabularyCollection(
+    List<MainVoiceAssistantUtterance> utterances, {
+    required String title,
+    required String emptyPrompt,
+    required List<VocabularyEntry> entries,
+  }) {
+    if (entries.isEmpty) {
+      utterances.add(MainVoiceAssistantUtterance(emptyPrompt));
+      return;
+    }
+    utterances.add(MainVoiceAssistantUtterance(title));
+    _appendVocabularyEntries(utterances, entries);
+  }
+
+  static void _appendVocabularyEntries(
+    List<MainVoiceAssistantUtterance> utterances,
+    List<VocabularyEntry> entries,
+  ) {
+    for (final entry in entries) {
+      utterances.add(
+        MainVoiceAssistantUtterance(entry.word.trim(), locale: 'en-US'),
+      );
+      final meaning = entry.meaning.trim();
+      if (meaning.isNotEmpty) {
+        utterances.add(MainVoiceAssistantUtterance(meaning));
+      }
+    }
+  }
+
+  static String _plainPrompt(List<MainVoiceAssistantUtterance> utterances) =>
+      utterances.map((item) => item.text).join(' ');
 
   MainVoiceAssistantTurn _handleActiveLearning(String normalized) {
     if (_looksLikePromptEcho(normalized)) {
@@ -687,6 +871,17 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'tu vung') ||
       _containsPhrase(normalized, 'tu moi');
 
+  static bool _isReviewVocabularyChoice(String normalized) =>
+      _containsPhrase(normalized, 'luyen lai') ||
+      _containsPhrase(normalized, 'on lai') ||
+      _containsPhrase(normalized, 'tu chua vung') ||
+      _containsPhrase(normalized, 'chua vung');
+
+  static bool _isStarVocabularyChoice(String normalized) =>
+      _containsPhrase(normalized, 'ngoi sao') ||
+      _containsPhrase(normalized, 'tu yeu thich') ||
+      _containsPhrase(normalized, 'yeu thich');
+
   static bool _isTranslationChoice(String normalized) =>
       _containsPhrase(normalized, 'dich sang tieng anh') ||
       _containsPhrase(normalized, 'dich tieng anh') ||
@@ -762,6 +957,9 @@ class MainVoiceAssistantFlow {
         (_isSingleSentenceChoice(normalized) &&
                 _isContinuousChoice(normalized)) ||
             _containsPhrase(normalized, 'mot cau hay dich lien tuc'),
+      MainVoiceAssistantStage.chooseVocabularyCollection =>
+        _isReviewVocabularyChoice(normalized) &&
+            _isStarVocabularyChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
         (_isNextSentenceChoice(normalized) &&
                 _isPreviousSentenceChoice(normalized)) ||
@@ -857,4 +1055,11 @@ class MainVoiceAssistantFlow {
 
   static Future<ListeningContentCatalog> _loadDefaultContent() =>
       AssetListeningContentRepository().load();
+
+  static Future<List<VocabularyEntry>> _loadDefaultVocabulary() =>
+      const VocabularyStore().read();
+
+  static Future<void> _markDefaultVocabularyIntroduced(
+    Iterable<String> entryIds,
+  ) => const VocabularyStore().markIntroduced(entryIds);
 }
