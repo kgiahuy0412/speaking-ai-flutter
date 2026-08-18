@@ -624,6 +624,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       } else {
         _singleSentenceMainModeActive = false;
       }
+      await controller.speakAssistantPrompt('Đã dừng.');
       final activated = await _activateMainAssistant();
       return activated
           ? MainButtonActionResult.accepted
@@ -632,11 +633,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
     final voiceController = _voiceNavigationController;
     if (voiceController?.isMainButtonSessionActive ?? false) {
+      // Keep an interrupted lesson paused. Otherwise the controller listener
+      // would resume it while the child is still hearing "Đã dừng.".
+      _activeModulePausedForMain = false;
       await voiceController!.pause();
-      final learningResult = await _toggleActiveLearningFromLongPress();
-      if (learningResult != null) {
-        return learningResult;
-      }
+      await _controller?.speakAssistantPrompt('Đã dừng.');
       return MainButtonActionResult.accepted;
     }
 
@@ -649,10 +650,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     if (controller == null) {
       return MainButtonActionResult.ignored;
     }
-    if (_mainSpeakingSessionController.state ==
-        MainSpeakingSessionState.processing) {
-      return MainButtonActionResult.busy;
-    }
     final endedMainSpeakingSession = _mainSpeakingSessionController.isActive;
     if (endedMainSpeakingSession) {
       _hasMainSpeakingTurnStarted = false;
@@ -660,9 +657,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     }
     final result = await controller.stopCurrentMainAction();
     if (result != MainButtonActionResult.ignored) {
+      await controller.speakAssistantPrompt('Đã dừng.');
       return result;
     }
     if (endedMainSpeakingSession) {
+      await controller.speakAssistantPrompt('Đã dừng.');
       return MainButtonActionResult.accepted;
     }
 
@@ -698,7 +697,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return MainButtonActionResult.ignored;
     }
     _activeModulePausedForMain = false;
-    await _controller?.speakAssistantPrompt('Đã dừng');
+    await _controller?.speakAssistantPrompt('Đã dừng.');
     return MainButtonActionResult.accepted;
   }
 
@@ -838,8 +837,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   bool _matchesMainSpeakingCommand(String recognizedText) {
     return _mainSpeakingSessionController.isActive &&
-        _mainSpeakingCommandResolver.resolve(recognizedText) ==
-            MainSpeakingCommand.otherLearning;
+        _mainSpeakingCommandResolver.resolve(recognizedText) != null;
   }
 
   Future<void> _handleMainSpeakingCommand(String recognizedText) async {
@@ -852,6 +850,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return;
     }
 
+    final command = _mainSpeakingCommandResolver.resolve(recognizedText);
+    if (command == null) {
+      return;
+    }
+
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
     _mainSpeakingSessionController.exit();
@@ -860,7 +863,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      await voiceController.activateOtherLearningFromSpeaking();
+      switch (command) {
+        case MainSpeakingCommand.stop:
+          await controller.speakAssistantPrompt('Đã dừng.');
+        case MainSpeakingCommand.otherLearning:
+          await voiceController.activateOtherLearningFromSpeaking();
+      }
     } finally {
       _isFinishingMainSpeakingMode = false;
       if (mounted) {

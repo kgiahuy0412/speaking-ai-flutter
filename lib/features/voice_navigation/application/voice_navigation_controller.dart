@@ -442,11 +442,19 @@ class VoiceNavigationController extends ChangeNotifier {
       _mainNoSpeechRetryCount = 1;
       final prompted = await _acknowledgeWakeWord(
         generation,
-        promptText: 'Con muốn làm gì?',
+        promptText: MainVoiceAssistantFlow.noSpeechRetryPrompt,
       );
       if (prompted && !_disposed && generation == _generation) {
         _scheduleSession(_mainCommandListenRestartDelay);
       }
+      return;
+    }
+    await _acknowledgeWakeWord(
+      generation,
+      promptText: MainVoiceAssistantFlow.noSpeechExitPrompt,
+      openCommandWindow: false,
+    );
+    if (_disposed || generation != _generation || !_buttonCommandSession) {
       return;
     }
     _buttonCommandSession = false;

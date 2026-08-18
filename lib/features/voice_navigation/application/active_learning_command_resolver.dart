@@ -32,11 +32,16 @@ class ActiveLearningCommandResolver {
     }
     if (_has(value, 'cau tiep theo') ||
         _has(value, 'dong tiep theo') ||
-        value == 'tiep theo') {
+        _has(value, 'hoc cau tiep') ||
+        _has(value, 'qua cau tiep') ||
+        _has(value, 'tiep theo')) {
       return ActiveLearningCommand.nextItem;
     }
     if (_has(value, 'cau truoc') ||
         _has(value, 'dong truoc') ||
+        _has(value, 'nghe cau truoc') ||
+        _has(value, 'quay lai cau truoc') ||
+        _has(value, 'cau vua roi') ||
         value == 'quay lai') {
       return ActiveLearningCommand.previousItem;
     }

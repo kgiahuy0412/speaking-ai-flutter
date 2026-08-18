@@ -6,17 +6,22 @@ void main() {
   const resolver = ActiveLearningCommandResolver();
 
   test('maps Vietnamese active lesson commands deterministically', () {
-    expect(
-      resolver.resolve('Con muốn nghe lại'),
-      ActiveLearningCommand.replayCurrent,
-    );
-    expect(
-      resolver.resolve('Cho con học bài tiếp theo'),
-      ActiveLearningCommand.nextLesson,
-    );
-    expect(resolver.resolve('Luyện lại từ đầu'), ActiveLearningCommand.restart);
-    expect(resolver.resolve('Tạm dừng'), ActiveLearningCommand.stop);
-    expect(resolver.resolve('Tiếp tục'), ActiveLearningCommand.resume);
+    const cases = <String, ActiveLearningCommand>{
+      'Câu tiếp theo': ActiveLearningCommand.nextItem,
+      'Con muốn tiếp theo': ActiveLearningCommand.nextItem,
+      'Câu trước': ActiveLearningCommand.previousItem,
+      'Nghe câu vừa rồi': ActiveLearningCommand.previousItem,
+      'Con muốn nghe lại': ActiveLearningCommand.replayCurrent,
+      'Học lại từ đầu': ActiveLearningCommand.restart,
+      'Luyện lại từ đầu': ActiveLearningCommand.restart,
+      'Cho con học bài tiếp theo': ActiveLearningCommand.nextLesson,
+      'Bài trước': ActiveLearningCommand.previousLesson,
+      'Tạm dừng': ActiveLearningCommand.stop,
+      'Tiếp tục': ActiveLearningCommand.resume,
+    };
+    for (final entry in cases.entries) {
+      expect(resolver.resolve(entry.key), entry.value, reason: entry.key);
+    }
   });
 
   test('does not treat lesson content as a control command', () {

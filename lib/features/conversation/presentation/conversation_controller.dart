@@ -789,8 +789,9 @@ class ConversationController extends ChangeNotifier {
   }
 
   /// Stops the current conversation-owned activity without starting a new one.
-  /// Processing is intentionally not cancelled because its backend result is
-  /// already authoritative.
+  ///
+  /// A long MAIN press is a cancellation boundary: an unfinished recording is
+  /// discarded instead of finalized, and a late backend result is ignored.
   Future<MainButtonActionResult> stopCurrentMainAction() async {
     if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
       await stopAndReplayH20OfflineRecording();
@@ -801,29 +802,20 @@ class ConversationController extends ChangeNotifier {
       await cancelH20HardwareTest();
       return MainButtonActionResult.accepted;
     }
-    if (phase == ConversationPhase.processing || _preparingMicrophone) {
-      return MainButtonActionResult.busy;
-    }
-    if (phase == ConversationPhase.recording) {
-      await stopRecording(manual: true);
-      return MainButtonActionResult.accepted;
-    }
-    if (_playbackPlaying) {
-      await _playbackService.stop();
-      return MainButtonActionResult.accepted;
-    }
-    return MainButtonActionResult.ignored;
+    return cancelCurrentMainAction();
   }
 
-  /// Cancels the current single-sentence turn without translating it.
+  /// Cancels the current conversation turn without translating it.
   ///
-  /// This is intentionally separate from [stopCurrentMainAction], whose short
-  /// press behavior finalizes a recording. A long MAIN press uses this method
-  /// to leave single-sentence mode and reopen the assistant menu.
-  Future<MainButtonActionResult> cancelSingleSentenceMainAction() async {
+  /// Used by D10/E04 for single-sentence and continuous translation. Increasing
+  /// the generation also makes any already-running backend response harmless.
+  Future<MainButtonActionResult> cancelCurrentMainAction() async {
     if (_preparingMicrophone) {
       return MainButtonActionResult.busy;
     }
+
+    final hadActivity =
+        phase != ConversationPhase.idle || _playbackPlaying || _stopInProgress;
 
     _conversationTurnGeneration += 1;
     _pushToTalkPressed = false;
@@ -852,9 +844,8 @@ class ConversationController extends ChangeNotifier {
       }
     }
 
-    if (_playbackPlaying) {
-      await _playbackService.stop();
-    }
+    await _voicePromptService?.stop().catchError((Object _) {});
+    await _playbackService.stop().catchError((Object _) {});
     await _stopHfpRoute();
     transientMessage = null;
     errorMessage = null;
@@ -867,8 +858,14 @@ class ConversationController extends ChangeNotifier {
     _stopInProgress = false;
     unawaited(_syncAiv0AppState());
     notifyListeners();
-    return MainButtonActionResult.accepted;
+    return hadActivity
+        ? MainButtonActionResult.accepted
+        : MainButtonActionResult.ignored;
   }
+
+  /// Backward-compatible name retained for the single-sentence MAIN flow.
+  Future<MainButtonActionResult> cancelSingleSentenceMainAction() =>
+      cancelCurrentMainAction();
 
   Aiv0AppState get _currentAiv0AppState {
     if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
@@ -1937,6 +1934,12 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     _registerSpeechDetection(confirmDetector: true);
+    if (_matchesRecognizedSpeechCommand(normalized) && !_stopInProgress) {
+      // Android can recognize "Dừng lại" before the platform emits its final
+      // result. Seal this turn immediately so ambient audio is not kept alive.
+      unawaited(stopRecording(manual: false));
+      return;
+    }
     _partialPreviewTimer?.cancel();
     final generation = _previewGeneration;
     final previewContext = context;

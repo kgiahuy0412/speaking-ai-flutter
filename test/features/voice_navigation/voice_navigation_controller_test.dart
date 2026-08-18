@@ -354,6 +354,52 @@ void main() {
   );
 
   test(
+    'active lesson Main dispatches the remaining D07 and D08 commands',
+    () async {
+      const cases = <String, ActiveLearningCommand>{
+        'Nghe lại': ActiveLearningCommand.replayCurrent,
+        'Học lại từ đầu': ActiveLearningCommand.restart,
+        'Bài tiếp theo': ActiveLearningCommand.nextLesson,
+        'Bài trước': ActiveLearningCommand.previousLesson,
+      };
+
+      for (final entry in cases.entries) {
+        final speechInput = _FakeNavigationSpeechInput();
+        final voicePrompt = _FakeVoicePromptService();
+        ActiveLearningCommand? receivedCommand;
+        final controller = VoiceNavigationController(
+          speechInput: speechInput,
+          voicePromptService: voicePrompt,
+          activeLearningCommandHandler: (command) async {
+            receivedCommand = command;
+            return const ActiveLearningCommandResult.handled();
+          },
+        );
+
+        expect(
+          await controller.activateFromMainButton(activeLearning: true),
+          isTrue,
+          reason: entry.key,
+        );
+        expect(
+          await controller.dispatchRecognizedText(entry.key),
+          isTrue,
+          reason: entry.key,
+        );
+        expect(receivedCommand, entry.value, reason: entry.key);
+        expect(
+          controller.isMainButtonSessionActive,
+          isFalse,
+          reason: entry.key,
+        );
+
+        controller.dispose();
+        await speechInput.dispose();
+      }
+    },
+  );
+
+  test(
     'active lesson exit choice keeps listening then opens vocabulary',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
@@ -416,11 +462,17 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 15));
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
-        'Con muốn làm gì?',
+        MainVoiceAssistantFlow.noSpeechRetryPrompt,
       ]);
       expect(controller.isMainButtonSessionActive, isTrue);
 
       await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+        MainVoiceAssistantFlow.noSpeechRetryPrompt,
+        MainVoiceAssistantFlow.noSpeechExitPrompt,
+      ]);
+      expect(voicePrompt.readyCueCount, 2);
       expect(controller.isMainButtonSessionActive, isFalse);
 
       controller.dispose();

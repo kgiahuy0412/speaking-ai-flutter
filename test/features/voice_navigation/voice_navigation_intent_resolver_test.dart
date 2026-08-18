@@ -19,14 +19,34 @@ void main() {
     });
 
     test('recognizes vocabulary commands with and without accents', () {
-      expect(
-        resolver.resolve('Con muốn học từ vựng')?.destination,
-        VoiceNavigationDestination.vocabulary,
-      );
-      expect(
-        resolver.resolve('mo kho tu vung cho con')?.destination,
-        VoiceNavigationDestination.vocabulary,
-      );
+      for (final command in <String>[
+        'Con muốn học từ vựng',
+        'Con muốn học từ mới',
+        'Con muốn học từ',
+        'Con muốn luyện từ',
+        'mo kho tu vung cho con',
+      ]) {
+        expect(
+          resolver.resolve(command)?.destination,
+          VoiceNavigationDestination.vocabulary,
+          reason: command,
+        );
+      }
+    });
+
+    test('recognizes all supported topic-learning synonyms', () {
+      for (final command in <String>[
+        'Học bài',
+        'Học theo chủ đề',
+        'Học khóa học',
+        'Bắt đầu bài học',
+      ]) {
+        expect(
+          resolver.resolve(command)?.destination,
+          VoiceNavigationDestination.topics,
+          reason: command,
+        );
+      }
     });
 
     test('recognizes the supported top-level destinations', () {

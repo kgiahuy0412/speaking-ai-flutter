@@ -1,6 +1,7 @@
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
+import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 enum MainVoiceAssistantStage {
@@ -48,12 +49,17 @@ class MainVoiceAssistantFlow {
 
   static const String openingPrompt =
       'Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
+  static const String noSpeechRetryPrompt = 'Con muốn làm gì?';
+  static const String noSpeechExitPrompt =
+      'Khi nào sẵn sàng, con nhấn MAIN gọi mình nhé.';
   static const String otherLearningPrompt =
       'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String activeLearningPrompt =
       'Con muốn học câu tiếp theo, nghe câu trước hay con không học nữa?';
   static const String alternativeAfterLearningPrompt =
       'Con muốn dịch sang tiếng Anh hay học từ vựng?';
+  static const ActiveLearningCommandResolver _activeLearningCommandResolver =
+      ActiveLearningCommandResolver();
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
@@ -156,8 +162,7 @@ class MainVoiceAssistantFlow {
       MainVoiceAssistantStage.chooseTranslationMode =>
         _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
-        _isNextSentenceChoice(normalized) ||
-            _isPreviousSentenceChoice(normalized) ||
+        _activeLearningCommandResolver.resolve(normalized) != null ||
             _isLeaveActiveLearningChoice(normalized),
       MainVoiceAssistantStage.confirmReplayTopic =>
         _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
@@ -397,20 +402,6 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
-    if (_isNextSentenceChoice(normalized)) {
-      return const MainVoiceAssistantTurn(
-        promptText: 'Mình học câu tiếp theo nhé',
-        continueListening: false,
-        activeLearningCommand: ActiveLearningCommand.nextItem,
-      );
-    }
-    if (_isPreviousSentenceChoice(normalized)) {
-      return const MainVoiceAssistantTurn(
-        promptText: 'Mình nghe lại câu trước nhé',
-        continueListening: false,
-        activeLearningCommand: ActiveLearningCommand.previousItem,
-      );
-    }
     if (_isLeaveActiveLearningChoice(normalized)) {
       _stage = MainVoiceAssistantStage.chooseAlternativeAfterLearning;
       return const MainVoiceAssistantTurn(
@@ -418,9 +409,34 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    final command = _activeLearningCommandResolver.resolve(normalized);
+    if (command != null) {
+      return _activeLearningTurn(command);
+    }
     return const MainVoiceAssistantTurn(
       promptText: activeLearningPrompt,
       continueListening: true,
+    );
+  }
+
+  static MainVoiceAssistantTurn _activeLearningTurn(
+    ActiveLearningCommand command,
+  ) {
+    final promptText = switch (command) {
+      ActiveLearningCommand.resume => 'Cùng học tiếp nhé',
+      ActiveLearningCommand.replayCurrent => 'Mình nghe lại câu này nhé',
+      ActiveLearningCommand.nextItem => 'Mình học câu tiếp theo nhé',
+      ActiveLearningCommand.previousItem => 'Mình nghe lại câu trước nhé',
+      ActiveLearningCommand.nextLesson => 'Mình chuyển sang bài tiếp theo nhé',
+      ActiveLearningCommand.previousLesson => 'Mình quay lại bài trước nhé',
+      ActiveLearningCommand.restart => 'Mình học lại bài này từ đầu nhé',
+      ActiveLearningCommand.stop => 'Đã dừng.',
+      ActiveLearningCommand.exitToHome => 'Mình kết thúc bài học nhé',
+    };
+    return MainVoiceAssistantTurn(
+      promptText: promptText,
+      continueListening: false,
+      activeLearningCommand: command,
     );
   }
 
@@ -656,13 +672,18 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'noi chuyen');
 
   static bool _isTopicChoice(String normalized) =>
-      _containsPhrase(normalized, 'hoc chu de') ||
+      _containsPhrase(normalized, 'bat dau bai hoc') ||
+      _containsPhrase(normalized, 'hoc khoa hoc') ||
       _containsPhrase(normalized, 'hoc theo chu de') ||
+      _containsPhrase(normalized, 'hoc chu de') ||
+      _containsPhrase(normalized, 'hoc bai') ||
       _containsPhrase(normalized, 'chu de');
 
   static bool _isVocabularyChoice(String normalized) =>
       _containsPhrase(normalized, 'hoc tu vung') ||
       _containsPhrase(normalized, 'hoc tu moi') ||
+      _containsPhrase(normalized, 'luyen tu') ||
+      _containsPhrase(normalized, 'hoc tu') ||
       _containsPhrase(normalized, 'tu vung') ||
       _containsPhrase(normalized, 'tu moi');
 

@@ -53,6 +53,40 @@ void main() {
     expect(single.navigationAfterPrompt?.enterMainSpeakingMode, isFalse);
   });
 
+  test('accepts every D04 topic-learning synonym from Main', () async {
+    for (final command in <String>[
+      'Học bài',
+      'Học theo chủ đề',
+      'Học khóa học',
+      'Bắt đầu bài học',
+    ]) {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.begin();
+
+      final turn = await flow.handle(command);
+
+      expect(turn.promptText, 'Con mấy tuổi', reason: command);
+      expect(turn.continueListening, isTrue, reason: command);
+      expect(flow.stage, MainVoiceAssistantStage.askAge, reason: command);
+    }
+  });
+
+  test('accepts every D05 vocabulary-learning synonym from Main', () async {
+    for (final command in <String>['Học từ mới', 'Học từ', 'Luyện từ']) {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.begin();
+
+      final turn = await flow.handle(command);
+
+      expect(
+        turn.navigationAfterPrompt?.destination,
+        VoiceNavigationDestination.vocabulary,
+        reason: command,
+      );
+      expect(turn.continueListening, isFalse, reason: command);
+    }
+  });
+
   test('moves to the next sentence in an active lesson', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     expect(
@@ -86,6 +120,28 @@ void main() {
     expect(turn.promptText, 'Mình nghe lại câu trước nhé');
     expect(turn.activeLearningCommand, ActiveLearningCommand.previousItem);
     expect(turn.continueListening, isFalse);
+  });
+
+  test('maps every D07 and D08 command to the active lesson module', () async {
+    const cases = <String, ActiveLearningCommand>{
+      'Câu tiếp theo': ActiveLearningCommand.nextItem,
+      'Câu trước': ActiveLearningCommand.previousItem,
+      'Nghe lại': ActiveLearningCommand.replayCurrent,
+      'Học lại từ đầu': ActiveLearningCommand.restart,
+      'Bài tiếp theo': ActiveLearningCommand.nextLesson,
+      'Bài trước': ActiveLearningCommand.previousLesson,
+    };
+
+    for (final entry in cases.entries) {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.beginActiveLearning();
+
+      expect(flow.canHandle(entry.key), isTrue, reason: entry.key);
+      final turn = await flow.handle(entry.key);
+
+      expect(turn.activeLearningCommand, entry.value, reason: entry.key);
+      expect(turn.continueListening, isFalse, reason: entry.key);
+    }
   });
 
   test(

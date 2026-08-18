@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
@@ -73,6 +74,26 @@ void main() {
     );
     expect(audioInput.cancelCount, 1);
     expect(promptService.spokenTexts, isEmpty);
+  });
+
+  test('D10 long MAIN stops active playback immediately', () async {
+    final playback = _ControllablePlaybackService();
+    final controller = ConversationController(
+      audioInput: _SilentAudioInput(),
+      playbackService: playback,
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      webRuntimeOverride: false,
+    );
+    addTearDown(controller.dispose);
+
+    await playback.play(Uri.parse('https://example.com/result.mp3'));
+    final result = await controller.cancelCurrentMainAction();
+
+    expect(result, MainButtonActionResult.accepted);
+    expect(playback.stopCount, 1);
+    expect(controller.phase, ConversationPhase.idle);
   });
 
   test('long MAIN suppresses a translation already processing', () async {
@@ -178,6 +199,43 @@ class _FakePlaybackService implements AudioPlaybackService {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _ControllablePlaybackService implements AudioPlaybackService {
+  final StreamController<bool> _playing = StreamController<bool>.broadcast();
+  int stopCount = 0;
+
+  @override
+  Stream<bool> get playingStream => _playing.stream;
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) async {
+    _playing.add(true);
+    await Future<void>.delayed(Duration.zero);
+    return const PlaybackStartMetrics(
+      audioLoadDuration: Duration.zero,
+      startedAfterRequest: Duration.zero,
+      fromDeviceCache: false,
+    );
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCount += 1;
+    _playing.add(false);
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _playing.close();
+  }
 }
 
 class _FakeVoicePromptService

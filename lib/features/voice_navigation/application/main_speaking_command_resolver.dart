@@ -1,4 +1,4 @@
-enum MainSpeakingCommand { otherLearning }
+enum MainSpeakingCommand { stop, otherLearning }
 
 /// Resolves high-priority commands spoken while the automatic speaking
 /// practice microphone is open. Unmatched sentences stay in the normal
@@ -10,6 +10,10 @@ class MainSpeakingCommandResolver {
     final normalized = _normalize(recognizedText);
     if (normalized.isEmpty) {
       return null;
+    }
+
+    if (_stopPhrases.contains(normalized)) {
+      return MainSpeakingCommand.stop;
     }
 
     final asksForSomethingElse =
@@ -30,6 +34,21 @@ class MainSpeakingCommandResolver {
     }
     return null;
   }
+
+  static const Set<String> _stopPhrases = <String>{
+    'dung',
+    'dung lai',
+    'dung dich',
+    'dung dich lai',
+    'dung dich lien tuc',
+    'ngung',
+    'ngung lai',
+    'ngung dich',
+    'thoi dung lai',
+    'khong dich nua',
+    'con khong dich nua',
+    'thoat dich',
+  };
 
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');

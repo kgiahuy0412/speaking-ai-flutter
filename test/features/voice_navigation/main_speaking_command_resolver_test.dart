@@ -16,6 +16,26 @@ void main() {
     }
   });
 
+  test('detects D10/E04 stop phrases without matching ordinary sentences', () {
+    for (final text in <String>[
+      'Dừng lại',
+      'Dừng dịch liên tục',
+      'Ngừng lại',
+      'Con không dịch nữa',
+      'Thoát dịch',
+    ]) {
+      expect(resolver.resolve(text), MainSpeakingCommand.stop);
+    }
+
+    for (final text in <String>[
+      'Con đứng lại chờ mẹ',
+      'Con không muốn dừng ở công viên',
+      'Hôm nay con học liên tục',
+    ]) {
+      expect(resolver.resolve(text), isNull);
+    }
+  });
+
   test('keeps ordinary speaking sentences in the translation flow', () {
     for (final text in <String>[
       'Con muốn ăn cơm',
