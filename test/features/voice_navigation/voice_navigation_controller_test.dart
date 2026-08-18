@@ -7,6 +7,7 @@ import 'package:ai_speaking_flutter_app/features/listening/domain/listening_cont
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
+import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -269,6 +270,9 @@ void main() {
     final controller = VoiceNavigationController(
       speechInput: speechInput,
       voicePromptService: voicePrompt,
+      mainAssistantFlow: MainVoiceAssistantFlow(
+        vocabularyLoader: () async => const <VocabularyEntry>[],
+      ),
       restartDelay: const Duration(milliseconds: 1),
     );
     VoiceNavigationIntent? receivedIntent;
@@ -284,13 +288,63 @@ void main() {
       await controller.dispatchRecognizedText('Con muốn học từ vựng'),
       isTrue,
     );
-    expect(voicePrompt.spokenTexts.last, 'Mình cùng học từ vựng nhé');
+    expect(
+      voicePrompt.spokenTexts.last,
+      'Con muốn luyện lại hay nghe những ngôi sao của con?',
+    );
     expect(receivedIntent?.destination, VoiceNavigationDestination.vocabulary);
+    expect(controller.isMainButtonSessionActive, isTrue);
+
+    expect(await controller.dispatchRecognizedText('Luyện lại'), isTrue);
+    expect(voicePrompt.spokenTexts, contains('Phần luyện lại chưa có từ nào.'));
     expect(controller.isMainButtonSessionActive, isFalse);
 
     controller.dispose();
     await speechInput.dispose();
   });
+
+  test(
+    'Main reads parent vocabulary in the correct language sequence',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final introducedIds = <String>[];
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        mainAssistantFlow: MainVoiceAssistantFlow(
+          vocabularyLoader: () async => <VocabularyEntry>[
+            VocabularyEntry(
+              id: 'parent-cat',
+              word: 'Cat',
+              meaning: 'Con mèo',
+              addedAt: DateTime(2026, 8, 18),
+            ),
+          ],
+          vocabularyIntroducedMarker: (ids) async => introducedIds.addAll(ids),
+        ),
+      );
+      VoiceNavigationIntent? receivedIntent;
+      controller.setIntentHandler((intent) => receivedIntent = intent);
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      expect(await controller.dispatchRecognizedText('Học từ mới'), isTrue);
+
+      expect(
+        receivedIntent?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+      final englishIndex = voicePrompt.spokenTexts.indexOf('Cat');
+      expect(englishIndex, greaterThanOrEqualTo(0));
+      expect(voicePrompt.spokenLocales[englishIndex], 'en-US');
+      expect(voicePrompt.spokenTexts, contains('Con mèo'));
+      expect(introducedIds, <String>['parent-cat']);
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
 
   test(
     'active lesson Main next answer advances through the module bridge',
@@ -806,6 +860,7 @@ class _FakeNavigationSpeechInput
 class _FakeVoicePromptService
     implements VoicePromptService, SpeechReadyCuePlayer {
   final List<String> spokenTexts = <String>[];
+  final List<String> spokenLocales = <String>[];
   int readyCueCount = 0;
 
   @override
@@ -816,6 +871,7 @@ class _FakeVoicePromptService
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {
     spokenTexts.add(text);
+    spokenLocales.add(locale);
   }
 
   @override

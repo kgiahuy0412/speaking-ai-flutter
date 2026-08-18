@@ -6,6 +6,45 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('starts empty so parents provide the Family vocabulary', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final entries = await const VocabularyStore().read();
+
+    expect(entries, isEmpty);
+  });
+
+  test(
+    'removes the three legacy starter words from existing installs',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'innotrik.vocabulary.v1': jsonEncode(<Object>[
+          for (final item in <(String, String, String)>[
+            ('family', 'Family', 'Gia đình'),
+            ('school', 'School', 'Trường học'),
+            ('happy', 'Happy', 'Vui vẻ'),
+            ('parent-word', 'Apple', 'Quả táo'),
+          ])
+            <String, Object>{
+              'id': item.$1,
+              'word': item.$2,
+              'meaning': item.$3,
+              'addedAt': DateTime(2026, 8, 18).toIso8601String(),
+              'collection': VocabularyCollection.saved.name,
+            },
+        ]),
+      });
+
+      final store = const VocabularyStore();
+      final entries = await store.read();
+
+      expect(entries.map((entry) => entry.id), <String>['parent-word']);
+      expect((await store.read()).map((entry) => entry.id), <String>[
+        'parent-word',
+      ]);
+    },
+  );
+
   test(
     'moves one lesson sentence from Review to Stars without duplication',
     () async {
@@ -57,4 +96,29 @@ void main() {
 
     expect(entries.single.collection, VocabularyCollection.saved);
   });
+
+  test(
+    'marks parent vocabulary as introduced and persists the state',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'innotrik.vocabulary.v1': jsonEncode(<Object>[
+          <String, Object>{
+            'id': 'parent-apple',
+            'word': 'Apple',
+            'meaning': 'Quả táo',
+            'addedAt': DateTime(2026, 8, 18).toIso8601String(),
+            'collection': VocabularyCollection.saved.name,
+          },
+        ]),
+      });
+      const store = VocabularyStore();
+
+      await store.markIntroduced(const <String>['parent-apple']);
+      final entry = (await store.read()).single;
+
+      expect(entry.introducedAt, isNotNull);
+      expect(entry.word, 'Apple');
+      expect(entry.collection, VocabularyCollection.saved);
+    },
+  );
 }
