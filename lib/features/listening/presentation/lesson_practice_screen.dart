@@ -370,6 +370,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _pausedForMainAssistant = false;
         await _restartCurrentLesson();
         return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+      case ActiveLearningCommand.vocabularyStars:
+        return const ActiveLearningCommandResult.unavailable();
       case ActiveLearningCommand.exitToHome:
         await pauseForMainAssistant();
         if (!mounted) {

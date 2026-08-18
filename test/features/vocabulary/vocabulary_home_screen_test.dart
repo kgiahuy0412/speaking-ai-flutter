@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
+import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/data/vocabulary_store.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabulary_home_screen.dart';
@@ -252,6 +253,50 @@ void main() {
       expect(voice.locales, <String>['en-US']);
     },
   );
+
+  testWidgets('MAIN vocabulary commands open Review and Stars journeys', (
+    tester,
+  ) async {
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: ActiveLearningModuleScope(
+          registry: registry,
+          child: DisplayLanguageScope(
+            language: DisplayLanguage.vietnamese,
+            child: VocabularyHomeScreen(
+              isReady: true,
+              isActive: true,
+              store: _MemoryVocabularyStore(),
+              voicePromptService: const _FakeVoicePromptService(),
+              onReturnToConversation: () {},
+              onHistory: () {},
+              onSettings: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(registry.activeKind, ActiveLearningModuleKind.vocabulary);
+    await registry.pauseForMainAssistant();
+    expect(registry.isActiveModulePaused, isTrue);
+
+    final review = await registry.execute(
+      ActiveLearningCommand.vocabularyPracticeAgain,
+    );
+    await tester.pumpAndSettle();
+    expect(review.wasHandled, isTrue);
+    expect(find.text('Luyện lại'), findsOneWidget);
+
+    final stars = await registry.execute(ActiveLearningCommand.vocabularyStars);
+    await tester.pumpAndSettle();
+    expect(stars.wasHandled, isTrue);
+    expect(find.text('Ngôi sao của con'), findsOneWidget);
+  });
 }
 
 class _MemoryVocabularyStore extends VocabularyStore {

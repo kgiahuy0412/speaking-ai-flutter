@@ -588,6 +588,8 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen>
         return const ActiveLearningCommandResult.handled();
       case ActiveLearningCommand.nextLesson:
       case ActiveLearningCommand.previousLesson:
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+      case ActiveLearningCommand.vocabularyStars:
         return const ActiveLearningCommandResult.unavailable(
           spokenReply: 'Con hãy học xong bài hát này trước nhé.',
         );

@@ -145,10 +145,17 @@ class VoiceNavigationController extends ChangeNotifier {
   /// This does not require a wake phrase. Any existing recognition session is
   /// released first, the assistant replies, then Android listens for one
   /// navigation command until the normal command window expires.
-  Future<bool> activateFromMainButton({bool activeLearning = false}) async {
+  Future<bool> activateFromMainButton({
+    bool activeLearning = false,
+    ActiveLearningModuleKind? activeLearningKind,
+  }) async {
     return _activateMainAssistantFlow(
       activeLearning
-          ? _mainAssistantFlow.beginActiveLearning
+          ? () => _mainAssistantFlow.beginActiveLearning(
+              kind:
+                  activeLearningKind ??
+                  ActiveLearningModuleKind.listeningLesson,
+            )
           : _mainAssistantFlow.begin,
     );
   }

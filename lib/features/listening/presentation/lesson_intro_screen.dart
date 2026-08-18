@@ -419,6 +419,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         );
       case ActiveLearningCommand.nextLesson:
       case ActiveLearningCommand.previousLesson:
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+      case ActiveLearningCommand.vocabularyStars:
         return const ActiveLearningCommandResult.unavailable(
           spokenReply: 'Con hãy vào bài học trước nhé.',
         );

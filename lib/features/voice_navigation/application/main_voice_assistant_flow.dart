@@ -1,6 +1,7 @@
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
+import '../domain/controlled_speech_lexicon.dart';
 import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
@@ -56,10 +57,14 @@ class MainVoiceAssistantFlow {
       'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String activeLearningPrompt =
       'Con muốn học câu tiếp theo, nghe câu trước hay con không học nữa?';
+  static const String vocabularyActiveLearningPrompt =
+      'Con muốn luyện lại hay xem ngôi sao của con?';
   static const String alternativeAfterLearningPrompt =
       'Con muốn dịch sang tiếng Anh hay học từ vựng?';
   static const ActiveLearningCommandResolver _activeLearningCommandResolver =
       ActiveLearningCommandResolver();
+  static const ControlledSpeechLexicon _controlledLexicon =
+      ControlledSpeechLexicon();
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
@@ -72,6 +77,7 @@ class MainVoiceAssistantFlow {
   ListeningTopicContent? _selectedTopicContent;
   Set<int> _completedTopicNumbers = const <int>{};
   int? _pendingReplayTopicNumber;
+  ActiveLearningModuleKind? _activeLearningKind;
 
   MainVoiceAssistantStage get stage => _stage;
 
@@ -95,10 +101,13 @@ class MainVoiceAssistantFlow {
     return otherLearningPrompt;
   }
 
-  String beginActiveLearning() {
+  String beginActiveLearning({
+    ActiveLearningModuleKind kind = ActiveLearningModuleKind.listeningLesson,
+  }) {
     reset();
+    _activeLearningKind = kind;
     _stage = MainVoiceAssistantStage.activeLearning;
-    return activeLearningPrompt;
+    return _currentActiveLearningPrompt;
   }
 
   String beginTopicSelectionAfterCompletion({
@@ -140,12 +149,16 @@ class MainVoiceAssistantFlow {
     _selectedTopicContent = null;
     _completedTopicNumbers = const <int>{};
     _pendingReplayTopicNumber = null;
+    _activeLearningKind = null;
   }
 
   bool canHandle(String recognizedText) {
     final normalized = _normalize(recognizedText);
     if (normalized.isEmpty || _looksLikePromptEcho(normalized)) {
       return false;
+    }
+    if (_resolveControlledIntent(recognizedText) != null) {
+      return true;
     }
     return switch (_stage) {
       MainVoiceAssistantStage.chooseFeature =>
@@ -162,7 +175,8 @@ class MainVoiceAssistantFlow {
       MainVoiceAssistantStage.chooseTranslationMode =>
         _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
       MainVoiceAssistantStage.activeLearning =>
-        _activeLearningCommandResolver.resolve(normalized) != null ||
+        (_activeLearningKind == ActiveLearningModuleKind.listeningLesson &&
+                _activeLearningCommandResolver.resolve(normalized) != null) ||
             _isLeaveActiveLearningChoice(normalized),
       MainVoiceAssistantStage.confirmReplayTopic =>
         _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
@@ -215,6 +229,37 @@ class MainVoiceAssistantFlow {
     };
   }
 
+  String get _currentActiveLearningPrompt =>
+      _activeLearningKind == ActiveLearningModuleKind.vocabulary
+      ? vocabularyActiveLearningPrompt
+      : activeLearningPrompt;
+
+  ControlledSpeechIntent? _resolveControlledIntent(String recognizedText) {
+    final state = switch (_stage) {
+      MainVoiceAssistantStage.chooseFeature ||
+      MainVoiceAssistantStage.chooseOtherLearning ||
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        ControlledSpeechState.root,
+      MainVoiceAssistantStage.chooseTranslationMode =>
+        ControlledSpeechState.translateMenu,
+      MainVoiceAssistantStage.activeLearning =>
+        _activeLearningKind == ActiveLearningModuleKind.vocabulary
+            ? ControlledSpeechState.vocabulary
+            : ControlledSpeechState.course,
+      _ => null,
+    };
+    if (state == null) {
+      return null;
+    }
+    return _controlledLexicon.resolve(recognizedText, state: state)?.intent;
+  }
+
+  static MainVoiceAssistantTurn _stopTurn() => const MainVoiceAssistantTurn(
+    promptText: 'Đã dừng.',
+    continueListening: false,
+    activeLearningCommand: ActiveLearningCommand.stop,
+  );
+
   MainVoiceAssistantTurn _beginConfiguredTopicSelection() {
     final age = _configuredChildAge;
     final catalog = age == null ? null : _catalogForAge(age);
@@ -256,6 +301,40 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    final controlledIntent = _controlledLexicon
+        .resolve(normalized, state: ControlledSpeechState.root)
+        ?.intent;
+    if (controlledIntent == ControlledSpeechIntent.globalStop) {
+      return _stopTurn();
+    }
+    if (controlledIntent == ControlledSpeechIntent.globalHelp) {
+      return const MainVoiceAssistantTurn(
+        promptText: openingPrompt,
+        continueListening: true,
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navCourse ||
+        controlledIntent == ControlledSpeechIntent.courseContinue) {
+      return _beginConfiguredTopicSelection();
+    }
+    if (controlledIntent == ControlledSpeechIntent.navVocabulary) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình cùng học từ mới nhé',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.vocabulary,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'hoc tu moi',
+        ),
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navTranslate) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
     if (_isTopicChoice(normalized)) {
       return _beginConfiguredTopicSelection();
     }
@@ -290,6 +369,40 @@ class MainVoiceAssistantFlow {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
         promptText: otherLearningPrompt,
+        continueListening: true,
+      );
+    }
+    final controlledIntent = _controlledLexicon
+        .resolve(normalized, state: ControlledSpeechState.root)
+        ?.intent;
+    if (controlledIntent == ControlledSpeechIntent.globalStop) {
+      return _stopTurn();
+    }
+    if (controlledIntent == ControlledSpeechIntent.globalHelp) {
+      return const MainVoiceAssistantTurn(
+        promptText: otherLearningPrompt,
+        continueListening: true,
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navCourse ||
+        controlledIntent == ControlledSpeechIntent.courseContinue) {
+      return _beginConfiguredTopicSelection();
+    }
+    if (controlledIntent == ControlledSpeechIntent.navVocabulary) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình cùng học từ vựng nhé',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.vocabulary,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'hoc tu vung',
+        ),
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navTranslate) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
         continueListening: true,
       );
     }
@@ -330,7 +443,20 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
-    if (_isSingleSentenceChoice(normalized)) {
+    final controlledIntent = _controlledLexicon
+        .resolve(normalized, state: ControlledSpeechState.translateMenu)
+        ?.intent;
+    if (controlledIntent == ControlledSpeechIntent.globalStop) {
+      return _stopTurn();
+    }
+    if (controlledIntent == ControlledSpeechIntent.globalHelp) {
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
+        continueListening: true,
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.translateSingle ||
+        _isSingleSentenceChoice(normalized)) {
       return MainVoiceAssistantTurn(
         promptText:
             'Con bấm nút MAIN để bắt đầu nói. Khi nói xong, con bấm nút MAIN lần nữa nhé. Muốn dừng và gọi mình, con nhấn giữ nút MAIN.',
@@ -343,7 +469,8 @@ class MainVoiceAssistantFlow {
         ),
       );
     }
-    if (_isContinuousChoice(normalized)) {
+    if (controlledIntent == ControlledSpeechIntent.translateContinuous ||
+        _isContinuousChoice(normalized)) {
       return MainVoiceAssistantTurn(
         promptText: 'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
         continueListening: false,
@@ -368,6 +495,40 @@ class MainVoiceAssistantFlow {
     if (_looksLikePromptEcho(normalized)) {
       return const MainVoiceAssistantTurn(
         promptText: alternativeAfterLearningPrompt,
+        continueListening: true,
+      );
+    }
+    final controlledIntent = _controlledLexicon
+        .resolve(normalized, state: ControlledSpeechState.root)
+        ?.intent;
+    if (controlledIntent == ControlledSpeechIntent.globalStop) {
+      return _stopTurn();
+    }
+    if (controlledIntent == ControlledSpeechIntent.globalHelp) {
+      return const MainVoiceAssistantTurn(
+        promptText: alternativeAfterLearningPrompt,
+        continueListening: true,
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navCourse ||
+        controlledIntent == ControlledSpeechIntent.courseContinue) {
+      return _beginConfiguredTopicSelection();
+    }
+    if (controlledIntent == ControlledSpeechIntent.navVocabulary) {
+      return MainVoiceAssistantTurn(
+        promptText: 'Mình cùng học từ vựng nhé',
+        continueListening: false,
+        navigationAfterPrompt: VoiceNavigationIntent(
+          destination: VoiceNavigationDestination.vocabulary,
+          recognizedText: recognizedText.trim(),
+          matchedPhrase: 'hoc tu vung',
+        ),
+      );
+    }
+    if (controlledIntent == ControlledSpeechIntent.navTranslate) {
+      _stage = MainVoiceAssistantStage.chooseTranslationMode;
+      return const MainVoiceAssistantTurn(
+        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
         continueListening: true,
       );
     }
@@ -397,10 +558,41 @@ class MainVoiceAssistantFlow {
 
   MainVoiceAssistantTurn _handleActiveLearning(String normalized) {
     if (_looksLikePromptEcho(normalized)) {
-      return const MainVoiceAssistantTurn(
-        promptText: activeLearningPrompt,
+      return MainVoiceAssistantTurn(
+        promptText: _currentActiveLearningPrompt,
         continueListening: true,
       );
+    }
+    final controlledIntent = _resolveControlledIntent(normalized);
+    if (controlledIntent == ControlledSpeechIntent.globalHelp) {
+      return MainVoiceAssistantTurn(
+        promptText: _currentActiveLearningPrompt,
+        continueListening: true,
+      );
+    }
+    final controlledCommand = switch (controlledIntent) {
+      ControlledSpeechIntent.globalStop => ActiveLearningCommand.stop,
+      ControlledSpeechIntent.courseContinue => ActiveLearningCommand.resume,
+      ControlledSpeechIntent.courseNextSentence =>
+        ActiveLearningCommand.nextItem,
+      ControlledSpeechIntent.coursePreviousSentence =>
+        ActiveLearningCommand.previousItem,
+      ControlledSpeechIntent.courseReplayCurrent =>
+        ActiveLearningCommand.replayCurrent,
+      ControlledSpeechIntent.courseRestartCurrent =>
+        ActiveLearningCommand.restart,
+      ControlledSpeechIntent.courseNextLesson =>
+        ActiveLearningCommand.nextLesson,
+      ControlledSpeechIntent.coursePreviousLesson =>
+        ActiveLearningCommand.previousLesson,
+      ControlledSpeechIntent.vocabularyPracticeAgain =>
+        ActiveLearningCommand.vocabularyPracticeAgain,
+      ControlledSpeechIntent.vocabularyStars =>
+        ActiveLearningCommand.vocabularyStars,
+      _ => null,
+    };
+    if (controlledCommand != null) {
+      return _activeLearningTurn(controlledCommand);
     }
     if (_isLeaveActiveLearningChoice(normalized)) {
       _stage = MainVoiceAssistantStage.chooseAlternativeAfterLearning;
@@ -413,8 +605,8 @@ class MainVoiceAssistantFlow {
     if (command != null) {
       return _activeLearningTurn(command);
     }
-    return const MainVoiceAssistantTurn(
-      promptText: activeLearningPrompt,
+    return MainVoiceAssistantTurn(
+      promptText: _currentActiveLearningPrompt,
       continueListening: true,
     );
   }
@@ -432,6 +624,10 @@ class MainVoiceAssistantFlow {
       ActiveLearningCommand.restart => 'Mình học lại bài này từ đầu nhé',
       ActiveLearningCommand.stop => 'Đã dừng.',
       ActiveLearningCommand.exitToHome => 'Mình kết thúc bài học nhé',
+      ActiveLearningCommand.vocabularyPracticeAgain =>
+        'Mình cùng luyện lại nhé',
+      ActiveLearningCommand.vocabularyStars =>
+        'Mình xem lại những ngôi sao của con nhé',
     };
     return MainVoiceAssistantTurn(
       promptText: promptText,

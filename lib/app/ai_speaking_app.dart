@@ -508,6 +508,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       }
       final activated = await voiceController.activateFromMainButton(
         activeLearning: hasActiveModule,
+        activeLearningKind: _activeLearningModules.activeKind,
       );
       if (!activated && _activeModulePausedForMain) {
         await _resumeActiveModuleAfterMain();

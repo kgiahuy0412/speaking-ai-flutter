@@ -1,4 +1,5 @@
 import '../../../core/device/active_learning_module.dart';
+import '../domain/controlled_speech_lexicon.dart';
 
 /// Small deterministic grammar for commands spoken after MAIN is pressed
 /// while a lesson is active. It deliberately does not interpret lesson
@@ -6,7 +7,37 @@ import '../../../core/device/active_learning_module.dart';
 class ActiveLearningCommandResolver {
   const ActiveLearningCommandResolver();
 
+  static const ControlledSpeechLexicon _controlledLexicon =
+      ControlledSpeechLexicon();
+
   ActiveLearningCommand? resolve(String transcript) {
+    final controlled = _controlledLexicon.resolve(
+      transcript,
+      state: ControlledSpeechState.course,
+    );
+    final controlledCommand = switch (controlled?.intent) {
+      ControlledSpeechIntent.globalStop => ActiveLearningCommand.stop,
+      ControlledSpeechIntent.courseContinue => ActiveLearningCommand.resume,
+      ControlledSpeechIntent.courseNextSentence =>
+        ActiveLearningCommand.nextItem,
+      ControlledSpeechIntent.coursePreviousSentence =>
+        ActiveLearningCommand.previousItem,
+      ControlledSpeechIntent.courseReplayCurrent =>
+        ActiveLearningCommand.replayCurrent,
+      ControlledSpeechIntent.courseRestartCurrent =>
+        ActiveLearningCommand.restart,
+      ControlledSpeechIntent.courseNextLesson =>
+        ActiveLearningCommand.nextLesson,
+      ControlledSpeechIntent.coursePreviousLesson =>
+        ActiveLearningCommand.previousLesson,
+      _ => null,
+    };
+    if (controlledCommand != null) {
+      return controlledCommand;
+    }
+
+    // Preserve a small set of already-shipped aliases while the controlled
+    // V0.1 table becomes the primary grammar.
     final value = _normalize(transcript);
     if (value.isEmpty) {
       return null;

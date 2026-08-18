@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../data/vocabulary_store.dart';
 import '../domain/vocabulary_entry.dart';
@@ -21,6 +22,7 @@ class VocabularyHomeScreen extends StatefulWidget {
     required this.onReturnToConversation,
     required this.onHistory,
     required this.onSettings,
+    this.isActive = true,
     this.store = const VocabularyStore(),
     this.voicePromptService,
     this.translator,
@@ -31,6 +33,7 @@ class VocabularyHomeScreen extends StatefulWidget {
   final VoidCallback onReturnToConversation;
   final VoidCallback onHistory;
   final VoidCallback onSettings;
+  final bool isActive;
   final VocabularyStore store;
   final VoicePromptService? voicePromptService;
   final VocabularyTranslator? translator;
@@ -39,7 +42,8 @@ class VocabularyHomeScreen extends StatefulWidget {
   State<VocabularyHomeScreen> createState() => _VocabularyHomeScreenState();
 }
 
-class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
+class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
+    implements ActiveLearningModuleController {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   StreamSubscription<void>? _storeSubscription;
@@ -50,6 +54,9 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   bool _loading = true;
   bool _deleteMode = false;
   bool _translating = false;
+  bool _pausedForMainAssistant = false;
+  ActiveLearningModuleRegistry? _activeLearningRegistry;
+  Object? _activeLearningRegistration;
 
   @override
   void initState() {
@@ -63,7 +70,27 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final registry = ActiveLearningModuleScope.maybeOf(context);
+    if (!identical(registry, _activeLearningRegistry)) {
+      _unregisterActiveLearningModule();
+      _activeLearningRegistry = registry;
+    }
+    _syncActiveLearningRegistration();
+  }
+
+  @override
+  void didUpdateWidget(VocabularyHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _syncActiveLearningRegistration();
+    }
+  }
+
+  @override
   void dispose() {
+    _unregisterActiveLearningModule();
     _searchController
       ..removeListener(_refreshSearch)
       ..dispose();
@@ -73,6 +100,73 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen> {
       unawaited(_voicePromptService.dispose());
     }
     super.dispose();
+  }
+
+  void _syncActiveLearningRegistration() {
+    final registry = _activeLearningRegistry;
+    if (!widget.isActive || registry == null) {
+      _unregisterActiveLearningModule();
+      return;
+    }
+    _activeLearningRegistration ??= registry.register(this);
+  }
+
+  void _unregisterActiveLearningModule() {
+    final registration = _activeLearningRegistration;
+    if (registration == null) {
+      return;
+    }
+    _activeLearningRegistry?.unregister(registration);
+    _activeLearningRegistration = null;
+  }
+
+  @override
+  ActiveLearningModuleKind get moduleKind =>
+      ActiveLearningModuleKind.vocabulary;
+
+  @override
+  bool get isPausedForMain => _pausedForMainAssistant;
+
+  @override
+  Future<void> pauseForMainAssistant() async {
+    _pausedForMainAssistant = true;
+    await _voicePromptService.stop();
+  }
+
+  @override
+  Future<ActiveLearningCommandResult> handleMainCommand(
+    ActiveLearningCommand command,
+  ) async {
+    if (!mounted || !widget.isActive) {
+      return const ActiveLearningCommandResult.unavailable();
+    }
+    switch (command) {
+      case ActiveLearningCommand.stop:
+        await pauseForMainAssistant();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.resume:
+        _pausedForMainAssistant = false;
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+        _pausedForMainAssistant = false;
+        _openJourney(_VocabularyJourney.review);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyStars:
+        _pausedForMainAssistant = false;
+        _openJourney(_VocabularyJourney.stars);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.exitToHome:
+        _pausedForMainAssistant = false;
+        widget.onReturnToConversation();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.replayCurrent:
+      case ActiveLearningCommand.nextItem:
+      case ActiveLearningCommand.previousItem:
+      case ActiveLearningCommand.nextLesson:
+      case ActiveLearningCommand.previousLesson:
+      case ActiveLearningCommand.restart:
+        return const ActiveLearningCommandResult.unavailable();
+    }
   }
 
   @override

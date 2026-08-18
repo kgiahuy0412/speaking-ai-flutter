@@ -192,6 +192,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
+                      isActive: _page == 1,
                       translator: (input) async {
                         final translation = await widget.controller
                             .translateVocabulary(input);

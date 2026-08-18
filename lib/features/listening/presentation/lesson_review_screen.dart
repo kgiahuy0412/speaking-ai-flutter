@@ -467,6 +467,9 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
           _resumeFromMain(replay: true);
         }
         return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+      case ActiveLearningCommand.vocabularyStars:
+        return const ActiveLearningCommandResult.unavailable();
       case ActiveLearningCommand.exitToHome:
         await pauseForMainAssistant();
         if (!mounted) {
