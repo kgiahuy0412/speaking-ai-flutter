@@ -74,7 +74,7 @@ class MainVoiceAssistantFlow {
   static const String otherLearningPrompt =
       'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
   static const String activeLearningPrompt =
-      'Con muốn học câu tiếp theo, nghe câu trước hay con không học nữa?';
+      'Con muốn học câu tiếp theo, nghe câu trước, dừng lại hay không học nữa?';
   static const String alternativeAfterLearningPrompt =
       'Con muốn dịch sang tiếng Anh hay học từ vựng?';
   static const ActiveLearningCommandResolver _activeLearningCommandResolver =
@@ -349,7 +349,7 @@ class MainVoiceAssistantFlow {
     if (_isSingleSentenceChoice(normalized)) {
       return MainVoiceAssistantTurn(
         promptText:
-            'Con bấm nút MAIN để bắt đầu nói. Khi nói xong, con bấm nút MAIN lần nữa nhé. Muốn dừng và gọi mình, con nhấn giữ nút MAIN.',
+            'Con bấm nút MAIN để bắt đầu nói. Khi nói xong, con bấm nút MAIN lần nữa nhé. Muốn dừng và gọi mình, con nói dừng lại hoặc con muốn học cái khác.',
         continueListening: false,
         navigationAfterPrompt: VoiceNavigationIntent(
           destination: VoiceNavigationDestination.conversation,

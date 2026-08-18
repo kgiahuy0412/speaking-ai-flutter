@@ -76,6 +76,37 @@ void main() {
     expect(promptService.spokenTexts, isEmpty);
   });
 
+  test(
+    'manual MAIN stop asks the child to retry when Android reports no speech',
+    () async {
+      final promptService = _FakeVoicePromptService();
+      final controller = ConversationController(
+        audioInput: _SilentAudioInput(),
+        streamingSpeechInput: const _NoSpeechStreamingSpeechInput(),
+        playbackService: const _FakePlaybackService(),
+        voicePromptService: promptService,
+        repository: const DemoConversationRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+        webRuntimeOverride: false,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.startRecording(
+        noSpeechTimeout: const Duration(seconds: 5),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.phase, ConversationPhase.idle);
+      expect(controller.lastTurnEndReason, ConversationTurnEndReason.noSpeech);
+      expect(promptService.spokenTexts, <String>[
+        'Cô chưa nghe thấy con nói. Con nói lại nhé.',
+      ]);
+    },
+  );
+
   test('D10 long MAIN stops active playback immediately', () async {
     final playback = _ControllablePlaybackService();
     final controller = ConversationController(
@@ -294,6 +325,42 @@ class _ImmediateStreamingSpeechInput implements StreamingSpeechInput {
     firstResultMs: 100,
     finalAfterStopMs: 20,
   );
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _NoSpeechStreamingSpeechInput implements StreamingSpeechInput {
+  const _NoSpeechStreamingSpeechInput();
+
+  @override
+  String get label => 'ASR Android im lặng';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async {
+    throw const StreamingSpeechInputException(
+      'Không nghe thấy giọng nói.',
+      code: 'ANDROID_SPEECH_7',
+    );
+  }
 
   @override
   Future<void> cancel() async {}

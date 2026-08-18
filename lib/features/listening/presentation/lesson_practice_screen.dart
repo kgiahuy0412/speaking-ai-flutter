@@ -1281,6 +1281,21 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _restartCurrentLesson() async {
+    _recordingStartRequest += 1;
+    _recordingLifecycleGeneration += 1;
+    _attemptEvaluationRequest += 1;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+    await widget.mediaService.stopPlayback();
+    if (_recording || _recordingStartPending) {
+      await widget.mediaService.cancelRecording().catchError((Object _) {});
+    }
+    try {
+      await widget.mediaService.deleteRecordingsForLesson(widget.lesson.id);
+    } catch (_) {
+      // Local storage can be unavailable in a restricted browser session. The
+      // lesson progress is still reset so the child can start again.
+    }
     try {
       await widget.progressStore.clearSkippedSentences(widget.lesson.id);
       await widget.progressStore.clearNeedsPracticeSentences(widget.lesson.id);
@@ -1297,6 +1312,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _needsPracticeSentenceIndexes.clear();
       _recordingPath = null;
       _recordingDuration = null;
+      _recording = false;
+      _recordingStartPending = false;
+      _mediaBusy = false;
       _message = null;
     });
     await _activateCurrentSentence(autoPlay: true);

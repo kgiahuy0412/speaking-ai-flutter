@@ -76,6 +76,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   bool _isActivatingMainAssistant = false;
   bool _isStartingMainSpeakingTurn = false;
   bool _isFinishingMainSpeakingMode = false;
+  bool _isHandlingMainSpeakingNoSpeech = false;
   bool _hasMainSpeakingTurnStarted = false;
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
@@ -725,6 +726,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       _singleSentenceMainModeActive = false;
     }
     _hasMainSpeakingTurnStarted = false;
+    _isHandlingMainSpeakingNoSpeech = false;
     _mainSpeakingSessionController.enter();
     _synchronizeMainSpeakingSession();
   }
@@ -755,11 +757,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       isPlaying: controller.isPlaybackPlaying,
     );
     if (!_mainSpeakingSessionController.isActive ||
-        _isFinishingMainSpeakingMode) {
+        _isFinishingMainSpeakingMode ||
+        _isHandlingMainSpeakingNoSpeech) {
       return;
     }
 
     final turnEndReason = controller.lastTurnEndReason;
+    if (turnEndReason == ConversationTurnEndReason.completed) {
+      _mainSpeakingSessionController.markSpeechTurnCompleted();
+    }
     if (turnEndReason == ConversationTurnEndReason.commandHandled) {
       return;
     }
@@ -767,7 +773,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         controller.phase == ConversationPhase.idle &&
         (turnEndReason == ConversationTurnEndReason.noSpeech ||
             turnEndReason == ConversationTurnEndReason.tooShort)) {
-      unawaited(_finishMainSpeakingMode(sayGoodbye: true));
+      unawaited(_handleMainSpeakingNoSpeech());
       return;
     }
     if (_hasMainSpeakingTurnStarted &&
@@ -800,7 +806,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     _isStartingMainSpeakingTurn = true;
     try {
       await controller.startRecording(
-        noSpeechTimeout: const Duration(seconds: 10),
+        noSpeechTimeout: const Duration(seconds: 6),
         speakNoSpeechPrompt: false,
       );
       _hasMainSpeakingTurnStarted = controller.isRecording;
@@ -809,7 +815,49 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     }
   }
 
-  Future<void> _finishMainSpeakingMode({required bool sayGoodbye}) async {
+  Future<void> _handleMainSpeakingNoSpeech() async {
+    final controller = _controller;
+    if (controller == null ||
+        !_mainSpeakingSessionController.isActive ||
+        _isHandlingMainSpeakingNoSpeech ||
+        _isFinishingMainSpeakingMode) {
+      return;
+    }
+
+    _isHandlingMainSpeakingNoSpeech = true;
+    _hasMainSpeakingTurnStarted = false;
+    final action = _mainSpeakingSessionController.registerNoSpeechTurn();
+    var retry = false;
+    try {
+      if (action == MainSpeakingNoSpeechAction.retry) {
+        controller.clearMessage();
+        await controller.speakAssistantPrompt(
+          'Cô chưa nghe thấy con nói. Con nói lại nhé.',
+        );
+        retry = true;
+      } else {
+        await _finishMainSpeakingMode(
+          sayGoodbye: true,
+          goodbyeText:
+              'Tạm biệt con nhé, khi nào con cần gì hãy nhấn MAIN nhé.',
+        );
+      }
+    } finally {
+      _isHandlingMainSpeakingNoSpeech = false;
+    }
+
+    if (retry &&
+        _mainSpeakingSessionController.isActive &&
+        !_isFinishingMainSpeakingMode) {
+      controller.clearMessage();
+      await _startNextMainSpeakingTurn();
+    }
+  }
+
+  Future<void> _finishMainSpeakingMode({
+    required bool sayGoodbye,
+    String goodbyeText = 'Tạm biệt con nhé.',
+  }) async {
     final controller = _controller;
     if (!_mainSpeakingSessionController.isActive ||
         _isFinishingMainSpeakingMode) {
@@ -824,7 +872,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     try {
       if (sayGoodbye && controller != null) {
         controller.clearMessage();
-        await controller.speakAssistantPrompt('tạm biệt con nhé');
+        await controller.speakAssistantPrompt(goodbyeText);
       }
     } finally {
       _isFinishingMainSpeakingMode = false;
@@ -835,15 +883,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   }
 
   bool _matchesMainSpeakingCommand(String recognizedText) {
-    return _mainSpeakingSessionController.isActive &&
-        _mainSpeakingCommandResolver.resolve(recognizedText) != null;
+    // ConversationController owns every Vietnamese -> English recording flow.
+    // Listening pronunciation recordings use their own controller, so this can
+    // safely stay enabled for every conversation mode without swallowing an
+    // English lesson answer.
+    return _mainSpeakingCommandResolver.resolve(recognizedText) != null;
   }
 
   Future<void> _handleMainSpeakingCommand(String recognizedText) async {
     final voiceController = _voiceNavigationController;
     final controller = _controller;
-    if (!_mainSpeakingSessionController.isActive ||
-        voiceController == null ||
+    final isContinuousSpeaking = _mainSpeakingSessionController.isActive;
+    final isSingleSentenceSpeaking = _singleSentenceMainModeActive;
+    if (voiceController == null ||
         controller == null ||
         _isFinishingMainSpeakingMode) {
       return;
@@ -856,18 +908,22 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
-    _mainSpeakingSessionController.exit();
+    if (isContinuousSpeaking) {
+      _mainSpeakingSessionController.exit();
+    }
+    if (isSingleSentenceSpeaking) {
+      _setSingleSentenceMainMode(false);
+    }
     controller.clearMessage();
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      switch (command) {
-        case MainSpeakingCommand.stop:
-          await controller.speakAssistantPrompt('Đã dừng.');
-        case MainSpeakingCommand.otherLearning:
-          await voiceController.activateOtherLearningFromSpeaking();
-      }
+      // Both commands leave translation before any English result is shown or
+      // played, then open the normal MAIN assistant routing menu. Keeping one
+      // exit path avoids making the child remember a different gesture for the
+      // single-sentence and continuous modes.
+      await voiceController.activateOtherLearningFromSpeaking();
     } finally {
       _isFinishingMainSpeakingMode = false;
       if (mounted) {

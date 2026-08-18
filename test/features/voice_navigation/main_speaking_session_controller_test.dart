@@ -55,4 +55,27 @@ void main() {
 
     expect(controller.state, MainSpeakingSessionState.inactive);
   });
+
+  test('retries the first silent turn and exits after the second', () {
+    final controller = MainSpeakingSessionController();
+    addTearDown(controller.dispose);
+
+    controller.enter();
+    expect(controller.registerNoSpeechTurn(), MainSpeakingNoSpeechAction.retry);
+    expect(controller.consecutiveNoSpeechTurns, 1);
+    expect(controller.registerNoSpeechTurn(), MainSpeakingNoSpeechAction.exit);
+    expect(controller.consecutiveNoSpeechTurns, 2);
+  });
+
+  test('a successful turn resets the consecutive silence count', () {
+    final controller = MainSpeakingSessionController();
+    addTearDown(controller.dispose);
+
+    controller.enter();
+    controller.registerNoSpeechTurn();
+    controller.markSpeechTurnCompleted();
+
+    expect(controller.consecutiveNoSpeechTurns, 0);
+    expect(controller.registerNoSpeechTurn(), MainSpeakingNoSpeechAction.retry);
+  });
 }

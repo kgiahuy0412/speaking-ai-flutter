@@ -62,6 +62,48 @@ void main() {
     expect(await store.readForSentence('lesson-1', 'sentence-1'), hasLength(1));
     expect(await store.readForSentence('lesson-1', 'sentence-2'), hasLength(1));
   });
+
+  test('removes every recording for one lesson and preserves others', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'lesson-recording-history-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final store = LessonRecordingHistoryStore(
+      customPath: '${directory.path}${Platform.pathSeparator}history.json',
+    );
+    final time = DateTime.utc(2026, 8, 18, 8);
+
+    await store.addSuccessful(_entry(1, time));
+    await store.addSuccessful(
+      _entry(2, time.add(const Duration(seconds: 1)), sentenceId: 'sentence-2'),
+    );
+    await store.addSuccessful(
+      LessonRecordingHistoryEntry(
+        id: 'other-recording',
+        lessonId: 'lesson-2',
+        lessonTitle: 'Bài khác',
+        sentenceId: 'other-sentence',
+        sentenceNumber: 1,
+        english: 'Goodbye!',
+        vietnamese: 'Tạm biệt!',
+        filePath: 'other-recording.m4a',
+        duration: const Duration(seconds: 2),
+        createdAt: time.add(const Duration(seconds: 2)),
+      ),
+    );
+
+    final removed = await store.removeLesson('lesson-1');
+
+    expect(
+      removed,
+      containsAll(<String>['recording-1.m4a', 'recording-2.m4a']),
+    );
+    expect(await store.readForSentence('lesson-1', 'sentence-1'), isEmpty);
+    expect(await store.readForSentence('lesson-1', 'sentence-2'), isEmpty);
+    expect((await store.readAll()).map((entry) => entry.id), <String>[
+      'other-recording',
+    ]);
+  });
 }
 
 LessonRecordingHistoryEntry _entry(

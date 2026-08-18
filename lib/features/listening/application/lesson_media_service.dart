@@ -297,6 +297,13 @@ class LessonMediaService {
 
   Future<void> deleteRecording(String path) => deleteLessonRecording(path);
 
+  Future<void> deleteRecordingsForLesson(String lessonId) async {
+    final paths = await historyStore.removeLesson(lessonId);
+    for (final path in paths) {
+      await deleteLessonRecording(path);
+    }
+  }
+
   Future<void> dispose() async {
     await _recordingOperation;
     await _recorder?.dispose();

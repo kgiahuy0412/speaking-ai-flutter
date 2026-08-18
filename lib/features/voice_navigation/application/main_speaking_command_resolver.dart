@@ -38,15 +38,21 @@ class MainSpeakingCommandResolver {
   static const Set<String> _stopPhrases = <String>{
     'dung',
     'dung lai',
+    'con muon dung',
+    'con muon dung lai',
     'dung dich',
     'dung dich lai',
     'dung dich lien tuc',
     'ngung',
     'ngung lai',
+    'con muon ngung',
+    'con muon ngung lai',
     'ngung dich',
     'thoi dung lai',
+    'thoi con dung lai',
     'khong dich nua',
     'con khong dich nua',
+    'con khong muon dich nua',
     'thoat dich',
   };
 

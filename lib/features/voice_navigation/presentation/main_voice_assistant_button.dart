@@ -110,7 +110,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
         return Semantics(
           button: true,
           label: singleSentenceModeActive
-              ? '$label. Bấm ngắn để bắt đầu hoặc kết thúc câu; nhấn giữ một phẩy năm giây để gọi trợ lý.'
+              ? '$label. Bấm ngắn để bắt đầu hoặc kết thúc câu; muốn dừng và gọi trợ lý, hãy nói dừng lại.'
               : canActivate
               ? 'Main, gọi Bi cô để chọn tính năng'
               : isSpeakingMode

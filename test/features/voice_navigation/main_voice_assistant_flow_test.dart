@@ -76,7 +76,8 @@ void main() {
     expect(single.continueListening, isFalse);
     expect(single.promptText, contains('bấm nút MAIN để bắt đầu nói'));
     expect(single.promptText, contains('bấm nút MAIN lần nữa'));
-    expect(single.promptText, contains('nhấn giữ nút MAIN'));
+    expect(single.promptText, contains('con nói dừng lại'));
+    expect(single.promptText, contains('con muốn học cái khác'));
     expect(
       single.navigationAfterPrompt?.destination,
       VoiceNavigationDestination.conversation,
@@ -197,6 +198,15 @@ void main() {
     expect(turn.promptText, 'Mình học câu tiếp theo nhé');
     expect(turn.activeLearningCommand, ActiveLearningCommand.nextItem);
     expect(turn.continueListening, isFalse);
+  });
+
+  test('active lesson prompt offers pause and leaving the lesson', () {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+
+    expect(
+      flow.beginActiveLearning(),
+      'Con muốn học câu tiếp theo, nghe câu trước, dừng lại hay không học nữa?',
+    );
   });
 
   test('accepts a natural phrase containing next', () async {

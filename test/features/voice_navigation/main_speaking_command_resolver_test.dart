@@ -9,6 +9,7 @@ void main() {
       'Còn cái gì khác để học không?',
       'Có gì khác không?',
       'Con muốn học cái khác',
+      'Con muốn học thứ khác',
       'Cho con học bài khác',
       'Con không muốn luyện nói nữa',
     ]) {
@@ -19,8 +20,10 @@ void main() {
   test('detects D10/E04 stop phrases without matching ordinary sentences', () {
     for (final text in <String>[
       'Dừng lại',
+      'Con muốn dừng lại',
       'Dừng dịch liên tục',
       'Ngừng lại',
+      'Con muốn ngừng lại',
       'Con không dịch nữa',
       'Thoát dịch',
     ]) {

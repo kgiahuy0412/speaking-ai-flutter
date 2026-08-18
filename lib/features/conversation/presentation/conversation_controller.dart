@@ -2102,7 +2102,7 @@ class ConversationController extends ChangeNotifier {
           streamingCapture = await _streamingSpeechInput!.stop();
           audioCapture = streamingCapture.recordedAudio;
         } catch (error) {
-          if (!manual && _isNoSpeechRecognitionError(error)) {
+          if (_isNoSpeechRecognitionError(error)) {
             recognizerReportedNoSpeech = true;
           } else {
             _usingStreamingSpeech = false;
@@ -2182,7 +2182,7 @@ class ConversationController extends ChangeNotifier {
               audioCapture,
             );
           } catch (error) {
-            if (!manual && _isNoSpeechRecognitionError(error)) {
+            if (_isNoSpeechRecognitionError(error)) {
               recognizerReportedNoSpeech = true;
             } else {
               _usingRecordedAudioSpeech = false;
@@ -3017,7 +3017,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   static const _unclearSpeechMessage =
-      'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.';
+      'Cô chưa nghe thấy con nói. Con nói lại nhé.';
 
   void _handleConversationError(Object error) {
     if (error is CodedConversationException &&
@@ -3030,9 +3030,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> _speakUnclearSpeechPrompt() async {
-    await _voicePromptService?.speak(
-      'Con đưa micro lại gần và nói rõ hơn nhé.',
-    );
+    await _voicePromptService?.speak(_unclearSpeechMessage);
   }
 
   Future<void> speakAssistantPrompt(String text) async {

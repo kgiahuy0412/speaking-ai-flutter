@@ -122,4 +122,26 @@ class LessonRecordingHistoryStore {
         .map((candidate) => candidate.filePath)
         .toList(growable: false);
   }
+
+  /// Removes every saved attempt for [lessonId] and returns the associated
+  /// media paths so the caller can delete/revoke the actual audio files.
+  ///
+  /// An explicit "learn again from the beginning" action represents a fresh
+  /// practice session. Keeping attempts from the previous run would make the
+  /// first sentence look completed and can prevent the guided recorder from
+  /// starting again.
+  Future<List<String>> removeLesson(String lessonId) async {
+    final entries = await readAll();
+    final removedPaths = entries
+        .where((entry) => entry.lessonId == lessonId)
+        .map((entry) => entry.filePath)
+        .where((path) => path.trim().isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    entries.removeWhere((entry) => entry.lessonId == lessonId);
+    await _persistence.write(
+      jsonEncode(entries.map((entry) => entry.toJson()).toList()),
+    );
+    return removedPaths;
+  }
 }

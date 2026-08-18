@@ -389,7 +389,7 @@ class _MemoryProgressStore extends ListeningProgressStore {
 class _SilentMediaService extends LessonMediaService {
   _SilentMediaService({this.existingRecordingPath});
 
-  final String? existingRecordingPath;
+  String? existingRecordingPath;
   final List<Uri> playedUris = <Uri>[];
   bool recording = false;
   int startRecordingCount = 0;
@@ -400,6 +400,11 @@ class _SilentMediaService extends LessonMediaService {
     required int sentenceNumber,
     String? sentenceId,
   }) async => existingRecordingPath;
+
+  @override
+  Future<void> deleteRecordingsForLesson(String lessonId) async {
+    existingRecordingPath = null;
+  }
 
   @override
   Future<void> startRecording({

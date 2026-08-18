@@ -10,6 +10,8 @@ enum MainSpeakingSessionState {
   playing,
 }
 
+enum MainSpeakingNoSpeechAction { retry, exit }
+
 /// Tracks the context-sensitive Main button while the child practices speech.
 ///
 /// The ten-second timeout only runs while Main is waiting to start a new turn.
@@ -23,16 +25,19 @@ class MainSpeakingSessionController extends ChangeNotifier {
 
   Timer? _idleTimer;
   MainSpeakingSessionState _state = MainSpeakingSessionState.inactive;
+  int _consecutiveNoSpeechTurns = 0;
   bool _disposed = false;
 
   MainSpeakingSessionState get state => _state;
   bool get isActive => _state != MainSpeakingSessionState.inactive;
   bool get isReady => _state == MainSpeakingSessionState.ready;
+  int get consecutiveNoSpeechTurns => _consecutiveNoSpeechTurns;
 
   void enter() {
     if (_disposed) {
       return;
     }
+    _consecutiveNoSpeechTurns = 0;
     _setState(MainSpeakingSessionState.ready, restartReadyTimeout: true);
   }
 
@@ -42,7 +47,24 @@ class MainSpeakingSessionController extends ChangeNotifier {
     }
     _idleTimer?.cancel();
     _idleTimer = null;
+    _consecutiveNoSpeechTurns = 0;
     _setState(MainSpeakingSessionState.inactive);
+  }
+
+  /// The first silent continuous turn gets one child-friendly retry. A second
+  /// consecutive silent turn exits the hands-free session.
+  MainSpeakingNoSpeechAction registerNoSpeechTurn() {
+    if (_disposed || !isActive) {
+      return MainSpeakingNoSpeechAction.exit;
+    }
+    _consecutiveNoSpeechTurns += 1;
+    return _consecutiveNoSpeechTurns == 1
+        ? MainSpeakingNoSpeechAction.retry
+        : MainSpeakingNoSpeechAction.exit;
+  }
+
+  void markSpeechTurnCompleted() {
+    _consecutiveNoSpeechTurns = 0;
   }
 
   void synchronize({

@@ -449,6 +449,7 @@ void main() {
 
     expect(mediaService.startedSentenceIds.last, 'GUIDED-FLOW_S1');
     expect(mediaService.recording, isTrue);
+    expect(mediaService.deletedLessonIds, <String>['guided-flow']);
     expect(find.text('Sentence 1'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1711,12 +1712,14 @@ ListeningTopicContent _topicContent(List<ListeningLessonContent> lessons) {
 }
 
 class _GuidedMediaService extends LessonMediaService {
-  _GuidedMediaService({this.recordedSentenceNumbers = const <int>{}});
+  _GuidedMediaService({Set<int> recordedSentenceNumbers = const <int>{}})
+    : recordedSentenceNumbers = <int>{...recordedSentenceNumbers};
 
   final Set<int> recordedSentenceNumbers;
   bool recording = false;
   final List<Uri> playedUris = <Uri>[];
   final List<String> startedSentenceIds = <String>[];
+  final List<String> deletedLessonIds = <String>[];
 
   @override
   Future<String?> existingRecording({
@@ -1726,6 +1729,12 @@ class _GuidedMediaService extends LessonMediaService {
   }) async => recordedSentenceNumbers.contains(sentenceNumber)
       ? 'C:\\recordings\\sentence-$sentenceNumber.m4a'
       : null;
+
+  @override
+  Future<void> deleteRecordingsForLesson(String lessonId) async {
+    deletedLessonIds.add(lessonId);
+    recordedSentenceNumbers.clear();
+  }
 
   @override
   Future<void> startRecording({
