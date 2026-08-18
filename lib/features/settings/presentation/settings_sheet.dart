@@ -428,8 +428,8 @@ class SettingsSheet extends StatelessWidget {
           SnackBar(
             content: Text(
               context.tr(
-                'Đã kết nối BLE Control. Hãy bấm MAIN để kiểm tra Raw Hex.',
-                'BLE 控制已连接。请按 MAIN 检查 Raw Hex。',
+                'Đã kết nối BLE Control. MAIN Raw Hex đã sẵn sàng.',
+                'BLE 控制已连接。MAIN Raw Hex 已可使用。',
               ),
             ),
           ),
@@ -1244,8 +1244,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
               value: status.protocolConfirmed
                   ? context.tr('Đã xác nhận', '已确认')
                   : context.tr(
-                      'Chẩn đoán raw hex • chưa điều khiển APP',
-                      'Raw Hex 诊断 • 尚未控制 APP',
+                      'MAIN Raw Hex đã điều khiển APP • chưa gửi APP State',
+                      'MAIN Raw Hex 已控制 APP • 尚未发送 APP State',
                     ),
             ),
             if (events.isNotEmpty) ...<Widget>[
@@ -1695,8 +1695,8 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
                     '已确认 • 控制开始/停止录音',
                   )
                 : context.tr(
-                    'Chỉ ghi Raw Hex • chờ ODM xác nhận packet',
-                    '仅记录 Raw Hex • 等待 ODM 确认数据包',
+                    'Raw Hex đã bật • điều khiển ghi/dừng',
+                    'Raw Hex 已启用 • 控制开始/停止录音',
                   ),
           ),
           if (message != null && message!.trim().isNotEmpty) ...<Widget>[

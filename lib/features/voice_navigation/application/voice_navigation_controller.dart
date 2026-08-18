@@ -151,11 +151,7 @@ class VoiceNavigationController extends ChangeNotifier {
   }) async {
     return _activateMainAssistantFlow(
       activeLearning
-          ? () => _mainAssistantFlow.beginActiveLearning(
-              kind:
-                  activeLearningKind ??
-                  ActiveLearningModuleKind.listeningLesson,
-            )
+          ? _mainAssistantFlow.beginActiveLearning
           : _mainAssistantFlow.begin,
     );
   }

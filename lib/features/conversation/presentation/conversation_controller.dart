@@ -673,7 +673,7 @@ class ConversationController extends ChangeNotifier {
       await control.connect(device.id);
       transientMessage = aiv0BleStatus.protocolConfirmed
           ? 'BLE Control AIV0 đã kết nối; MAIN đã sẵn sàng.'
-          : 'BLE Control đã kết nối ở chế độ chẩn đoán. Hãy bấm MAIN để lấy raw hex từ ODM.';
+          : 'BLE Control đã kết nối; MAIN Raw Hex đã sẵn sàng.';
       notifyListeners();
       await _syncAiv0AppState();
     } catch (error) {
@@ -696,9 +696,8 @@ class ConversationController extends ChangeNotifier {
     if (_aiv0ButtonEventLog.length > 12) {
       _aiv0ButtonEventLog.removeRange(12, _aiv0ButtonEventLog.length);
     }
-    if (!event.isDraftPacket) {
-      transientMessage =
-          'Đã nhận raw hex từ H20: ${event.rawHex}. Chưa điều khiển APP vì ODM chưa xác nhận định dạng packet.';
+    if (!event.isActionable) {
+      transientMessage = 'Đã nhận raw hex chưa hỗ trợ từ H20: ${event.rawHex}.';
       notifyListeners();
       return;
     }

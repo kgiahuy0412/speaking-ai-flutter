@@ -140,7 +140,7 @@ void main() {
     },
   );
 
-  test('unconfirmed MAIN remains raw-only and never starts capture', () async {
+  test('observed raw MAIN toggles capture without APP State writes', () async {
     final aiv0 = _FakeAiv0BleControl(protocolConfirmed: false);
     final input = _FakeAudioInput();
     final controller = ConversationController(
@@ -153,13 +153,13 @@ void main() {
     );
     await controller.setH20HardwareTestMode(true);
 
-    aiv0.emitRaw();
+    aiv0.emitObservedRawMain();
     await _flushAsyncEvents();
 
-    expect(input.startCount, 0);
-    expect(controller.h20HardwareTestPhase, H20HardwareTestPhase.idle);
+    expect(input.startCount, 1);
+    expect(controller.h20HardwareTestPhase, H20HardwareTestPhase.recording);
     expect(controller.aiv0ButtonEventLog, hasLength(1));
-    expect(controller.transientMessage, contains('Chưa điều khiển APP'));
+    expect(aiv0.appStateWrites, 0);
     controller.dispose();
   });
 
@@ -429,11 +429,28 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
     );
   }
 
-  void emitRaw() {
+  void emitObservedRawMain() {
     _buttons.add(
       Aiv0ButtonEvent(
-        rawBytes: Uint8List.fromList(<int>[0xAA, 0x01, 0x00]),
+        rawBytes: Uint8List.fromList(<int>[
+          0x01,
+          0x01,
+          0x10,
+          0x01,
+          0x01,
+          0x04,
+          0x3E,
+          0x00,
+          0x3A,
+          0xF2,
+          0x0B,
+          0x00,
+        ]),
         receivedAt: DateTime.now(),
+        button: Aiv0Button.main,
+        gesture: Aiv0ButtonGesture.shortPress,
+        sequence: 0x10,
+        isObservedH20Packet: true,
       ),
     );
   }
@@ -458,7 +475,7 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
     required Aiv0AppResult result,
     int sequence = 0,
   }) async {
-    appStateWrites += 1;
+    if (protocolConfirmed) appStateWrites += 1;
   }
 
   @override

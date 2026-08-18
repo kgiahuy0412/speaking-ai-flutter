@@ -528,12 +528,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       return MainButtonActionResult.busy;
     }
     final controller = _controller;
-    // Keep the existing offline H20 diagnostic available until the real
-    // hardware packet contract is confirmed.
-    if (event.source == MainButtonSource.ble &&
-        (controller?.h20HardwareTestModeEnabled ?? false)) {
-      return controller!.handleBleMainShortPress(event);
-    }
+    // Physical BLE MAIN and the on-screen MAIN must always have identical
+    // application behavior. Hardware loopback remains available through the
+    // explicit buttons in Settings; enabling diagnostics must not hijack the
+    // child's physical MAIN button.
     if (_singleSentenceMainModeActive) {
       if (controller == null ||
           controller.isPreparingMicrophone ||

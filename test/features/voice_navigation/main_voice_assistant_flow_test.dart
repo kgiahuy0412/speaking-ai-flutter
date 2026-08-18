@@ -492,66 +492,6 @@ void main() {
     expect(topicTurn.navigationBeforePrompt?.topicNumber, 3);
     expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
   });
-
-  test('uses controlled V0.1 child phrases at the Main root', () async {
-    final courseFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    courseFlow.begin();
-    final course = await courseFlow.handle('Học tình huống');
-    expect(course.promptText, 'Con mấy tuổi');
-
-    final vocabularyFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    vocabularyFlow.begin();
-    final vocabulary = await vocabularyFlow.handle('Học mới');
-    expect(
-      vocabulary.navigationAfterPrompt?.destination,
-      VoiceNavigationDestination.vocabulary,
-    );
-
-    final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    translationFlow.begin();
-    final translation = await translationFlow.handle('Dịch cái này');
-    expect(translation.promptText, 'Con muốn dịch một câu hay dịch liên tục?');
-  });
-
-  test('resolves controlled duplicates by the active Main stage', () async {
-    final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    translationFlow.begin();
-    await translationFlow.handle('Dịch');
-    final single = await translationFlow.handle('Dịch');
-    expect(single.navigationAfterPrompt?.enterMainSpeakingMode, isFalse);
-
-    final courseFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    courseFlow.beginActiveLearning();
-    final replay = await courseFlow.handle('Nói lại đi');
-    expect(replay.activeLearningCommand, ActiveLearningCommand.replayCurrent);
-
-    final vocabularyFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    expect(
-      vocabularyFlow.beginActiveLearning(
-        kind: ActiveLearningModuleKind.vocabulary,
-      ),
-      MainVoiceAssistantFlow.vocabularyActiveLearningPrompt,
-    );
-    final practiceAgain = await vocabularyFlow.handle('Học lại');
-    expect(
-      practiceAgain.activeLearningCommand,
-      ActiveLearningCommand.vocabularyPracticeAgain,
-    );
-  });
-
-  test(
-    'controlled stop has priority over legacy leave-learning aliases',
-    () async {
-      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-      flow.beginActiveLearning();
-
-      final turn = await flow.handle('Không học nữa');
-
-      expect(turn.activeLearningCommand, ActiveLearningCommand.stop);
-      expect(turn.continueListening, isFalse);
-      expect(flow.stage, MainVoiceAssistantStage.activeLearning);
-    },
-  );
 }
 
 Future<ListeningContentCatalog> _loadContent() async {

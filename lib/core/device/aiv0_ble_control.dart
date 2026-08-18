@@ -67,6 +67,7 @@ class Aiv0ButtonEvent {
     this.flags,
     this.batteryPercent,
     this.uptimeMilliseconds,
+    this.isObservedH20Packet = false,
     this.isDraftPacket = false,
     this.isDuplicate = false,
   });
@@ -80,8 +81,14 @@ class Aiv0ButtonEvent {
   final int? flags;
   final int? batteryPercent;
   final int? uptimeMilliseconds;
+  final bool isObservedH20Packet;
   final bool isDraftPacket;
   final bool isDuplicate;
+
+  /// Whether this notification has enough information to enter the unified
+  /// MAIN handler. Observed H20 packets are actionable even while the separate
+  /// APP State write packet remains unconfirmed.
+  bool get isActionable => isObservedH20Packet || isDraftPacket;
 
   String get rawHex => rawBytes
       .map((byte) => byte.toRadixString(16).padLeft(2, '0').toUpperCase())
@@ -104,6 +111,41 @@ class Aiv0DraftProtocolCodec {
     String? deviceId,
     DateTime? receivedAt,
   }) {
+    // Real H20 firmware 1.0.0 packet observed on 9E3B0002:
+    //   01 BB SS GG FF FF PP 00 UU UU UU UU
+    // BB is MAIN (01), SS increments once per press, GG is the gesture,
+    // PP is the battery percentage and UU is uptime in milliseconds (LE).
+    //
+    // Decode this independently from [confirmed]. That flag still protects
+    // the unconfirmed 8-byte APP State writer; receiving MAIN must not require
+    // sending that draft packet back to the device.
+    final isObservedH20Packet =
+        bytes.length == buttonPacketLength &&
+        bytes[0] == protocolVersion &&
+        bytes[1] == 0x01 &&
+        bytes[3] >= 0x01 &&
+        bytes[3] <= 0x03;
+    if (isObservedH20Packet) {
+      final data = ByteData.sublistView(bytes);
+      return Aiv0ButtonEvent(
+        rawBytes: bytes,
+        deviceId: deviceId,
+        receivedAt: receivedAt ?? DateTime.now(),
+        button: Aiv0Button.main,
+        gesture: switch (bytes[3]) {
+          0x01 => Aiv0ButtonGesture.shortPress,
+          0x02 => Aiv0ButtonGesture.longPress,
+          0x03 => Aiv0ButtonGesture.release,
+          _ => Aiv0ButtonGesture.unknown,
+        },
+        sequence: bytes[2],
+        flags: data.getUint16(4, Endian.little),
+        batteryPercent: data.getUint16(6, Endian.little).clamp(0, 100),
+        uptimeMilliseconds: data.getUint32(8, Endian.little),
+        isObservedH20Packet: true,
+      );
+    }
+
     if (!confirmed ||
         bytes.length != buttonPacketLength ||
         bytes[0] != protocolVersion) {
@@ -401,6 +443,7 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
           flags: buttonEvent.flags,
           batteryPercent: buttonEvent.batteryPercent,
           uptimeMilliseconds: buttonEvent.uptimeMilliseconds,
+          isObservedH20Packet: buttonEvent.isObservedH20Packet,
           isDraftPacket: buttonEvent.isDraftPacket,
           isDuplicate: event['duplicate'] == true,
         ),

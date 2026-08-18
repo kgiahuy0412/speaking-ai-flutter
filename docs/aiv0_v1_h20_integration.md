@@ -21,15 +21,33 @@
 | Battery | `180F / 2A19` | Đọc mức pin |
 | Firmware Revision | `180A / 2A26` | Đọc chuỗi phiên bản firmware |
 
-## Chế độ an toàn trước khi ODM xác nhận raw hex
+## Packet MAIN thực tế của H20 firmware 1.0.0
+
+Packet đã quan sát trên characteristic `9E3B0002`:
+
+```text
+01 01 10 01 01 04 3E 00 3A F2 0B 00
+```
+
+- `byte[1]` là mã MAIN (`01`).
+- `byte[2]` là sequence 8 bit, tăng một đơn vị sau mỗi lần bấm.
+- `byte[3]` là thao tác (`01` nhấn ngắn, `02` nhấn giữ, `03` thả nút).
+- `byte[4..5]` là flags little-endian.
+- `byte[6..7]` là pin little-endian.
+- `byte[8..11]` là uptime millisecond little-endian.
+
+MAIN Raw Hex được giải mã và chuyển vào cùng `MainButtonCoordinator` với nút
+MAIN trên APK. Nút âm lượng tiếp tục do Android/HFP xử lý và không đi qua luồng
+này.
+
+## APP State chưa được xác nhận
 
 Mặc định `AIV0_DRAFT_PROTOCOL_CONFIRMED=false`:
 
 - APK kết nối GATT, đọc pin/firmware và nhận Indication.
 - APK hiển thị thời gian và raw hex MAIN trên màn hình Cài đặt.
-- APK chưa diễn giải packet và chưa gửi APP State 8 byte.
-- MAIN vật lý chưa điều khiển ghi âm, tránh cố định sai giao thức firmware.
-- Mọi mã nút khác MAIN được ghi raw và bỏ qua.
+- APK diễn giải packet MAIN thực tế nhưng chưa gửi APP State 8 byte.
+- Packet khác định dạng MAIN ở trên vẫn chỉ được ghi raw và bỏ qua.
 
 Có thể lấy log raw khi cắm điện thoại Android vào máy tính:
 
@@ -37,7 +55,7 @@ Có thể lấy log raw khi cắm điện thoại Android vào máy tính:
 adb logcat -v time Aiv0BleControl:I *:S
 ```
 
-Sau khi ODM gửi raw hex MAIN và xác nhận đúng byte layout, cập nhật codec nếu cần, chạy test rồi build với:
+Chỉ sau khi ODM xác nhận riêng định dạng APP State 8 byte mới build với:
 
 ```powershell
 flutter build apk --release `
@@ -47,7 +65,7 @@ flutter build apk --release `
 
 Không bật `ENABLE_LEGACY_BLE_AUDIO` hoặc `PREFER_BLE_STREAMING` cho mẫu V1.
 
-## Luồng nút khi giao thức đã được xác nhận
+## Luồng nút MAIN
 
 - MAIN giả lập trên APP và MAIN BLE cùng đi qua `MainButtonCoordinator` và có
   cùng ngữ nghĩa trong chế độ sử dụng bình thường.
@@ -67,10 +85,10 @@ Không bật `ENABLE_LEGACY_BLE_AUDIO` hoặc `PREFER_BLE_STREAMING` cho mẫu V
   - PLAYING của bài học → dừng phát và giữ nguyên câu.
   - PROCESSING backend → trả BUSY, không hủy request đang xử lý.
   - RELEASE sau LONG_PRESS chỉ kết thúc gesture, không dừng lần hai.
-- Riêng màn hình kiểm tra phần cứng H20 offline, MAIN BLE vẫn bật/dừng bản ghi
-  loopback cục bộ để kiểm thử mic/loa mà không gọi backend.
 - Packet trùng bị bỏ qua và trả DUPLICATE.
-- Trong màn hình kiểm tra offline, MAIN bắt đầu/dừng bản ghi cục bộ và phát lại qua H20; không gọi backend.
+- Trong màn hình kiểm tra offline, nút `Thu thử tối đa 5 giây` bắt đầu bản ghi
+  cục bộ và phát lại qua H20; không gọi backend. MAIN BLE vẫn gọi trợ lý giống
+  MAIN ảo, kể cả khi chế độ kiểm tra đang bật.
 
 ## Kiểm tra phần cứng offline
 

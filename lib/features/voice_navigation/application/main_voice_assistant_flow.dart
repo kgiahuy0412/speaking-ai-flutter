@@ -616,6 +616,10 @@ class MainVoiceAssistantFlow {
       ActiveLearningCommand.restart => 'Mình học lại bài này từ đầu nhé',
       ActiveLearningCommand.stop => 'Đã dừng.',
       ActiveLearningCommand.exitToHome => 'Mình kết thúc bài học nhé',
+      ActiveLearningCommand.vocabularyPracticeAgain =>
+        'Mình cùng luyện lại nhé',
+      ActiveLearningCommand.vocabularyStars =>
+        'Mình xem lại những ngôi sao của con nhé',
     };
     return MainVoiceAssistantTurn(
       promptText: promptText,

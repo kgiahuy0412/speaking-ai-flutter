@@ -5,16 +5,88 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Aiv0DraftProtocolCodec', () {
-    test('keeps raw packet diagnostic-only before ODM confirmation', () {
+    test('decodes observed H20 MAIN packet without enabling APP State', () {
       const codec = Aiv0DraftProtocolCodec(confirmed: false);
       final event = codec.decodeButtonEvent(
-        Uint8List.fromList(<int>[1, 1, 1, 0, 42, 0, 88, 0, 0xD2, 0x04, 0, 0]),
+        Uint8List.fromList(<int>[
+          0x01,
+          0x01,
+          0x10,
+          0x01,
+          0x01,
+          0x04,
+          0x3E,
+          0x00,
+          0x3A,
+          0xF2,
+          0x0B,
+          0x00,
+        ]),
       );
 
+      expect(event.isObservedH20Packet, isTrue);
       expect(event.isDraftPacket, isFalse);
+      expect(event.isActionable, isTrue);
+      expect(event.button, Aiv0Button.main);
+      expect(event.gesture, Aiv0ButtonGesture.shortPress);
+      expect(event.sequence, 0x10);
+      expect(event.flags, 0x0401);
+      expect(event.batteryPercent, 62);
+      expect(event.uptimeMilliseconds, 782906);
+      expect(event.rawHex, '01 01 10 01 01 04 3E 00 3A F2 0B 00');
+    });
+
+    test('decodes observed H20 long press and release from byte 3', () {
+      const codec = Aiv0DraftProtocolCodec(confirmed: false);
+      final longPress = codec.decodeButtonEvent(
+        Uint8List.fromList(<int>[
+          0x01,
+          0x01,
+          0x11,
+          0x02,
+          0x01,
+          0x04,
+          0x3E,
+          0x00,
+          0x10,
+          0xF3,
+          0x0B,
+          0x00,
+        ]),
+      );
+      final release = codec.decodeButtonEvent(
+        Uint8List.fromList(<int>[
+          0x01,
+          0x01,
+          0x11,
+          0x03,
+          0x01,
+          0x04,
+          0x3E,
+          0x00,
+          0x20,
+          0xF3,
+          0x0B,
+          0x00,
+        ]),
+      );
+
+      expect(longPress.button, Aiv0Button.main);
+      expect(longPress.gesture, Aiv0ButtonGesture.longPress);
+      expect(longPress.sequence, 0x11);
+      expect(longPress.isActionable, isTrue);
+      expect(release.gesture, Aiv0ButtonGesture.release);
+      expect(release.sequence, 0x11);
+    });
+
+    test('keeps an unknown raw packet diagnostic-only', () {
+      const codec = Aiv0DraftProtocolCodec(confirmed: false);
+      final event = codec.decodeButtonEvent(
+        Uint8List.fromList(<int>[0xAA, 0x01, 0x00]),
+      );
+
+      expect(event.isActionable, isFalse);
       expect(event.button, Aiv0Button.unknown);
-      expect(event.sequence, isNull);
-      expect(event.rawHex, '01 01 01 00 2A 00 58 00 D2 04 00 00');
     });
 
     test('decodes only draft MAIN after confirmation', () {
