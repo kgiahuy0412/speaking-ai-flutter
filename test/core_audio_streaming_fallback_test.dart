@@ -635,33 +635,36 @@ void main() {
     },
   );
 
-  test('short Web utterance promotes buffered audio to Batch at stop', () async {
-    final input = _FakeChunkedInput(
-      available: true,
-      bluetooth: false,
-      label: 'Phone',
-      emitOnStart: <int>[1, 2, 3],
-    );
-    final repository = _FallbackRepository();
-    final controller = ConversationController(
-      audioInput: input,
-      playbackService: const _FakePlaybackService(),
-      repository: repository,
-      childAge: 6,
-      initialAsrMode: AsrMode.batchChunks,
-      webRuntimeOverride: true,
-      adaptiveWebUploadDelay: const Duration(seconds: 2),
-    );
+  test(
+    'short Web utterance promotes buffered audio to Batch at stop',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(seconds: 2),
+      );
 
-    await controller.startRecording();
-    await _emitDetectedSpeech(input);
-    await controller.stopRecording(manual: true);
+      await controller.startRecording();
+      await _emitDetectedSpeech(input);
+      await controller.stopRecording(manual: true);
 
-    expect(repository.batchStarted, 1);
-    expect(repository.fullFileUploads, 0);
-    expect(controller.result?.conversationId, 'batch-result');
-    controller.dispose();
-  });
+      expect(repository.batchStarted, 1);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
 
   test(
     'long Web utterance uploads buffered and live chunks in parallel',
@@ -870,11 +873,13 @@ void main() {
       expect(repository.batchSession.finalized, isTrue);
       expect(repository.batchSession.discarded, isTrue);
       expect(repository.fullFileUploads, 0);
-      expect(controller.phase, ConversationPhase.error);
+      expect(controller.phase, ConversationPhase.idle);
+      expect(controller.lastTurnEndReason, ConversationTurnEndReason.noSpeech);
       expect(
-        controller.errorMessage,
-        'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.',
+        controller.transientMessage,
+        ConversationController.unclearSpeechRetryPrompt,
       );
+      expect(controller.errorMessage, isNull);
       controller.dispose();
     },
   );
@@ -1041,13 +1046,16 @@ void main() {
       expect(repository.fullFileUploads, 0);
       expect(controller.result, isNull);
       expect(controller.phase, ConversationPhase.idle);
-      expect(controller.transientMessage, contains('chưa nghe rõ'));
+      expect(
+        controller.transientMessage?.toLowerCase(),
+        contains('chưa nghe rõ'),
+      );
       controller.dispose();
     },
   );
 
   test(
-    'exact Android rule starts cached audio before backend finishes',
+    'exact Android rule waits for backend confirmation before playback',
     () async {
       final streamingResultCompleter = Completer<ConversationResult>();
       final repository = _FallbackRepository(
@@ -1073,7 +1081,7 @@ void main() {
       final stopping = controller.stopRecording(manual: true);
       await Future<void>.delayed(Duration.zero);
 
-      expect(playback.playedUris, <Uri>[audioUri]);
+      expect(playback.playedUris, isEmpty);
       expect(controller.result, isNull);
 
       streamingResultCompleter.complete(
@@ -1088,7 +1096,7 @@ void main() {
   );
 
   test(
-    'exact Android rule remains usable while backend is unavailable',
+    'network outage keeps the Android turn without reporting false success',
     () async {
       final repository = _FallbackRepository(
         streamingError: const _RetryableBackendFailure(),
@@ -1112,15 +1120,19 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await controller.stopRecording(manual: true);
 
+      expect(controller.phase, ConversationPhase.error);
+      expect(controller.result, isNull);
+      expect(controller.hasPendingNetworkTurn, isTrue);
+      expect(controller.errorMessage, contains('Câu vừa nói'));
+      expect(playback.playedUris, isEmpty);
+
+      repository.streamingError = null;
+      await controller.onPrimaryAction();
+
+      expect(repository.streamingRequests, 2);
       expect(controller.phase, ConversationPhase.ready);
-      expect(controller.result?.vietnameseText, 'Con muốn uống nước');
-      expect(controller.result?.englishText, 'Can I have some water?');
-      expect(controller.result?.textSource, 'device_exact_rule_fallback');
-      expect(controller.result?.conversationId, isEmpty);
-      expect(controller.transientMessage, contains('tạm gián đoạn'));
-      expect(playback.playedUris, <Uri>[
-        Uri.parse('https://api.example.com/water.mp3'),
-      ]);
+      expect(controller.hasPendingNetworkTurn, isFalse);
+      expect(controller.result?.conversationId, 'stream-result');
       controller.dispose();
     },
   );
@@ -1152,8 +1164,9 @@ void main() {
       expect(controller.phase, ConversationPhase.error);
       expect(
         controller.errorMessage,
-        'Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.',
+        ConversationController.networkInterruptedMessage,
       );
+      expect(controller.hasPendingNetworkTurn, isTrue);
       expect(controller.errorMessage, isNot(contains('Mã hỗ trợ')));
       controller.dispose();
     },
@@ -2077,12 +2090,13 @@ class _FallbackRepository
   final Completer<BatchChunkUploadSession>? batchCompleter;
   final Completer<ConversationResult>? audioResultCompleter;
   final Completer<ConversationResult>? streamingResultCompleter;
-  final Object? streamingError;
+  Object? streamingError;
   final bool failRealtimeConnection;
   final _RecordingBatchSession batchSession = _RecordingBatchSession();
   int realtimeStarted = 0;
   int batchStarted = 0;
   int fullFileUploads = 0;
+  int streamingRequests = 0;
   String? batchFallbackReason;
   StreamingSpeechCapture? streamingCapture;
   AudioCapture? audioCapture;
@@ -2161,6 +2175,7 @@ class _FallbackRepository
     required int childAge,
     required int vadSilenceMs,
   }) async {
+    streamingRequests += 1;
     streamingCapture = capture;
     final error = streamingError;
     if (error != null) {

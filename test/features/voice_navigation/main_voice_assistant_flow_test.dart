@@ -132,7 +132,14 @@ void main() {
   });
 
   test('accepts every D05 vocabulary-learning synonym from Main', () async {
-    for (final command in <String>['Học từ mới', 'Học từ', 'Luyện từ']) {
+    for (final command in <String>[
+      'Học từ mới',
+      'Học từ',
+      'Luyện từ',
+      'Luyện từ mới',
+      'Học mới',
+      'Học từ mấy',
+    ]) {
       final flow = MainVoiceAssistantFlow(
         contentLoader: _loadContent,
         vocabularyLoader: _loadEmptyVocabulary,
@@ -157,6 +164,22 @@ void main() {
         MainVoiceAssistantStage.chooseVocabularyCollection,
         reason: command,
       );
+    }
+  });
+
+  test('accepts child and common ASR variants for English translation', () {
+    for (final command in <String>[
+      'Dịch sang tiếng Anh',
+      'Dịch qua tiếng Anh',
+      'Dịch xanh tiếng Anh',
+      'Dịch sang tiếng ăn',
+      'Con muốn nói tiếng Anh',
+      'Tiếng Anh',
+    ]) {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.begin();
+
+      expect(flow.canHandle(command), isTrue, reason: command);
     }
   });
 
@@ -396,6 +419,15 @@ void main() {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
 
     flow.begin();
+    expect(flow.canHandle(MainVoiceAssistantFlow.openingPrompt), isFalse);
+    final currentOpeningEcho = await flow.handle(
+      MainVoiceAssistantFlow.openingPrompt,
+    );
+    expect(currentOpeningEcho.continueListening, isTrue);
+    expect(currentOpeningEcho.navigationBeforePrompt, isNull);
+    expect(currentOpeningEcho.navigationAfterPrompt, isNull);
+    expect(flow.stage, MainVoiceAssistantStage.chooseFeature);
+
     final openingEcho = await flow.handle(
       'Con muốn luyện nói hay học chủ đề nè',
     );

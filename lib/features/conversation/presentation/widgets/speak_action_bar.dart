@@ -9,6 +9,7 @@ class SpeakActionBar extends StatelessWidget {
     required this.phase,
     required this.processingStage,
     this.isPreparingMicrophone = false,
+    this.retriesPreviousTurn = false,
     required this.onPressed,
     super.key,
   });
@@ -16,6 +17,7 @@ class SpeakActionBar extends StatelessWidget {
   final ConversationPhase phase;
   final ConversationProcessingStage processingStage;
   final bool isPreparingMicrophone;
+  final bool retriesPreviousTurn;
   final VoidCallback? onPressed;
 
   @override
@@ -130,7 +132,10 @@ class SpeakActionBar extends StatelessWidget {
       ),
     },
     ConversationPhase.ready => context.tr('Nói câu mới', '说新句子'),
-    ConversationPhase.error => context.tr('Thử lại', '重试'),
+    ConversationPhase.error =>
+      retriesPreviousTurn
+          ? context.tr('Thử lại câu vừa nói', '重试刚才的话')
+          : context.tr('Thử lại', '重试'),
     ConversationPhase.idle => context.tr('Bắt đầu nói', '开始说话'),
   };
 }

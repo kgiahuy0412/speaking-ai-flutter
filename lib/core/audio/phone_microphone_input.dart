@@ -31,6 +31,8 @@ class PhoneMicrophoneInput
   PcmSpeechPreprocessor? _pcmPreprocessor;
   Pcm16MonoResampler? _pcmResampler;
   bool _chunked = false;
+  bool _audioFocusActive = false;
+  AudioSession? _activeAudioSession;
   bool _microphonePermissionGranted = false;
   bool _recordConfigListenerRegistered = false;
   int _effectiveSampleRate = pcm16SampleRate;
@@ -169,6 +171,14 @@ class PhoneMicrophoneInput
         androidWillPauseWhenDucked: true,
       ),
     );
+    final focusGranted = await audioSession.setActive(true);
+    if (!focusGranted) {
+      throw const AudioInputException(
+        'Micro đang được cuộc gọi hoặc ứng dụng khác sử dụng.',
+      );
+    }
+    _activeAudioSession = audioSession;
+    _audioFocusActive = true;
 
     final extension = _chunked ? 'wav' : 'm4a';
     _currentPath = await createTemporaryRecordingPath(extension);
@@ -189,20 +199,24 @@ class PhoneMicrophoneInput
   Future<void> start() async {
     _chunked = false;
     await _prepareRecording();
-
-    await _recorder.start(
-      RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        sampleRate: 16000,
-        numChannels: 1,
-        autoGain: true,
-        echoCancel: true,
-        noiseSuppress: true,
-        androidConfig: _androidVoiceRecordConfig,
-        device: _selectedInputDevice,
-      ),
-      path: _currentPath!,
-    );
+    try {
+      await _recorder.start(
+        RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          sampleRate: 16000,
+          numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+          androidConfig: _androidVoiceRecordConfig,
+          device: _selectedInputDevice,
+        ),
+        path: _currentPath!,
+      );
+    } catch (_) {
+      await _releaseAudioFocus();
+      rethrow;
+    }
   }
 
   @override
@@ -214,18 +228,24 @@ class PhoneMicrophoneInput
     _pcmStreamDone = Completer<void>();
     await _prepareRecording();
 
-    final pcmStream = await _recorder.startStream(
-      RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: pcm16SampleRate,
-        numChannels: pcm16ChannelCount,
-        autoGain: true,
-        echoCancel: true,
-        noiseSuppress: true,
-        androidConfig: _androidVoiceRecordConfig,
-        device: _selectedInputDevice,
-      ),
-    );
+    late final Stream<Uint8List> pcmStream;
+    try {
+      pcmStream = await _recorder.startStream(
+        RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: pcm16SampleRate,
+          numChannels: pcm16ChannelCount,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+          androidConfig: _androidVoiceRecordConfig,
+          device: _selectedInputDevice,
+        ),
+      );
+    } catch (_) {
+      await _releaseAudioFocus();
+      rethrow;
+    }
     // Safari commonly exposes its AudioContext at 44.1/48 kHz even when the
     // requested microphone rate is 16 kHz. Normalize Web PCM once here so
     // upload chunks, speculative preview and final WAV all share 16 kHz.
@@ -303,7 +323,12 @@ class PhoneMicrophoneInput
 
   @override
   Future<AudioCapture> stop() async {
-    final recorderPath = await _recorder.stop();
+    String? recorderPath;
+    try {
+      recorderPath = await _recorder.stop();
+    } finally {
+      await _releaseAudioFocus();
+    }
     if (_chunked) {
       var streamDrainTimedOut = false;
       await _pcmStreamDone?.future.timeout(
@@ -375,7 +400,11 @@ class PhoneMicrophoneInput
 
   @override
   Future<void> cancel() async {
-    await _recorder.cancel();
+    try {
+      await _recorder.cancel();
+    } finally {
+      await _releaseAudioFocus();
+    }
     await _pcmSubscription?.cancel();
     _pcmSubscription = null;
     _completePcmStream();
@@ -386,6 +415,16 @@ class PhoneMicrophoneInput
     _pcmPreprocessor = null;
     _pcmResampler = null;
     _chunked = false;
+  }
+
+  Future<void> _releaseAudioFocus() async {
+    if (!_audioFocusActive) {
+      return;
+    }
+    final session = _activeAudioSession;
+    _activeAudioSession = null;
+    _audioFocusActive = false;
+    await session?.setActive(false).catchError((Object _) => false);
   }
 
   AudioProcessingMetrics _buildAudioProcessingMetrics() {
@@ -414,6 +453,7 @@ class PhoneMicrophoneInput
 
   @override
   Future<void> dispose() async {
+    await _releaseAudioFocus();
     await _pcmSubscription?.cancel();
     await _audioChunkController.close();
     await _recorder.dispose();

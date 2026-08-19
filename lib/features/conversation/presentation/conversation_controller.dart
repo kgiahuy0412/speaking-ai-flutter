@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
@@ -169,7 +170,12 @@ class ConversationController extends ChangeNotifier {
     }
     final aiv0Control = _aiv0BleControl;
     if (aiv0Control != null) {
-      _aiv0StatusSubscription = aiv0Control.statusStream.listen((_) {
+      _aiv0StatusSubscription = aiv0Control.statusStream.listen((status) {
+        final reconnected = status.isConnected && !_aiv0WasConnected;
+        _aiv0WasConnected = status.isConnected;
+        if (reconnected) {
+          unawaited(_syncAiv0AppState());
+        }
         if (!_disposed) notifyListeners();
       });
       _aiv0ButtonSubscription = aiv0Control.buttonEvents.listen(
@@ -225,6 +231,7 @@ class ConversationController extends ChangeNotifier {
   StreamSubscription<BluetoothAudioStatus>? _hfpStatusSubscription;
   StreamSubscription<Aiv0BleStatus>? _aiv0StatusSubscription;
   StreamSubscription<Aiv0ButtonEvent>? _aiv0ButtonSubscription;
+  bool _aiv0WasConnected = false;
   StreamSubscription<bool>? _playbackPlayingSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
@@ -240,6 +247,7 @@ class ConversationController extends ChangeNotifier {
   Timer? _maximumDurationTimer;
   Timer? _offlineFallbackTimer;
   Timer? _processingStageTimer;
+  Timer? _networkRetryTimer;
   Timer? _h20HardwareRecordingTimer;
   DateTime? _recordingStartedAt;
   DateTime? _stoppedAt;
@@ -274,6 +282,9 @@ class ConversationController extends ChangeNotifier {
   bool _disposed = false;
   int _previewGeneration = 0;
   int _conversationTurnGeneration = 0;
+  int _networkRetryAttempt = 0;
+  bool _networkRetryInProgress = false;
+  _PendingConversationTurn? _pendingNetworkTurn;
   String? _lastPreviewText;
   ConversationPreview? _preview;
   Uri? _preferredPlaybackUri;
@@ -299,6 +310,13 @@ class ConversationController extends ChangeNotifier {
   String? h20HardwareTestMessage;
 
   int get childAge => _childAge;
+
+  /// Whether the last captured utterance is being retained for a safe retry.
+  ///
+  /// This is intentionally shared by Android and Web so a temporary network
+  /// outage never forces the child to repeat the sentence or resets the
+  /// current learning screen.
+  bool get hasPendingNetworkTurn => _pendingNetworkTurn != null;
 
   void setChildAge(int age) {
     if (_childAge == age) {
@@ -390,60 +408,6 @@ class ConversationController extends ChangeNotifier {
       }),
     );
     return true;
-  }
-
-  ConversationResult? _localExactFallbackResult(
-    StreamingSpeechCapture capture,
-  ) {
-    final exact = _findLocalExactIntent(capture.sourceText, context);
-    if (exact == null || exact.englishText.trim().isEmpty) {
-      return null;
-    }
-    return ConversationResult(
-      // Empty backend identities deliberately disable archive, telemetry and
-      // review writes for a result that exists only on this device.
-      conversationId: '',
-      sessionId: '',
-      context: context,
-      vietnameseText: capture.sourceText.trim(),
-      englishText: exact.englishText.trim(),
-      audioUri: exact.audioUri,
-      processingMode: 'offline_fallback',
-      textSource: 'device_exact_rule_fallback',
-      audioSource: 'device_exact_rule',
-      asrMode: capture.asrMode,
-      latency: const ConversationLatency(
-        asrMs: 0,
-        llmMs: 0,
-        ttsMs: 0,
-        timeToFirstAudioMs: 0,
-      ),
-    );
-  }
-
-  Future<ConversationResult> _useLocalExactResultWhenBackendIsUnavailable({
-    required Future<ConversationResult> backendResult,
-    required StreamingSpeechCapture? capture,
-  }) async {
-    try {
-      return await backendResult;
-    } catch (error, stackTrace) {
-      final isRetryable =
-          error is TimeoutException ||
-          (error is RetryableConversationException && error.isRetryable);
-      final fallback = capture == null || !isRetryable
-          ? null
-          : _localExactFallbackResult(capture);
-      if (fallback == null) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-      debugPrint(
-        'Backend conversation failed; using on-device exact rule: $error',
-      );
-      transientMessage =
-          'Dịch vụ đang tạm gián đoạn. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.';
-      return fallback;
-    }
   }
 
   void setDisplayLanguage(DisplayLanguage language) {
@@ -605,6 +569,10 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     if (phase == ConversationPhase.processing) {
+      return;
+    }
+    if (_pendingNetworkTurn != null) {
+      await retryPendingNetworkTurn();
       return;
     }
     await startRecording();
@@ -826,6 +794,7 @@ class ConversationController extends ChangeNotifier {
     _offlineFallbackTimer?.cancel();
     _offlineFallbackTimer = null;
     _processingStageTimer?.cancel();
+    _clearPendingNetworkTurn();
     await _amplitudeSubscription?.cancel();
     _amplitudeSubscription = null;
     await _batchPreviewSubscription?.cancel();
@@ -1296,6 +1265,10 @@ class ConversationController extends ChangeNotifier {
     bool speakNoSpeechPrompt = true,
     bool stopOnSilence = true,
   }) async {
+    if (_pendingNetworkTurn != null) {
+      await retryPendingNetworkTurn();
+      return;
+    }
     if (!_audioInput.isAvailable || isBusy) {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
@@ -2030,6 +2003,7 @@ class ConversationController extends ChangeNotifier {
     _responseReceivedAt = null;
     _AdaptiveWebChunkUpload? stoppedAdaptiveWebUpload;
     String? handledSpeechCommand;
+    _PendingConversationTurn? pendingTurnCandidate;
 
     try {
       final startedAt = _recordingStartedAt;
@@ -2298,10 +2272,16 @@ class ConversationController extends ChangeNotifier {
           final localAudioUri = localPreview!.audioUri!;
           earlyRulePlaybackUri = localAudioUri;
           earlyRuleEnglishText = localPreview.englishText.trim();
-          earlyRulePlaybackRequestedAt = DateTime.now();
-          earlyRulePlayback = _playbackService.play(localAudioUri);
         }
       }
+
+      pendingTurnCandidate = _PendingConversationTurn(
+        streamingCapture: streamingCapture,
+        audioCapture: audioCapture,
+        context: context,
+        childAge: _childAge,
+        vadSilenceMs: vadSilenceMs,
+      );
 
       final backendResultFuture = streamingCapture != null
           ? _repository.processStreamingText(
@@ -2321,17 +2301,9 @@ class ConversationController extends ChangeNotifier {
               childAge: _childAge,
               vadSilenceMs: vadSilenceMs,
             );
-      final resultFuture = streamingCapture == null
-          ? backendResultFuture
-          : _useLocalExactResultWhenBackendIsUnavailable(
-              backendResult: backendResultFuture,
-              capture: streamingCapture,
-            );
       final processing = await Future.wait<Object?>([
-        earlyRulePlayback == null
-            ? _playbackService.prepare()
-            : Future<void>.value(),
-        resultFuture,
+        _playbackService.prepare(),
+        backendResultFuture,
       ]);
       if (turnGeneration != _conversationTurnGeneration) {
         return;
@@ -2342,13 +2314,6 @@ class ConversationController extends ChangeNotifier {
       if (batchCommandText.isNotEmpty &&
           _matchesRecognizedSpeechCommand(batchCommandText)) {
         handledSpeechCommand = batchCommandText;
-        await earlyRulePlayback?.catchError((Object _) {
-          return const PlaybackStartMetrics(
-            audioLoadDuration: Duration.zero,
-            startedAfterRequest: Duration.zero,
-            fromDeviceCache: false,
-          );
-        });
         await _playbackService.stop();
         _completeRecognizedSpeechCommand();
         return;
@@ -2392,12 +2357,25 @@ class ConversationController extends ChangeNotifier {
         }
       }
       result = nextResult;
+      _clearPendingNetworkTurn();
       _processingStageTimer?.cancel();
       processingStage = ConversationProcessingStage.preparingAudio;
       errorMessage = null;
       notifyListeners();
 
       var reusedEarlyRulePlayback = false;
+      final confirmedLocalRuleMatches =
+          earlyRulePlaybackUri != null &&
+          earlyRuleEnglishText == nextResult.englishText.trim() &&
+          (_preferredPlaybackUri == earlyRulePlaybackUri ||
+              nextResult.audioUri == earlyRulePlaybackUri);
+      if (confirmedLocalRuleMatches) {
+        // Local rules may preload while the child is speaking, but must never
+        // produce a success-like response before the backend confirms the
+        // current turn. This prevents a cached phrase from masking an outage.
+        earlyRulePlaybackRequestedAt = DateTime.now();
+        earlyRulePlayback = _playbackService.play(earlyRulePlaybackUri);
+      }
       final canReuseEarlyRulePlayback =
           earlyRulePlayback != null &&
           earlyRulePlaybackRequestedAt != null &&
@@ -2450,8 +2428,22 @@ class ConversationController extends ChangeNotifier {
       if (turnGeneration != _conversationTurnGeneration) {
         return;
       }
-      _lastTurnEndReason = ConversationTurnEndReason.failed;
-      _handleConversationError(error);
+      if (_isLowConfidenceRecognitionError(error)) {
+        // Low confidence is a recoverable child-speech outcome, not a backend
+        // failure. Normalize it to the same idle/no-speech state used by VAD
+        // silence so the single-sentence and continuous MAIN coordinators can
+        // speak one retry cue and reopen the microphone.
+        await _finishNoSpeechTurn(inputAlreadyStopped: true);
+      } else if (_isTemporaryNetworkError(error) &&
+          pendingTurnCandidate != null) {
+        _lastTurnEndReason = ConversationTurnEndReason.failed;
+        _pendingNetworkTurn = pendingTurnCandidate;
+        _networkRetryAttempt = 0;
+        _showNetworkInterrupted(announce: true);
+      } else {
+        _lastTurnEndReason = ConversationTurnEndReason.failed;
+        _handleConversationError(error);
+      }
     } finally {
       await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
       await _batchPreviewSubscription?.cancel();
@@ -2501,6 +2493,11 @@ class ConversationController extends ChangeNotifier {
         message.contains('speech timeout');
   }
 
+  bool _isLowConfidenceRecognitionError(Object error) {
+    return error is CodedConversationException &&
+        error.errorCode?.toUpperCase() == 'ASR_LOW_CONFIDENCE';
+  }
+
   Future<void> _finishNoSpeechTurn({required bool inputAlreadyStopped}) async {
     _realtimeConnectionGeneration += 1;
     _realtimeConnectionFuture = null;
@@ -2541,7 +2538,7 @@ class ConversationController extends ChangeNotifier {
     unawaited(_syncAiv0AppState());
     transientMessage = _noisyRecording
         ? 'Môi trường đang khá ồn. Hãy đưa micro gần hơn, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại.'
-        : _unclearSpeechMessage;
+        : unclearSpeechRetryPrompt;
     if (_speakNoSpeechPrompt) {
       unawaited(_speakUnclearSpeechPrompt());
     }
@@ -2997,6 +2994,13 @@ class ConversationController extends ChangeNotifier {
 
   void clearMessage() {
     transientMessage = null;
+    if (_pendingNetworkTurn != null) {
+      // Dismissing the banner must not discard the captured utterance. The
+      // retry action and the background retry remain available.
+      errorMessage = null;
+      notifyListeners();
+      return;
+    }
     if (phase == ConversationPhase.error) {
       _processingStageTimer?.cancel();
       phase = result == null ? ConversationPhase.idle : ConversationPhase.ready;
@@ -3016,21 +3020,216 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  static const _unclearSpeechMessage =
-      'Cô chưa nghe thấy con nói. Con nói lại nhé.';
+  /// One shared child-facing retry cue for silence and unclear ASR results.
+  ///
+  /// The app-level MAIN coordinators reuse this text so Android and web never
+  /// drift into different prompts for the same recoverable turn.
+  static const unclearSpeechRetryPrompt =
+      'Chưa nghe rõ, con vui lòng nói rõ hơn nhé.';
 
-  void _handleConversationError(Object error) {
-    if (error is CodedConversationException &&
-        error.errorCode == 'ASR_LOW_CONFIDENCE') {
-      _setError(_unclearSpeechMessage);
-      unawaited(_speakUnclearSpeechPrompt());
+  static const networkInterruptedMessage =
+      'Mạng đang bị gián đoạn. Câu vừa nói và bài hiện tại đã được giữ. '
+      'Ứng dụng sẽ tự thử lại khi có mạng; phụ huynh có thể bấm “Thử lại câu vừa nói”.';
+
+  static const _networkInterruptedVoicePrompt =
+      'Mạng đang bị gián đoạn. Mình đã giữ câu vừa nói. Khi có mạng mình sẽ thử lại nhé.';
+
+  Future<void> retryPendingNetworkTurn({bool automatic = false}) async {
+    final pending = _pendingNetworkTurn;
+    if (pending == null || _networkRetryInProgress || _disposed) {
       return;
     }
+    if (automatic && phase != ConversationPhase.error) {
+      _schedulePendingNetworkRetry();
+      return;
+    }
+
+    _networkRetryTimer?.cancel();
+    _networkRetryTimer = null;
+    _networkRetryInProgress = true;
+    final retryGeneration = ++_conversationTurnGeneration;
+    phase = ConversationPhase.processing;
+    errorMessage = null;
+    transientMessage = automatic
+        ? 'Mạng đã có tín hiệu, đang gửi lại câu vừa nói…'
+        : 'Đang thử lại câu vừa nói…';
+    amplitude = 0;
+    _beginProcessingStages();
+    unawaited(_syncAiv0AppState());
+    notifyListeners();
+
+    try {
+      final nextResult = await _submitPendingNetworkTurn(pending);
+      if (_disposed || retryGeneration != _conversationTurnGeneration) {
+        return;
+      }
+      _responseReceivedAt = DateTime.now();
+      final commandText = nextResult.vietnameseText.trim();
+      if (commandText.isNotEmpty &&
+          _matchesRecognizedSpeechCommand(commandText)) {
+        _clearPendingNetworkTurn();
+        _completeRecognizedSpeechCommand();
+        try {
+          await _onRecognizedSpeechCommand?.call(commandText);
+        } catch (error) {
+          debugPrint('Recovered speech command callback failed: $error');
+        }
+        return;
+      }
+
+      _archiveRetriedAudioInBackground(pending, nextResult);
+      _preview = null;
+      _preferredPlaybackUri = nextResult.audioUri;
+      _speculativePreloadUri = null;
+      result = nextResult;
+      _clearPendingNetworkTurn();
+      _processingStageTimer?.cancel();
+      processingStage = ConversationProcessingStage.preparingAudio;
+      errorMessage = null;
+      transientMessage = null;
+      notifyListeners();
+      if (nextResult.audioUri != null) {
+        await playResult(reportLatency: true);
+      }
+      if (_disposed || retryGeneration != _conversationTurnGeneration) {
+        return;
+      }
+      _lastTurnEndReason = ConversationTurnEndReason.completed;
+      phase = ConversationPhase.ready;
+      unawaited(_syncAiv0AppState());
+      notifyListeners();
+    } catch (error) {
+      if (_disposed || retryGeneration != _conversationTurnGeneration) {
+        return;
+      }
+      if (_isLowConfidenceRecognitionError(error)) {
+        _clearPendingNetworkTurn();
+        await _finishNoSpeechTurn(inputAlreadyStopped: true);
+      } else if (_isTemporaryNetworkError(error)) {
+        _networkRetryAttempt += 1;
+        _showNetworkInterrupted(announce: false);
+      } else {
+        _clearPendingNetworkTurn();
+        _lastTurnEndReason = ConversationTurnEndReason.failed;
+        _handleConversationError(error);
+      }
+    } finally {
+      _networkRetryInProgress = false;
+    }
+  }
+
+  Future<ConversationResult> _submitPendingNetworkTurn(
+    _PendingConversationTurn pending,
+  ) {
+    final streamingCapture = pending.streamingCapture;
+    if (streamingCapture != null) {
+      return _repository.processStreamingText(
+        capture: streamingCapture,
+        context: pending.context,
+        childAge: pending.childAge,
+        vadSilenceMs: pending.vadSilenceMs,
+      );
+    }
+    return _repository.processAudio(
+      capture: pending.audioCapture!,
+      context: pending.context,
+      childAge: pending.childAge,
+      vadSilenceMs: pending.vadSilenceMs,
+      fallbackReason: 'network_retry',
+    );
+  }
+
+  void _archiveRetriedAudioInBackground(
+    _PendingConversationTurn pending,
+    ConversationResult nextResult,
+  ) {
+    final capture = pending.audioCapture;
+    final archiveRepository = _repository is UserAudioArchiveRepository
+        ? _repository as UserAudioArchiveRepository
+        : null;
+    if (capture == null ||
+        archiveRepository == null ||
+        nextResult.conversationId.trim().isEmpty) {
+      return;
+    }
+    unawaited(
+      archiveRepository
+          .archiveUserAudio(result: nextResult, capture: capture)
+          .catchError((Object error, StackTrace stackTrace) {
+            debugPrint('Recovered user audio background upload failed: $error');
+          }),
+    );
+  }
+
+  bool _isTemporaryNetworkError(Object error) {
+    if (error is TimeoutException || error is http.ClientException) {
+      return true;
+    }
+    if (error is RetryableConversationException && error.isRetryable) {
+      return true;
+    }
+    final normalized = error.toString().toLowerCase();
+    return normalized.contains('socketexception') ||
+        normalized.contains('failed host lookup') ||
+        normalized.contains('connection refused') ||
+        normalized.contains('connection reset') ||
+        normalized.contains('connection closed') ||
+        normalized.contains('network request failed') ||
+        normalized.contains('networkerror') ||
+        normalized.contains('network failed') ||
+        normalized.contains('xmlhttprequest error') ||
+        normalized.contains('clientexception');
+  }
+
+  void _showNetworkInterrupted({required bool announce}) {
+    _processingStageTimer?.cancel();
+    phase = ConversationPhase.error;
+    errorMessage = networkInterruptedMessage;
+    transientMessage = null;
+    unawaited(_syncAiv0AppState(resultCode: Aiv0AppResult.internalError));
+    if (!_disposed) {
+      notifyListeners();
+    }
+    if (announce) {
+      unawaited(
+        _voicePromptService?.speak(_networkInterruptedVoicePrompt).catchError((
+              Object error,
+            ) {
+              debugPrint('Network interruption prompt was skipped: $error');
+            }) ??
+            Future<void>.value(),
+      );
+    }
+    _schedulePendingNetworkRetry();
+  }
+
+  void _schedulePendingNetworkRetry() {
+    _networkRetryTimer?.cancel();
+    if (_disposed || _pendingNetworkTurn == null) {
+      _networkRetryTimer = null;
+      return;
+    }
+    final seconds = math.min(15, 4 + (_networkRetryAttempt * 3));
+    _networkRetryTimer = Timer(Duration(seconds: seconds), () {
+      if (!_disposed && _pendingNetworkTurn != null) {
+        unawaited(retryPendingNetworkTurn(automatic: true));
+      }
+    });
+  }
+
+  void _clearPendingNetworkTurn() {
+    _networkRetryTimer?.cancel();
+    _networkRetryTimer = null;
+    _pendingNetworkTurn = null;
+    _networkRetryAttempt = 0;
+  }
+
+  void _handleConversationError(Object error) {
     _setError(_friendlyError(error));
   }
 
   Future<void> _speakUnclearSpeechPrompt() async {
-    await _voicePromptService?.speak(_unclearSpeechMessage);
+    await _voicePromptService?.speak(unclearSpeechRetryPrompt);
   }
 
   Future<void> speakAssistantPrompt(String text) async {
@@ -3038,6 +3237,9 @@ class ConversationController extends ChangeNotifier {
   }
 
   String _friendlyError(Object error) {
+    if (_isTemporaryNetworkError(error)) {
+      return 'Mạng hoặc dịch vụ đang tạm gián đoạn. Vui lòng kiểm tra kết nối rồi thử lại.';
+    }
     if (error is TimeoutException) {
       return 'Kết nối backend quá chậm. Vui lòng thử lại.';
     }
@@ -3058,6 +3260,7 @@ class ConversationController extends ChangeNotifier {
     _partialPreviewTimer?.cancel();
     _offlineFallbackTimer?.cancel();
     _processingStageTimer?.cancel();
+    _networkRetryTimer?.cancel();
     _h20HardwareRecordingTimer?.cancel();
     unawaited(_amplitudeSubscription?.cancel());
     unawaited(_batchChunkSubscription?.cancel());
@@ -3103,6 +3306,22 @@ class ConversationController extends ChangeNotifier {
     unawaited(_repository.dispose());
     super.dispose();
   }
+}
+
+class _PendingConversationTurn {
+  const _PendingConversationTurn({
+    required this.streamingCapture,
+    required this.audioCapture,
+    required this.context,
+    required this.childAge,
+    required this.vadSilenceMs,
+  }) : assert(streamingCapture != null || audioCapture != null);
+
+  final StreamingSpeechCapture? streamingCapture;
+  final AudioCapture? audioCapture;
+  final PracticeContext context;
+  final int childAge;
+  final int vadSilenceMs;
 }
 
 class _AdaptiveWebChunkUpload {

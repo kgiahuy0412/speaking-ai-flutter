@@ -205,6 +205,7 @@ class Aiv0BleStatus {
   const Aiv0BleStatus({
     required this.phase,
     required this.protocolConfirmed,
+    this.hasRememberedDevice = false,
     this.deviceId,
     this.deviceName,
     this.message,
@@ -238,6 +239,7 @@ class Aiv0BleStatus {
         orElse: () => Aiv0BlePhase.idle,
       ),
       protocolConfirmed: protocolConfirmed,
+      hasRememberedDevice: map['hasRememberedDevice'] == true,
       deviceId: map['deviceId']?.toString(),
       deviceName: map['deviceName']?.toString(),
       message: map['message']?.toString(),
@@ -256,6 +258,7 @@ class Aiv0BleStatus {
 
   final Aiv0BlePhase phase;
   final bool protocolConfirmed;
+  final bool hasRememberedDevice;
   final String? deviceId;
   final String? deviceName;
   final String? message;
@@ -279,6 +282,7 @@ abstract interface class Aiv0BleControl {
   Stream<Aiv0ButtonEvent> get buttonEvents;
 
   Future<void> initialize();
+  Future<void> reconnectRemembered();
   Future<List<Aiv0BleDevice>> scan({Duration timeout});
   Future<void> connect(String deviceId);
   Future<void> disconnect();
@@ -359,6 +363,16 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     await initialize();
     return await _methodChannel.invokeMethod<bool>('requestPermissions') ??
         false;
+  }
+
+  @override
+  Future<void> reconnectRemembered() async {
+    if (!_enabled) return;
+    await initialize();
+    final map = await _methodChannel.invokeMapMethod<Object?, Object?>(
+      'reconnectRemembered',
+    );
+    if (map != null) _updateStatus(map);
   }
 
   @override

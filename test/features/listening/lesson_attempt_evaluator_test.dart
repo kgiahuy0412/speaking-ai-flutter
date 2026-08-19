@@ -75,11 +75,13 @@ void main() {
     await expectLater(
       _evaluate(evaluator),
       throwsA(
-        isA<LessonAttemptEvaluationException>().having(
-          (error) => error.toString(),
-          'message',
-          'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        ),
+        isA<LessonAttemptEvaluationException>()
+            .having(
+              (error) => error.toString(),
+              'message',
+              'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+            )
+            .having((error) => error.retryable, 'retryable', isTrue),
       ),
     );
     evaluator.dispose();
@@ -196,11 +198,13 @@ void main() {
     await expectLater(
       _evaluate(evaluator),
       throwsA(
-        isA<LessonAttemptEvaluationException>().having(
-          (error) => error.toString(),
-          'message',
-          'Máy chủ chưa xử lý được câu nói. Con thử lại sau nhé.',
-        ),
+        isA<LessonAttemptEvaluationException>()
+            .having(
+              (error) => error.toString(),
+              'message',
+              'Máy chủ chưa xử lý được câu nói. Con thử lại sau nhé.',
+            )
+            .having((error) => error.retryable, 'retryable', isTrue),
       ),
     );
     evaluator.dispose();
