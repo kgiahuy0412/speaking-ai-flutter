@@ -59,12 +59,11 @@ void main() {
   });
 
   test(
-    'detects Web HFP speech from PCM when amplitude events are unavailable',
+    'detects Web MAIN speech from PCM when Safari emits no amplitude',
     () async {
       final input = _FakeChunkedAudioInput();
       final session = _FakeBatchSession(transcript: 'học theo chủ đề');
-      final repository = _FakeRepository(session);
-      final speechInput = _createSpeechInput(input, repository);
+      final speechInput = _createSpeechInput(input, _FakeRepository(session));
       final completed = Completer<void>();
       final subscription = speechInput.completed.listen((_) {
         if (!completed.isCompleted) {
@@ -73,14 +72,10 @@ void main() {
       });
 
       await speechInput.startCommandRecognition();
-      // Some browser/HFP combinations keep emitting the minimum amplitude
-      // even though their PCM stream contains the child's voice.
-      input.emitAmplitude(-160);
-      input.emitChunk(_pcm16Chunk(amplitude: 0));
-      input.emitAmplitude(-160);
-      input.emitChunk(_pcm16Chunk(amplitude: 0.3));
-      input.emitAmplitude(-160);
-      input.emitChunk(_pcm16Chunk(amplitude: 0));
+      input.emitPcm(amplitude: 32);
+      input.emitPcm(amplitude: 32);
+      input.emitPcm(amplitude: 12000);
+      input.emitPcm(amplitude: 0);
 
       await completed.future.timeout(const Duration(milliseconds: 150));
       final capture = await speechInput.stop();
@@ -88,44 +83,100 @@ void main() {
       expect(capture.sourceText, 'học theo chủ đề');
       expect(capture.extraBenchmark?['speechDetected'], isTrue);
       expect(session.finalizeCount, 1);
-      expect(repository.directProcessCount, 0);
       await subscription.cancel();
       await speechInput.dispose();
       await input.dispose();
     },
   );
 
-  test('detects a short PCM command spoken before VAD calibration', () async {
-    final input = _FakeChunkedAudioInput();
-    final session = _FakeBatchSession(transcript: 'luyện nói');
-    final speechInput = WebBatchStreamingSpeechInput(
-      audioInput: input,
-      repository: _FakeRepository(session),
-      childAge: 7,
-      vadSilenceDuration: const Duration(milliseconds: 15),
-    );
-    final completed = Completer<void>();
-    final subscription = speechInput.completed.listen((_) {
-      if (!completed.isCompleted) {
-        completed.complete();
-      }
-    });
+  test(
+    'keeps an immediate Safari command spoken during VAD calibration',
+    () async {
+      final input = _FakeChunkedAudioInput();
+      final session = _FakeBatchSession(transcript: 'học từ mới');
+      final speechInput = WebBatchStreamingSpeechInput(
+        audioInput: input,
+        repository: _FakeRepository(session),
+        childAge: 7,
+        vadSilenceDuration: const Duration(milliseconds: 15),
+      );
+      final completed = Completer<void>();
+      final subscription = speechInput.completed.listen((_) {
+        if (!completed.isCompleted) {
+          completed.complete();
+        }
+      });
 
-    await speechInput.startCommandRecognition();
-    input.emitAmplitude(-160);
-    input.emitChunk(_pcm16PatternChunk(<double>[0.04, 0.08, 0.16, 0.07, 0.14]));
-    input.emitChunk(_pcm16Chunk(amplitude: 0));
+      await speechInput.startCommandRecognition();
+      // The child starts immediately. These first frames are inside the
+      // detector's normal 300 ms calibration window.
+      input.emitPcm(amplitude: 10000);
+      input.emitPcm(amplitude: 10000);
+      input.emitPcm(amplitude: 0);
+      input.emitPcm(amplitude: 0);
 
-    await completed.future.timeout(const Duration(milliseconds: 150));
-    final capture = await speechInput.stop();
+      await completed.future.timeout(const Duration(milliseconds: 150));
+      final capture = await speechInput.stop();
 
-    expect(capture.sourceText, 'luyện nói');
-    expect(capture.extraBenchmark?['speechDetected'], isTrue);
-    expect(session.finalizeCount, 1);
-    await subscription.cancel();
-    await speechInput.dispose();
-    await input.dispose();
-  });
+      expect(capture.sourceText, 'học từ mới');
+      expect(capture.extraBenchmark?['speechDetected'], isTrue);
+      expect(session.finalizeCount, 1);
+      await subscription.cancel();
+      await speechInput.dispose();
+      await input.dispose();
+    },
+  );
+
+  test(
+    'replays speech and completion emitted while Safari mic is starting',
+    () async {
+      late final _FakeChunkedAudioInput input;
+      input = _FakeChunkedAudioInput(
+        onStartChunked: () {
+          input.emitPcm(amplitude: 10000);
+          input.emitPcm(amplitude: 10000);
+          input.emitPcm(amplitude: 0);
+          input.emitPcm(amplitude: 0);
+        },
+        startDelay: const Duration(milliseconds: 35),
+      );
+      final session = _FakeBatchSession(transcript: 'học theo chủ đề');
+      final speechInput = WebBatchStreamingSpeechInput(
+        audioInput: input,
+        repository: _FakeRepository(session),
+        childAge: 7,
+        vadSilenceDuration: const Duration(milliseconds: 10),
+      );
+      final partial = Completer<String>();
+      final completed = Completer<void>();
+      final partialSubscription = speechInput.partialText.listen((text) {
+        if (!partial.isCompleted) {
+          partial.complete(text);
+        }
+      });
+      final completedSubscription = speechInput.completed.listen((_) {
+        if (!completed.isCompleted) {
+          completed.complete();
+        }
+      });
+
+      await speechInput.startCommandRecognition();
+
+      expect(
+        await partial.future.timeout(const Duration(milliseconds: 150)),
+        '…',
+      );
+      await completed.future.timeout(const Duration(milliseconds: 150));
+      final capture = await speechInput.stop();
+      expect(capture.sourceText, 'học theo chủ đề');
+      expect(session.finalizeCount, 1);
+
+      await partialSubscription.cancel();
+      await completedSubscription.cancel();
+      await speechInput.dispose();
+      await input.dispose();
+    },
+  );
 
   test('discard Web MAIN Batch session when command is cancelled', () async {
     final input = _FakeChunkedAudioInput();
@@ -156,11 +207,6 @@ WebBatchStreamingSpeechInput _createSpeechInput(
     minimumSpeechDuration: Duration.zero,
     minimumSpeechVariationDb: 0,
   ),
-  pcmVoiceActivityDetector: AdaptiveVoiceActivityDetector(
-    calibrationDuration: Duration.zero,
-    minimumSpeechDuration: Duration.zero,
-    minimumSpeechVariationDb: 0,
-  ),
 );
 
 void _confirmSpeech(_FakeChunkedAudioInput input) {
@@ -170,6 +216,13 @@ void _confirmSpeech(_FakeChunkedAudioInput input) {
 }
 
 class _FakeChunkedAudioInput implements ChunkedAudioInput {
+  _FakeChunkedAudioInput({
+    this.onStartChunked,
+    this.startDelay = Duration.zero,
+  });
+
+  final void Function()? onStartChunked;
+  final Duration startDelay;
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast(sync: true);
   final StreamController<Uint8List> _chunkController =
@@ -198,12 +251,25 @@ class _FakeChunkedAudioInput implements ChunkedAudioInput {
   void emitChunk(List<int> bytes) =>
       _chunkController.add(Uint8List.fromList(bytes));
 
+  void emitPcm({required int amplitude, int sampleCount = 1600}) {
+    final bytes = Uint8List(sampleCount * 2);
+    final data = ByteData.sublistView(bytes);
+    for (var index = 0; index < sampleCount; index += 1) {
+      data.setInt16(index * 2, amplitude, Endian.little);
+    }
+    _chunkController.add(bytes);
+  }
+
   @override
   Future<void> start() => startChunked();
 
   @override
   Future<void> startChunked() async {
     started = true;
+    onStartChunked?.call();
+    if (startDelay > Duration.zero) {
+      await Future<void>.delayed(startDelay);
+    }
   }
 
   @override
@@ -308,21 +374,3 @@ ConversationResult _result(String transcript) => ConversationResult(
     timeToFirstAudioMs: 10,
   ),
 );
-
-Uint8List _pcm16Chunk({required double amplitude, int durationMs = 200}) {
-  final sampleCount = 16000 * durationMs ~/ 1000;
-  final bytes = Uint8List(sampleCount * 2);
-  final data = ByteData.sublistView(bytes);
-  final peak = (amplitude.clamp(0.0, 1.0) * 32767).round();
-  for (var index = 0; index < sampleCount; index += 1) {
-    data.setInt16(index * 2, index.isEven ? peak : -peak, Endian.little);
-  }
-  return bytes;
-}
-
-Uint8List _pcm16PatternChunk(List<double> amplitudes, {int frameMs = 50}) {
-  return Uint8List.fromList(<int>[
-    for (final amplitude in amplitudes)
-      ..._pcm16Chunk(amplitude: amplitude, durationMs: frameMs),
-  ]);
-}

@@ -535,6 +535,39 @@ void main() {
   );
 
   test(
+    'Main command window stays open while Web Batch is processing speech',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 560),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 520));
+      expect(controller.isListening, isTrue);
+
+      // Web MAIN emits this non-command partial as soon as PCM confirms that
+      // the child is speaking. The authoritative words arrive after finalize.
+      speechInput.emitPartial('…');
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(controller.isMainButtonSessionActive, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      expect(controller.isListening, isTrue);
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+      ]);
+      expect(speechInput.events, <String>['start']);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
     'pauses navigation recognizer before conversation can reuse it',
     () async {
       final speechInput = _FakeNavigationSpeechInput();

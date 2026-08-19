@@ -36,6 +36,7 @@
       utterance.lang = locale || 'vi-VN';
       utterance.rate = 0.92;
       utterance.pitch = 1.05;
+      utterance.volume = 1.0;
       window.speechSynthesis.speak(utterance);
     };
     window.innotrikVoicePromptSpeakAndWait = function (text, locale) {
@@ -50,6 +51,7 @@
         utterance.lang = locale || 'vi-VN';
         utterance.rate = 0.92;
         utterance.pitch = 1.05;
+        utterance.volume = 1.0;
 
         let finished = false;
         const finish = function () {
@@ -82,7 +84,7 @@
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(880, context.currentTime);
       gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.38, context.currentTime + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.16);
       oscillator.connect(gain);
       gain.connect(context.destination);

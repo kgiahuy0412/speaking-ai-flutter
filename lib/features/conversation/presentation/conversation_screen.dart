@@ -118,6 +118,7 @@ class ConversationScreen extends StatelessWidget {
                       phase: controller.phase,
                       processingStage: controller.processingStage,
                       isPreparingMicrophone: controller.isPreparingMicrophone,
+                      retriesPreviousTurn: controller.hasPendingNetworkTurn,
                       onPressed: () => unawaited(controller.onPrimaryAction()),
                     ),
                   ],

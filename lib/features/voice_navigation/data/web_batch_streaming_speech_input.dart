@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/streaming_speech_input.dart';
-import '../../../core/audio/wav_audio.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/domain/conversation_repository.dart';
 import '../../conversation/domain/speech_gated_batch_upload_session.dart';
@@ -20,34 +19,29 @@ import '../../conversation/domain/speech_gated_batch_upload_session.dart';
 /// short VAD silence.
 class WebBatchStreamingSpeechInput
     implements StreamingSpeechInput, CommandStreamingSpeechInput {
+  static const int _pcmSampleRate = 16000;
+  static const double _earlySpeechThresholdDbfs = -42;
+  static const Duration _earlySpeechMinimumDuration = Duration(
+    milliseconds: 120,
+  );
+
   WebBatchStreamingSpeechInput({
     required ChunkedAudioInput audioInput,
     required ConversationRepository repository,
     required int childAge,
     this.vadSilenceDuration = const Duration(milliseconds: 700),
     AdaptiveVoiceActivityDetector? voiceActivityDetector,
-    AdaptiveVoiceActivityDetector? pcmVoiceActivityDetector,
   }) : _audioInput = audioInput,
        _repository = repository,
        _childAge = childAge,
        _voiceActivityDetector =
-           voiceActivityDetector ?? AdaptiveVoiceActivityDetector(),
-       _pcmVoiceActivityDetector =
-           pcmVoiceActivityDetector ?? AdaptiveVoiceActivityDetector();
+           voiceActivityDetector ?? AdaptiveVoiceActivityDetector();
 
   final ChunkedAudioInput _audioInput;
   final ConversationRepository _repository;
   int _childAge;
   final Duration vadSilenceDuration;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector;
-  final AdaptiveVoiceActivityDetector _pcmVoiceActivityDetector;
-
-  static const int _pcmAnalysisFrameSamples = pcm16SampleRate ~/ 100;
-  static const Duration _pcmEarlySpeechDuration = Duration(milliseconds: 180);
-  static const double _pcmEarlySpeechFloorDbfs = -48;
-  static const double _pcmEarlySpeechVariationDb = 1.5;
-  static const double _pcmStrongSpeechDbfs = -24;
-  static const double _pcmFallbackStopDbfs = -54;
 
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
@@ -62,18 +56,18 @@ class WebBatchStreamingSpeechInput
   Future<BatchChunkUploadSession?>? _sessionFuture;
   Future<void>? _audioStartFuture;
   Timer? _silenceTimer;
+  Timer? _eventReadyTimer;
   Stopwatch? _recordingStopwatch;
   DateTime? _startedAt;
-  Duration _pcmElapsed = Duration.zero;
-  Duration _pcmEarlySpeechElapsed = Duration.zero;
   bool _active = false;
   bool _stopping = false;
   bool _speechDetected = false;
-  bool _amplitudeVoiceActive = false;
-  bool _pcmVoiceActive = false;
-  bool _pcmFallbackConfirmed = false;
-  double _pcmEarlySpeechMinimumDbfs = 0;
-  double _pcmEarlySpeechMaximumDbfs = -100;
+  bool _pcmLevelsObserved = false;
+  Duration _pcmElapsed = Duration.zero;
+  Duration _strongPcmDuration = Duration.zero;
+  bool _eventsReady = false;
+  bool _pendingPartialSignal = false;
+  bool _pendingCompletion = false;
 
   void setChildAge(int age) {
     _childAge = age;
@@ -120,22 +114,23 @@ class WebBatchStreamingSpeechInput
     final generation = ++_generation;
     _active = true;
     _speechDetected = false;
-    _completionEmitted = false;
-    _voiceActivityDetector.reset();
-    _pcmVoiceActivityDetector.reset();
+    _pcmLevelsObserved = false;
     _pcmElapsed = Duration.zero;
-    _resetPcmEarlySpeechCandidate();
-    _amplitudeVoiceActive = false;
-    _pcmVoiceActive = false;
-    _pcmFallbackConfirmed = false;
+    _strongPcmDuration = Duration.zero;
+    _completionEmitted = false;
+    _eventsReady = false;
+    _pendingPartialSignal = false;
+    _pendingCompletion = false;
+    _voiceActivityDetector.reset();
     _silenceTimer?.cancel();
+    _eventReadyTimer?.cancel();
     _recordingStopwatch = Stopwatch()..start();
     _startedAt = DateTime.now();
 
     final uploadGate = SpeechGatedBatchUploadSession();
     _uploadGate = uploadGate;
     _chunkSubscription = _audioInput.audioChunks.listen(
-      (bytes) => _handleAudioChunk(bytes, generation),
+      (bytes) => _handleAudioChunk(bytes, uploadGate, generation),
       onError: (_) {},
     );
     _amplitudeSubscription = _audioInput.amplitudeDbfs.listen(
@@ -186,6 +181,16 @@ class WebBatchStreamingSpeechInput
         code: 'WEB_BATCH_CANCELLED',
       );
     }
+
+    // PCM can arrive synchronously while Safari is still resolving
+    // startChunked(). VoiceNavigationController only marks itself as
+    // listening after this Future returns, so emitting partial/completed here
+    // would be ignored. Defer delivery by one event-loop turn and replay any
+    // early signals once the caller has entered its listening state.
+    _eventReadyTimer = Timer(
+      Duration.zero,
+      () => _flushPendingEvents(generation),
+    );
   }
 
   void _handleAmplitude(double dbfs, int generation) {
@@ -193,150 +198,77 @@ class WebBatchStreamingSpeechInput
       return;
     }
     _amplitudeController.add(dbfs);
-    final elapsed = _recordingStopwatch?.elapsed ?? Duration.zero;
-    final update = _voiceActivityDetector.addSample(dbfs, elapsed: elapsed);
-    _applyVoiceActivity(
-      update,
-      generation: generation,
-      source: _VoiceActivitySource.browserAmplitude,
-    );
+    // Safari can capture PCM successfully without emitting reliable amplitude
+    // callbacks from record_web. Once PCM levels are available, use that single
+    // authoritative clock for VAD and keep amplitude only for UI animation.
+    if (_pcmLevelsObserved) {
+      return;
+    }
+    _handleVoiceLevel(dbfs, generation);
   }
 
-  void _handleAudioChunk(Uint8List bytes, int generation) {
+  void _handleAudioChunk(
+    Uint8List bytes,
+    SpeechGatedBatchUploadSession uploadGate,
+    int generation,
+  ) {
+    uploadGate.addAudioChunk(bytes);
     if (_disposed || generation != _generation || !_active || _stopping) {
       return;
     }
-    _uploadGate?.addAudioChunk(bytes);
-    _analyzePcmVoiceActivity(bytes, generation);
-  }
-
-  void _analyzePcmVoiceActivity(Uint8List bytes, int generation) {
     final sampleCount = bytes.length ~/ 2;
-    if (sampleCount <= 0) {
+    if (sampleCount == 0) {
       return;
     }
-    final data = ByteData.sublistView(bytes);
-    for (
-      var frameStart = 0;
-      frameStart < sampleCount;
-      frameStart += _pcmAnalysisFrameSamples
-    ) {
-      final frameEnd = math.min(
-        sampleCount,
-        frameStart + _pcmAnalysisFrameSamples,
-      );
-      var energy = 0.0;
-      for (
-        var sampleIndex = frameStart;
-        sampleIndex < frameEnd;
-        sampleIndex += 1
-      ) {
-        final sample = data.getInt16(sampleIndex * 2, Endian.little) / 32768.0;
-        energy += sample * sample;
-      }
-      final frameSamples = frameEnd - frameStart;
-      final frameDuration = Duration(
-        microseconds: ((frameSamples * 1000000) / pcm16SampleRate).round(),
-      );
-      _pcmElapsed += frameDuration;
-      final rms = math.sqrt(energy / math.max(1, frameSamples));
-      final dbfs = rms <= 1e-7
-          ? -100.0
-          : (20 * math.log(rms) / math.ln10).clamp(-100.0, 0.0).toDouble();
-      final update = _pcmVoiceActivityDetector.addSample(
-        dbfs,
-        elapsed: _pcmElapsed,
-      );
-      if (_pcmFallbackConfirmed ||
-          (!_speechDetected &&
-              _updatePcmEarlySpeechCandidate(dbfs, frameDuration))) {
-        _pcmFallbackConfirmed = true;
-        _pcmVoiceActive = dbfs >= _pcmFallbackStopDbfs;
-        _registerSpeechDetected();
-        _applyCombinedVoiceActivity(generation, isCalibrating: false);
-        continue;
-      }
-      _applyVoiceActivity(
-        update,
-        generation: generation,
-        source: _VoiceActivitySource.pcm,
-      );
-    }
-  }
-
-  void _applyVoiceActivity(
-    VoiceActivityUpdate update, {
-    required int generation,
-    required _VoiceActivitySource source,
-  }) {
-    switch (source) {
-      case _VoiceActivitySource.browserAmplitude:
-        _amplitudeVoiceActive = update.voiceActive;
-      case _VoiceActivitySource.pcm:
-        _pcmVoiceActive = update.voiceActive;
-    }
-    if (update.speechStarted) {
-      _registerSpeechDetected();
-    }
-    _applyCombinedVoiceActivity(
-      generation,
-      isCalibrating: update.isCalibrating,
+    final chunkDuration = Duration(
+      microseconds:
+          (sampleCount * Duration.microsecondsPerSecond) ~/ _pcmSampleRate,
     );
-  }
-
-  bool _updatePcmEarlySpeechCandidate(double dbfs, Duration frameDuration) {
-    if (dbfs < _pcmEarlySpeechFloorDbfs) {
-      _resetPcmEarlySpeechCandidate();
-      return false;
+    _pcmElapsed += chunkDuration;
+    final dbfs = _pcmDbfs(bytes);
+    if (dbfs == null) {
+      return;
     }
-    if (_pcmEarlySpeechElapsed == Duration.zero) {
-      _pcmEarlySpeechMinimumDbfs = dbfs;
-      _pcmEarlySpeechMaximumDbfs = dbfs;
+    _pcmLevelsObserved = true;
+    _amplitudeController.add(dbfs);
+    if (dbfs >= _earlySpeechThresholdDbfs) {
+      _strongPcmDuration += chunkDuration;
+      if (_strongPcmDuration >= _earlySpeechMinimumDuration) {
+        // Safari may receive the child's first word during VAD calibration.
+        // PCM is already noise-suppressed by PhoneMicrophoneInput, so a short
+        // run of strong PCM is a reliable secondary speech signal and must not
+        // be learned as the ambient noise floor.
+        _voiceActivityDetector.confirmSpeech();
+        _markSpeechDetected(uploadGate);
+      }
     } else {
-      _pcmEarlySpeechMinimumDbfs = math.min(_pcmEarlySpeechMinimumDbfs, dbfs);
-      _pcmEarlySpeechMaximumDbfs = math.max(_pcmEarlySpeechMaximumDbfs, dbfs);
+      _strongPcmDuration = Duration.zero;
     }
-    _pcmEarlySpeechElapsed += frameDuration;
-    final variation = _pcmEarlySpeechMaximumDbfs - _pcmEarlySpeechMinimumDbfs;
-    return _pcmEarlySpeechElapsed >= _pcmEarlySpeechDuration &&
-        (variation >= _pcmEarlySpeechVariationDb ||
-            _pcmEarlySpeechMaximumDbfs >= _pcmStrongSpeechDbfs);
+    _handleVoiceLevel(dbfs, generation, elapsed: _pcmElapsed);
   }
 
-  void _resetPcmEarlySpeechCandidate() {
-    _pcmEarlySpeechElapsed = Duration.zero;
-    _pcmEarlySpeechMinimumDbfs = 0;
-    _pcmEarlySpeechMaximumDbfs = -100;
-  }
-
-  void _registerSpeechDetected() {
-    if (_speechDetected) {
+  void _handleVoiceLevel(double dbfs, int generation, {Duration? elapsed}) {
+    if (_disposed || generation != _generation || !_active || _stopping) {
       return;
     }
-    _speechDetected = true;
-    _uploadGate?.markSpeechDetected();
-    // VoiceNavigationController uses a non-empty partial only as a speech
-    // presence signal. The ellipsis normalizes to no command, so it cannot
-    // accidentally navigate before the authoritative Batch result.
-    _partialTextController.add('…');
-  }
-
-  void _applyCombinedVoiceActivity(
-    int generation, {
-    required bool isCalibrating,
-  }) {
+    final sampleElapsed =
+        elapsed ?? _recordingStopwatch?.elapsed ?? Duration.zero;
+    final update = _voiceActivityDetector.addSample(
+      dbfs,
+      elapsed: sampleElapsed,
+    );
     final uploadGate = _uploadGate;
-    if (!_speechDetected) {
+
+    if (update.speechStarted) {
+      _markSpeechDetected(uploadGate);
+    }
+    if (!_speechDetected || update.isCalibrating) {
       return;
     }
-    if (_amplitudeVoiceActive || _pcmVoiceActive) {
+    if (update.voiceActive) {
       uploadGate?.markVoiceActive();
       _silenceTimer?.cancel();
       _silenceTimer = null;
-      return;
-    }
-
-    if (isCalibrating) {
       return;
     }
 
@@ -350,8 +282,62 @@ class WebBatchStreamingSpeechInput
         return;
       }
       _completionEmitted = true;
-      _completedController.add(null);
+      if (_eventsReady) {
+        _completedController.add(null);
+      } else {
+        _pendingCompletion = true;
+      }
     });
+  }
+
+  void _markSpeechDetected(SpeechGatedBatchUploadSession? uploadGate) {
+    if (_speechDetected) {
+      return;
+    }
+    _speechDetected = true;
+    uploadGate?.markSpeechDetected();
+    // VoiceNavigationController uses a non-empty partial only as a speech
+    // presence signal. The ellipsis normalizes to no command, so it cannot
+    // accidentally navigate before the authoritative Batch result.
+    if (_eventsReady) {
+      _partialTextController.add('…');
+    } else {
+      _pendingPartialSignal = true;
+    }
+  }
+
+  void _flushPendingEvents(int generation) {
+    _eventReadyTimer = null;
+    if (_disposed || generation != _generation || !_active || _stopping) {
+      return;
+    }
+    _eventsReady = true;
+    if (_pendingPartialSignal) {
+      _pendingPartialSignal = false;
+      _partialTextController.add('…');
+    }
+    if (_pendingCompletion) {
+      _pendingCompletion = false;
+      _completedController.add(null);
+    }
+  }
+
+  static double? _pcmDbfs(Uint8List bytes) {
+    final sampleCount = bytes.length ~/ 2;
+    if (sampleCount == 0) {
+      return null;
+    }
+    final data = ByteData.sublistView(bytes, 0, sampleCount * 2);
+    var energy = 0.0;
+    for (var index = 0; index < sampleCount; index += 1) {
+      final sample = data.getInt16(index * 2, Endian.little) / 32768.0;
+      energy += sample * sample;
+    }
+    final rms = math.sqrt(energy / sampleCount);
+    if (rms <= 1e-7) {
+      return -100;
+    }
+    return (20 * math.log(rms) / math.ln10).clamp(-100.0, 0.0).toDouble();
   }
 
   @override
@@ -365,6 +351,8 @@ class WebBatchStreamingSpeechInput
     _stopping = true;
     _silenceTimer?.cancel();
     _silenceTimer = null;
+    _eventReadyTimer?.cancel();
+    _eventReadyTimer = null;
     final stopRequestedAt = DateTime.now();
     final startedAt = _startedAt ?? stopRequestedAt;
 
@@ -410,10 +398,10 @@ class WebBatchStreamingSpeechInput
       _recordingStopwatch = null;
       _startedAt = null;
       _pcmElapsed = Duration.zero;
-      _resetPcmEarlySpeechCandidate();
-      _amplitudeVoiceActive = false;
-      _pcmVoiceActive = false;
-      _pcmFallbackConfirmed = false;
+      _strongPcmDuration = Duration.zero;
+      _eventsReady = false;
+      _pendingPartialSignal = false;
+      _pendingCompletion = false;
       _uploadGate = null;
       _sessionFuture = null;
     }
@@ -457,6 +445,8 @@ class WebBatchStreamingSpeechInput
     _stopping = false;
     _silenceTimer?.cancel();
     _silenceTimer = null;
+    _eventReadyTimer?.cancel();
+    _eventReadyTimer = null;
     final startFuture = _audioStartFuture;
     if (startFuture != null) {
       await startFuture.catchError((Object _) {});
@@ -470,10 +460,10 @@ class WebBatchStreamingSpeechInput
     _recordingStopwatch = null;
     _startedAt = null;
     _pcmElapsed = Duration.zero;
-    _resetPcmEarlySpeechCandidate();
-    _amplitudeVoiceActive = false;
-    _pcmVoiceActive = false;
-    _pcmFallbackConfirmed = false;
+    _strongPcmDuration = Duration.zero;
+    _eventsReady = false;
+    _pendingPartialSignal = false;
+    _pendingCompletion = false;
     _uploadGate = null;
     _sessionFuture = null;
   }
@@ -503,5 +493,3 @@ class WebBatchStreamingSpeechInput
     await _partialTextController.close();
   }
 }
-
-enum _VoiceActivitySource { browserAmplitude, pcm }

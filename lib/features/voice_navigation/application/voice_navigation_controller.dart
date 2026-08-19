@@ -456,6 +456,22 @@ class VoiceNavigationController extends ChangeNotifier {
         !_awaitingCommand) {
       return;
     }
+    // The six-second MAIN window is a no-speech guard, not a deadline for
+    // Cloudflare to finish. On Web the child may already be speaking while the
+    // Batch session is uploading/finalizing. Cancelling here loses a valid
+    // command intermittently on slower Safari/network combinations. Keep the
+    // window alive while real speech or finalization is in progress; the
+    // normal VAD/maximum-session timers still bound microphone capture.
+    if (_speechDetected || _finishing) {
+      _commandWindowTimer = Timer(_commandWindowDuration, () {
+        _commandWindowTimer = null;
+        if (_disposed || generation != _generation || !_awaitingCommand) {
+          return;
+        }
+        unawaited(_handleMainCommandTimeout(generation));
+      });
+      return;
+    }
     _awaitingCommand = false;
     _cancelSessionTimers();
     final shouldCancelInput = _starting || _listening;

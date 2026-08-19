@@ -30,6 +30,8 @@ class LessonMediaService {
   DateTime? _recordingStartedAt;
   String? _activePath;
   _ActiveLessonRecording? _activeContext;
+  AudioSession? _recordingAudioSession;
+  bool _recordingAudioFocusActive = false;
   Completer<void>? _activePlaybackCompletion;
   Future<void> _recordingOperation = Future<void>.value();
 
@@ -199,23 +201,36 @@ class LessonMediaService {
     }
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.speech());
+    final focusGranted = await session.setActive(true);
+    if (!focusGranted) {
+      throw const LessonMediaException(
+        'Micro đang được cuộc gọi hoặc ứng dụng khác sử dụng.',
+      );
+    }
+    _recordingAudioSession = session;
+    _recordingAudioFocusActive = true;
 
     final path = await recordingPath(
       lessonId: lessonId,
       sentenceNumber: sentenceNumber,
     );
-    await recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        sampleRate: 16000,
-        bitRate: 64000,
-        numChannels: 1,
-        autoGain: true,
-        echoCancel: true,
-        noiseSuppress: true,
-      ),
-      path: path,
-    );
+    try {
+      await recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          sampleRate: 16000,
+          bitRate: 64000,
+          numChannels: 1,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+        path: path,
+      );
+    } catch (_) {
+      await _releaseRecordingAudioFocus();
+      rethrow;
+    }
     _activePath = path;
     _activeContext = _ActiveLessonRecording(
       lessonId: lessonId,
@@ -241,7 +256,12 @@ class LessonMediaService {
             context == null) {
           throw const LessonMediaException('Chưa có bản ghi đang thực hiện.');
         }
-        final recordedPath = await recorder.stop();
+        String? recordedPath;
+        try {
+          recordedPath = await recorder.stop();
+        } finally {
+          await _releaseRecordingAudioFocus();
+        }
         _recordingStartedAt = null;
         _activePath = null;
         _activeContext = null;
@@ -280,7 +300,11 @@ class LessonMediaService {
       });
 
   Future<void> cancelRecording() => _serializeRecordingOperation(() async {
-    await _recorder?.cancel();
+    try {
+      await _recorder?.cancel();
+    } finally {
+      await _releaseRecordingAudioFocus();
+    }
     _recordingStartedAt = null;
     _activePath = null;
     _activeContext = null;
@@ -295,6 +319,16 @@ class LessonMediaService {
     return operation;
   }
 
+  Future<void> _releaseRecordingAudioFocus() async {
+    if (!_recordingAudioFocusActive) {
+      return;
+    }
+    final session = _recordingAudioSession;
+    _recordingAudioSession = null;
+    _recordingAudioFocusActive = false;
+    await session?.setActive(false).catchError((Object _) => false);
+  }
+
   Future<void> deleteRecording(String path) => deleteLessonRecording(path);
 
   Future<void> deleteRecordingsForLesson(String lessonId) async {
@@ -306,6 +340,7 @@ class LessonMediaService {
 
   Future<void> dispose() async {
     await _recordingOperation;
+    await _releaseRecordingAudioFocus();
     await _recorder?.dispose();
     await _playbackService?.dispose();
   }

@@ -870,8 +870,13 @@ class MainVoiceAssistantFlow {
   static bool _isVocabularyChoice(String normalized) =>
       _containsPhrase(normalized, 'hoc tu vung') ||
       _containsPhrase(normalized, 'hoc tu moi') ||
+      _containsPhrase(normalized, 'luyen tu moi') ||
       _containsPhrase(normalized, 'luyen tu') ||
       _containsPhrase(normalized, 'hoc tu') ||
+      _containsPhrase(normalized, 'hoc them tu') ||
+      _containsPhrase(normalized, 'hoc moi') ||
+      _containsPhrase(normalized, 'hoc tu may') ||
+      _containsPhrase(normalized, 'tu ngu') ||
       _containsPhrase(normalized, 'tu vung') ||
       _containsPhrase(normalized, 'tu moi');
 
@@ -888,7 +893,16 @@ class MainVoiceAssistantFlow {
 
   static bool _isTranslationChoice(String normalized) =>
       _containsPhrase(normalized, 'dich sang tieng anh') ||
+      _containsPhrase(normalized, 'dich qua tieng anh') ||
+      _containsPhrase(normalized, 'dich thanh tieng anh') ||
+      _containsPhrase(normalized, 'dich xanh tieng anh') ||
+      _containsPhrase(normalized, 'dich sang tieng an') ||
       _containsPhrase(normalized, 'dich tieng anh') ||
+      _containsPhrase(normalized, 'noi sang tieng anh') ||
+      _containsPhrase(normalized, 'noi bang tieng anh') ||
+      _containsPhrase(normalized, 'noi tieng anh') ||
+      _containsPhrase(normalized, 'phien dich') ||
+      _containsPhrase(normalized, 'tieng anh') ||
       _containsPhrase(normalized, 'dich');
 
   static bool _isSingleSentenceChoice(String normalized) =>
@@ -945,14 +959,21 @@ class MainVoiceAssistantFlow {
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');
 
+  static int _topLevelChoiceCount(String normalized) => <bool>[
+    _isTopicChoice(normalized),
+    _isVocabularyChoice(normalized),
+    _isTranslationChoice(normalized),
+  ].where((matched) => matched).length;
+
   bool _looksLikePromptEcho(String normalized) {
     return switch (_stage) {
       MainVoiceAssistantStage.chooseFeature =>
-        (_isSpeakingChoice(normalized) && _isTopicChoice(normalized)) ||
+        _topLevelChoiceCount(normalized) >= 2 ||
+            (_isSpeakingChoice(normalized) && _isTopicChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc chu de ne') ||
             normalized == 'hoc chu de ne',
       MainVoiceAssistantStage.chooseOtherLearning =>
-        (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
+        _topLevelChoiceCount(normalized) >= 2 ||
             _containsPhrase(normalized, 'hay hoc tu vung ne') ||
             normalized == 'hoc tu vung ne',
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>

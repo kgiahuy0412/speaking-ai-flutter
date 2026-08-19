@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -259,12 +260,17 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       );
       return;
     }
-    await _startLesson(lesson, reviewFromBeginning: false);
+    await _startLesson(
+      lesson,
+      reviewFromBeginning: false,
+      useVoiceNavigationIntro: kIsWeb,
+    );
   }
 
   Future<void> _startLesson(
     ListeningLessonContent lesson, {
     required bool reviewFromBeginning,
+    bool useVoiceNavigationIntro = false,
   }) async {
     final unlockFuture =
         shouldUseSongKaraoke(startAge: widget.startAge, lesson: lesson)
@@ -294,6 +300,9 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
             topicContent: widget.content,
             progressStore: widget.progressStore,
             mediaService: _mediaService,
+            introSpeaker: useVoiceNavigationIntro
+                ? widget.controller?.speakAssistantPrompt
+                : null,
             onTopicCompleted: widget.onTopicCompleted,
           ),
         ),
