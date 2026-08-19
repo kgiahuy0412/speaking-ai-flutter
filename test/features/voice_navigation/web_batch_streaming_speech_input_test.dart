@@ -58,6 +58,75 @@ void main() {
     await input.dispose();
   });
 
+  test(
+    'detects Web HFP speech from PCM when amplitude events are unavailable',
+    () async {
+      final input = _FakeChunkedAudioInput();
+      final session = _FakeBatchSession(transcript: 'học theo chủ đề');
+      final repository = _FakeRepository(session);
+      final speechInput = _createSpeechInput(input, repository);
+      final completed = Completer<void>();
+      final subscription = speechInput.completed.listen((_) {
+        if (!completed.isCompleted) {
+          completed.complete();
+        }
+      });
+
+      await speechInput.startCommandRecognition();
+      // Some browser/HFP combinations keep emitting the minimum amplitude
+      // even though their PCM stream contains the child's voice.
+      input.emitAmplitude(-160);
+      input.emitChunk(_pcm16Chunk(amplitude: 0));
+      input.emitAmplitude(-160);
+      input.emitChunk(_pcm16Chunk(amplitude: 0.3));
+      input.emitAmplitude(-160);
+      input.emitChunk(_pcm16Chunk(amplitude: 0));
+
+      await completed.future.timeout(const Duration(milliseconds: 150));
+      final capture = await speechInput.stop();
+
+      expect(capture.sourceText, 'học theo chủ đề');
+      expect(capture.extraBenchmark?['speechDetected'], isTrue);
+      expect(session.finalizeCount, 1);
+      expect(repository.directProcessCount, 0);
+      await subscription.cancel();
+      await speechInput.dispose();
+      await input.dispose();
+    },
+  );
+
+  test('detects a short PCM command spoken before VAD calibration', () async {
+    final input = _FakeChunkedAudioInput();
+    final session = _FakeBatchSession(transcript: 'luyện nói');
+    final speechInput = WebBatchStreamingSpeechInput(
+      audioInput: input,
+      repository: _FakeRepository(session),
+      childAge: 7,
+      vadSilenceDuration: const Duration(milliseconds: 15),
+    );
+    final completed = Completer<void>();
+    final subscription = speechInput.completed.listen((_) {
+      if (!completed.isCompleted) {
+        completed.complete();
+      }
+    });
+
+    await speechInput.startCommandRecognition();
+    input.emitAmplitude(-160);
+    input.emitChunk(_pcm16PatternChunk(<double>[0.04, 0.08, 0.16, 0.07, 0.14]));
+    input.emitChunk(_pcm16Chunk(amplitude: 0));
+
+    await completed.future.timeout(const Duration(milliseconds: 150));
+    final capture = await speechInput.stop();
+
+    expect(capture.sourceText, 'luyện nói');
+    expect(capture.extraBenchmark?['speechDetected'], isTrue);
+    expect(session.finalizeCount, 1);
+    await subscription.cancel();
+    await speechInput.dispose();
+    await input.dispose();
+  });
+
   test('discard Web MAIN Batch session when command is cancelled', () async {
     final input = _FakeChunkedAudioInput();
     final session = _FakeBatchSession(transcript: 'không dùng');
@@ -83,6 +152,11 @@ WebBatchStreamingSpeechInput _createSpeechInput(
   childAge: 7,
   vadSilenceDuration: const Duration(milliseconds: 15),
   voiceActivityDetector: AdaptiveVoiceActivityDetector(
+    calibrationDuration: Duration.zero,
+    minimumSpeechDuration: Duration.zero,
+    minimumSpeechVariationDb: 0,
+  ),
+  pcmVoiceActivityDetector: AdaptiveVoiceActivityDetector(
     calibrationDuration: Duration.zero,
     minimumSpeechDuration: Duration.zero,
     minimumSpeechVariationDb: 0,
@@ -234,3 +308,21 @@ ConversationResult _result(String transcript) => ConversationResult(
     timeToFirstAudioMs: 10,
   ),
 );
+
+Uint8List _pcm16Chunk({required double amplitude, int durationMs = 200}) {
+  final sampleCount = 16000 * durationMs ~/ 1000;
+  final bytes = Uint8List(sampleCount * 2);
+  final data = ByteData.sublistView(bytes);
+  final peak = (amplitude.clamp(0.0, 1.0) * 32767).round();
+  for (var index = 0; index < sampleCount; index += 1) {
+    data.setInt16(index * 2, index.isEven ? peak : -peak, Endian.little);
+  }
+  return bytes;
+}
+
+Uint8List _pcm16PatternChunk(List<double> amplitudes, {int frameMs = 50}) {
+  return Uint8List.fromList(<int>[
+    for (final amplitude in amplitudes)
+      ..._pcm16Chunk(amplitude: amplitude, durationMs: frameMs),
+  ]);
+}

@@ -385,8 +385,12 @@ class SettingsSheet extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   context.tr(
-                    'APK sẽ xác nhận service 9E3B0001. Âm thanh không truyền qua BLE.',
-                    'APK 将验证 9E3B0001 服务。音频不通过 BLE 传输。',
+                    kIsWeb
+                        ? 'Web sẽ xác nhận service 9E3B0001. Âm thanh vẫn dùng HFP/mic do hệ điều hành cung cấp.'
+                        : 'APK sẽ xác nhận service 9E3B0001. Âm thanh không truyền qua BLE.',
+                    kIsWeb
+                        ? 'Web 将验证 9E3B0001 服务。音频仍使用系统提供的 HFP/麦克风。'
+                        : 'APK 将验证 9E3B0001 服务。音频不通过 BLE 传输。',
                   ),
                   style: Theme.of(
                     sheetContext,
@@ -1322,13 +1326,13 @@ class _Aiv0BleControlCard extends StatelessWidget {
   String _detail(BuildContext context) {
     return switch (status.phase) {
       Aiv0BlePhase.disabled => context.tr(
-        'BLE Control AIV0 chỉ hoạt động trên APK Android.',
-        'AIV0 BLE 控制仅适用于 Android APK。',
+        status.message ??
+            'BLE Control AIV0 không được hỗ trợ trên nền tảng này.',
+        status.message ?? '此平台不支持 AIV0 BLE 控制。',
       ),
-      Aiv0BlePhase.idle => context.tr(
-        'Chưa kết nối service 9E3B0001.',
-        '尚未连接 9E3B0001 服务。',
-      ),
+      Aiv0BlePhase.idle =>
+        status.message ??
+            context.tr('Chưa kết nối service 9E3B0001.', '尚未连接 9E3B0001 服务。'),
       Aiv0BlePhase.scanning => context.tr(
         'Đang tìm H20/AIV0 ở gần…',
         '正在搜索附近的 H20/AIV0…',

@@ -8,6 +8,7 @@ import '../core/audio/audio_playback_service.dart';
 import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
 import '../core/audio/hfp_audio_control.dart';
+import '../core/audio/hfp_routed_streaming_speech_input.dart';
 import '../core/audio/innotrik_ble_audio_input.dart';
 import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
@@ -17,6 +18,7 @@ import '../core/audio/voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
 import '../core/device/active_learning_module.dart';
 import '../core/device/aiv0_ble_control.dart';
+import '../core/device/aiv0_ble_control_factory.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/device/main_button_coordinator.dart';
@@ -55,7 +57,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   VoiceNavigationController? _voiceNavigationController;
   AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
   PhoneMicrophoneInput? _phoneMicrophoneInput;
-  MethodChannelAiv0BleControl? _aiv0BleControl;
+  Aiv0BleControl? _aiv0BleControl;
   MethodChannelHfpAudioControl? _androidHfpAudioControl;
   WebBatchStreamingSpeechInput? _webBatchStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
@@ -230,8 +232,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
     if (_bluetoothPermissionRequired) {
       try {
         if (_config.enableAiv0BleControl) {
-          bluetoothGranted =
-              await _aiv0BleControl?.requestPermissions() ?? false;
+          final aiv0BleControl = _aiv0BleControl;
+          bluetoothGranted = aiv0BleControl is MethodChannelAiv0BleControl
+              ? await aiv0BleControl.requestPermissions()
+              : false;
         } else {
           bluetoothGranted =
               await _androidHfpAudioControl?.requestPermissions() ?? false;
@@ -326,8 +330,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       );
       hfpAudioControl = androidHfpAudioControl;
     }
-    final aiv0BleControl = MethodChannelAiv0BleControl(
-      enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
+    final aiv0BleControl = createAiv0BleControl(
+      enabled: _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
     );
     final streamingSpeechInput = supportsAndroidNativeSpeech
@@ -335,21 +339,27 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
         : null;
     _androidStreamingSpeechInput = streamingSpeechInput;
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
-    final StreamingSpeechInput? voiceNavigationSpeechInput;
+    final StreamingSpeechInput? rawVoiceNavigationSpeechInput;
     if (streamingSpeechInput != null) {
       webBatchStreamingSpeechInput = null;
-      voiceNavigationSpeechInput = streamingSpeechInput;
+      rawVoiceNavigationSpeechInput = streamingSpeechInput;
     } else if (kIsWeb) {
       webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
         audioInput: phoneMicrophoneInput,
         repository: repository,
         childAge: _config.childAge,
       );
-      voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
+      rawVoiceNavigationSpeechInput = webBatchStreamingSpeechInput;
     } else {
       webBatchStreamingSpeechInput = null;
-      voiceNavigationSpeechInput = null;
+      rawVoiceNavigationSpeechInput = null;
     }
+    final voiceNavigationSpeechInput = rawVoiceNavigationSpeechInput == null
+        ? null
+        : HfpRoutedStreamingSpeechInput(
+            speechInput: rawVoiceNavigationSpeechInput,
+            hfpAudioControl: hfpAudioControl,
+          );
     final voiceNavigationController =
         voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(

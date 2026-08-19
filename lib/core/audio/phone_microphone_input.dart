@@ -27,6 +27,7 @@ class PhoneMicrophoneInput
   BytesBuilder? _pendingChunkBytes;
   StreamSubscription<Uint8List>? _pcmSubscription;
   Completer<void>? _pcmStreamDone;
+  Completer<void>? _firstPcmFrame;
   Object? _streamError;
   PcmSpeechPreprocessor? _pcmPreprocessor;
   Pcm16MonoResampler? _pcmResampler;
@@ -212,6 +213,7 @@ class PhoneMicrophoneInput
     _pcmBytes = BytesBuilder(copy: false);
     _pendingChunkBytes = BytesBuilder(copy: false);
     _pcmStreamDone = Completer<void>();
+    _firstPcmFrame = Completer<void>();
     await _prepareRecording();
 
     final pcmStream = await _recorder.startStream(
@@ -226,6 +228,32 @@ class PhoneMicrophoneInput
         device: _selectedInputDevice,
       ),
     );
+    if (kIsWeb) {
+      try {
+        // record_web creates a fresh AudioContext for PCM streaming. When
+        // MAIN starts after Bi cô's prompt (or from a physical BLE callback),
+        // Chromium may create that context in the suspended state even though
+        // microphone permission and the HFP device are already valid.
+        // record_web reports "recording" in that state but emits no PCM, so
+        // explicitly resume it before declaring the microphone ready.
+        if (await _recorder.isPaused()) {
+          await _recorder.resume().timeout(const Duration(seconds: 2));
+        }
+        if (await _recorder.isPaused()) {
+          throw const AudioInputException(
+            'Trình duyệt đang tạm dừng bộ thu âm. Hãy chạm vào trang rồi thử MAIN lại.',
+          );
+        }
+      } catch (error) {
+        await cancel().catchError((Object _) {});
+        if (error is AudioInputException) {
+          rethrow;
+        }
+        throw AudioInputException(
+          'Không thể kích hoạt micro Web sau lời nhắc của trợ lý: $error',
+        );
+      }
+    }
     // Safari commonly exposes its AudioContext at 44.1/48 kHz even when the
     // requested microphone rate is 16 kHz. Normalize Web PCM once here so
     // upload chunks, speculative preview and final WAV all share 16 kHz.
@@ -246,11 +274,28 @@ class PhoneMicrophoneInput
       onDone: _completePcmStream,
       cancelOnError: false,
     );
+    if (kIsWeb) {
+      try {
+        // Do not report MAIN as listening until the HFP profile has actually
+        // delivered a frame. getUserMedia/startStream can resolve while the
+        // Bluetooth device is still switching from playback to hands-free.
+        await _firstPcmFrame!.future.timeout(const Duration(seconds: 2));
+      } on TimeoutException {
+        await cancel().catchError((Object _) {});
+        throw const AudioInputException(
+          'Micro HFP đã được chọn nhưng trình duyệt không trả dữ liệu âm thanh. Hãy chạm vào trang và thử MAIN lại.',
+        );
+      }
+    }
   }
 
   void _handlePcmBytes(Uint8List bytes) {
     if (bytes.isEmpty) {
       return;
+    }
+    final firstFrame = _firstPcmFrame;
+    if (firstFrame != null && !firstFrame.isCompleted) {
+      firstFrame.complete();
     }
     _pendingChunkBytes?.add(bytes);
     final pending = _pendingChunkBytes?.takeBytes() ?? Uint8List(0);
@@ -321,6 +366,7 @@ class PhoneMicrophoneInput
       await _pcmSubscription?.cancel();
       _pcmSubscription = null;
       _flushFinalChunk();
+      _firstPcmFrame = null;
     }
     final path = recorderPath ?? _currentPath;
     final startedAt = _startedAt;
@@ -385,6 +431,7 @@ class PhoneMicrophoneInput
     _pendingChunkBytes = null;
     _pcmPreprocessor = null;
     _pcmResampler = null;
+    _firstPcmFrame = null;
     _chunked = false;
   }
 
