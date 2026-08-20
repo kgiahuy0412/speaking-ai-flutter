@@ -6,8 +6,6 @@ void main() {
   test('recognizes common browser Bluetooth microphone labels', () {
     expect(isLikelyBrowserHfpLabel('AirPods Microphone'), isTrue);
     expect(isLikelyBrowserHfpLabel('INNOTRIK'), isTrue);
-    expect(isLikelyBrowserHfpLabel('H20'), isTrue);
-    expect(isLikelyBrowserHfpLabel('H20 Microphone'), isTrue);
     expect(
       isLikelyBrowserHfpLabel('Headset (WH-1000XM5 Hands-Free AG Audio)'),
       isTrue,
@@ -24,17 +22,20 @@ void main() {
           id: 'phone',
           label: 'iPhone Microphone',
         ),
-        const SelectableAudioInputDevice(id: 'h20', label: 'H20 Microphone'),
+        const SelectableAudioInputDevice(
+          id: 'airpods',
+          label: 'AirPods Microphone',
+        ),
       ]);
       final control = BrowserHfpAudioControl(enabled: true, audioInput: input);
 
       await control.initialize();
       final devices = await control.findDevices();
       expect(devices, hasLength(1));
-      expect(devices.single.id, 'h20');
+      expect(devices.single.id, 'airpods');
 
       await control.connect(devices.single);
-      expect(input.selectedAudioInputDevice?.id, 'h20');
+      expect(input.selectedAudioInputDevice?.id, 'airpods');
       expect(control.status.phase, BluetoothAudioConnectionPhase.ready);
 
       await control.startAudioRoute();

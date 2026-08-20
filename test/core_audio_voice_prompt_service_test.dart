@@ -25,7 +25,6 @@ void main() {
     expect(receivedCall?.arguments, <String, dynamic>{
       'text': 'Con đưa micro lại gần và nói rõ hơn nhé.',
       'locale': 'vi-VN',
-      'gainDb': 8.0,
     });
   });
 
@@ -51,7 +50,6 @@ void main() {
       expect(receivedCall?.arguments, <String, dynamic>{
         'text': 'Pipo nghe đây',
         'locale': 'vi-VN',
-        'gainDb': 8.0,
       });
     },
   );

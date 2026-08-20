@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/services.dart';
 
 import 'audio_input.dart';
@@ -189,8 +188,6 @@ class AndroidStreamingSpeechInput
   int? _recordedAudioByteLength;
   int? _recordedAudioSampleRate;
   bool _active = false;
-  bool _audioFocusActive = false;
-  AudioSession? _activeAudioSession;
   bool _disposed = false;
   bool? _availabilityCache;
 
@@ -400,7 +397,6 @@ class AndroidStreamingSpeechInput
     _active = true;
 
     try {
-      await _activateAudioFocus();
       await _methodChannel.invokeMethod<void>('speech.start', {
         'commandMode': commandMode,
       });
@@ -411,22 +407,16 @@ class AndroidStreamingSpeechInput
       await _methodChannel
           .invokeMethod<void>('speech.cancel')
           .catchError((Object _) {});
-      await _releaseAudioFocus();
       throw const StreamingSpeechInputException(
         'Micro Android chưa sẵn sàng. Hãy thử lại sau một chút.',
         code: 'SPEECH_READY_TIMEOUT',
       );
     } on PlatformException catch (error) {
       _active = false;
-      await _releaseAudioFocus();
       throw StreamingSpeechInputException(
         error.message ?? 'Không thể bắt đầu nhận diện giọng nói.',
         code: error.code,
       );
-    } on StreamingSpeechInputException {
-      _active = false;
-      await _releaseAudioFocus();
-      rethrow;
     } finally {
       if (identical(_readyCompleter, readyCompleter)) {
         _readyCompleter = null;
@@ -487,7 +477,6 @@ class AndroidStreamingSpeechInput
       }
     }
     _active = false;
-    await _releaseAudioFocus();
 
     if (sourceText.trim().isEmpty) {
       throw const StreamingSpeechInputException(
@@ -559,7 +548,6 @@ class AndroidStreamingSpeechInput
     if (_active) {
       await _methodChannel.invokeMethod<void>('speech.cancel');
     }
-    await _releaseAudioFocus();
     _active = false;
     _startedAt = null;
     _latestText = '';
@@ -570,51 +558,6 @@ class AndroidStreamingSpeechInput
       completer.complete('');
     }
     _resultCompleter = null;
-  }
-
-  Future<void> _activateAudioFocus() async {
-    if (_audioFocusActive) {
-      return;
-    }
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(
-        const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-          avAudioSessionCategoryOptions:
-              AVAudioSessionCategoryOptions.allowBluetooth,
-          avAudioSessionMode: AVAudioSessionMode.voiceChat,
-          androidAudioAttributes: AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.voiceCommunication,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: true,
-        ),
-      );
-      final granted = await session.setActive(true);
-      if (!granted) {
-        throw const StreamingSpeechInputException(
-          'Micro đang được cuộc gọi hoặc ứng dụng khác sử dụng.',
-          code: 'AUDIO_FOCUS_UNAVAILABLE',
-        );
-      }
-      _activeAudioSession = session;
-      _audioFocusActive = true;
-    } on MissingPluginException {
-      // Unit tests do not install the native audio-session channel. The real
-      // Android runtime always supplies it through the plugin registration.
-    }
-  }
-
-  Future<void> _releaseAudioFocus() async {
-    if (!_audioFocusActive) {
-      return;
-    }
-    final session = _activeAudioSession;
-    _activeAudioSession = null;
-    _audioFocusActive = false;
-    await session?.setActive(false).catchError((Object _) => false);
   }
 
   void _handleEvent(dynamic event) {
@@ -674,7 +617,6 @@ class AndroidStreamingSpeechInput
           : null;
       _resultAt = DateTime.now();
       _active = false;
-      unawaited(_releaseAudioFocus());
       _completeResult(_latestText);
       _completedController.add(null);
       return;
@@ -683,7 +625,6 @@ class AndroidStreamingSpeechInput
     if (type == 'speech.error') {
       _readRecordedAudioMetadata(event);
       _active = false;
-      unawaited(_releaseAudioFocus());
       _resultAt = DateTime.now();
       final message =
           event['message'] as String? ?? 'Không thể nhận diện giọng nói.';
@@ -787,7 +728,6 @@ class AndroidStreamingSpeechInput
     if (_active) {
       await _methodChannel.invokeMethod<void>('speech.cancel');
     }
-    await _releaseAudioFocus();
     await _eventSubscription.cancel();
     await _amplitudeController.close();
     await _completedController.close();

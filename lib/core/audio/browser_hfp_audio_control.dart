@@ -251,7 +251,7 @@ bool isLikelyBrowserHfpLabel(String label) {
     return false;
   }
   return RegExp(
-    r'bluetooth|hfp|hands[ -]?free|headset|headphone|earbud|airpods|buds|beats|bose|jabra|freebuds|galaxy buds|pixel buds|sony w[fh]-|qcy|plantronics|poly|innotrik|\bh[ -]?20\b|bt audio|tai nghe|蓝牙|耳机',
+    r'bluetooth|hfp|hands[ -]?free|headset|headphone|earbud|airpods|buds|beats|bose|jabra|freebuds|galaxy buds|pixel buds|sony w[fh]-|qcy|plantronics|poly|innotrik|bt audio|tai nghe|蓝牙|耳机',
     caseSensitive: false,
   ).hasMatch(normalized);
 }

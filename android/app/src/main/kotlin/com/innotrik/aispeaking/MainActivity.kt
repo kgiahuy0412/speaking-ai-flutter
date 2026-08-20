@@ -1,11 +1,9 @@
 package com.innotrik.aispeaking
 
-import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.PowerManager
 import android.os.StatFs
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -22,23 +20,6 @@ class MainActivity : FlutterActivity() {
     private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
     private var voicePromptBridge: VoicePromptBridge? = null
-
-    override fun onResume() {
-        super.onResume()
-        aiv0BleControlBridge?.onHostResume()
-    }
-
-    /**
-     * A BLE Indicate is allowed to wake only the retained Flutter scheduler,
-     * not the display or lock screen. This lets Navigator construct the
-     * selected listening lesson and lets its audio state machine continue
-     * while the child uses H20 with the phone screen off.
-     */
-    fun resumeFlutterForScreenOffMain() {
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (powerManager.isInteractive) return
-        flutterEngine?.lifecycleChannel?.appIsResumed()
-    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -86,32 +67,6 @@ class MainActivity : FlutterActivity() {
                             PackageManager.FEATURE_BLUETOOTH_LE,
                         ),
                     )
-                "backgroundAssistant.start" -> {
-                    val microphoneGranted =
-                        checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
-                            PackageManager.PERMISSION_GRANTED
-                    val bluetoothGranted =
-                        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
-                            PackageManager.PERMISSION_GRANTED
-                    if (!microphoneGranted || !bluetoothGranted) {
-                        result.success(false)
-                    } else {
-                        runCatching { H20CompanionService.start(this) }
-                            .onSuccess { result.success(true) }
-                            .onFailure { error ->
-                                result.error(
-                                    "BACKGROUND_ASSISTANT_START_FAILED",
-                                    error.message,
-                                    null,
-                                )
-                            }
-                    }
-                }
-                "backgroundAssistant.stop" -> {
-                    H20CompanionService.stop(this)
-                    result.success(null)
-                }
                 else -> result.notImplemented()
             }
         }

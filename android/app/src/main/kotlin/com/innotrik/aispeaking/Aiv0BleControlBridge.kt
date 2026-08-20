@@ -36,11 +36,7 @@ class Aiv0BleControlBridge(
         private const val EVENT_CHANNEL = "ailingo_aiv0_ble_control/events"
         private const val PERMISSION_REQUEST_CODE = 7395
         private const val MAX_RECONNECT_ATTEMPTS = 5
-        private const val PASSIVE_RECONNECT_DELAY_MS = 30_000L
         private const val DUPLICATE_WINDOW_MS = 750L
-        private const val PREFERENCES_NAME = "aiv0_ble_control"
-        private const val PREFERENCE_DEVICE_ID = "remembered_device_id"
-        private const val PREFERENCE_DEVICE_NAME = "remembered_device_name"
         private const val TAG = "Aiv0BleControl"
     }
 
@@ -51,11 +47,6 @@ class Aiv0BleControlBridge(
         activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val adapter: BluetoothAdapter? get() = bluetoothManager.adapter
     private val scanDevices = linkedMapOf<String, ScannedDevice>()
-    private val preferences =
-        activity.applicationContext.getSharedPreferences(
-            PREFERENCES_NAME,
-            Context.MODE_PRIVATE,
-        )
 
     private var eventSink: EventChannel.EventSink? = null
     private var phase = "idle"
@@ -84,25 +75,10 @@ class Aiv0BleControlBridge(
     private var firmwareCharacteristic: BluetoothGattCharacteristic? = null
     private var shouldReconnect = false
     private var reconnectAttempts = 0
-    private var reconnectRunnable: Runnable? = null
     private var disposed = false
     private val connectionTimeout = Runnable {
         if (phase == "connecting" || phase == "reconnecting") {
-            val timedOutGatt = bluetoothGatt
-            bluetoothGatt = null
-            clearCharacteristics()
-            runCatching { timedOutGatt?.disconnect() }
-            runCatching { timedOutGatt?.close() }
-            connectResult?.error(
-                "CONNECT_TIMEOUT",
-                "Kết nối/đọc GATT của H20 quá thời gian 15 giây.",
-                null,
-            )
-            connectResult = null
-            scheduleReconnect(
-                status = BluetoothGatt.GATT_FAILURE,
-                reason = "H20 chưa phản hồi; ứng dụng sẽ tự thử lại.",
-            )
+            failConnection("Kết nối/đọc GATT của H20 quá thời gian 15 giây.")
         }
     }
 
@@ -114,7 +90,6 @@ class Aiv0BleControlBridge(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "initialize" -> initialize(result)
-            "reconnectRemembered" -> reconnectRemembered(result)
             "requestPermissions" -> requestPermissions(result)
             "scan" -> scan(call, result)
             "connect" -> connect(call, result)
@@ -132,9 +107,6 @@ class Aiv0BleControlBridge(
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
         events?.success(snapshot())
-        // Flutter recreates this stream when the Activity/engine is created
-        // again. Reattach to the verified H20 without another manual scan.
-        mainHandler.post(::ensureRememberedConnection)
     }
 
     override fun onCancel(arguments: Any?) {
@@ -155,7 +127,6 @@ class Aiv0BleControlBridge(
         }
         result.success(snapshot())
         emitStatus()
-        mainHandler.post(::ensureRememberedConnection)
     }
 
     private fun requiredPermissions(): Array<String> =
@@ -193,9 +164,6 @@ class Aiv0BleControlBridge(
         phase = if (granted) "idle" else "error"
         message = if (granted) null else "Quyền Bluetooth đã bị từ chối."
         emitStatus()
-        if (granted) {
-            mainHandler.post(::ensureRememberedConnection)
-        }
         return true
     }
 
@@ -326,7 +294,6 @@ class Aiv0BleControlBridge(
             ?: "H20"
         shouldReconnect = true
         reconnectAttempts = 0
-        cancelScheduledReconnect()
         connectResult = result
         phase = "connecting"
         message = "Đang xác nhận BLE Control 9E3B0001…"
@@ -338,14 +305,9 @@ class Aiv0BleControlBridge(
         mainHandler.removeCallbacks(connectionTimeout)
         val opened = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                device.connectGatt(
-                    activity.applicationContext,
-                    false,
-                    gattCallback,
-                    BluetoothDevice.TRANSPORT_LE,
-                )
+                device.connectGatt(activity, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
             } else {
-                device.connectGatt(activity.applicationContext, false, gattCallback)
+                device.connectGatt(activity, false, gattCallback)
             }
         }.getOrElse { error ->
             failConnection("Không thể mở GATT H20: ${error.message}")
@@ -358,12 +320,6 @@ class Aiv0BleControlBridge(
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             mainHandler.post {
-                if (gatt !== bluetoothGatt) {
-                    if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                        runCatching { gatt.close() }
-                    }
-                    return@post
-                }
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         bluetoothGatt = gatt
@@ -460,13 +416,11 @@ class Aiv0BleControlBridge(
                 }
                 phase = "connected"
                 mainHandler.removeCallbacks(connectionTimeout)
-                reconnectAttempts = 0
                 message = if (writeMode == "withoutResponse") {
                     "Đã kết nối. ODM cần bổ sung Write with response cho 9E3B0003."
                 } else {
                     "Đã kết nối BLE Control AIV0."
                 }
-                rememberConnectedDevice()
                 connectResult?.success(snapshot())
                 connectResult = null
                 emitStatus()
@@ -531,11 +485,6 @@ class Aiv0BleControlBridge(
     private fun handleCharacteristicChanged(uuid: java.util.UUID, value: ByteArray) {
         if (uuid != Aiv0BleProtocol.buttonEventUuid) return
         mainHandler.post {
-            // Flutter deliberately stops producing frames after Android turns
-            // the display off. A physical MAIN command can still arrive via
-            // this foreground BLE path, so allow the retained engine to build
-            // the requested Topic/Lesson routes without lighting the screen.
-            (activity as? MainActivity)?.resumeFlutterForScreenOffMain()
             packetCount += 1
             val hex = value.toHex()
             val now = android.os.SystemClock.elapsedRealtime()
@@ -638,13 +587,9 @@ class Aiv0BleControlBridge(
     private fun disconnect(result: MethodChannel.Result) {
         shouldReconnect = false
         reconnectAttempts = 0
-        cancelScheduledReconnect()
         connectResult?.error("CONNECT_CANCELLED", "Đã hủy kết nối.", null)
         connectResult = null
         closeGatt()
-        preferences.edit().remove(PREFERENCE_DEVICE_ID).remove(PREFERENCE_DEVICE_NAME).apply()
-        deviceId = null
-        deviceName = null
         phase = "idle"
         message = "Đã ngắt BLE Control AIV0."
         emitStatus()
@@ -656,122 +601,38 @@ class Aiv0BleControlBridge(
         if (bluetoothGatt === gatt) bluetoothGatt = null
         runCatching { gatt.close() }
         clearCharacteristics()
-        scheduleReconnect(status = status)
-    }
-
-    /**
-     * Called when Flutter starts or the Activity returns to the foreground.
-     * The remembered H20 is restored without asking the parent to scan/select
-     * it again. Manual disconnect clears the remembered device.
-     */
-    fun onHostResume() {
-        mainHandler.post(::ensureRememberedConnection)
-    }
-
-    private fun reconnectRemembered(result: MethodChannel.Result) {
-        if (!ensureBluetoothReady(result)) return
-        ensureRememberedConnection()
-        result.success(snapshot())
-    }
-
-    private fun ensureRememberedConnection() {
-        if (disposed || !hasPermissions() || adapter?.isEnabled != true) return
-        if (phase == "connected" && stateCharacteristic != null) return
-        if (bluetoothGatt != null || reconnectRunnable != null || scanResult != null) return
-        val rememberedId = preferences.getString(PREFERENCE_DEVICE_ID, null)
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: return
-        val device = runCatching { adapter?.getRemoteDevice(rememberedId) }.getOrNull() ?: return
-        deviceId = rememberedId
-        deviceName = preferences.getString(PREFERENCE_DEVICE_NAME, null)
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: runCatching { device.name }.getOrNull()
-            ?: "H20"
-        shouldReconnect = true
-        reconnectAttempts = 0
-        phase = "reconnecting"
-        message = "Đang tự kết nối lại H20 đã lưu…"
-        emitStatus()
-        openGatt(device)
-    }
-
-    private fun scheduleReconnect(status: Int, reason: String? = null) {
-        mainHandler.removeCallbacks(connectionTimeout)
         if (!shouldReconnect || disposed) {
             phase = "idle"
             message = "BLE Control đã ngắt kết nối."
             emitStatus()
             return
         }
-
-        val isFastRetry = reconnectAttempts < MAX_RECONNECT_ATTEMPTS
-        if (isFastRetry) {
-            reconnectAttempts += 1
-        } else {
-            reconnectAttempts = MAX_RECONNECT_ATTEMPTS
-            if (connectResult != null) {
-                connectResult?.error(
-                    "RECONNECT_CONTINUES_IN_BACKGROUND",
-                    "Chưa kết nối lại được H20; ứng dụng vẫn tiếp tục thử nền.",
-                    status,
-                )
-                connectResult = null
-            }
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            phase = "error"
+            message = "Không thể tự kết nối lại H20 sau $MAX_RECONNECT_ATTEMPTS lần."
+            connectResult?.error("RECONNECT_FAILED", message, status)
+            connectResult = null
+            emitStatus()
+            return
         }
+        reconnectAttempts += 1
         reconnectCount += 1
         phase = "reconnecting"
-        val delay = if (isFastRetry) {
-            (1_000L shl (reconnectAttempts - 1)).coerceAtMost(8_000L)
-        } else {
-            PASSIVE_RECONNECT_DELAY_MS
-        }
-        message = reason ?: if (isFastRetry) {
-            "Đang kết nối lại H20 ($reconnectAttempts/$MAX_RECONNECT_ATTEMPTS)…"
-        } else {
-            "H20 đang ngoài phạm vi; ứng dụng sẽ tự thử lại."
-        }
-        Log.w(TAG, "Reconnect attempt=$reconnectAttempts delay=$delay status=$status")
+        message = "Đang kết nối lại H20 ($reconnectAttempts/$MAX_RECONNECT_ATTEMPTS)…"
+        Log.w(TAG, "Reconnect $reconnectAttempts/$MAX_RECONNECT_ATTEMPTS status=$status")
         emitStatus()
-
-        cancelScheduledReconnect()
-        val retry = Runnable {
-            reconnectRunnable = null
-            if (!shouldReconnect || disposed) return@Runnable
-            if (adapter?.isEnabled != true) {
-                scheduleReconnect(
-                    status = BluetoothGatt.GATT_FAILURE,
-                    reason = "Bluetooth đang tắt; sẽ tự nối lại khi Bluetooth sẵn sàng.",
-                )
-                return@Runnable
-            }
-            val id = deviceId ?: preferences.getString(PREFERENCE_DEVICE_ID, null)
-            val device = id?.let { runCatching { adapter?.getRemoteDevice(it) }.getOrNull() }
+        val delay = (1_000L shl (reconnectAttempts - 1)).coerceAtMost(8_000L)
+        mainHandler.postDelayed({
+            val id = deviceId ?: return@postDelayed
+            val device = runCatching { adapter?.getRemoteDevice(id) }.getOrNull()
             if (device == null) {
-                scheduleReconnect(
-                    status = BluetoothGatt.GATT_FAILURE,
-                    reason = "Chưa tìm thấy H20 đã lưu; ứng dụng sẽ tiếp tục thử.",
-                )
+                phase = "error"
+                message = "Không còn tìm thấy H20 đã ghép nối."
+                emitStatus()
             } else {
                 openGatt(device)
             }
-        }
-        reconnectRunnable = retry
-        mainHandler.postDelayed(retry, delay)
-    }
-
-    private fun cancelScheduledReconnect() {
-        reconnectRunnable?.let(mainHandler::removeCallbacks)
-        reconnectRunnable = null
-    }
-
-    private fun rememberConnectedDevice() {
-        val id = deviceId ?: return
-        preferences.edit()
-            .putString(PREFERENCE_DEVICE_ID, id)
-            .putString(PREFERENCE_DEVICE_NAME, deviceName ?: "H20")
-            .apply()
+        }, delay)
     }
 
     private fun failConnection(reason: String) {
@@ -807,8 +668,6 @@ class Aiv0BleControlBridge(
         "type" to "status",
         "phase" to phase,
         "message" to message,
-        "hasRememberedDevice" to
-            !preferences.getString(PREFERENCE_DEVICE_ID, null).isNullOrBlank(),
         "deviceId" to deviceId,
         "deviceName" to deviceName,
         "writeMode" to writeMode,
@@ -833,7 +692,6 @@ class Aiv0BleControlBridge(
         if (disposed) return
         disposed = true
         shouldReconnect = false
-        cancelScheduledReconnect()
         mainHandler.removeCallbacksAndMessages(null)
         stopScan(complete = false)
         connectResult?.error("DISPOSED", "BLE Control đã đóng.", null)

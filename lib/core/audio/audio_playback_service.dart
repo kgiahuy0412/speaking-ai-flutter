@@ -4,7 +4,6 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-import 'audio_gain.dart';
 import 'browser_audio_playback.dart';
 import 'browser_audio_playback_factory.dart';
 import 'device_audio_cache.dart';
@@ -83,40 +82,27 @@ class JustAudioPlaybackService
         DirectUserGestureAudioPlaybackService,
         CommunicationRouteAwareAudioPlaybackService {
   static Future<void>? _assetCacheRefresh;
-  // A modest boost makes speech clearer on small speakers and HFP headsets
-  // without pushing typical voice recordings into heavy clipping.
-  static const double androidPlaybackGainDb = androidSpeechBoostDb;
 
   JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
     : _cache = cache ?? DeviceAudioCache(),
       _ownsCache = cache == null,
       _browserPlayback = createBrowserAudioPlayback(),
-      _player = player ?? _createDefaultPlayer() {
+      _player =
+          player ??
+          AudioPlayer(
+            audioLoadConfiguration: const AudioLoadConfiguration(
+              androidLoadControl: AndroidLoadControl(
+                minBufferDuration: Duration(milliseconds: 600),
+                maxBufferDuration: Duration(seconds: 8),
+                bufferForPlaybackDuration: Duration(milliseconds: 180),
+                bufferForPlaybackAfterRebufferDuration: Duration(
+                  milliseconds: 500,
+                ),
+                prioritizeTimeOverSizeThresholds: true,
+              ),
+            ),
+          ) {
     _audioSession = AudioSession.instance;
-  }
-
-  static AudioPlayer _createDefaultPlayer() {
-    final androidEffects = <AndroidAudioEffect>[];
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      final loudnessEnhancer = AndroidLoudnessEnhancer();
-      // These setters update the effect's initial configuration synchronously
-      // while the player is inactive, so playback starts with the boost ready.
-      unawaited(loudnessEnhancer.setTargetGain(androidPlaybackGainDb));
-      unawaited(loudnessEnhancer.setEnabled(true));
-      androidEffects.add(loudnessEnhancer);
-    }
-    return AudioPlayer(
-      audioPipeline: AudioPipeline(androidAudioEffects: androidEffects),
-      audioLoadConfiguration: const AudioLoadConfiguration(
-        androidLoadControl: AndroidLoadControl(
-          minBufferDuration: Duration(milliseconds: 600),
-          maxBufferDuration: Duration(seconds: 8),
-          bufferForPlaybackDuration: Duration(milliseconds: 180),
-          bufferForPlaybackAfterRebufferDuration: Duration(milliseconds: 500),
-          prioritizeTimeOverSizeThresholds: true,
-        ),
-      ),
-    );
   }
 
   final AudioPlayer _player;

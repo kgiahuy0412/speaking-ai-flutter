@@ -101,9 +101,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     try {
       decoded = jsonDecode(response.body);
     } on FormatException {
-      throw LessonAttemptEvaluationException(
+      throw const LessonAttemptEvaluationException(
         'Máy chủ chưa xử lý được câu nói. Con thử lại sau nhé.',
-        retryable: _isRetryableStatus(response.statusCode),
       );
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -125,7 +124,6 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
         message is String && message.trim().isNotEmpty
             ? message
             : 'Chưa kiểm tra được câu nói của con. Con thử lại sau nhé.',
-        retryable: _isRetryableStatus(response.statusCode),
       );
     }
 
@@ -162,9 +160,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     try {
       decoded = jsonDecode(response.body);
     } on FormatException {
-      throw LessonAttemptEvaluationException(
+      throw const LessonAttemptEvaluationException(
         'Máy chủ chưa xử lý được câu nói. Con thử lại sau nhé.',
-        retryable: _isRetryableStatus(response.statusCode),
       );
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -186,7 +183,6 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
         message is String && message.trim().isNotEmpty
             ? message
             : 'Chưa kiểm tra được câu nói của con. Con thử lại sau nhé.',
-        retryable: _isRetryableStatus(response.statusCode),
       );
     }
 
@@ -209,12 +205,10 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     } on TimeoutException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        retryable: true,
       );
     } on http.ClientException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        retryable: true,
       );
     }
   }
@@ -225,22 +219,14 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     } on TimeoutException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        retryable: true,
       );
     } on http.ClientException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        retryable: true,
       );
     }
   }
 }
-
-bool _isRetryableStatus(int statusCode) =>
-    statusCode == 408 ||
-    statusCode == 425 ||
-    statusCode == 429 ||
-    statusCode >= 500;
 
 String _normalizeLessonEnglish(String value) {
   var normalized = value.normalizeApostrophes().trim().toLowerCase();
@@ -289,13 +275,9 @@ extension on String {
 }
 
 class LessonAttemptEvaluationException implements Exception {
-  const LessonAttemptEvaluationException(
-    this.message, {
-    this.retryable = false,
-  });
+  const LessonAttemptEvaluationException(this.message);
 
   final String message;
-  final bool retryable;
 
   @override
   String toString() => message;

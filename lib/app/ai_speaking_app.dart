@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:audio_session/audio_session.dart';
 
 import '../config/app_config.dart';
 import '../core/audio/audio_playback_service.dart';
 import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
 import '../core/audio/hfp_audio_control.dart';
-import '../core/audio/hfp_routed_streaming_speech_input.dart';
 import '../core/audio/innotrik_ble_audio_input.dart';
 import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
@@ -17,15 +15,12 @@ import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
 import '../core/audio/voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
-import '../core/device/android_background_assistant.dart';
 import '../core/device/active_learning_module.dart';
 import '../core/device/aiv0_ble_control.dart';
-import '../core/device/aiv0_ble_control_factory.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/device/main_button_coordinator.dart';
 import '../core/pwa/pwa_install_gate.dart';
-import '../core/pwa/pwa_runtime.dart';
 import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
@@ -54,14 +49,13 @@ class AiSpeakingApp extends StatefulWidget {
   State<AiSpeakingApp> createState() => _AiSpeakingAppState();
 }
 
-class _AiSpeakingAppState extends State<AiSpeakingApp>
-    with WidgetsBindingObserver {
+class _AiSpeakingAppState extends State<AiSpeakingApp> {
   late final AppConfig _config;
   ConversationController? _controller;
   VoiceNavigationController? _voiceNavigationController;
   AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
   PhoneMicrophoneInput? _phoneMicrophoneInput;
-  Aiv0BleControl? _aiv0BleControl;
+  MethodChannelAiv0BleControl? _aiv0BleControl;
   MethodChannelHfpAudioControl? _androidHfpAudioControl;
   WebBatchStreamingSpeechInput? _webBatchStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
@@ -69,8 +63,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   final ClientIdentity _clientIdentity = ClientIdentity();
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
   final ChildAgeStore _childAgeStore = const ChildAgeStore();
-  final AndroidBackgroundAssistant _androidBackgroundAssistant =
-      const AndroidBackgroundAssistant();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
@@ -86,14 +78,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isFinishingMainSpeakingMode = false;
   bool _isHandlingMainSpeakingNoSpeech = false;
   bool _hasMainSpeakingTurnStarted = false;
-  int _mainSpeakingActivationRequest = 0;
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
   bool _singleSentenceMainModeActive = false;
-  bool _isStartingSingleSentenceTurn = false;
-  bool _isHandlingSingleSentenceNoSpeech = false;
-  bool _hasSingleSentenceTurnStarted = false;
   bool _isResumingActiveModule = false;
   bool _startupProfileLoading = true;
   bool _startupPermissionRequestInProgress = false;
@@ -102,16 +90,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   int? _childAge;
   int? _pendingStartupAge;
   String? _startupPermissionError;
-  StreamSubscription<AudioInterruptionEvent>? _audioInterruptionSubscription;
-  StreamSubscription<void>? _becomingNoisySubscription;
-  Future<void> _audioInterruptionWork = Future<void>.value();
-  Future<void> _backgroundAssistantWork = Future<void>.value();
-  bool? _backgroundAssistantTargetRunning;
-  bool _systemAudioInterruptionActive = false;
-  bool _resumeLearningAfterAudioInterruption = false;
-  bool _resumeContinuousSpeakingAfterAudioInterruption = false;
-  bool _resumeSingleSentenceAfterAudioInterruption = false;
-  bool _resumeVoiceNavigationAfterAudioInterruption = false;
 
   bool get _bluetoothPermissionRequired {
     return !kIsWeb &&
@@ -129,43 +107,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   void initState() {
     super.initState();
     _config = AppConfig.fromEnvironment();
-    WidgetsBinding.instance.addObserver(this);
     _mainSpeakingSessionController = MainSpeakingSessionController();
     // Build the lightweight runtime before the first frame so the real home
     // screen appears immediately on both Android and web.
     _createRuntime();
-    unawaited(_listenForSystemAudioInterruptions());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startBackgroundStartup();
       unawaited(_initializeStartupSetup());
     });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Reopening the app must restore the verified BLE control connection
-      // that Android already remembers, without another Settings scan.
-      _reconnectRememberedH20();
-      _scheduleAndroidBackgroundAssistantSync();
-      return;
-    }
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      // Start/retain the foreground service before the display fully sleeps.
-      _scheduleAndroidBackgroundAssistantSync();
-    }
-  }
-
-  void _reconnectRememberedH20() {
-    final control = _aiv0BleControl;
-    if (control == null) return;
-    unawaited(
-      control.reconnectRemembered().catchError((Object error) {
-        debugPrint('Could not restore remembered H20 BLE connection: $error');
-      }),
-    );
   }
 
   void _startBackgroundStartup() {
@@ -203,13 +152,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _pendingStartupAge = storedAge;
       _startupProfileLoading = false;
     });
-    // On iPhone Safari the install guide must be the first onboarding step.
-    // Requesting getUserMedia here would otherwise show the microphone prompt
-    // behind/in front of that guide. Opening the installed PWA starts a fresh
-    // runtime where installRequired is false and setup can continue normally.
-    if (!readPwaRuntimeState().installRequired) {
-      await _requestStartupPermissions();
-    }
+    await _requestStartupPermissions();
   }
 
   int? _validChildAge(int? age) {
@@ -287,10 +230,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (_bluetoothPermissionRequired) {
       try {
         if (_config.enableAiv0BleControl) {
-          final aiv0BleControl = _aiv0BleControl;
-          bluetoothGranted = aiv0BleControl is MethodChannelAiv0BleControl
-              ? await aiv0BleControl.requestPermissions()
-              : false;
+          bluetoothGranted =
+              await _aiv0BleControl?.requestPermissions() ?? false;
         } else {
           bluetoothGranted =
               await _androidHfpAudioControl?.requestPermissions() ?? false;
@@ -314,188 +255,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _startupPermissionRequestInProgress = false;
       _startupPermissionError = errors.isEmpty ? null : errors.join('\n');
     });
-    if (microphoneGranted && bluetoothGranted) {
-      _reconnectRememberedH20();
-      _scheduleAndroidBackgroundAssistantSync();
-    }
-  }
-
-  void _scheduleAndroidBackgroundAssistantSync() {
-    if (!_androidBackgroundAssistant.isSupported ||
-        (!_config.enableAiv0BleControl && !_config.enableHfpAudio)) {
-      return;
-    }
-    final controller = _controller;
-    final shouldRun =
-        _microphonePermissionGranted &&
-        _bluetoothPermissionGranted &&
-        controller != null &&
-        (controller.canUseAiv0Ble ||
-            controller.aiv0BleStatus.hasRememberedDevice ||
-            controller.canUseHfp);
-    if (_backgroundAssistantTargetRunning == shouldRun) {
-      return;
-    }
-    _backgroundAssistantTargetRunning = shouldRun;
-    _backgroundAssistantWork = _backgroundAssistantWork
-        .catchError((Object _) {})
-        .then<void>((_) => _setAndroidBackgroundAssistantRunning(shouldRun));
-  }
-
-  Future<void> _setAndroidBackgroundAssistantRunning(bool shouldRun) async {
-    try {
-      if (!shouldRun) {
-        await _androidBackgroundAssistant.stop();
-        return;
-      }
-      final started = await _androidBackgroundAssistant.start();
-      if (!started && _backgroundAssistantTargetRunning == true) {
-        _backgroundAssistantTargetRunning = null;
-        debugPrint(
-          'Android background assistant was not started because a required '
-          'runtime permission is missing.',
-        );
-      }
-    } catch (error, stackTrace) {
-      debugPrint('Could not start Android background assistant: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-  }
-
-  Future<void> _listenForSystemAudioInterruptions() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
-    try {
-      final session = await AudioSession.instance;
-      _audioInterruptionSubscription = session.interruptionEventStream.listen((
-        event,
-      ) {
-        _audioInterruptionWork = _audioInterruptionWork
-            .catchError((Object _) {})
-            .then<void>(
-              (_) => event.begin
-                  ? _beginSystemAudioInterruption()
-                  : _endSystemAudioInterruption(),
-            );
-      });
-      _becomingNoisySubscription = session.becomingNoisyEventStream.listen((_) {
-        _audioInterruptionWork = _audioInterruptionWork
-            .catchError((Object _) {})
-            .then<void>((_) => _handleAudioRouteLost());
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Could not observe Android audio interruptions: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-  }
-
-  Future<void> _beginSystemAudioInterruption() async {
-    if (_systemAudioInterruptionActive) {
-      return;
-    }
-    _systemAudioInterruptionActive = true;
-
-    final voiceController = _voiceNavigationController;
-    _resumeLearningAfterAudioInterruption =
-        _activeLearningModules.hasActiveModule &&
-        !_activeLearningModules.isActiveModulePaused;
-    _resumeContinuousSpeakingAfterAudioInterruption =
-        _mainSpeakingSessionController.isActive;
-    _resumeSingleSentenceAfterAudioInterruption = _singleSentenceMainModeActive;
-    _resumeVoiceNavigationAfterAudioInterruption =
-        (voiceController?.continuousRequested ?? false) &&
-        !(voiceController?.isMainButtonSessionActive ?? false) &&
-        !_resumeContinuousSpeakingAfterAudioInterruption &&
-        !_resumeSingleSentenceAfterAudioInterruption;
-
-    // Calls, alarms and navigation prompts own audio focus. Freeze the lesson
-    // first so its exact sentence is preserved, then discard any partially
-    // recorded translation turn because it now contains interrupted audio.
-    if (_resumeLearningAfterAudioInterruption) {
-      await _activeLearningModules.pauseForMainAssistant();
-    }
-    await voiceController?.pause();
-    if (_resumeContinuousSpeakingAfterAudioInterruption) {
-      _hasMainSpeakingTurnStarted = false;
-      _mainSpeakingSessionController.exit();
-    }
-    if (_resumeSingleSentenceAfterAudioInterruption) {
-      _setSingleSentenceMainMode(false);
-    }
-    await _cancelInterruptedConversationTurn();
-  }
-
-  Future<void> _cancelInterruptedConversationTurn() async {
-    final controller = _controller;
-    if (controller == null) {
-      return;
-    }
-    var result = await controller.cancelCurrentMainAction();
-    if (result == MainButtonActionResult.busy) {
-      // A route may be between permission/HFP preparation and recording when
-      // the phone rings. Give that short operation time to settle, then cancel
-      // again rather than allowing it to start underneath the call.
-      await Future<void>.delayed(const Duration(milliseconds: 180));
-      result = await controller.cancelCurrentMainAction();
-    }
-  }
-
-  Future<void> _endSystemAudioInterruption() async {
-    if (!_systemAudioInterruptionActive) {
-      return;
-    }
-    _systemAudioInterruptionActive = false;
-    // Android often reports focus gain before the telephony/Bluetooth route is
-    // fully restored. This small guard prevents the first resumed syllable
-    // from being lost or played through the phone speaker.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted || _systemAudioInterruptionActive) {
-      return;
-    }
-
-    final resumeLearning = _resumeLearningAfterAudioInterruption;
-    final resumeContinuous = _resumeContinuousSpeakingAfterAudioInterruption;
-    final resumeSingleSentence = _resumeSingleSentenceAfterAudioInterruption;
-    final resumeVoiceNavigation = _resumeVoiceNavigationAfterAudioInterruption;
-    _clearAudioInterruptionResumeState();
-
-    if (resumeLearning && _activeLearningModules.hasActiveModule) {
-      await _activeLearningModules.execute(ActiveLearningCommand.resume);
-      return;
-    }
-    if (resumeContinuous) {
-      _startMainSpeakingMode();
-      return;
-    }
-    if (resumeSingleSentence) {
-      _setSingleSentenceMainMode(true);
-      await _startSingleSentenceTurn();
-      return;
-    }
-    if (resumeVoiceNavigation) {
-      _voiceNavigationController?.startContinuous(
-        delay: const Duration(milliseconds: 350),
-      );
-    }
-  }
-
-  Future<void> _handleAudioRouteLost() async {
-    // A disconnected H20/headset has no matching focus-gain callback. Pause
-    // safely but never auto-resume through the phone speaker.
-    if (_systemAudioInterruptionActive) {
-      return;
-    }
-    await _beginSystemAudioInterruption();
-    _systemAudioInterruptionActive = false;
-    _clearAudioInterruptionResumeState();
-  }
-
-  void _clearAudioInterruptionResumeState() {
-    _resumeLearningAfterAudioInterruption = false;
-    _resumeContinuousSpeakingAfterAudioInterruption = false;
-    _resumeSingleSentenceAfterAudioInterruption = false;
-    _resumeVoiceNavigationAfterAudioInterruption = false;
   }
 
   Future<void> _runStartupTask(Future<void> Function() task) async {
@@ -567,8 +326,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       );
       hfpAudioControl = androidHfpAudioControl;
     }
-    final aiv0BleControl = createAiv0BleControl(
-      enabled: _config.enableAiv0BleControl,
+    final aiv0BleControl = MethodChannelAiv0BleControl(
+      enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
     );
     final streamingSpeechInput = supportsAndroidNativeSpeech
@@ -576,31 +335,21 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         : null;
     _androidStreamingSpeechInput = streamingSpeechInput;
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
-    final StreamingSpeechInput? rawVoiceNavigationSpeechInput;
+    final StreamingSpeechInput? voiceNavigationSpeechInput;
     if (streamingSpeechInput != null) {
       webBatchStreamingSpeechInput = null;
-      rawVoiceNavigationSpeechInput = streamingSpeechInput;
+      voiceNavigationSpeechInput = streamingSpeechInput;
     } else if (kIsWeb) {
       webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
         audioInput: phoneMicrophoneInput,
         repository: repository,
         childAge: _config.childAge,
-        // Children often pause briefly between destination words. A slightly
-        // longer Web-only tail avoids finalizing "học theo ..." before
-        // "chủ đề" reaches Safari's recorder.
-        vadSilenceDuration: const Duration(milliseconds: 900),
       );
-      rawVoiceNavigationSpeechInput = webBatchStreamingSpeechInput;
+      voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
     } else {
       webBatchStreamingSpeechInput = null;
-      rawVoiceNavigationSpeechInput = null;
+      voiceNavigationSpeechInput = null;
     }
-    final voiceNavigationSpeechInput = rawVoiceNavigationSpeechInput == null
-        ? null
-        : HfpRoutedStreamingSpeechInput(
-            speechInput: rawVoiceNavigationSpeechInput,
-            hfpAudioControl: hfpAudioControl,
-          );
     final voiceNavigationController =
         voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(
@@ -791,11 +540,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           controller.isPlaybackPlaying) {
         return MainButtonActionResult.busy;
       }
-      if (controller.isRecording) {
-        await controller.stopRecording(manual: true);
-      } else {
-        await _startSingleSentenceTurn();
-      }
+      await controller.onPrimaryAction();
       return MainButtonActionResult.accepted;
     }
     final activated = await _activateMainAssistant();
@@ -975,28 +720,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   void _startMainSpeakingMode() {
-    final request = ++_mainSpeakingActivationRequest;
-    unawaited(_startMainSpeakingModeAfterNavigationHandoff(request));
-  }
-
-  Future<void> _startMainSpeakingModeAfterNavigationHandoff(int request) async {
-    // MAIN navigation and the conversation flow share one browser microphone.
-    // Let the navigation finalizer release its Batch stream before pausing it
-    // and opening the child's continuous-speaking turn. Starting immediately
-    // from inside VoiceNavigationController's result callback can otherwise
-    // leave Safari stuck on "preparing" and cancel the newly opened recorder.
-    await Future<void>.delayed(Duration.zero);
-    await _voiceNavigationController?.pause();
-    if (!mounted || request != _mainSpeakingActivationRequest) {
-      return;
-    }
     if (mounted) {
       setState(() => _singleSentenceMainModeActive = false);
     } else {
       _singleSentenceMainModeActive = false;
     }
-    _hasSingleSentenceTurnStarted = false;
-    _isHandlingSingleSentenceNoSpeech = false;
     _hasMainSpeakingTurnStarted = false;
     _isHandlingMainSpeakingNoSpeech = false;
     _mainSpeakingSessionController.enter();
@@ -1007,17 +735,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (_singleSentenceMainModeActive == active) {
       return;
     }
-    if (active) {
-      // A newer single-sentence choice supersedes any deferred continuous
-      // handoff that has not opened the browser microphone yet.
-      _mainSpeakingActivationRequest += 1;
-    }
     if (active && _mainSpeakingSessionController.isActive) {
       _hasMainSpeakingTurnStarted = false;
       _mainSpeakingSessionController.exit();
     }
-    _hasSingleSentenceTurnStarted = false;
-    _isHandlingSingleSentenceNoSpeech = false;
     if (mounted) {
       setState(() => _singleSentenceMainModeActive = active);
     } else {
@@ -1030,36 +751,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (controller == null) {
       return;
     }
-    _scheduleAndroidBackgroundAssistantSync();
     _mainSpeakingSessionController.synchronize(
       isRecording: controller.isRecording,
       isBusy: controller.isBusy,
       isPlaying: controller.isPlaybackPlaying,
     );
-
-    final turnEndReason = controller.lastTurnEndReason;
-    if (_singleSentenceMainModeActive) {
-      if (_hasSingleSentenceTurnStarted &&
-          controller.phase == ConversationPhase.idle &&
-          (turnEndReason == ConversationTurnEndReason.noSpeech ||
-              turnEndReason == ConversationTurnEndReason.tooShort) &&
-          !_isHandlingSingleSentenceNoSpeech) {
-        unawaited(_handleSingleSentenceNoSpeech());
-        return;
-      }
-      if (turnEndReason == ConversationTurnEndReason.completed ||
-          turnEndReason == ConversationTurnEndReason.commandHandled ||
-          turnEndReason == ConversationTurnEndReason.failed) {
-        _hasSingleSentenceTurnStarted = false;
-      }
-    }
-
     if (!_mainSpeakingSessionController.isActive ||
         _isFinishingMainSpeakingMode ||
         _isHandlingMainSpeakingNoSpeech) {
       return;
     }
 
+    final turnEndReason = controller.lastTurnEndReason;
     if (turnEndReason == ConversationTurnEndReason.completed) {
       _mainSpeakingSessionController.markSpeechTurnCompleted();
     }
@@ -1112,55 +815,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
   }
 
-  Future<void> _startSingleSentenceTurn() async {
-    final controller = _controller;
-    if (controller == null ||
-        !_singleSentenceMainModeActive ||
-        _isStartingSingleSentenceTurn ||
-        _isHandlingSingleSentenceNoSpeech ||
-        controller.isBusy ||
-        controller.isPlaybackPlaying ||
-        !controller.isInputAvailable) {
-      return;
-    }
-
-    _isStartingSingleSentenceTurn = true;
-    try {
-      await controller.startRecording(
-        noSpeechTimeout: const Duration(seconds: 6),
-        speakNoSpeechPrompt: false,
-      );
-      _hasSingleSentenceTurnStarted = controller.isRecording;
-    } finally {
-      _isStartingSingleSentenceTurn = false;
-    }
-  }
-
-  Future<void> _handleSingleSentenceNoSpeech() async {
-    final controller = _controller;
-    if (controller == null ||
-        !_singleSentenceMainModeActive ||
-        _isHandlingSingleSentenceNoSpeech) {
-      return;
-    }
-
-    _isHandlingSingleSentenceNoSpeech = true;
-    _hasSingleSentenceTurnStarted = false;
-    try {
-      controller.clearMessage();
-      await controller.speakAssistantPrompt(
-        ConversationController.unclearSpeechRetryPrompt,
-      );
-    } finally {
-      _isHandlingSingleSentenceNoSpeech = false;
-    }
-
-    if (_singleSentenceMainModeActive) {
-      controller.clearMessage();
-      await _startSingleSentenceTurn();
-    }
-  }
-
   Future<void> _handleMainSpeakingNoSpeech() async {
     final controller = _controller;
     if (controller == null ||
@@ -1178,7 +832,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       if (action == MainSpeakingNoSpeechAction.retry) {
         controller.clearMessage();
         await controller.speakAssistantPrompt(
-          ConversationController.unclearSpeechRetryPrompt,
+          'Cô chưa nghe thấy con nói. Con nói lại nhé.',
         );
         retry = true;
       } else {
@@ -1210,7 +864,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return;
     }
     _isFinishingMainSpeakingMode = true;
-    _mainSpeakingActivationRequest += 1;
     _hasMainSpeakingTurnStarted = false;
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
@@ -1353,11 +1006,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   @override
   void dispose() {
-    _mainSpeakingActivationRequest += 1;
-    WidgetsBinding.instance.removeObserver(this);
     _controller?.removeListener(_synchronizeMainSpeakingSession);
-    unawaited(_audioInterruptionSubscription?.cancel());
-    unawaited(_becomingNoisySubscription?.cancel());
     _mainSpeakingSessionController.dispose();
     _voiceNavigationController?.removeListener(
       _synchronizeMainAssistantSession,
@@ -1420,10 +1069,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           ),
         );
       },
-      home: PwaInstallGate(
-        child: _startupReady
-            ? AndroidUpdateGate(
-                config: _config,
+      home: _startupReady
+          ? AndroidUpdateGate(
+              config: _config,
+              child: PwaInstallGate(
                 child: HomeLearningShell(
                   controller: controller,
                   config: _config,
@@ -1435,23 +1084,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onSingleSentenceModeChanged: _setSingleSentenceMainMode,
                   onModalVisibilityChanged: _setGlobalModalOpen,
                 ),
-              )
-            : StartupSetupScreen(
-                profileLoading: _startupProfileLoading,
-                permissionRequestInProgress:
-                    _startupPermissionRequestInProgress,
-                microphoneGranted: _microphonePermissionGranted,
-                bluetoothRequired: _bluetoothPermissionRequired,
-                bluetoothGranted: _bluetoothPermissionGranted,
-                selectedAge: _pendingStartupAge,
-                permissionError: _startupPermissionError,
-                onRetryPermissions: () =>
-                    unawaited(_requestStartupPermissions()),
-                onAgeSelected: (age) =>
-                    setState(() => _pendingStartupAge = age),
-                onConfirmAge: _confirmStartupAge,
               ),
-      ),
+            )
+          : StartupSetupScreen(
+              profileLoading: _startupProfileLoading,
+              permissionRequestInProgress: _startupPermissionRequestInProgress,
+              microphoneGranted: _microphonePermissionGranted,
+              bluetoothRequired: _bluetoothPermissionRequired,
+              bluetoothGranted: _bluetoothPermissionGranted,
+              selectedAge: _pendingStartupAge,
+              permissionError: _startupPermissionError,
+              onRetryPermissions: () => unawaited(_requestStartupPermissions()),
+              onAgeSelected: (age) => setState(() => _pendingStartupAge = age),
+              onConfirmAge: _confirmStartupAge,
+            ),
     );
   }
 }

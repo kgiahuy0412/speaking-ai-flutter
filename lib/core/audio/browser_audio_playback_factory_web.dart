@@ -15,7 +15,6 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   _HtmlAudioElementPlayback() {
     _element.crossOrigin = 'anonymous';
     _element.preload = 'auto';
-    _element.volume = 1.0;
     _element.setAttribute('playsinline', '');
     _element.setAttribute('webkit-playsinline', '');
     _element.setAttribute('aria-hidden', 'true');

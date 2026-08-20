@@ -102,7 +102,7 @@ void main() {
       expect(controller.phase, ConversationPhase.idle);
       expect(controller.lastTurnEndReason, ConversationTurnEndReason.noSpeech);
       expect(promptService.spokenTexts, <String>[
-        'Chưa nghe rõ, con vui lòng nói rõ hơn nhé.',
+        'Cô chưa nghe thấy con nói. Con nói lại nhé.',
       ]);
     },
   );

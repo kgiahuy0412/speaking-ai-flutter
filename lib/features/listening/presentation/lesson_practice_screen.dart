@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -83,7 +82,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   Timer? _coachPopupTimer;
   Timer? _praiseFireworksTimer;
   Timer? _recordingAutoStopTimer;
-  Timer? _attemptNetworkRetryTimer;
   late final LessonGuideAudioLibrary _guideAudioLibrary;
   late final LessonAttemptEvaluator _attemptEvaluator;
   late final bool _ownsAttemptEvaluator;
@@ -106,8 +104,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   int _mainPauseGeneration = 0;
   int _recordingLifecycleGeneration = 0;
   int _attemptEvaluationRequest = 0;
-  int _attemptNetworkRetryAttempt = 0;
-  _PendingLessonAttempt? _pendingLessonAttempt;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -170,7 +166,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _coachPopupTimer?.cancel();
     _praiseFireworksTimer?.cancel();
     _recordingAutoStopTimer?.cancel();
-    _attemptNetworkRetryTimer?.cancel();
     if (_recording) {
       widget.mediaService.cancelRecording();
     }
@@ -227,7 +222,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _activateCurrentSentence({required bool autoPlay}) async {
-    _clearPendingLessonAttempt();
     _cancelIdleReminder();
     _hideCoachPopup();
     if (mounted) {
@@ -475,25 +469,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
                                     ),
                                   ],
                                   const SizedBox(height: 18),
-                                  if (_pendingLessonAttempt != null)
-                                    FilledButton.icon(
-                                      key: const Key(
-                                        'retry-pending-lesson-attempt',
-                                      ),
-                                      onPressed: interactionBusy
-                                          ? null
-                                          : () => unawaited(
-                                              _retryPendingLessonAttempt(),
-                                            ),
-                                      icon: const Icon(Icons.refresh_rounded),
-                                      label: Text(
-                                        context.tr(
-                                          'Thử kiểm tra lại câu vừa nói',
-                                          '重新检查刚才的话',
-                                        ),
-                                      ),
-                                    )
-                                  else if (_recordingPath != null)
+                                  if (_recordingPath != null)
                                     _PostRecordingActions(
                                       busy: interactionBusy,
                                       onPlaySample: _playSample,
@@ -807,7 +783,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     final recordingGeneration = _recordingLifecycleGeneration;
-    _PendingLessonAttempt? pendingAttemptCandidate;
     setState(() => _mediaBusy = true);
     try {
       final recording = await widget.mediaService.stopRecording();
@@ -837,13 +812,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         final evaluatedSentenceIndex = _sentenceIndex;
         final evaluatedSentence = _sentence;
         final evaluatedAttemptNumber = _attemptNumber;
-        pendingAttemptCandidate = _PendingLessonAttempt(
-          recording: recording,
-          evaluationRequest: evaluationRequest,
-          sentenceIndex: evaluatedSentenceIndex,
-          sentence: evaluatedSentence,
-          attemptNumber: evaluatedAttemptNumber,
-        );
         setState(() => _evaluatingAttempt = true);
         try {
           await _evaluateAttempt(
@@ -874,15 +842,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _mediaBusy = false;
         });
       }
-      if (error is LessonAttemptEvaluationException &&
-          error.retryable &&
-          pendingAttemptCandidate != null) {
-        _pendingLessonAttempt = pendingAttemptCandidate;
-        _attemptNetworkRetryAttempt = 0;
-        _showLessonNetworkInterrupted(announce: true);
-      } else {
-        _setMessage(error.toString());
-      }
+      _setMessage(error.toString());
       if (_recordingPath == null) {
         _scheduleIdleReminder();
       }
@@ -1910,121 +1870,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     );
   }
 
-  Future<void> _retryPendingLessonAttempt({bool automatic = false}) async {
-    final pending = _pendingLessonAttempt;
-    if (pending == null || !mounted || _evaluatingAttempt || _mediaBusy) {
-      return;
-    }
-    if (!_isCurrentEvaluation(
-      pending.evaluationRequest,
-      pending.sentenceIndex,
-      pending.sentence.id,
-    )) {
-      _clearPendingLessonAttempt();
-      return;
-    }
-
-    _attemptNetworkRetryTimer?.cancel();
-    _attemptNetworkRetryTimer = null;
-    setState(() {
-      _evaluatingAttempt = true;
-      _message = automatic
-          ? 'Mạng đã có tín hiệu, đang kiểm tra lại câu vừa nói…'
-          : 'Đang kiểm tra lại câu vừa nói…';
-    });
-    try {
-      await _evaluateAttempt(
-        pending.recording,
-        evaluationRequest: pending.evaluationRequest,
-        sentenceIndex: pending.sentenceIndex,
-        sentence: pending.sentence,
-        attemptNumber: pending.attemptNumber,
-      );
-      _clearPendingLessonAttempt();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (error is LessonAttemptEvaluationException && error.retryable) {
-        _attemptNetworkRetryAttempt += 1;
-        _showLessonNetworkInterrupted(announce: false);
-      } else {
-        _clearPendingLessonAttempt();
-        _setMessage(error.toString());
-      }
-    } finally {
-      if (mounted && pending.evaluationRequest == _attemptEvaluationRequest) {
-        setState(() => _evaluatingAttempt = false);
-      }
-    }
-  }
-
-  void _showLessonNetworkInterrupted({required bool announce}) {
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _message =
-          'Mạng đang bị gián đoạn. Bản ghi và câu hiện tại đã được giữ. '
-          'Ứng dụng sẽ tự kiểm tra lại khi có mạng; phụ huynh cũng có thể bấm nút bên dưới.';
-    });
-    if (announce) {
-      unawaited(
-        _voicePromptService
-            .speak(
-              'Mạng đang bị gián đoạn. Mình đã giữ câu vừa nói. Khi có mạng mình sẽ kiểm tra lại nhé.',
-            )
-            .catchError((Object error) {
-              debugPrint('Lesson network prompt was skipped: $error');
-            }),
-      );
-    }
-    _scheduleLessonAttemptNetworkRetry();
-  }
-
-  void _scheduleLessonAttemptNetworkRetry() {
-    _attemptNetworkRetryTimer?.cancel();
-    if (!mounted || _pendingLessonAttempt == null) {
-      _attemptNetworkRetryTimer = null;
-      return;
-    }
-    final seconds = math.min(15, 4 + (_attemptNetworkRetryAttempt * 3));
-    _attemptNetworkRetryTimer = Timer(Duration(seconds: seconds), () {
-      if (mounted && _pendingLessonAttempt != null) {
-        unawaited(_retryPendingLessonAttempt(automatic: true));
-      }
-    });
-  }
-
-  void _clearPendingLessonAttempt() {
-    _attemptNetworkRetryTimer?.cancel();
-    _attemptNetworkRetryTimer = null;
-    _pendingLessonAttempt = null;
-    _attemptNetworkRetryAttempt = 0;
-  }
-
   void _setMessage(String message) {
     if (!mounted) {
       return;
     }
     setState(() => _message = message);
   }
-}
-
-class _PendingLessonAttempt {
-  const _PendingLessonAttempt({
-    required this.recording,
-    required this.evaluationRequest,
-    required this.sentenceIndex,
-    required this.sentence,
-    required this.attemptNumber,
-  });
-
-  final LessonRecording recording;
-  final int evaluationRequest;
-  final int sentenceIndex;
-  final ListeningSentenceContent sentence;
-  final int attemptNumber;
 }
 
 class _LessonHeader extends StatelessWidget {

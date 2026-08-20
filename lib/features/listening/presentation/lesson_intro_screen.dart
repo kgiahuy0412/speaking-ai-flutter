@@ -29,7 +29,6 @@ class LessonIntroScreen extends StatefulWidget {
     this.controller,
     this.topicContent,
     this.guideAudioLibrary,
-    this.introSpeaker,
     this.autoAdvance = true,
     this.onTopicCompleted,
     super.key,
@@ -45,13 +44,6 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
-
-  /// Browser-safe narration used when voice navigation opens a lesson.
-  ///
-  /// Safari can reject autoplay on the lesson media element because routing
-  /// happens after the original MAIN tap. The app's already-unlocked voice
-  /// prompt channel does not have that race.
-  final Future<void> Function(String text)? introSpeaker;
   final bool autoAdvance;
   final VoidCallback? onTopicCompleted;
 
@@ -118,27 +110,13 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         request != _introPlaybackRequest) {
       return;
     }
-    final introSpeaker = widget.introSpeaker;
     final uri = widget.lesson.introAudioUri;
-    if (introSpeaker == null && uri == null) {
+    if (uri == null) {
       _showIntroPlaybackFailure();
       return;
     }
     try {
-      if (introSpeaker != null) {
-        try {
-          await introSpeaker(_guideText ?? widget.lesson.intro);
-        } catch (_) {
-          // If browser speech is unavailable, retain the original lesson
-          // audio as a best-effort fallback (for browsers that allow it).
-          if (uri == null) {
-            rethrow;
-          }
-          await widget.mediaService.playToCompletion(uri);
-        }
-      } else {
-        await widget.mediaService.playToCompletion(uri!);
-      }
+      await widget.mediaService.playToCompletion(uri);
       if (!mounted ||
           _pausedForMainAssistant ||
           request != _introPlaybackRequest) {

@@ -459,9 +459,6 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
   Future<void> initialize() async {}
 
   @override
-  Future<void> reconnectRemembered() async {}
-
-  @override
   Future<List<Aiv0BleDevice>> scan({
     Duration timeout = const Duration(seconds: 8),
   }) async => const <Aiv0BleDevice>[];

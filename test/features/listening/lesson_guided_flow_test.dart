@@ -1350,50 +1350,6 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets(
-    'voice-opened lesson intro can use browser-safe prompt narration',
-    (tester) async {
-      await _usePhoneSurface(tester);
-      final mediaService = _ControlledIntroMediaService();
-      final narration = Completer<void>();
-      final spoken = <String>[];
-      final introUri = Uri.parse('https://example.test/voice-intro.mp3');
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildAppTheme(),
-          home: LessonIntroScreen(
-            language: DisplayLanguage.vietnamese,
-            startAge: 3,
-            endAge: 5,
-            topic: listeningCatalogs.first.topics.first,
-            lesson: _lesson(code: 'A067_T01_L01', introAudioUri: introUri),
-            progressStore: _MemoryProgressStore(),
-            mediaService: mediaService,
-            introSpeaker: (text) {
-              spoken.add(text);
-              return narration.future;
-            },
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-
-      expect(spoken, hasLength(1));
-      expect(spoken.single, isNotEmpty);
-      expect(mediaService.playedUri, isNull);
-      expect(find.byType(LessonIntroScreen), findsOneWidget);
-
-      narration.complete();
-      await tester.pump();
-      await tester.pump();
-      expect(find.byType(LessonPracticeScreen), findsOneWidget);
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    },
-  );
-
   testWidgets('MAIN pauses review audio and its completion countdown', (
     tester,
   ) async {

@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 
-import 'audio_gain.dart';
 import 'voice_prompt_service_base.dart';
 
 VoicePromptService createPlatformVoicePromptService() =>
@@ -36,7 +35,6 @@ class MethodChannelVoicePromptService
       await _channel.invokeMethod<void>(method, <String, dynamic>{
         'text': text.trim(),
         'locale': locale,
-        'gainDb': androidSpeechBoostDb,
       });
     } on MissingPluginException {
       // The prompt is supplementary. The visible message remains available on
