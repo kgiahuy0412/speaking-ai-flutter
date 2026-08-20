@@ -49,7 +49,8 @@ class AiSpeakingApp extends StatefulWidget {
   State<AiSpeakingApp> createState() => _AiSpeakingAppState();
 }
 
-class _AiSpeakingAppState extends State<AiSpeakingApp> {
+class _AiSpeakingAppState extends State<AiSpeakingApp>
+    with WidgetsBindingObserver {
   late final AppConfig _config;
   ConversationController? _controller;
   VoiceNavigationController? _voiceNavigationController;
@@ -90,6 +91,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   int? _childAge;
   int? _pendingStartupAge;
   String? _startupPermissionError;
+  DateTime? _lastAiv0AutoConnectAttempt;
 
   bool get _bluetoothPermissionRequired {
     return !kIsWeb &&
@@ -106,6 +108,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _config = AppConfig.fromEnvironment();
     _mainSpeakingSessionController = MainSpeakingSessionController();
     // Build the lightweight runtime before the first frame so the real home
@@ -115,6 +118,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       _startBackgroundStartup();
       unawaited(_initializeStartupSetup());
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _bluetoothPermissionGranted) {
+      unawaited(_autoConnectH20Ble());
+    }
   }
 
   void _startBackgroundStartup() {
@@ -255,6 +265,31 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
       _startupPermissionRequestInProgress = false;
       _startupPermissionError = errors.isEmpty ? null : errors.join('\n');
     });
+    if (bluetoothGranted && _config.enableAiv0BleControl) {
+      unawaited(_autoConnectH20Ble());
+    }
+  }
+
+  Future<void> _autoConnectH20Ble() async {
+    final control = _aiv0BleControl;
+    final controller = _controller;
+    if (control == null ||
+        controller == null ||
+        controller.canUseAiv0Ble ||
+        controller.isBusy) {
+      return;
+    }
+    final now = DateTime.now();
+    final lastAttempt = _lastAiv0AutoConnectAttempt;
+    if (lastAttempt != null &&
+        now.difference(lastAttempt) < const Duration(seconds: 10)) {
+      return;
+    }
+    _lastAiv0AutoConnectAttempt = now;
+    final connected = await control.autoConnectKnownOrNearby();
+    if (connected) {
+      debugPrint('H20 BLE Control connected automatically.');
+    }
   }
 
   Future<void> _runStartupTask(Future<void> Function() task) async {
@@ -1006,6 +1041,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller?.removeListener(_synchronizeMainSpeakingSession);
     _mainSpeakingSessionController.dispose();
     _voiceNavigationController?.removeListener(

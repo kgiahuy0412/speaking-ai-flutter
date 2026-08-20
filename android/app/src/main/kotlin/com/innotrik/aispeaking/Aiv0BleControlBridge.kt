@@ -246,7 +246,13 @@ class Aiv0BleControlBridge(
             normalizedName.contains("innotrik")
         val previous = scanDevices[id]
         if (previous == null || result.rssi > previous.rssi) {
-            scanDevices[id] = ScannedDevice(id, name.ifBlank { "H20" }, result.rssi, likely)
+            scanDevices[id] = ScannedDevice(
+                id = id,
+                name = name.ifBlank { "H20" },
+                rssi = result.rssi,
+                likely = likely,
+                advertisesControlService = advertisesControlService,
+            )
         }
     }
 
@@ -711,12 +717,14 @@ class Aiv0BleControlBridge(
         val name: String,
         val rssi: Int,
         val likely: Boolean,
+        val advertisesControlService: Boolean,
     ) {
         fun toMap(): Map<String, Any> = mapOf(
             "id" to id,
             "name" to name,
             "rssi" to rssi,
             "isLikelyAiv0" to likely,
+            "advertisesControlService" to advertisesControlService,
         )
     }
 

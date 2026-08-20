@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const aiv0ControlServiceUuid = '9E3B0001-4A7C-4D6F-8B21-5C17A2D94010';
 const aiv0ButtonEventUuid = '9E3B0002-4A7C-4D6F-8B21-5C17A2D94010';
@@ -41,6 +42,8 @@ class Aiv0BleDevice {
     required this.id,
     required this.name,
     required this.rssi,
+    this.isLikelyAiv0 = false,
+    this.advertisesControlService = false,
   });
 
   factory Aiv0BleDevice.fromMap(Map<Object?, Object?> map) {
@@ -48,12 +51,44 @@ class Aiv0BleDevice {
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? 'H20',
       rssi: (map['rssi'] as num?)?.toInt() ?? 0,
+      isLikelyAiv0: map['isLikelyAiv0'] == true,
+      advertisesControlService: map['advertisesControlService'] == true,
     );
   }
 
   final String id;
   final String name;
   final int rssi;
+  final bool isLikelyAiv0;
+  final bool advertisesControlService;
+}
+
+@visibleForTesting
+Aiv0BleDevice? selectAiv0AutoConnectCandidate(
+  List<Aiv0BleDevice> devices, {
+  String? savedDeviceId,
+}) {
+  if (devices.isEmpty) return null;
+  final normalizedSavedId = savedDeviceId?.trim().toUpperCase();
+  if (normalizedSavedId != null && normalizedSavedId.isNotEmpty) {
+    for (final device in devices) {
+      if (device.id.trim().toUpperCase() == normalizedSavedId) {
+        return device;
+      }
+    }
+  }
+
+  final serviceMatches =
+      devices
+          .where((device) => device.advertisesControlService)
+          .toList(growable: false)
+        ..sort((a, b) => b.rssi.compareTo(a.rssi));
+  if (serviceMatches.isNotEmpty) return serviceMatches.first;
+
+  final likelyMatches =
+      devices.where((device) => device.isLikelyAiv0).toList(growable: false)
+        ..sort((a, b) => b.rssi.compareTo(a.rssi));
+  return likelyMatches.isEmpty ? null : likelyMatches.first;
 }
 
 class Aiv0ButtonEvent {
@@ -320,9 +355,13 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
   final EventChannel _eventChannel;
   final _statusController = StreamController<Aiv0BleStatus>.broadcast();
   final _buttonController = StreamController<Aiv0ButtonEvent>.broadcast();
+  static const _lastDeviceIdPreference = 'aiv0_ble_last_device_id';
+  static const _lastDeviceNamePreference = 'aiv0_ble_last_device_name';
   StreamSubscription<Object?>? _eventSubscription;
   Aiv0BleStatus _status;
   Future<void> _writeQueue = Future<void>.value();
+  Future<bool>? _autoConnectFuture;
+  bool _manualDisconnectRequested = false;
 
   @override
   Aiv0BleStatus get status => _status;
@@ -387,15 +426,102 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
   @override
   Future<void> connect(String deviceId) async {
     if (!_enabled) return;
+    _manualDisconnectRequested = false;
     await initialize();
     await _methodChannel.invokeMethod<void>('connect', <String, Object?>{
       'deviceId': deviceId,
     });
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_lastDeviceIdPreference, deviceId);
+    final connectedName = _status.deviceName?.trim();
+    if (connectedName != null && connectedName.isNotEmpty) {
+      await preferences.setString(_lastDeviceNamePreference, connectedName);
+    }
+  }
+
+  /// Reconnects BLE Control without requiring a second user action after H20
+  /// has already been paired through Android Bluetooth/HFP.
+  ///
+  /// The previously verified BLE address is preferred. On first use (or when
+  /// Android rotates the BLE address), the advertised 9E3B0001 service is the
+  /// strongest signal; the H20/AIV0 device name is only a safe fallback.
+  Future<bool> autoConnectKnownOrNearby({
+    Duration scanTimeout = const Duration(seconds: 4),
+  }) {
+    if (!_enabled || _manualDisconnectRequested) {
+      return Future<bool>.value(false);
+    }
+    final pending = _autoConnectFuture;
+    if (pending != null) return pending;
+    final future = _runAutoConnect(scanTimeout);
+    _autoConnectFuture = future;
+    return future.whenComplete(() {
+      if (identical(_autoConnectFuture, future)) {
+        _autoConnectFuture = null;
+      }
+    });
+  }
+
+  Future<bool> _runAutoConnect(Duration scanTimeout) async {
+    await initialize();
+    if (_status.isConnected) return true;
+    if (_status.phase == Aiv0BlePhase.scanning ||
+        _status.phase == Aiv0BlePhase.connecting ||
+        _status.phase == Aiv0BlePhase.reconnecting) {
+      return false;
+    }
+
+    final preferences = await SharedPreferences.getInstance();
+    final savedDeviceId = preferences.getString(_lastDeviceIdPreference);
+    if (savedDeviceId != null && savedDeviceId.trim().isNotEmpty) {
+      try {
+        // This is the fast path for normal daily use: Android can reopen the
+        // verified GATT address directly without waiting for another scan.
+        await connect(savedDeviceId.trim());
+        return true;
+      } catch (error) {
+        debugPrint(
+          'Saved H20 BLE address was unavailable; scanning nearby: $error',
+        );
+      }
+    }
+
+    List<Aiv0BleDevice> devices = const [];
+    try {
+      devices = await scan(timeout: scanTimeout);
+    } catch (error) {
+      debugPrint('Automatic H20 BLE scan was skipped: $error');
+    }
+
+    final candidate = selectAiv0AutoConnectCandidate(
+      devices,
+      savedDeviceId: savedDeviceId,
+    );
+    final targetId = candidate?.id;
+    if (targetId == null || targetId.isEmpty) return false;
+
+    try {
+      await connect(targetId);
+      if (candidate != null && candidate.name.trim().isNotEmpty) {
+        await preferences.setString(
+          _lastDeviceNamePreference,
+          candidate.name.trim(),
+        );
+      }
+      // Native completes `connect` only after service 9E3B0001 is verified and
+      // Indicate 9E3B0002 is enabled. The status EventChannel can arrive one
+      // microtask later, so the completed method call itself is authoritative.
+      return true;
+    } catch (error) {
+      debugPrint('Automatic H20 BLE connection failed: $error');
+      return false;
+    }
   }
 
   @override
   Future<void> disconnect() async {
     if (!_enabled) return;
+    _manualDisconnectRequested = true;
     await _methodChannel.invokeMethod<void>('disconnect');
   }
 

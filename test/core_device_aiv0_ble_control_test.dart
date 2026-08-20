@@ -4,6 +4,53 @@ import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('AIV0 automatic connection selection', () {
+    test('prefers the previously verified H20 address', () {
+      const devices = <Aiv0BleDevice>[
+        Aiv0BleDevice(
+          id: 'AA:AA',
+          name: 'H20 nearby',
+          rssi: -30,
+          isLikelyAiv0: true,
+        ),
+        Aiv0BleDevice(
+          id: 'BB:BB',
+          name: 'H20 saved',
+          rssi: -80,
+          isLikelyAiv0: true,
+        ),
+      ];
+
+      expect(
+        selectAiv0AutoConnectCandidate(devices, savedDeviceId: 'bb:bb')?.id,
+        'BB:BB',
+      );
+    });
+
+    test('prefers an advertised control service over a name match', () {
+      const devices = <Aiv0BleDevice>[
+        Aiv0BleDevice(id: 'NAME', name: 'H20', rssi: -20, isLikelyAiv0: true),
+        Aiv0BleDevice(
+          id: 'SERVICE',
+          name: 'Unknown',
+          rssi: -70,
+          isLikelyAiv0: true,
+          advertisesControlService: true,
+        ),
+      ];
+
+      expect(selectAiv0AutoConnectCandidate(devices)?.id, 'SERVICE');
+    });
+
+    test('does not connect an unrelated BLE device', () {
+      const devices = <Aiv0BleDevice>[
+        Aiv0BleDevice(id: 'OTHER', name: 'Other', rssi: -10),
+      ];
+
+      expect(selectAiv0AutoConnectCandidate(devices), isNull);
+    });
+  });
+
   group('Aiv0DraftProtocolCodec', () {
     test('decodes observed H20 MAIN packet without enabling APP State', () {
       const codec = Aiv0DraftProtocolCodec(confirmed: false);
