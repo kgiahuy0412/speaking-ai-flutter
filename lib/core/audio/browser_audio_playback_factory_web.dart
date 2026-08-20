@@ -15,6 +15,8 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   _HtmlAudioElementPlayback() {
     _element.crossOrigin = 'anonymous';
     _element.preload = 'auto';
+    // Browsers clamp media volume to 1.0; keep it explicitly at that maximum.
+    _element.volume = 1.0;
     _element.setAttribute('playsinline', '');
     _element.setAttribute('webkit-playsinline', '');
     _element.setAttribute('aria-hidden', 'true');
