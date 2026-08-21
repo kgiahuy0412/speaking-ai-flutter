@@ -65,7 +65,11 @@ workflows:
       - name: Run platform-independent automated tests
         script: |
           set -euo pipefail
-          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print | while IFS= read -r file; do
+            if ! grep -q 'matchesGoldenFile' "$file"; then
+              printf '%s\n' "$file"
+            fi
+          done)"
           if [ -z "$NON_GOLDEN_TESTS" ]; then
             echo "No platform-independent Flutter tests were found."
             exit 1
@@ -177,7 +181,11 @@ workflows:
           # Golden baselines are approved on Windows. macOS rasterizes fonts
           # and anti-aliasing differently, so run all logic/widget tests here
           # while keeping golden verification on its baseline platform.
-          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print | while IFS= read -r file; do
+            if ! grep -q 'matchesGoldenFile' "$file"; then
+              printf '%s\n' "$file"
+            fi
+          done)"
           if [ -z "$NON_GOLDEN_TESTS" ]; then
             echo "No platform-independent Flutter tests were found."
             exit 1

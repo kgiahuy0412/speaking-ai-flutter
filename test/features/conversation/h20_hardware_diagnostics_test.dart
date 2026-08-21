@@ -234,7 +234,9 @@ class _FakeAudioInput implements AudioInput {
   Future<AudioCapture> stop() async {
     stopCount += 1;
     return const AudioCapture(
-      filePath: r'C:\temp\h20-offline-test.m4a',
+      // URI-only fake path: use POSIX form so Uri.file is valid on both the
+      // Windows golden baseline and Codemagic macOS builders.
+      filePath: '/tmp/h20-offline-test.m4a',
       mimeType: 'audio/mp4',
       duration: Duration(seconds: 3),
       inputLabel: 'Mic điện thoại',
