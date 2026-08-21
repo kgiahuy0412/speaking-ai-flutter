@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/adaptive_voice_activity_detector.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
+import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/data/web_batch_streaming_speech_input.dart';
@@ -72,15 +73,37 @@ void main() {
     await speechInput.dispose();
     await input.dispose();
   });
+
+  test('opens the native HFP route before iOS MAIN capture', () async {
+    final input = _FakeChunkedAudioInput();
+    final hfp = _FakeHfpAudioControl();
+    final speechInput = _createSpeechInput(
+      input,
+      _FakeRepository(_FakeBatchSession(transcript: 'học từ mới')),
+      hfp: hfp,
+    );
+
+    await speechInput.start();
+    expect(hfp.startRouteCount, 1);
+    expect(input.started, isTrue);
+    _confirmSpeech(input);
+    await speechInput.stop();
+
+    expect(hfp.stopRouteCount, 1);
+    await speechInput.dispose();
+    await input.dispose();
+  });
 }
 
 WebBatchStreamingSpeechInput _createSpeechInput(
   _FakeChunkedAudioInput input,
-  _FakeRepository repository,
-) => WebBatchStreamingSpeechInput(
+  _FakeRepository repository, {
+  _FakeHfpAudioControl? hfp,
+}) => WebBatchStreamingSpeechInput(
   audioInput: input,
   repository: repository,
   childAge: 7,
+  audioRouteControl: hfp,
   vadSilenceDuration: const Duration(milliseconds: 15),
   voiceActivityDetector: AdaptiveVoiceActivityDetector(
     calibrationDuration: Duration.zero,
@@ -88,6 +111,46 @@ WebBatchStreamingSpeechInput _createSpeechInput(
     minimumSpeechVariationDb: 0,
   ),
 );
+
+class _FakeHfpAudioControl implements HfpAudioControl {
+  int startRouteCount = 0;
+  int stopRouteCount = 0;
+
+  @override
+  bool get usesBrowserAudioInput => false;
+
+  @override
+  BluetoothAudioStatus get status => const BluetoothAudioStatus(
+    phase: BluetoothAudioConnectionPhase.ready,
+    deviceId: 'ios-hfp',
+    deviceName: 'H20 HFP',
+  );
+
+  @override
+  Stream<BluetoothAudioStatus> get statusChanges =>
+      const Stream<BluetoothAudioStatus>.empty();
+
+  @override
+  Future<void> startAudioRoute() async => startRouteCount += 1;
+
+  @override
+  Future<void> stopAudioRoute() async => stopRouteCount += 1;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<HfpAudioDevice>> findDevices() async => const [];
+
+  @override
+  Future<void> connect(HfpAudioDevice device) async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
 
 void _confirmSpeech(_FakeChunkedAudioInput input) {
   input.emitAmplitude(-60);

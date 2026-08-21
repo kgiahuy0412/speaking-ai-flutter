@@ -1407,6 +1407,48 @@ void main() {
     controller.dispose();
   });
 
+  test('native iOS HFP keeps Cloudflare Batch recognition', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Mic iPhone',
+    );
+    final hfp = _FakeHfpAudioControl();
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+    );
+
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(
+        id: 'ios-hfp-input',
+        name: 'H20 HFP',
+        isConnected: true,
+      ),
+    );
+    expect(controller.asrMode, AsrMode.batchChunks);
+
+    await controller.startRecording();
+    expect(hfp.startRouteCount, 1);
+    expect(input.startCount, 1);
+    await _emitDetectedSpeech(input);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(hfp.stopRouteCount, 1);
+    expect(repository.batchStarted, greaterThanOrEqualTo(1));
+    expect(
+      controller.result?.conversationId,
+      anyOf('file-result', 'batch-result'),
+    );
+    controller.dispose();
+  });
+
   test(
     'standard Android ASR prefers direct streaming over recorded-audio injection',
     () async {

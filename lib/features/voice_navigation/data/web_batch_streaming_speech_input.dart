@@ -1,15 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
+import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/domain/conversation_repository.dart';
 import '../../conversation/domain/speech_gated_batch_upload_session.dart';
 
-/// Adapts the browser microphone + Cloudflare Batch Chunks pipeline to the
-/// short-command interface used by the fixed MAIN assistant.
+/// Adapts a chunked microphone + Cloudflare Batch Chunks pipeline to the
+/// short-command interface used by the fixed MAIN assistant on Web and iOS.
 ///
 /// This is intentionally separate from [ConversationController]: a MAIN turn
 /// only needs the Vietnamese transcript and must never play the translated
@@ -22,16 +24,19 @@ class WebBatchStreamingSpeechInput
     required ChunkedAudioInput audioInput,
     required ConversationRepository repository,
     required int childAge,
+    HfpAudioControl? audioRouteControl,
     this.vadSilenceDuration = const Duration(milliseconds: 700),
     AdaptiveVoiceActivityDetector? voiceActivityDetector,
   }) : _audioInput = audioInput,
        _repository = repository,
        _childAge = childAge,
+       _audioRouteControl = audioRouteControl,
        _voiceActivityDetector =
            voiceActivityDetector ?? AdaptiveVoiceActivityDetector();
 
   final ChunkedAudioInput _audioInput;
   final ConversationRepository _repository;
+  final HfpAudioControl? _audioRouteControl;
   int _childAge;
   final Duration vadSilenceDuration;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector;
@@ -51,9 +56,14 @@ class WebBatchStreamingSpeechInput
   Timer? _silenceTimer;
   Stopwatch? _recordingStopwatch;
   DateTime? _startedAt;
+  int? _audioStartMs;
+  int? _uploadSessionReadyMs;
+  int? _firstChunkMs;
+  int? _speechDetectedMs;
   bool _active = false;
   bool _stopping = false;
   bool _speechDetected = false;
+  bool _audioRouteStarted = false;
 
   void setChildAge(int age) {
     _childAge = age;
@@ -105,13 +115,17 @@ class WebBatchStreamingSpeechInput
     _silenceTimer?.cancel();
     _recordingStopwatch = Stopwatch()..start();
     _startedAt = DateTime.now();
+    _audioStartMs = null;
+    _uploadSessionReadyMs = null;
+    _firstChunkMs = null;
+    _speechDetectedMs = null;
 
     final uploadGate = SpeechGatedBatchUploadSession();
     _uploadGate = uploadGate;
-    _chunkSubscription = _audioInput.audioChunks.listen(
-      (bytes) => uploadGate.addAudioChunk(bytes),
-      onError: (_) {},
-    );
+    _chunkSubscription = _audioInput.audioChunks.listen((bytes) {
+      _firstChunkMs ??= _recordingStopwatch?.elapsedMilliseconds;
+      uploadGate.addAudioChunk(bytes);
+    }, onError: (_) {});
     _amplitudeSubscription = _audioInput.amplitudeDbfs.listen(
       (dbfs) => _handleAmplitude(dbfs, generation),
       onError: (_) {},
@@ -125,6 +139,8 @@ class WebBatchStreamingSpeechInput
         : chunkedRepository
               .startBatchChunkUpload()
               .then<BatchChunkUploadSession?>((session) {
+                _uploadSessionReadyMs ??=
+                    _recordingStopwatch?.elapsedMilliseconds;
                 if (_disposed || generation != _generation || !_active) {
                   unawaited(
                     session.discard(reason: 'web_main_session_superseded'),
@@ -136,25 +152,34 @@ class WebBatchStreamingSpeechInput
               })
               .catchError((Object _) => null);
 
-    final startFuture = _audioInput.startChunked();
-    _audioStartFuture = startFuture;
+    Future<void>? startFuture;
     try {
+      final routeControl = _audioRouteControl;
+      if (routeControl != null && routeControl.status.isConnected) {
+        await routeControl.startAudioRoute();
+        _audioRouteStarted = true;
+      }
+      startFuture = _audioInput.startChunked();
+      _audioStartFuture = startFuture;
       await startFuture;
+      _audioStartMs = _recordingStopwatch?.elapsedMilliseconds;
     } catch (error) {
       if (generation == _generation) {
         _active = false;
+        await _stopAudioRoute();
         await _discardUpload('web_main_micro_start_failed');
         await _cancelSubscriptions();
       }
       rethrow;
     } finally {
-      if (identical(_audioStartFuture, startFuture)) {
+      if (startFuture != null && identical(_audioStartFuture, startFuture)) {
         _audioStartFuture = null;
       }
     }
 
     if (_disposed || generation != _generation || !_active) {
       await _audioInput.cancel().catchError((Object _) {});
+      await _stopAudioRoute();
       throw const StreamingSpeechInputException(
         'Phiên nhận lệnh đã dừng.',
         code: 'WEB_BATCH_CANCELLED',
@@ -173,6 +198,7 @@ class WebBatchStreamingSpeechInput
 
     if (update.speechStarted && !_speechDetected) {
       _speechDetected = true;
+      _speechDetectedMs = _recordingStopwatch?.elapsedMilliseconds;
       uploadGate?.markSpeechDetected();
       // VoiceNavigationController uses a non-empty partial only as a speech
       // presence signal. The ellipsis normalizes to no command, so it cannot
@@ -218,11 +244,15 @@ class WebBatchStreamingSpeechInput
     final startedAt = _startedAt ?? stopRequestedAt;
 
     try {
-      // Keep the chunk subscription alive until stop() drains the browser PCM
-      // stream, otherwise the final consonant can be lost.
+      // Keep the chunk subscription alive until stop() drains the PCM stream,
+      // otherwise the final consonant can be lost.
+      final captureStopwatch = Stopwatch()..start();
       final capture = await _audioInput.stop();
+      final captureStopMs = captureStopwatch.elapsedMilliseconds;
       await _cancelSubscriptions();
+      final finalizeStopwatch = Stopwatch()..start();
       final result = await _finalizeOrFallback(capture);
+      final finalizeMs = finalizeStopwatch.elapsedMilliseconds;
       final transcript = result.vietnameseText.trim();
       if (transcript.isEmpty) {
         throw const StreamingSpeechInputException(
@@ -230,6 +260,23 @@ class WebBatchStreamingSpeechInput
           code: 'WEB_BATCH_NO_SPEECH',
         );
       }
+      final totalMs = DateTime.now().difference(startedAt).inMilliseconds;
+      final latency = <String, dynamic>{
+        'event': 'main_cloud_batch_latency',
+        'audioStartMs': _audioStartMs,
+        'uploadSessionReadyMs': _uploadSessionReadyMs,
+        'firstChunkMs': _firstChunkMs,
+        'speechDetectedMs': _speechDetectedMs,
+        'captureStopMs': captureStopMs,
+        'batchFinalizeMs': finalizeMs,
+        'totalMs': totalMs,
+        'usedBluetoothInput': capture.isBluetoothInput,
+      };
+      // This is intentionally metadata-only: never log transcript or audio.
+      // It makes physical-device and Codemagic logs useful for finding slow
+      // audio startup, upload-session creation, drain, or backend finalization.
+      // ignore: avoid_print
+      print(jsonEncode(latency));
       return StreamingSpeechCapture(
         sourceText: transcript,
         duration: capture.duration,
@@ -246,20 +293,30 @@ class WebBatchStreamingSpeechInput
         extraBenchmark: <String, dynamic>{
           'navigationCommand': true,
           'webVirtualMain': true,
+          'cloudBatchMain': true,
           'speechDetected': _speechDetected,
-          'recordingElapsedMs': DateTime.now()
-              .difference(startedAt)
-              .inMilliseconds,
+          'recordingElapsedMs': totalMs,
+          'audioStartMs': _audioStartMs,
+          'uploadSessionReadyMs': _uploadSessionReadyMs,
+          'firstChunkMs': _firstChunkMs,
+          'speechDetectedMs': _speechDetectedMs,
+          'captureStopMs': captureStopMs,
+          'batchFinalizeMs': finalizeMs,
         },
       );
     } finally {
       _active = false;
       _stopping = false;
+      await _stopAudioRoute();
       _recordingStopwatch?.stop();
       _recordingStopwatch = null;
       _startedAt = null;
       _uploadGate = null;
       _sessionFuture = null;
+      _audioStartMs = null;
+      _uploadSessionReadyMs = null;
+      _firstChunkMs = null;
+      _speechDetectedMs = null;
     }
   }
 
@@ -308,6 +365,7 @@ class WebBatchStreamingSpeechInput
     if (wasActive) {
       await _audioInput.cancel().catchError((Object _) {});
     }
+    await _stopAudioRoute();
     await _cancelSubscriptions();
     await _discardUpload('web_main_cancelled');
     _recordingStopwatch?.stop();
@@ -315,6 +373,10 @@ class WebBatchStreamingSpeechInput
     _startedAt = null;
     _uploadGate = null;
     _sessionFuture = null;
+    _audioStartMs = null;
+    _uploadSessionReadyMs = null;
+    _firstChunkMs = null;
+    _speechDetectedMs = null;
   }
 
   Future<void> _discardUpload(String reason) async {
@@ -328,6 +390,12 @@ class WebBatchStreamingSpeechInput
     await _chunkSubscription?.cancel();
     _amplitudeSubscription = null;
     _chunkSubscription = null;
+  }
+
+  Future<void> _stopAudioRoute() async {
+    if (!_audioRouteStarted) return;
+    _audioRouteStarted = false;
+    await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
   }
 
   @override

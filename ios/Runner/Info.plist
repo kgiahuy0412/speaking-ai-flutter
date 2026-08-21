@@ -28,6 +28,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HOMI dùng micro sau khi phụ huynh đồng ý để ghi lời nói của trẻ, gửi tới dịch vụ HOMI và nhà cung cấp AI nhằm nhận dạng, dịch và hỗ trợ luyện nói.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HOMI dùng Bluetooth để nhận nút MAIN và trạng thái pin từ thiết bị H20, đồng thời chọn micro HFP đã được kết nối trong Cài đặt iOS.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>HOMI dùng Bluetooth để giao tiếp với nút MAIN trên thiết bị H20.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -58,7 +58,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
   PhoneMicrophoneInput? _phoneMicrophoneInput;
   MethodChannelAiv0BleControl? _aiv0BleControl;
-  MethodChannelHfpAudioControl? _androidHfpAudioControl;
+  MethodChannelHfpAudioControl? _nativeHfpAudioControl;
   WebBatchStreamingSpeechInput? _webBatchStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
   ConversationRepository? _repository;
@@ -98,7 +98,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   bool get _bluetoothPermissionRequired {
     return !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS) &&
         (_config.enableAiv0BleControl || _config.enableHfpAudio);
   }
 
@@ -294,7 +295,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
               await _aiv0BleControl?.requestPermissions() ?? false;
         } else {
           bluetoothGranted =
-              await _androidHfpAudioControl?.requestPermissions() ?? false;
+              await _nativeHfpAudioControl?.requestPermissions() ?? false;
         }
         if (!bluetoothGranted) {
           errors.add(
@@ -425,26 +426,30 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final supportsNativeBluetooth =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
     final innotrikInput = InnotrikBleAudioInput(
       enabled: supportsAndroidNativeSpeech && _config.enableLegacyBleAudio,
     );
     final phoneMicrophoneInput = PhoneMicrophoneInput();
-    final MethodChannelHfpAudioControl? androidHfpAudioControl;
+    final MethodChannelHfpAudioControl? nativeHfpAudioControl;
     final HfpAudioControl hfpAudioControl;
     if (kIsWeb) {
-      androidHfpAudioControl = null;
+      nativeHfpAudioControl = null;
       hfpAudioControl = BrowserHfpAudioControl(
         enabled: _config.enableHfpAudio,
         audioInput: phoneMicrophoneInput,
       );
     } else {
-      androidHfpAudioControl = MethodChannelHfpAudioControl(
-        enabled: supportsAndroidNativeSpeech && _config.enableHfpAudio,
+      nativeHfpAudioControl = MethodChannelHfpAudioControl(
+        enabled: supportsNativeBluetooth && _config.enableHfpAudio,
       );
-      hfpAudioControl = androidHfpAudioControl;
+      hfpAudioControl = nativeHfpAudioControl;
     }
     final aiv0BleControl = MethodChannelAiv0BleControl(
-      enabled: supportsAndroidNativeSpeech && _config.enableAiv0BleControl,
+      enabled: supportsNativeBluetooth && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
     );
     final streamingSpeechInput = supportsAndroidNativeSpeech
@@ -456,11 +461,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (streamingSpeechInput != null) {
       webBatchStreamingSpeechInput = null;
       voiceNavigationSpeechInput = streamingSpeechInput;
-    } else if (kIsWeb) {
+    } else if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
       webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
         audioInput: phoneMicrophoneInput,
         repository: repository,
         childAge: _config.childAge,
+        audioRouteControl: defaultTargetPlatform == TargetPlatform.iOS
+            ? hfpAudioControl
+            : null,
       );
       voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
     } else {
@@ -472,9 +480,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         ? VoiceNavigationController(
             speechInput: voiceNavigationSpeechInput,
             // Android's recognizer is shared with ConversationController and
-            // remains owned there. The Web adapter is exclusive to MAIN and
-            // may close its own event streams with this controller.
-            ownsSpeechInput: kIsWeb,
+            // remains owned there. The Cloud/Batch adapter on Web/iOS is
+            // exclusive to MAIN and may close its own event streams.
+            ownsSpeechInput: streamingSpeechInput == null,
             voicePromptService: createVoicePromptService(),
             ownsVoicePromptService: true,
             activeLearningCommandHandler: _handleActiveLearningCommand,
@@ -523,7 +531,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _deviceAudioCache = deviceAudioCache;
     _phoneMicrophoneInput = phoneMicrophoneInput;
     _aiv0BleControl = aiv0BleControl;
-    _androidHfpAudioControl = androidHfpAudioControl;
+    _nativeHfpAudioControl = nativeHfpAudioControl;
     _webBatchStreamingSpeechInput = webBatchStreamingSpeechInput;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;

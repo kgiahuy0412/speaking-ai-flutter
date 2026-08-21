@@ -40,11 +40,11 @@ abstract interface class HfpAudioControl {
   Future<void> dispose();
 }
 
-/// Controls the Android Bluetooth Classic HFP/SCO microphone route.
+/// Controls the native Bluetooth HFP microphone route.
 ///
-/// Android's public API cannot initiate an HFP profile connection. The native
-/// bridge therefore lists paired HFP-capable devices, lets Android Settings
-/// finish the profile connection when needed, and then selects the SCO input.
+/// Android exposes paired HFP devices and routes SCO. iOS exposes the HFP
+/// inputs already connected in Settings and lets the bridge select a preferred
+/// input through AVAudioSession. Neither platform pairs a headset in-app.
 class MethodChannelHfpAudioControl implements HfpAudioControl {
   MethodChannelHfpAudioControl({
     required this.enabled,
@@ -113,7 +113,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
       _setStatus(
         const BluetoothAudioStatus(
           phase: BluetoothAudioConnectionPhase.unsupported,
-          message: 'Bản Android này chưa có cầu nối HFP.',
+          message: 'Bản native này chưa có cầu nối HFP.',
           sampleRate: 16000,
         ),
       );
@@ -128,7 +128,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     }
   }
 
-  /// Requests the Android Bluetooth connect permission during app setup.
+  /// Requests the platform Bluetooth permission during app setup when needed.
   Future<bool> requestPermissions() async {
     if (!enabled) return true;
     await initialize();
@@ -179,7 +179,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     try {
       await _methodChannel.invokeMethod<void>('disconnect');
     } on MissingPluginException {
-      // The bridge is optional outside Android.
+      // The bridge is optional outside Android/iOS native.
     }
   }
 
@@ -198,7 +198,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     try {
       await _methodChannel.invokeMethod<void>('stopAudioRoute');
     } on MissingPluginException {
-      // The bridge is optional outside Android.
+      // The bridge is optional outside Android/iOS native.
     }
   }
 

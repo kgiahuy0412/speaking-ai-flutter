@@ -6,6 +6,9 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var platformChannel: FlutterMethodChannel?
   private let clientIdentityStore = IOSClientIdentityStore()
+  private var aiv0BleControlBridge: Aiv0BleControlBridge?
+  private var hfpAudioBridge: HfpAudioBridge?
+  private var voicePromptBridge: VoicePromptBridge?
 
   override func application(
     _ application: UIApplication,
@@ -17,9 +20,17 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
+    let messenger = engineBridge.applicationRegistrar.messenger()
+    aiv0BleControlBridge?.dispose()
+    hfpAudioBridge?.dispose()
+    voicePromptBridge?.dispose()
+    aiv0BleControlBridge = Aiv0BleControlBridge(messenger: messenger)
+    hfpAudioBridge = HfpAudioBridge(messenger: messenger)
+    voicePromptBridge = VoicePromptBridge(messenger: messenger)
+
     let channel = FlutterMethodChannel(
       name: "ailingo_platform",
-      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+      binaryMessenger: messenger
     )
     channel.setMethodCallHandler { [clientIdentityStore] call, result in
       switch call.method {
@@ -27,6 +38,21 @@ import UIKit
         result(clientIdentityStore.getOrCreate())
       case "device.resetClientId":
         result(clientIdentityStore.reset())
+      case "ble.isSupported":
+        result(true)
+      case "device.protocolInfo":
+        result([
+          "architecture": "HFP_AUDIO_PLUS_BLE_CONTROL",
+          "controlServiceUuid": "9E3B0001-4A7C-4D6F-8B21-5C17A2D94010",
+          "buttonEventUuid": "9E3B0002-4A7C-4D6F-8B21-5C17A2D94010",
+          "appStateUuid": "9E3B0003-4A7C-4D6F-8B21-5C17A2D94010",
+          "batteryServiceUuid": "0000180F-0000-1000-8000-00805F9B34FB",
+          "batteryLevelUuid": "00002A19-0000-1000-8000-00805F9B34FB",
+          "deviceInformationServiceUuid": "0000180A-0000-1000-8000-00805F9B34FB",
+          "firmwareRevisionUuid": "00002A26-0000-1000-8000-00805F9B34FB",
+          "audioTransport": "HFP",
+          "legacyBleAudioEnabledByDefault": false,
+        ])
       default:
         result(FlutterMethodNotImplemented)
       }

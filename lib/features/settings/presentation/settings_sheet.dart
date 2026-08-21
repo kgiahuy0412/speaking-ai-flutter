@@ -128,8 +128,12 @@ class SettingsSheet extends StatelessWidget {
                             )
                           : isIOS
                           ? context.tr(
-                              'Mic iPhone/iPad • xử lý Cloud/Batch sau khi phụ huynh đồng ý',
-                              'iPhone/iPad 麦克风 • 家长同意后使用云端分块处理',
+                              controller.usesHfpInput
+                                  ? 'Mic H20 qua HFP • xử lý Cloud/Batch'
+                                  : 'Mic iPhone/iPad • xử lý Cloud/Batch sau khi phụ huynh đồng ý',
+                              controller.usesHfpInput
+                                  ? 'H20 HFP 麦克风 • 云端分块处理'
+                                  : 'iPhone/iPad 麦克风 • 家长同意后使用云端分块处理',
                             )
                           : switch (controller.asrMode) {
                               AsrMode.androidStreaming => context.tr(
@@ -172,7 +176,7 @@ class SettingsSheet extends StatelessWidget {
                       trailing: context.tr('Đang dùng', '使用中'),
                       stateColor: AppColors.success,
                     ),
-                    if (!isIOS) ...<Widget>[
+                    ...<Widget>[
                       const SizedBox(height: 10),
                       _Aiv0BleControlCard(
                         status: controller.aiv0BleStatus,
@@ -238,8 +242,8 @@ class SettingsSheet extends StatelessWidget {
                         icon: Icons.cloud_done_rounded,
                         title: context.tr('Cloud/Batch cho iOS', 'iOS 云端分块识别'),
                         detail: context.tr(
-                          'Sau khi phụ huynh đồng ý và cấp quyền micro, audio được gửi tới dịch vụ HOMI để nhận dạng, dịch và tạo phản hồi. iOS không dùng dịch vụ Android; điều hướng giọng nói MAIN tự động hiện chưa bật trên iOS.',
-                          '家长同意并授予麦克风权限后，音频会发送至 HOMI 服务进行识别、翻译和生成回复。iOS 不使用 Android 服务，MAIN 自动语音导航目前未在 iOS 启用。',
+                          'Sau khi phụ huynh đồng ý và cấp quyền micro, audio được truyền theo từng chunk tới dịch vụ HOMI để nhận dạng Cloud/Batch. Điều hướng giọng nói MAIN đã dùng cùng pipeline này trên iOS.',
+                          '家长同意并授予麦克风权限后，音频会分块发送至 HOMI 云端进行识别。iOS 的 MAIN 语音导航已使用同一流程。',
                         ),
                         trailing: context.tr('Mặc định', '默认'),
                         stateColor: AppColors.success,
@@ -790,6 +794,7 @@ class SettingsSheet extends StatelessWidget {
   }
 
   Future<void> _findAndConnectHfp(BuildContext context) async {
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     try {
       final devices = await controller.findHfpDevices();
       if (!context.mounted) {
@@ -804,9 +809,13 @@ class SettingsSheet extends StatelessWidget {
           message: context.tr(
             controller.supportsBrowserHfp
                 ? 'Web không thể tự kết nối HFP. Hãy kết nối tai nghe trong Cài đặt Bluetooth, cho phép quyền micro, tải lại trang rồi bấm Chọn mic HFP. Safari trên iPhone có thể chỉ cung cấp mic iPhone.'
+                : isIOS
+                ? 'iOS chỉ cho ứng dụng chọn mic HFP đang kết nối. Hãy kết nối H20 trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.'
                 : 'Hãy ghép đôi tai nghe hoặc thiết bị HFP trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.',
             controller.supportsBrowserHfp
                 ? '网页无法自行连接 HFP。请先在蓝牙设置中连接耳机、允许麦克风权限、刷新页面，再点击选择 HFP 麦克风。iPhone Safari 可能只提供 iPhone 麦克风。'
+                : isIOS
+                ? 'iOS 只能选择当前已连接的 HFP 麦克风。请先在蓝牙设置中连接 H20，然后返回并点击“查找 HFP”。'
                 : '请先在蓝牙设置中配对耳机或 HFP 设备，然后返回并点击“查找 HFP”。',
           ),
         );
@@ -833,9 +842,13 @@ class SettingsSheet extends StatelessWidget {
                   context.tr(
                     controller.supportsBrowserHfp
                         ? 'Chỉ các mic Bluetooth mà trình duyệt công bố mới xuất hiện. Thiết bị đã chọn được ưu tiên.'
+                        : isIOS
+                        ? 'iOS chỉ hiển thị các mic HFP đang khả dụng trong AVAudioSession. Thiết bị đang dùng được ưu tiên.'
                         : 'Android chỉ cho ứng dụng dùng HFP đã ghép đôi. Thiết bị đang kết nối được ưu tiên.',
                     controller.supportsBrowserHfp
                         ? '这里只显示浏览器公开的蓝牙麦克风；已选择的设备优先。'
+                        : isIOS
+                        ? 'iOS 仅显示 AVAudioSession 中可用的 HFP 麦克风；当前设备优先。'
                         : 'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
                   ),
                   style: Theme.of(
@@ -1530,8 +1543,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
   String _detail(BuildContext context) {
     return switch (status.phase) {
       Aiv0BlePhase.disabled => context.tr(
-        'BLE Control AIV0 chỉ hoạt động trên APK Android.',
-        'AIV0 BLE 控制仅适用于 Android APK。',
+        'BLE Control AIV0 chỉ hoạt động trên Android/iOS native.',
+        'AIV0 BLE 控制仅适用于 Android/iOS 原生应用。',
       ),
       Aiv0BlePhase.idle => context.tr(
         'Chưa kết nối service 9E3B0001.',
@@ -2236,8 +2249,8 @@ class _HfpStatusCard extends StatelessWidget {
       BluetoothAudioConnectionPhase.error =>
         status.message ?? context.tr('Kết nối HFP gặp lỗi.', 'HFP 连接发生错误。'),
       BluetoothAudioConnectionPhase.idle => context.tr(
-        'Dùng thiết bị HFP đã ghép đôi trong Android.',
-        '使用 Android 中已配对的 HFP 设备。',
+        'Kết nối HFP trong Cài đặt hệ thống, rồi chọn mic tại đây.',
+        '请先在系统设置中连接 HFP，再在此选择麦克风。',
       ),
     };
   }

@@ -22,6 +22,9 @@ workflows:
         PREFER_BLE_STREAMING: "false"
         REALTIME_BATCH_FALLBACK: "true"
         REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+        ENABLE_AIV0_BLE_CONTROL: "true"
+        AIV0_DRAFT_PROTOCOL_CONFIRMED: "false"
+        ENABLE_HFP_AUDIO: "true"
 
     cache:
       cache_paths:
@@ -80,13 +83,16 @@ workflows:
           flutter build ipa \
             --release \
             --build-number="$BUILD_NUMBER" \
-            --export-options-plist="$CM_EXPORT_OPTIONS_PLIST" \
+            --export-options-plist="$HOME/export_options.plist" \
             --dart-define=BACKEND_BASE_URL="$BACKEND_BASE_URL" \
             --dart-define=USE_DEMO_BACKEND="$USE_DEMO_BACKEND" \
             --dart-define=CHILD_AGE="$CHILD_AGE" \
             --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
             --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
             --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES" \
+            --dart-define=ENABLE_AIV0_BLE_CONTROL="$ENABLE_AIV0_BLE_CONTROL" \
+            --dart-define=AIV0_DRAFT_PROTOCOL_CONFIRMED="$AIV0_DRAFT_PROTOCOL_CONFIRMED" \
+            --dart-define=ENABLE_HFP_AUDIO="$ENABLE_HFP_AUDIO" \
             --dart-define=PRIVACY_POLICY_URL="$PRIVACY_POLICY_URL" \
             --dart-define=TERMS_URL="$TERMS_URL" \
             --dart-define=SUPPORT_URL="$SUPPORT_URL" \
@@ -109,7 +115,7 @@ workflows:
 
     environment:
       flutter: 3.44.6
-      xcode: 26.0
+      xcode: 26.6
       vars:
         BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
         USE_DEMO_BACKEND: "false"
@@ -117,6 +123,9 @@ workflows:
         PREFER_BLE_STREAMING: "false"
         REALTIME_BATCH_FALLBACK: "true"
         REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+        ENABLE_AIV0_BLE_CONTROL: "true"
+        AIV0_DRAFT_PROTOCOL_CONFIRMED: "false"
+        ENABLE_HFP_AUDIO: "true"
 
     cache:
       cache_paths:
@@ -186,7 +195,10 @@ workflows:
             --dart-define=CHILD_AGE="$CHILD_AGE" \
             --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
             --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
-            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES"
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES" \
+            --dart-define=ENABLE_AIV0_BLE_CONTROL="$ENABLE_AIV0_BLE_CONTROL" \
+            --dart-define=AIV0_DRAFT_PROTOCOL_CONFIRMED="$AIV0_DRAFT_PROTOCOL_CONFIRMED" \
+            --dart-define=ENABLE_HFP_AUDIO="$ENABLE_HFP_AUDIO"
 
       - name: Package generated iOS scaffold
         script: |

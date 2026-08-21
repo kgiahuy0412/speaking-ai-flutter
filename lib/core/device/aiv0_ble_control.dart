@@ -259,7 +259,7 @@ class Aiv0BleStatus {
     : this(
         phase: Aiv0BlePhase.disabled,
         protocolConfirmed: false,
-        message: 'BLE Control AIV0 chỉ hỗ trợ trên APK Android.',
+        message: 'BLE Control AIV0 chỉ hỗ trợ trên Android/iOS native.',
       );
 
   factory Aiv0BleStatus.fromMap(
@@ -334,7 +334,8 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
   }) : _enabled =
            enabled &&
            !kIsWeb &&
-           defaultTargetPlatform == TargetPlatform.android,
+           (defaultTargetPlatform == TargetPlatform.android ||
+               defaultTargetPlatform == TargetPlatform.iOS),
        _codec = Aiv0DraftProtocolCodec(confirmed: draftProtocolConfirmed),
        _methodChannel =
            methodChannel ?? const MethodChannel('ailingo_aiv0_ble_control'),
@@ -342,7 +343,10 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
            eventChannel ??
            const EventChannel('ailingo_aiv0_ble_control/events'),
        _status =
-           enabled && !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+           enabled &&
+               !kIsWeb &&
+               (defaultTargetPlatform == TargetPlatform.android ||
+                   defaultTargetPlatform == TargetPlatform.iOS)
            ? Aiv0BleStatus(
                phase: Aiv0BlePhase.idle,
                protocolConfirmed: draftProtocolConfirmed,
@@ -391,8 +395,8 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     if (map != null) _updateStatus(map);
   }
 
-  /// Requests the Nearby devices/Bluetooth permissions used by AIV0 before
-  /// the child operates the physical MAIN button.
+  /// Requests the platform Bluetooth permission used by AIV0 before the child
+  /// operates the physical MAIN button.
   Future<bool> requestPermissions() async {
     if (!_enabled) return true;
     await initialize();
@@ -428,6 +432,13 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     if (!_enabled) return;
     _manualDisconnectRequested = false;
     await initialize();
+    final permissionGranted = await requestPermissions();
+    if (!permissionGranted) {
+      throw PlatformException(
+        code: 'PERMISSION_REQUIRED',
+        message: 'Cần cấp quyền Bluetooth để kết nối H20.',
+      );
+    }
     await _methodChannel.invokeMethod<void>('connect', <String, Object?>{
       'deviceId': deviceId,
     });
@@ -440,10 +451,10 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
   }
 
   /// Reconnects BLE Control without requiring a second user action after H20
-  /// has already been paired through Android Bluetooth/HFP.
+  /// has already been paired through the system Bluetooth/HFP settings.
   ///
   /// The previously verified BLE address is preferred. On first use (or when
-  /// Android rotates the BLE address), the advertised 9E3B0001 service is the
+  /// the saved native identifier changes), advertised 9E3B0001 service is the
   /// strongest signal; the H20/AIV0 device name is only a safe fallback.
   Future<bool> autoConnectKnownOrNearby({
     Duration scanTimeout = const Duration(seconds: 4),
@@ -475,8 +486,8 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     final savedDeviceId = preferences.getString(_lastDeviceIdPreference);
     if (savedDeviceId != null && savedDeviceId.trim().isNotEmpty) {
       try {
-        // This is the fast path for normal daily use: Android can reopen the
-        // verified GATT address directly without waiting for another scan.
+        // This is the fast path for normal daily use: native can reopen the
+        // verified GATT identifier directly without waiting for another scan.
         await connect(savedDeviceId.trim());
         return true;
       } catch (error) {

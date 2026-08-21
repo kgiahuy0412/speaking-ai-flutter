@@ -48,6 +48,18 @@ class PhoneMicrophoneInput
   int get _chunkByteLength =>
       pcm16ChunkByteLength(sampleRate: _effectiveSampleRate);
 
+  Duration get _pcmDrainTimeout {
+    if (kIsWeb) return const Duration(milliseconds: 250);
+    // record_av_foundation normally closes its stream immediately after stop.
+    // A bounded iOS wait keeps MAIN responsive if a route change prevents the
+    // terminal stream event while still leaving enough time for the last PCM
+    // buffer to arrive.
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return const Duration(milliseconds: 750);
+    }
+    return const Duration(seconds: 2);
+  }
+
   @override
   String get label {
     final selected = _selectedInputDevice;
@@ -306,15 +318,16 @@ class PhoneMicrophoneInput
     final recorderPath = await _recorder.stop();
     if (_chunked) {
       var streamDrainTimedOut = false;
+      final drainTimeout = _pcmDrainTimeout;
       await _pcmStreamDone?.future.timeout(
-        kIsWeb ? const Duration(milliseconds: 250) : const Duration(seconds: 2),
+        drainTimeout,
         onTimeout: () {
           streamDrainTimedOut = true;
         },
       );
       if (streamDrainTimedOut) {
         debugPrint(
-          'PCM stream drain timed out after ${kIsWeb ? 250 : 2000} ms; '
+          'PCM stream drain timed out after ${drainTimeout.inMilliseconds} ms; '
           'flushing the buffered tail.',
         );
       }

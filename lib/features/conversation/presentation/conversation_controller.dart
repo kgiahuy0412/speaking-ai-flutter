@@ -1000,12 +1000,14 @@ class ConversationController extends ChangeNotifier {
     try {
       await control.connect(device);
       _hfpInputSelected = true;
-      asrMode = supportsBrowserHfp
-          ? AsrMode.batchChunks
-          : AsrMode.androidStreaming;
+      asrMode = supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.batchChunks;
       transientMessage = supportsBrowserHfp
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
-          : 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.';
+          : supportsAndroidStreaming
+          ? 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.'
+          : 'Đã chọn mic HFP trên iOS. Cloud/Batch sẽ nhận âm thanh từ thiết bị Bluetooth.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -1495,6 +1497,18 @@ class ConversationController extends ChangeNotifier {
           _usingHfpRoute = true;
           _setPlaybackCommunicationRoute(true);
           await _startAdaptiveWebRecording();
+        } catch (_) {
+          await _stopHfpRoute();
+          rethrow;
+        }
+      } else if (usesHfpInput &&
+          !supportsAndroidStreaming &&
+          _audioInput is ChunkedAudioInput) {
+        try {
+          await _hfpAudioControl!.startAudioRoute();
+          _usingHfpRoute = true;
+          _setPlaybackCommunicationRoute(true);
+          await _startBatchRecording();
         } catch (_) {
           await _stopHfpRoute();
           rethrow;
