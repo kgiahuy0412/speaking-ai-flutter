@@ -1,0 +1,168 @@
+{
+  "input": "C:\\Users\\Windows\\Documents\\ai-speaking-flutter-app\\tmp\\documents\\homi_zh_20260821\\reference_snapshot.docx",
+  "fonts_by_char_count": {},
+  "direct_run_formatting_runs": 68,
+  "direct_paragraph_formatting_paragraphs": 109,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 2,
+      "text": "K\u1ebe HO\u1ea0CH PH\u00c1T H\u00c0NH HOMI APP\nTR\u00caN APP STORE",
+      "style": "Normal"
+    },
+    {
+      "para_index": 60,
+      "text": "G\u1eecI",
+      "style": "Normal"
+    },
+    {
+      "para_index": 62,
+      "text": "NG\u01af\u1edcI B\u00c1O C\u00c1O",
+      "style": "Normal"
+    },
+    {
+      "para_index": 64,
+      "text": "NG\u00c0Y",
+      "style": "Normal"
+    },
+    {
+      "para_index": 66,
+      "text": "TR\u1ea0NG TH\u00c1I",
+      "style": "Normal"
+    },
+    {
+      "para_index": 67,
+      "text": "C\u00f3 th\u1ec3 chu\u1ea9n b\u1ecb TestFlight; ch\u01b0a \u0111\u1ee7 \u0111i\u1ec1u ki\u1ec7n g\u1eedi App Review",
+      "style": "Normal"
+    },
+    {
+      "para_index": 70,
+      "text": "Ti\u00eau ch\u00ed",
+      "style": "Normal"
+    },
+    {
+      "para_index": 71,
+      "text": "Individual",
+      "style": "Normal"
+    },
+    {
+      "para_index": 72,
+      "text": "Organization",
+      "style": "Normal"
+    },
+    {
+      "para_index": 73,
+      "text": "\u0110i\u1ec1u ki\u1ec7n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 76,
+      "text": "T\u00ean app",
+      "style": "Normal"
+    },
+    {
+      "para_index": 79,
+      "text": "Seller ban \u0111\u1ea7u",
+      "style": "Normal"
+    },
+    {
+      "para_index": 82,
+      "text": "T\u1ed1c \u0111\u1ed9",
+      "style": "Normal"
+    },
+    {
+      "para_index": 85,
+      "text": "R\u1ee7i ro",
+      "style": "Normal"
+    },
+    {
+      "para_index": 88,
+      "text": "Chuy\u1ec3n \u0111\u1ed5i",
+      "style": "Normal"
+    },
+    {
+      "para_index": 93,
+      "text": "#",
+      "style": "Normal"
+    },
+    {
+      "para_index": 94,
+      "text": "Quy\u1ebft \u0111\u1ecbnh c\u1ea7n ph\u00ea duy\u1ec7t",
+      "style": "Normal"
+    },
+    {
+      "para_index": 95,
+      "text": "Khuy\u1ebfn ngh\u1ecb",
+      "style": "Normal"
+    },
+    {
+      "para_index": 96,
+      "text": "H\u1ea1n",
+      "style": "Normal"
+    },
+    {
+      "para_index": 97,
+      "text": "1",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "text": "K\u1ebe HO\u1ea0CH PH\u00c1T H\u00c0NH HOMI APP\nTR\u00caN APP STORE",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 2,
+        "run_text": "K\u1ebe HO\u1ea0CH PH\u00c1T H\u00c0NH HOMI APP",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "run_text": "\nTR\u00caN APP STORE",
+        "style": "Normal"
+      },
+      {
+        "para_index": 52,
+        "run_text": "Backend ph\u1ea3i c\u00f3 authentication/authorization theo ph\u1ee5 huynh ho\u1eb7c installation; k",
+        "style": "Normal"
+      },
+      {
+        "para_index": 53,
+        "run_text": "X\u00f3a cascade th\u1ef1c s\u1ef1 history, transcript, audio v\u00e0 cache; \u1ee9ng d\u1ee5ng hi\u1ec7n ch\u1ec9 c\u00f3 th",
+        "style": "Normal"
+      },
+      {
+        "para_index": 60,
+        "run_text": "G\u1eecI",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

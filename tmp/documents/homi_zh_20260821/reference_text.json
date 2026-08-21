@@ -1,0 +1,1121 @@
+[
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 1,
+    "style": null,
+    "full_text": "KẾ HOẠCH PHÁT HÀNH HOMI APPTRÊN APP STORE",
+    "text_nodes": [
+      "KẾ HOẠCH PHÁT HÀNH HOMI APP",
+      "TRÊN APP STORE"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 3,
+    "style": null,
+    "full_text": "GỬI",
+    "text_nodes": [
+      "GỬI"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 4,
+    "style": null,
+    "full_text": "Ban lãnh đạo / Người phê duyệt sản phẩm",
+    "text_nodes": [
+      "Ban lãnh đạo / Người phê duyệt sản phẩm"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 5,
+    "style": null,
+    "full_text": "NGƯỜI BÁO CÁO",
+    "text_nodes": [
+      "NGƯỜI BÁO CÁO"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 6,
+    "style": null,
+    "full_text": "Gia Huy Trần Nguyễn",
+    "text_nodes": [
+      "Gia Huy Trần Nguyễn"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 7,
+    "style": null,
+    "full_text": "NGÀY",
+    "text_nodes": [
+      "NGÀY"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 8,
+    "style": null,
+    "full_text": "21/08/2026",
+    "text_nodes": [
+      "21/08/2026"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 9,
+    "style": null,
+    "full_text": "TRẠNG THÁI",
+    "text_nodes": [
+      "TRẠNG THÁI"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 10,
+    "style": null,
+    "full_text": "Có thể chuẩn bị TestFlight; chưa đủ điều kiện gửi App Review",
+    "text_nodes": [
+      "Có thể chuẩn bị TestFlight; chưa đủ điều kiện gửi App Review"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 12,
+    "style": null,
+    "full_text": "KHUYẾN NGHỊ ĐIỀU HÀNH: Nếu ưu tiên có bản TestFlight sớm, đăng ký Apple Developer Program theo loại Individual dưới tên pháp lý Gia Huy Trần Nguyễn ngay, kèm phê duyệt nội bộ về quyền sở hữu ứng dụng. Tên ứng dụng vẫn là HOMI App. Sau khi có pháp nhân, có thể yêu cầu Apple chuyển sang Organization.",
+    "text_nodes": [
+      "KHUYẾN NGHỊ ĐIỀU HÀNH: ",
+      "Nếu ưu tiên có bản TestFlight sớm, đăng ký Apple Developer Program theo loại Individual dưới tên pháp lý Gia Huy Trần Nguyễn ngay, kèm phê duyệt nội bộ về quyền sở hữu ứng dụng. Tên ứng dụng vẫn là HOMI App. Sau khi có pháp nhân, có thể yêu cầu Apple chuyển sang Organization."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 14,
+    "style": "Heading1",
+    "full_text": "1. Kết luận nhanh",
+    "text_nodes": [
+      "1. Kết luận nhanh"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 15,
+    "style": null,
+    "full_text": "Phần mã nguồn iOS và workflow Codemagic đã được chuẩn bị, kiểm thử và đẩy lên GitHub.",
+    "text_nodes": [
+      "Phần mã nguồn iOS và workflow Codemagic đã được chuẩn bị, kiểm thử và đẩy lên GitHub."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 16,
+    "style": null,
+    "full_text": "Nút thắt hiện tại là tài khoản Apple Developer trả phí, chưa phải vấn đề thiếu máy Mac; Windows + GitHub + Codemagic + iPhone thật là đủ cho quy trình này.",
+    "text_nodes": [
+      "Nút thắt hiện tại là tài khoản Apple Developer trả phí, chưa phải vấn đề thiếu máy Mac; Windows + GitHub + Codemagic + iPhone thật là đủ cho quy trình này."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 17,
+    "style": null,
+    "full_text": "Mục tiêu thực tế trong 7 ngày là tạo IPA ký số và đưa lên TestFlight nếu Apple kích hoạt tài khoản kịp. Thời điểm được duyệt công khai trên App Store không thể cam kết.",
+    "text_nodes": [
+      "Mục tiêu thực tế trong 7 ngày là tạo IPA ký số và đưa lên TestFlight nếu Apple kích hoạt tài khoản kịp. Thời điểm được duyệt công khai trên App Store không thể cam kết."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 18,
+    "style": null,
+    "full_text": "Không nên gửi App Review trước khi chốt nhóm tuổi, chính sách trẻ em/AI, retention và các kiểm soát backend.",
+    "text_nodes": [
+      "Không nên gửi App Review trước khi chốt nhóm tuổi, chính sách trẻ em/AI, retention và các kiểm soát backend."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 19,
+    "style": null,
+    "full_text": "LƯU Ý QUYỀN SỞ HỮU: Tài khoản Individual đứng tên cá nhân. Nếu HOMI App là tài sản doanh nghiệp, cần email/văn bản nội bộ xác nhận cá nhân quản trị tài khoản thay doanh nghiệp và kế hoạch chuyển sang Organization sau này.",
+    "text_nodes": [
+      "LƯU Ý QUYỀN SỞ HỮU: ",
+      "Tài khoản Individual đứng tên cá nhân. Nếu HOMI App là tài sản doanh nghiệp, cần email/văn bản nội bộ xác nhận cá nhân quản trị tài khoản thay doanh nghiệp và kế hoạch chuyển sang Organization sau này."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 21,
+    "style": "Heading1",
+    "full_text": "2. Những phần đã hoàn thành trong ứng dụng",
+    "text_nodes": [
+      "2. ",
+      "Những phần đã hoàn thành trong ứng dụng"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 23,
+    "style": null,
+    "full_text": "Đổi tên hiển thị iOS thành HOMI App và thay icon Flutter mặc định bằng icon thương hiệu.",
+    "text_nodes": [
+      "Đổi tên hiển thị iOS thành HOMI App và thay icon Flutter mặc định bằng icon thương hiệu."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 24,
+    "style": null,
+    "full_text": "Nâng iOS deployment target lên 15.0; bổ sung PrivacyInfo.xcprivacy; cấu hình automatic signing trong project.",
+    "text_nodes": [
+      "Nâng iOS deployment target lên 15.0; bổ sung PrivacyInfo.xcprivacy; cấu hình automatic signing trong project."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 25,
+    "style": null,
+    "full_text": "Thêm màn hình phụ huynh đồng ý trước khi gọi quyền micro; cho phép dùng nội dung không cần giọng nói khi từ chối.",
+    "text_nodes": [
+      "Thêm màn hình phụ huynh đồng ý trước khi gọi quyền micro; cho phép dùng nội dung không cần giọng nói khi từ chối."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 26,
+    "style": null,
+    "full_text": "Bổ sung rút lại đồng ý, reset định danh iOS Keychain và yêu cầu server xóa history/transcript/audio liên quan.",
+    "text_nodes": [
+      "Bổ sung rút lại đồng ý, reset định danh iOS Keychain và yêu cầu server xóa history/transcript/audio liên quan."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 27,
+    "style": null,
+    "full_text": "Tách nội dung Settings theo nền tảng; iOS không còn hiển thị chẩn đoán BLE/HFP/Android không phù hợp.",
+    "text_nodes": [
+      "Tách nội dung Settings theo nền tảng; iOS không còn hiển thị chẩn đoán BLE/HFP/Android không phù hợp."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 28,
+    "style": null,
+    "full_text": "Workflow Codemagic dùng Xcode 26.6, build IPA release và upload App Store Connect/TestFlight.",
+    "text_nodes": [
+      "Workflow Codemagic dùng Xcode 26.6, build IPA release và upload App Store Connect/TestFlight."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 29,
+    "style": "Heading1",
+    "full_text": "3. Lựa chọn tài khoản Apple",
+    "text_nodes": [
+      "3. Lựa chọn tài khoản Apple"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 30,
+    "style": null,
+    "full_text": "Apple Account hiện tại đã đăng nhập Apple Developer nhưng vẫn hiển thị “Join the Apple Developer Program”; vì vậy chưa được dùng App Store Connect, TestFlight hoặc API key Codemagic.",
+    "text_nodes": [
+      "Apple Account hiện tại đã đăng nhập Apple Developer nhưng vẫn hiển thị “Join the Apple Developer Program”; vì vậy chưa được dùng App Store Connect, TestFlight hoặc API key Codemagic."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 31,
+    "style": null,
+    "full_text": "Tiêu chí",
+    "text_nodes": [
+      "Tiêu chí"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 32,
+    "style": null,
+    "full_text": "Individual",
+    "text_nodes": [
+      "Individual"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 33,
+    "style": null,
+    "full_text": "Organization",
+    "text_nodes": [
+      "Organization"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 34,
+    "style": null,
+    "full_text": "Điều kiện",
+    "text_nodes": [
+      "Điều kiện"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 35,
+    "style": null,
+    "full_text": "Apple ID, xác minh danh tính, phí thành viên.",
+    "text_nodes": [
+      "Apple ID, xác minh danh tính, phí thành viên."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 36,
+    "style": null,
+    "full_text": "Pháp nhân, D-U-N-S, website, email tên miền, thẩm quyền ký.",
+    "text_nodes": [
+      "Pháp nhân, D-U-N-S, website, email tên miền, thẩm quyền ký."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 37,
+    "style": null,
+    "full_text": "Tên app",
+    "text_nodes": [
+      "Tên app"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 38,
+    "style": null,
+    "full_text": "HOMI App",
+    "text_nodes": [
+      "HOMI App"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 39,
+    "style": null,
+    "full_text": "HOMI App",
+    "text_nodes": [
+      "HOMI App"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 40,
+    "style": null,
+    "full_text": "Seller ban đầu",
+    "text_nodes": [
+      "Seller ban đầu"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 41,
+    "style": null,
+    "full_text": "Gia Huy Trần Nguyễn (theo hồ sơ pháp lý Apple).",
+    "text_nodes": [
+      "Gia Huy Trần Nguyễn (theo hồ sơ pháp lý Apple)."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 42,
+    "style": null,
+    "full_text": "Tên pháp lý của doanh nghiệp.",
+    "text_nodes": [
+      "Tên pháp lý của doanh nghiệp."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 43,
+    "style": null,
+    "full_text": "Tốc độ",
+    "text_nodes": [
+      "Tốc độ"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 44,
+    "style": null,
+    "full_text": "Nhanh nhất cho mục tiêu TestFlight, nếu Apple kích hoạt kịp.",
+    "text_nodes": [
+      "Nhanh nhất cho mục tiêu TestFlight, nếu Apple kích hoạt kịp."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 45,
+    "style": null,
+    "full_text": "Thường lâu hơn do xác minh doanh nghiệp.",
+    "text_nodes": [
+      "Thường lâu hơn do xác minh doanh nghiệp."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 46,
+    "style": null,
+    "full_text": "Rủi ro",
+    "text_nodes": [
+      "Rủi ro"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 47,
+    "style": null,
+    "full_text": "Tài khoản và quyền sở hữu vận hành gắn với cá nhân.",
+    "text_nodes": [
+      "Tài khoản và quyền sở hữu vận hành gắn với cá nhân."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 48,
+    "style": null,
+    "full_text": "Cần bộ hồ sơ đầy đủ; HOMI App không được dùng thay tên pháp nhân.",
+    "text_nodes": [
+      "Cần bộ hồ sơ đầy đủ; HOMI App không được dùng thay tên pháp nhân."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 49,
+    "style": null,
+    "full_text": "Chuyển đổi",
+    "text_nodes": [
+      "Chuyển đổi"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 50,
+    "style": null,
+    "full_text": "Có thể yêu cầu Apple chuyển sang Organization sau này.",
+    "text_nodes": [
+      "Có thể yêu cầu Apple chuyển sang Organization sau này."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 51,
+    "style": null,
+    "full_text": "Không áp dụng.",
+    "text_nodes": [
+      "Không áp dụng."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 53,
+    "style": null,
+    "full_text": "PHƯƠNG ÁN ĐỀ XUẤT: Đăng ký Individual trước để rút ngắn đường tới TestFlight. Tên ứng dụng giữ HOMI App; tên nhà phát triển/người bán ban đầu là Gia Huy Trần Nguyễn. Khi doanh nghiệp HOMI có pháp nhân, D-U-N-S, website và email tên miền, gửi yêu cầu Apple chuyển tài khoản sang Organization.",
+    "text_nodes": [
+      "PHƯƠNG ÁN ĐỀ XUẤT: ",
+      "Đăng ký Individual trước để rút ngắn đường tới TestFlight. Tên ứng dụng giữ HOMI App; tên nhà phát triển/người bán ban đầu là Gia Huy Trần Nguyễn. Khi doanh nghiệp HOMI có pháp nhân, D-U-N-S, website và email tên miền, gửi yêu cầu Apple chuyển tài khoản sang Organization."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 55,
+    "style": "Heading2",
+    "full_text": "Các điều kiện thực hiện ngay",
+    "text_nodes": [
+      "Các điều kiện thực hiện ngay"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 56,
+    "style": null,
+    "full_text": "Apple Account có xác thực hai yếu tố và thông tin cá nhân khớp giấy tờ.",
+    "text_nodes": [
+      "Apple Account có xác thực hai yếu tố và thông tin cá nhân khớp giấy tờ."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 57,
+    "style": null,
+    "full_text": "Đăng ký trên web vì Apple Developer app báo tài khoản này không hỗ trợ enrollment trong ứng dụng.",
+    "text_nodes": [
+      "Đăng ký trên web vì Apple Developer app báo tài khoản này không hỗ trợ enrollment trong ứng dụng."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 58,
+    "style": null,
+    "full_text": "Phí thành viên Apple Developer Program: 99 USD/năm hoặc giá nội tệ Apple hiển thị.",
+    "text_nodes": [
+      "Phí thành viên Apple Developer Program: 99 USD/năm hoặc giá nội tệ Apple hiển thị."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 59,
+    "style": null,
+    "full_text": "Nếu thanh toán Individual bằng thẻ tín dụng trên web, nên dùng thẻ của chính người đăng ký để tránh chậm xác minh.",
+    "text_nodes": [
+      "Nếu thanh toán Individual bằng thẻ tín dụng trên web, nên dùng thẻ của chính người đăng ký để tránh chậm xác minh."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 60,
+    "style": null,
+    "full_text": "Nếu sau 24 giờ chưa có email kích hoạt, liên hệ Apple Developer Support kèm Enrollment ID.",
+    "text_nodes": [
+      "Nếu sau 24 giờ chưa có email kích hoạt, liên hệ Apple Developer Support kèm Enrollment ID."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 61,
+    "style": "Heading2",
+    "full_text": "Đặt tên và định danh kỹ thuật",
+    "text_nodes": [
+      "Đặt tên và định danh kỹ thuật"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 62,
+    "style": null,
+    "full_text": "Tên công khai vẫn là HOMI App khi chuyển từ Individual sang Organization, trừ khi chủ tài khoản chủ động đổi tên app.",
+    "text_nodes": [
+      "Tên công khai vẫn là HOMI App khi chuyển từ Individual sang Organization, trừ khi chủ tài khoản chủ động đổi tên app."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 63,
+    "style": null,
+    "full_text": "Source hiện dùng com.innotrik.aispeaking. Bundle ID không hiển thị công khai nhưng là định danh lâu dài và không thể đổi cho cùng app sau khi upload build. Nếu muốn loại bỏ INNOTRIK hoàn toàn, nên đổi trước khi tạo App ID sang com.homiapp.aispeaking (nếu còn khả dụng) và đổi integration nội bộ sang homi_app_store_connect.",
+    "text_nodes": [
+      "Source hiện dùng com.innotrik.aispeaking. Bundle ID không hiển thị công khai nhưng là định danh lâu dài và không thể đổi cho cùng app sau khi upload build. Nếu muốn loại bỏ INNOTRIK hoàn toàn, nên đổi trước khi tạo App ID sang com.homiapp.aispeaking (nếu còn khả dụng) và đổi integration nội bộ sang homi_app_store_connect."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 64,
+    "style": "Heading1",
+    "full_text": "4. Blocker chính sách trẻ em và AI",
+    "text_nodes": [
+      "4",
+      ". Blocker chính sách trẻ em và AI"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 65,
+    "style": null,
+    "full_text": "HOMI App hướng trực tiếp tới trẻ em và truyền dữ liệu giọng nói tới backend/AI. Đây là nhóm rủi ro App Review cao nhất, không thể giải quyết chỉ bằng việc build IPA.",
+    "text_nodes": [
+      "HOMI App hướng trực tiếp tới trẻ em và truyền dữ liệu giọng nói tới backend/AI. Đây là nhóm rủi ro App Review cao nhất, không thể giải quyết chỉ bằng việc build IPA."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 66,
+    "style": null,
+    "full_text": "CẢNH BÁO: Parental gate trong giao diện không mặc nhiên tương đương với sự chấp thuận của phụ huynh theo luật bảo vệ dữ liệu trẻ em. Cần rà soát pháp lý theo thị trường phát hành. Đây là đánh giá kỹ thuật/vận hành, không thay thế tư vấn pháp lý.",
+    "text_nodes": [
+      "CẢNH BÁO: ",
+      "Parental gate trong giao diện không mặc nhiên tương đương với sự chấp thuận của phụ huynh theo luật bảo vệ dữ liệu trẻ em. Cần rà soát pháp lý theo thị trường phát hành. Đây là đánh giá kỹ thuật/vận hành, không thay thế tư vấn pháp lý."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 68,
+    "style": "Heading2",
+    "full_text": "Dữ liệu dự kiến phải khai báo",
+    "text_nodes": [
+      "Dữ liệu dự kiến phải khai báo"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 69,
+    "style": null,
+    "full_text": "Audio Data: bản ghi giọng nói của trẻ.",
+    "text_nodes": [
+      "Audio Data: bản ghi giọng nói của trẻ."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 70,
+    "style": null,
+    "full_text": "Other User Content: transcript/nội dung trẻ nói.",
+    "text_nodes": [
+      "Other User Content: transcript/nội dung trẻ nói."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 71,
+    "style": null,
+    "full_text": "Age hoặc age group.",
+    "text_nodes": [
+      "Age hoặc age group."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 72,
+    "style": null,
+    "full_text": "Device ID/User ID: clientId tồn tại lâu dài trên thiết bị.",
+    "text_nodes": [
+      "Device ID/User ID: clientId tồn tại lâu dài trên thiết bị."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 73,
+    "style": null,
+    "full_text": "Product Interaction, Performance và Diagnostics.",
+    "text_nodes": [
+      "Product Interaction, Performance và Diagnostics."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 74,
+    "style": null,
+    "full_text": "Linked to user/device nếu backend gắn dữ liệu với clientId; chỉ chọn Tracking khi thực sự theo dõi chéo dịch vụ.",
+    "text_nodes": [
+      "Linked to user/device nếu backend gắn dữ liệu với clientId; chỉ chọn Tracking khi thực sự theo dõi chéo dịch vụ."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 75,
+    "style": "Heading2",
+    "full_text": "Phần app đã giảm rủi ro",
+    "text_nodes": [
+      "Phần app đã giảm rủi ro"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 76,
+    "style": null,
+    "full_text": "Thông báo dữ liệu và bên nhận trước hộp thoại quyền micro.",
+    "text_nodes": [
+      "Thông báo dữ liệu và bên nhận trước hộp thoại quyền micro."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 77,
+    "style": null,
+    "full_text": "Yêu cầu phụ huynh chủ động đồng ý; liên kết ngoài và thao tác riêng tư có parental gate.",
+    "text_nodes": [
+      "Yêu cầu phụ huynh chủ động đồng ý; liên kết ngoài và thao tác riêng tư có parental gate."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 78,
+    "style": null,
+    "full_text": "Chế độ không giọng nói nếu từ chối; không tạo ID/gọi backend trước khi đồng ý.",
+    "text_nodes": [
+      "Chế độ không giọng nói nếu từ chối; không tạo ID/gọi backend trước khi đồng ý."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 79,
+    "style": null,
+    "full_text": "Cho phép rút đồng ý và reset ID; chỉ báo xóa thành công khi server trả HTTP thành công.",
+    "text_nodes": [
+      "Cho phép rút đồng ý và reset ID; chỉ báo xóa thành công khi server trả HTTP thành công."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 80,
+    "style": "Heading2",
+    "full_text": "Phần còn phải hoàn thành trước App Review",
+    "text_nodes": [
+      "Phần còn phải hoàn thành trước App Review"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 81,
+    "style": null,
+    "full_text": "Chọn Kids Category và một nhóm tuổi chính: 5 tuổi trở xuống, 6-8 hoặc 9-11. Dải 3-15 hiện không khớp một nhóm Kids Category.",
+    "text_nodes": [
+      "Chọn Kids Category và một nhóm tuổi chính: 5 tuổi trở xuống, 6-8 hoặc 9-11. Dải 3-15 hiện không khớp một nhóm Kids Category."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 82,
+    "style": null,
+    "full_text": "Công bố Privacy Policy, Terms và Support; nêu đúng backend/Cloudflare/OpenAI và mọi subprocessor thật sự nhận dữ liệu.",
+    "text_nodes": [
+      "Công bố Privacy Policy, Terms và Support; nêu đúng backend/Cloudflare/OpenAI và mọi subprocessor thật sự nhận dữ liệu."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 83,
+    "style": null,
+    "full_text": "Định nghĩa retention/TTL riêng cho audio, transcript, history, telemetry, cache và backup.",
+    "text_nodes": [
+      "Định nghĩa retention/TTL riêng cho audio, transcript, history, telemetry, cache và backup."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 84,
+    "style": null,
+    "full_text": "Backend phải có authentication/authorization theo phụ huynh hoặc installation; không chỉ dựa vào clientId.",
+    "text_nodes": [
+      "Backend phải có authentication/authorization theo phụ huynh hoặc installation; không chỉ dựa vào clientId."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 85,
+    "style": null,
+    "full_text": "Xóa cascade thực sự history, transcript, audio và cache; ứng dụng hiện chỉ có thể yêu cầu, không chứng minh dữ liệu server đã bị xóa.",
+    "text_nodes": [
+      "Xóa cascade thực sự history, transcript, audio và cache; ứng dụng hiện chỉ có thể yêu cầu, không chứng minh dữ liệu server đã bị xóa."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 86,
+    "style": null,
+    "full_text": "Không log nội dung nhạy cảm của trẻ; bổ sung rate limit và chống lạm dụng.",
+    "text_nodes": [
+      "Không log nội dung nhạy cảm của trẻ; bổ sung rate limit và chống lạm dụng."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 87,
+    "style": null,
+    "full_text": "Kiểm tra archive bằng Xcode Privacy Report và đảm bảo App Privacy Label khớp runtime/backend.",
+    "text_nodes": [
+      "Kiểm tra archive bằng Xcode Privacy Report và đảm bảo App Privacy Label khớp runtime/backend."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 88,
+    "style": "Heading1",
+    "full_text": "5. Các quyết định cần sếp phản hồi",
+    "text_nodes": [
+      "5. Các quyết định cần sếp phản hồi"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 89,
+    "style": null,
+    "full_text": "#",
+    "text_nodes": [
+      "#"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 90,
+    "style": null,
+    "full_text": "Quyết định cần phê duyệt",
+    "text_nodes": [
+      "Quyết định cần phê duyệt"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 91,
+    "style": null,
+    "full_text": "Khuyến nghị",
+    "text_nodes": [
+      "Khuyến nghị"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 92,
+    "style": null,
+    "full_text": "Hạn",
+    "text_nodes": [
+      "Hạn"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 93,
+    "style": null,
+    "full_text": "1",
+    "text_nodes": [
+      "1"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 94,
+    "style": null,
+    "full_text": "Đăng ký Individual dưới tên pháp lý Gia Huy Trần Nguyễn để mở TestFlight sớm?",
+    "text_nodes": [
+      "Đăng ký Individual dưới tên pháp lý Gia Huy Trần Nguyễn để mở TestFlight sớm?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 95,
+    "style": null,
+    "full_text": "Đồng ý, kèm xác nhận nội bộ về quyền sở hữu app.",
+    "text_nodes": [
+      "Đồng ý, kèm xác nhận nội bộ về quyền sở hữu app."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 96,
+    "style": null,
+    "full_text": "Ngay",
+    "text_nodes": [
+      "Ngay"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 97,
+    "style": null,
+    "full_text": "2",
+    "text_nodes": [
+      "2"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 98,
+    "style": null,
+    "full_text": "Đổi Bundle ID từ com.innotrik.aispeaking sang định danh HOMI trước khi tạo App ID?",
+    "text_nodes": [
+      "Đổi Bundle ID từ com.innotrik.aispeaking sang định danh HOMI trước khi tạo App ID?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 99,
+    "style": null,
+    "full_text": "Đổi sang com.homiapp.aispeaking nếu khả dụng.",
+    "text_nodes": [
+      "Đổi sang com.homiapp.aispeaking nếu khả dụng."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 100,
+    "style": null,
+    "full_text": "Trước App ID",
+    "text_nodes": [
+      "Trước App ID"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 101,
+    "style": null,
+    "full_text": "3",
+    "text_nodes": [
+      "3"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 102,
+    "style": null,
+    "full_text": "Chọn Kids Category và nhóm tuổi chính nào?",
+    "text_nodes": [
+      "Chọn Kids Category và nhóm tuổi chính nào?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 103,
+    "style": null,
+    "full_text": "Chọn đúng thị trường lõi; không dùng dải 3-15 cho Kids Category.",
+    "text_nodes": [
+      "Chọn đúng thị trường lõi; không dùng dải 3-15 cho Kids Category."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 104,
+    "style": null,
+    "full_text": "Trước metadata",
+    "text_nodes": [
+      "Trước metadata"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 105,
+    "style": null,
+    "full_text": "4",
+    "text_nodes": [
+      "4"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 106,
+    "style": null,
+    "full_text": "Phê duyệt Privacy Policy, Terms, Support, danh sách AI/subprocessors và retention?",
+    "text_nodes": [
+      "Phê duyệt Privacy Policy, Terms, Support, danh sách AI/subprocessors và retention?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 107,
+    "style": null,
+    "full_text": "Phải khớp hành vi backend thực tế.",
+    "text_nodes": [
+      "Phải khớp hành vi backend thực tế."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 108,
+    "style": null,
+    "full_text": "Trước build IPA",
+    "text_nodes": [
+      "Trước build IPA"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 109,
+    "style": null,
+    "full_text": "5",
+    "text_nodes": [
+      "5"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 110,
+    "style": null,
+    "full_text": "Ai chịu trách nhiệm hoàn thiện auth, xóa cascade, TTL, log và rate limit?",
+    "text_nodes": [
+      "Ai chịu trách nhiệm hoàn thiện auth, xóa cascade, TTL, log và rate limit?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 111,
+    "style": null,
+    "full_text": "Chỉ định chủ sở hữu backend và ngày nghiệm thu.",
+    "text_nodes": [
+      "Chỉ định chủ sở hữu backend và ngày nghiệm thu."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 112,
+    "style": null,
+    "full_text": "Trước review",
+    "text_nodes": [
+      "Trước review"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 113,
+    "style": null,
+    "full_text": "6",
+    "text_nodes": [
+      "6"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 114,
+    "style": null,
+    "full_text": "Kế hoạch pháp nhân HOMI và chuyển Individual sang Organization?",
+    "text_nodes": [
+      "Kế hoạch pháp nhân HOMI và chuyển Individual sang Organization?"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 115,
+    "style": null,
+    "full_text": "Lập sau khi TestFlight; không tạo tài khoản mới tùy tiện.",
+    "text_nodes": [
+      "Lập sau khi TestFlight; không tạo tài khoản mới tùy tiện."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 116,
+    "style": null,
+    "full_text": "Sau beta",
+    "text_nodes": [
+      "Sau beta"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 118,
+    "style": null,
+    "full_text": "THỨ TỰ ƯU TIÊN: Phê duyệt 1-2 ngay để không mất thời gian chờ Apple. Song song, đội sản phẩm/pháp lý chốt 3-4 và đội backend chịu trách nhiệm 5. Quyết định 6 có thể thực hiện sau khi TestFlight ổn định.",
+    "text_nodes": [
+      "THỨ TỰ ƯU TIÊN: ",
+      "Phê duyệt 1-2 ngay để không mất thời gian chờ Apple. Song song, đội sản phẩm/pháp lý chốt 3-4 và đội backend chịu trách nhiệm 5. Quyết định 6 có thể thực hiện sau khi TestFlight ổn định."
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/footer1.xml",
+    "paragraph_index": 0,
+    "style": "Footer",
+    "full_text": "Trang 1",
+    "text_nodes": [
+      "Trang ",
+      "1"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/header1.xml",
+    "paragraph_index": 0,
+    "style": "Header",
+    "full_text": "HOMI APP  |  BÁO CÁO PHÁT HÀNH iOS",
+    "text_nodes": [
+      "HOMI APP  |  BÁO CÁO PHÁT HÀNH iOS"
+    ],
+    "has_hyperlink": false
+  }
+]

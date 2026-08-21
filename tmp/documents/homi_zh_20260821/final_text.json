@@ -1,0 +1,1121 @@
+[
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 1,
+    "style": null,
+    "full_text": "HOMI APP 发布计划上架 APP STORE",
+    "text_nodes": [
+      "HOMI APP 发布计划",
+      "上架 APP STORE"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 3,
+    "style": null,
+    "full_text": "呈送",
+    "text_nodes": [
+      "呈送"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 4,
+    "style": null,
+    "full_text": "管理层 / 产品审批人",
+    "text_nodes": [
+      "管理层 / 产品审批人"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 5,
+    "style": null,
+    "full_text": "报告人",
+    "text_nodes": [
+      "报告人"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 6,
+    "style": null,
+    "full_text": "Gia Huy Trần Nguyễn",
+    "text_nodes": [
+      "Gia Huy Trần Nguyễn"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 7,
+    "style": null,
+    "full_text": "日期",
+    "text_nodes": [
+      "日期"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 8,
+    "style": null,
+    "full_text": "21/08/2026",
+    "text_nodes": [
+      "21/08/2026"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 9,
+    "style": null,
+    "full_text": "状态",
+    "text_nodes": [
+      "状态"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 10,
+    "style": null,
+    "full_text": "可准备 TestFlight；目前尚不具备提交 App Review 的条件",
+    "text_nodes": [
+      "可准备 TestFlight；目前尚不具备提交 App Review 的条件"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 12,
+    "style": null,
+    "full_text": "管理层建议：如优先尽快获得 TestFlight 版本，建议立即以法定姓名 Gia Huy Trần Nguyễn 注册个人类型的 Apple Developer Program，并同步取得内部对应用所有权的批准。应用名称仍为 HOMI App。待具备法人主体后，可向 Apple 申请转为组织账户。",
+    "text_nodes": [
+      "管理层建议：",
+      "如优先尽快获得 TestFlight 版本，建议立即以法定姓名 Gia Huy Trần Nguyễn 注册个人类型的 Apple Developer Program，并同步取得内部对应用所有权的批准。应用名称仍为 HOMI App。待具备法人主体后，可向 Apple 申请转为组织账户。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 14,
+    "style": "Heading1",
+    "full_text": "1. 快速结论",
+    "text_nodes": [
+      "1. 快速结论"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 15,
+    "style": null,
+    "full_text": "iOS 源代码和 Codemagic 工作流已完成准备、测试并推送至 GitHub。",
+    "text_nodes": [
+      "iOS 源代码和 Codemagic 工作流已完成准备、测试并推送至 GitHub。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 16,
+    "style": null,
+    "full_text": "当前瓶颈是尚未开通付费 Apple Developer 账户，而不是缺少 Mac；Windows + GitHub + Codemagic + 真机 iPhone 已足够完成该流程。",
+    "text_nodes": [
+      "当前瓶颈是尚未开通付费 Apple Developer 账户，而不是缺少 Mac；Windows + GitHub + Codemagic + 真机 iPhone 已足够完成该流程。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 17,
+    "style": null,
+    "full_text": "未来 7 天内的现实目标是：若 Apple 能及时激活账户，则生成已签名 IPA 并上传至 TestFlight。无法承诺 App Store 公开审核通过的具体时间。",
+    "text_nodes": [
+      "未来 7 天内的现实目标是：若 Apple 能及时激活账户，则生成已签名 IPA 并上传至 TestFlight。无法承诺 App Store 公开审核通过的具体时间。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 18,
+    "style": null,
+    "full_text": "在确定主要年龄组、儿童与 AI 政策、数据保留期限及后端控制措施之前，不应提交 App Review。",
+    "text_nodes": [
+      "在确定主要年龄组、儿童与 AI 政策、数据保留期限及后端控制措施之前，不应提交 App Review。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 19,
+    "style": null,
+    "full_text": "所有权提示：个人账户登记在个人名下。若 HOMI App 属于企业资产，应通过内部邮件或书面文件确认该个人代表企业管理账户，并制定后续转为组织账户的计划。",
+    "text_nodes": [
+      "所有权提示：",
+      "个人账户登记在个人名下。若 HOMI App 属于企业资产，应通过内部邮件或书面文件确认该个人代表企业管理账户，并制定后续转为组织账户的计划。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 21,
+    "style": "Heading1",
+    "full_text": "2. 应用内已完成的工作",
+    "text_nodes": [
+      "2. ",
+      "应用内已完成的工作"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 23,
+    "style": null,
+    "full_text": "已将 iOS 显示名称改为 HOMI App，并以品牌图标替换 Flutter 默认图标。",
+    "text_nodes": [
+      "已将 iOS 显示名称改为 HOMI App，并以品牌图标替换 Flutter 默认图标。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 24,
+    "style": null,
+    "full_text": "已将 iOS 部署目标提升至 15.0；添加 PrivacyInfo.xcprivacy；并在项目中配置自动签名。",
+    "text_nodes": [
+      "已将 iOS 部署目标提升至 15.0；添加 PrivacyInfo.xcprivacy；并在项目中配置自动签名。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 25,
+    "style": null,
+    "full_text": "已在请求麦克风权限前增加家长同意页面；拒绝授权时仍可使用无需语音的内容。",
+    "text_nodes": [
+      "已在请求麦克风权限前增加家长同意页面；拒绝授权时仍可使用无需语音的内容。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 26,
+    "style": null,
+    "full_text": "已增加撤回同意、重置 iOS Keychain 标识符，以及请求服务器删除相关历史记录、转录文本和音频的功能。",
+    "text_nodes": [
+      "已增加撤回同意、重置 iOS Keychain 标识符，以及请求服务器删除相关历史记录、转录文本和音频的功能。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 27,
+    "style": null,
+    "full_text": "已按平台拆分设置内容；iOS 不再显示不适用的 BLE/HFP/Android 诊断信息。",
+    "text_nodes": [
+      "已按平台拆分设置内容；iOS 不再显示不适用的 BLE/HFP/Android 诊断信息。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 28,
+    "style": null,
+    "full_text": "Codemagic 工作流使用 Xcode 26.6，构建发布版 IPA，并上传至 App Store Connect/TestFlight。",
+    "text_nodes": [
+      "Codemagic 工作流使用 Xcode 26.6，构建发布版 IPA，并上传至 App Store Connect/TestFlight。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 29,
+    "style": "Heading1",
+    "full_text": "3. Apple 账户选择",
+    "text_nodes": [
+      "3. Apple 账户选择"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 30,
+    "style": null,
+    "full_text": "当前 Apple Account 已登录 Apple Developer，但仍显示“Join the Apple Developer Program”；因此尚不能使用 App Store Connect、TestFlight 或 Codemagic API 密钥。",
+    "text_nodes": [
+      "当前 Apple Account 已登录 Apple Developer，但仍显示“Join the Apple Developer Program”；因此尚不能使用 App Store Connect、TestFlight 或 Codemagic API 密钥。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 31,
+    "style": null,
+    "full_text": "标准",
+    "text_nodes": [
+      "标准"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 32,
+    "style": null,
+    "full_text": "个人（Individual）",
+    "text_nodes": [
+      "个人（Individual）"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 33,
+    "style": null,
+    "full_text": "组织（Organization）",
+    "text_nodes": [
+      "组织（Organization）"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 34,
+    "style": null,
+    "full_text": "条件",
+    "text_nodes": [
+      "条件"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 35,
+    "style": null,
+    "full_text": "Apple ID、身份验证及会员费。",
+    "text_nodes": [
+      "Apple ID、身份验证及会员费。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 36,
+    "style": null,
+    "full_text": "法人主体、D-U-N-S、网站、域名邮箱及签署权限。",
+    "text_nodes": [
+      "法人主体、D-U-N-S、网站、域名邮箱及签署权限。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 37,
+    "style": null,
+    "full_text": "应用名称",
+    "text_nodes": [
+      "应用名称"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 38,
+    "style": null,
+    "full_text": "HOMI App",
+    "text_nodes": [
+      "HOMI App"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 39,
+    "style": null,
+    "full_text": "HOMI App",
+    "text_nodes": [
+      "HOMI App"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 40,
+    "style": null,
+    "full_text": "初始卖方名称",
+    "text_nodes": [
+      "初始卖方名称"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 41,
+    "style": null,
+    "full_text": "Gia Huy Trần Nguyễn（以 Apple 法律资料为准）。",
+    "text_nodes": [
+      "Gia Huy Trần Nguyễn（以 Apple 法律资料为准）。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 42,
+    "style": null,
+    "full_text": "企业法定名称。",
+    "text_nodes": [
+      "企业法定名称。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 43,
+    "style": null,
+    "full_text": "速度",
+    "text_nodes": [
+      "速度"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 44,
+    "style": null,
+    "full_text": "若 Apple 及时激活，这是实现 TestFlight 目标最快的方式。",
+    "text_nodes": [
+      "若 Apple 及时激活，这是实现 TestFlight 目标最快的方式。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 45,
+    "style": null,
+    "full_text": "因企业验证，通常耗时更长。",
+    "text_nodes": [
+      "因企业验证，通常耗时更长。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 46,
+    "style": null,
+    "full_text": "风险",
+    "text_nodes": [
+      "风险"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 47,
+    "style": null,
+    "full_text": "账户及运营控制权与个人绑定。",
+    "text_nodes": [
+      "账户及运营控制权与个人绑定。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 48,
+    "style": null,
+    "full_text": "需要完整企业资料；HOMI App 不能替代法人名称。",
+    "text_nodes": [
+      "需要完整企业资料；HOMI App 不能替代法人名称。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 49,
+    "style": null,
+    "full_text": "转换",
+    "text_nodes": [
+      "转换"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 50,
+    "style": null,
+    "full_text": "后续可向 Apple 申请转为组织账户。",
+    "text_nodes": [
+      "后续可向 Apple 申请转为组织账户。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 51,
+    "style": null,
+    "full_text": "不适用。",
+    "text_nodes": [
+      "不适用。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 53,
+    "style": null,
+    "full_text": "建议方案：先注册个人账户，以缩短上线 TestFlight 的时间。应用名称保持 HOMI App；初始开发者/卖方名称为 Gia Huy Trần Nguyễn。待 HOMI 企业具备法人主体、D-U-N-S、网站和域名邮箱后，再向 Apple 申请将账户转为组织账户。",
+    "text_nodes": [
+      "建议方案：",
+      "先注册个人账户，以缩短上线 TestFlight 的时间。应用名称保持 HOMI App；初始开发者/卖方名称为 Gia Huy Trần Nguyễn。待 HOMI 企业具备法人主体、D-U-N-S、网站和域名邮箱后，再向 Apple 申请将账户转为组织账户。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 55,
+    "style": "Heading2",
+    "full_text": "需立即满足的条件",
+    "text_nodes": [
+      "需立即满足的条件"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 56,
+    "style": null,
+    "full_text": "Apple Account 已启用双重认证，且个人信息与证件一致。",
+    "text_nodes": [
+      "Apple Account 已启用双重认证，且个人信息与证件一致。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 57,
+    "style": null,
+    "full_text": "由于 Apple Developer App 提示该账户不支持在 App 内注册，因此应通过网页申请。",
+    "text_nodes": [
+      "由于 Apple Developer App 提示该账户不支持在 App 内注册，因此应通过网页申请。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 58,
+    "style": null,
+    "full_text": "Apple Developer Program 会员费：每年 99 美元，或以 Apple 显示的当地货币价格为准。",
+    "text_nodes": [
+      "Apple Developer Program 会员费：每年 99 美元，或以 Apple 显示的当地货币价格为准。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 59,
+    "style": null,
+    "full_text": "若在网页上使用信用卡支付个人账户费用，建议使用申请人本人的银行卡，以避免验证延迟。",
+    "text_nodes": [
+      "若在网页上使用信用卡支付个人账户费用，建议使用申请人本人的银行卡，以避免验证延迟。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 60,
+    "style": null,
+    "full_text": "若 24 小时后仍未收到激活邮件，请携带 Enrollment ID 联系 Apple Developer Support。",
+    "text_nodes": [
+      "若 24 小时后仍未收到激活邮件，请携带 Enrollment ID 联系 Apple Developer Support。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 61,
+    "style": "Heading2",
+    "full_text": "命名与技术标识",
+    "text_nodes": [
+      "命名与技术标识"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 62,
+    "style": null,
+    "full_text": "从个人账户转为组织账户后，公开应用名称仍为 HOMI App，除非账户持有人主动更改应用名称。",
+    "text_nodes": [
+      "从个人账户转为组织账户后，公开应用名称仍为 HOMI App，除非账户持有人主动更改应用名称。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 63,
+    "style": null,
+    "full_text": "当前源代码使用 com.innotrik.aispeaking。Bundle ID 不会公开显示，但它是长期技术标识；同一应用上传构建版本后无法更改。若希望彻底移除 INNOTRIK，应在创建 App ID 前改为 com.homiapp.aispeaking（如仍可用），并将内部集成名称改为 homi_app_store_connect。",
+    "text_nodes": [
+      "当前源代码使用 com.innotrik.aispeaking。Bundle ID 不会公开显示，但它是长期技术标识；同一应用上传构建版本后无法更改。若希望彻底移除 INNOTRIK，应在创建 App ID 前改为 com.homiapp.aispeaking（如仍可用），并将内部集成名称改为 homi_app_store_connect。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 64,
+    "style": "Heading1",
+    "full_text": "4. 儿童与 AI 政策方面的主要阻碍",
+    "text_nodes": [
+      "4",
+      ". 儿童与 AI 政策方面的主要阻碍"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 65,
+    "style": null,
+    "full_text": "HOMI App 直接面向儿童，并将语音数据传输至后端/AI。这是 App Review 中风险最高的一类问题，不能仅通过构建 IPA 来解决。",
+    "text_nodes": [
+      "HOMI App 直接面向儿童，并将语音数据传输至后端/AI。这是 App Review 中风险最高的一类问题，不能仅通过构建 IPA 来解决。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 66,
+    "style": null,
+    "full_text": "警告：界面中的家长门槛并不当然等同于儿童数据保护法律所要求的家长同意。必须根据目标发布市场进行法律审查。本报告仅为技术与运营评估，不能替代法律意见。",
+    "text_nodes": [
+      "警告：",
+      "界面中的家长门槛并不当然等同于儿童数据保护法律所要求的家长同意。必须根据目标发布市场进行法律审查。本报告仅为技术与运营评估，不能替代法律意见。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 68,
+    "style": "Heading2",
+    "full_text": "预计需要申报的数据",
+    "text_nodes": [
+      "预计需要申报的数据"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 69,
+    "style": null,
+    "full_text": "Audio Data：儿童语音录音。",
+    "text_nodes": [
+      "Audio Data：儿童语音录音。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 70,
+    "style": null,
+    "full_text": "Other User Content：儿童说话内容的转录文本。",
+    "text_nodes": [
+      "Other User Content：儿童说话内容的转录文本。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 71,
+    "style": null,
+    "full_text": "Age 或年龄组。",
+    "text_nodes": [
+      "Age 或年龄组。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 72,
+    "style": null,
+    "full_text": "Device ID/User ID：在设备上长期存在的 clientId。",
+    "text_nodes": [
+      "Device ID/User ID：在设备上长期存在的 clientId。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 73,
+    "style": null,
+    "full_text": "Product Interaction、Performance 和 Diagnostics。",
+    "text_nodes": [
+      "Product Interaction、Performance 和 Diagnostics。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 74,
+    "style": null,
+    "full_text": "若后端将数据与 clientId 关联，则应申报 Linked to user/device；仅在确实进行跨服务跟踪时选择 Tracking。",
+    "text_nodes": [
+      "若后端将数据与 clientId 关联，则应申报 Linked to user/device；仅在确实进行跨服务跟踪时选择 Tracking。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 75,
+    "style": "Heading2",
+    "full_text": "应用端已完成的降风险措施",
+    "text_nodes": [
+      "应用端已完成的降风险措施"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 76,
+    "style": null,
+    "full_text": "在麦克风权限弹窗前说明所收集的数据及数据接收方。",
+    "text_nodes": [
+      "在麦克风权限弹窗前说明所收集的数据及数据接收方。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 77,
+    "style": null,
+    "full_text": "要求家长主动同意；外部链接及隐私相关操作均设置家长门槛。",
+    "text_nodes": [
+      "要求家长主动同意；外部链接及隐私相关操作均设置家长门槛。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 78,
+    "style": null,
+    "full_text": "拒绝授权时提供无语音模式；在获得同意前不创建 ID，也不调用后端。",
+    "text_nodes": [
+      "拒绝授权时提供无语音模式；在获得同意前不创建 ID，也不调用后端。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 79,
+    "style": null,
+    "full_text": "允许撤回同意并重置 ID；仅在服务器返回成功 HTTP 状态时提示删除成功。",
+    "text_nodes": [
+      "允许撤回同意并重置 ID；仅在服务器返回成功 HTTP 状态时提示删除成功。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 80,
+    "style": "Heading2",
+    "full_text": "提交 App Review 前仍需完成的事项",
+    "text_nodes": [
+      "提交 App Review 前仍需完成的事项"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 81,
+    "style": null,
+    "full_text": "选择 Kids Category 及一个主要年龄组：5 岁及以下、6-8 岁或 9-11 岁。当前 3-15 岁范围不符合任何单一 Kids Category 年龄组。",
+    "text_nodes": [
+      "选择 Kids Category 及一个主要年龄组：5 岁及以下、6-8 岁或 9-11 岁。当前 3-15 岁范围不符合任何单一 Kids Category 年龄组。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 82,
+    "style": null,
+    "full_text": "发布 Privacy Policy、Terms 和 Support 页面；准确说明后端、Cloudflare、OpenAI 以及所有实际接收数据的子处理方。",
+    "text_nodes": [
+      "发布 Privacy Policy、Terms 和 Support 页面；准确说明后端、Cloudflare、OpenAI 以及所有实际接收数据的子处理方。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 83,
+    "style": null,
+    "full_text": "分别定义音频、转录文本、历史记录、遥测数据、缓存和备份的 retention/TTL。",
+    "text_nodes": [
+      "分别定义音频、转录文本、历史记录、遥测数据、缓存和备份的 retention/TTL。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 84,
+    "style": null,
+    "full_text": "后端必须基于家长或安装实例进行 authentication/authorization，不能仅依赖 clientId。",
+    "text_nodes": [
+      "后端必须基于家长或安装实例进行 authentication/authorization，不能仅依赖 clientId。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 85,
+    "style": null,
+    "full_text": "必须真正级联删除历史记录、转录文本、音频和缓存；当前应用只能发出删除请求，无法证明服务器数据已被删除。",
+    "text_nodes": [
+      "必须真正级联删除历史记录、转录文本、音频和缓存；当前应用只能发出删除请求，无法证明服务器数据已被删除。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 86,
+    "style": null,
+    "full_text": "不得记录儿童敏感内容；应增加 rate limit 和防滥用措施。",
+    "text_nodes": [
+      "不得记录儿童敏感内容；应增加 rate limit 和防滥用措施。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 87,
+    "style": null,
+    "full_text": "使用 Xcode Privacy Report 检查归档，并确保 App Privacy Label 与实际运行时及后端行为一致。",
+    "text_nodes": [
+      "使用 Xcode Privacy Report 检查归档，并确保 App Privacy Label 与实际运行时及后端行为一致。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 88,
+    "style": "Heading1",
+    "full_text": "5. 需要管理层确认的决策",
+    "text_nodes": [
+      "5. 需要管理层确认的决策"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 89,
+    "style": null,
+    "full_text": "#",
+    "text_nodes": [
+      "#"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 90,
+    "style": null,
+    "full_text": "待批准事项",
+    "text_nodes": [
+      "待批准事项"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 91,
+    "style": null,
+    "full_text": "建议",
+    "text_nodes": [
+      "建议"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 92,
+    "style": null,
+    "full_text": "期限",
+    "text_nodes": [
+      "期限"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 93,
+    "style": null,
+    "full_text": "1",
+    "text_nodes": [
+      "1"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 94,
+    "style": null,
+    "full_text": "是否以法定姓名 Gia Huy Trần Nguyễn 注册个人账户，以尽快启用 TestFlight？",
+    "text_nodes": [
+      "是否以法定姓名 Gia Huy Trần Nguyễn 注册个人账户，以尽快启用 TestFlight？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 95,
+    "style": null,
+    "full_text": "建议同意，并附内部应用所有权确认。",
+    "text_nodes": [
+      "建议同意，并附内部应用所有权确认。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 96,
+    "style": null,
+    "full_text": "立即",
+    "text_nodes": [
+      "立即"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 97,
+    "style": null,
+    "full_text": "2",
+    "text_nodes": [
+      "2"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 98,
+    "style": null,
+    "full_text": "是否在创建 App ID 前，将 Bundle ID 从 com.innotrik.aispeaking 改为 HOMI 标识？",
+    "text_nodes": [
+      "是否在创建 App ID 前，将 Bundle ID 从 com.innotrik.aispeaking 改为 HOMI 标识？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 99,
+    "style": null,
+    "full_text": "如可用，改为 com.homiapp.aispeaking。",
+    "text_nodes": [
+      "如可用，改为 com.homiapp.aispeaking。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 100,
+    "style": null,
+    "full_text": "创建 App ID 前",
+    "text_nodes": [
+      "创建 App ID 前"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 101,
+    "style": null,
+    "full_text": "3",
+    "text_nodes": [
+      "3"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 102,
+    "style": null,
+    "full_text": "应选择哪个 Kids Category 主要年龄组？",
+    "text_nodes": [
+      "应选择哪个 Kids Category 主要年龄组？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 103,
+    "style": null,
+    "full_text": "按核心目标市场选择；Kids Category 不应使用 3-15 岁范围。",
+    "text_nodes": [
+      "按核心目标市场选择；Kids Category 不应使用 3-15 岁范围。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 104,
+    "style": null,
+    "full_text": "提交元数据前",
+    "text_nodes": [
+      "提交元数据前"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 105,
+    "style": null,
+    "full_text": "4",
+    "text_nodes": [
+      "4"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 106,
+    "style": null,
+    "full_text": "是否批准 Privacy Policy、Terms、Support、AI/子处理方清单及数据保留方案？",
+    "text_nodes": [
+      "是否批准 Privacy Policy、Terms、Support、AI/子处理方清单及数据保留方案？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 107,
+    "style": null,
+    "full_text": "必须与后端实际行为一致。",
+    "text_nodes": [
+      "必须与后端实际行为一致。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 108,
+    "style": null,
+    "full_text": "构建 IPA 前",
+    "text_nodes": [
+      "构建 IPA 前"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 109,
+    "style": null,
+    "full_text": "5",
+    "text_nodes": [
+      "5"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 110,
+    "style": null,
+    "full_text": "由谁负责完成 auth、级联删除、TTL、日志及 rate limit？",
+    "text_nodes": [
+      "由谁负责完成 auth、级联删除、TTL、日志及 rate limit？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 111,
+    "style": null,
+    "full_text": "指定后端负责人和验收日期。",
+    "text_nodes": [
+      "指定后端负责人和验收日期。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 112,
+    "style": null,
+    "full_text": "提交审核前",
+    "text_nodes": [
+      "提交审核前"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 113,
+    "style": null,
+    "full_text": "6",
+    "text_nodes": [
+      "6"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 114,
+    "style": null,
+    "full_text": "HOMI 法人主体及个人账户转组织账户的计划是什么？",
+    "text_nodes": [
+      "HOMI 法人主体及个人账户转组织账户的计划是什么？"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 115,
+    "style": null,
+    "full_text": "可在 TestFlight 稳定后制定；不要随意创建新账户。",
+    "text_nodes": [
+      "可在 TestFlight 稳定后制定；不要随意创建新账户。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 116,
+    "style": null,
+    "full_text": "Beta 后",
+    "text_nodes": [
+      "Beta 后"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/document.xml",
+    "paragraph_index": 118,
+    "style": null,
+    "full_text": "优先顺序：立即批准第 1-2 项，以免浪费等待 Apple 的时间。同时，由产品/法务团队确定第 3-4 项，后端团队负责第 5 项。第 6 项可在 TestFlight 稳定后执行。",
+    "text_nodes": [
+      "优先顺序：",
+      "立即批准第 1-2 项，以免浪费等待 Apple 的时间。同时，由产品/法务团队确定第 3-4 项，后端团队负责第 5 项。第 6 项可在 TestFlight 稳定后执行。"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/footer1.xml",
+    "paragraph_index": 0,
+    "style": "Footer",
+    "full_text": "页码 1",
+    "text_nodes": [
+      "页码 ",
+      "1"
+    ],
+    "has_hyperlink": false
+  },
+  {
+    "part": "word/header1.xml",
+    "paragraph_index": 0,
+    "style": "Header",
+    "full_text": "HOMI APP  |  iOS 发布报告",
+    "text_nodes": [
+      "HOMI APP  |  iOS 发布报告"
+    ],
+    "has_hyperlink": false
+  }
+]
