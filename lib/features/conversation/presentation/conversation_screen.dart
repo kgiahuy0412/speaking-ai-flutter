@@ -23,6 +23,11 @@ class ConversationScreen extends StatelessWidget {
     this.onChildAgeChanged,
     this.onStartTutorial,
     this.onModalVisibilityChanged,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
     this.speakActionKey,
     this.resultPanelKey,
     this.historyButtonKey,
@@ -37,6 +42,11 @@ class ConversationScreen extends StatelessWidget {
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
   final ValueChanged<bool>? onModalVisibilityChanged;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
   final Key? speakActionKey;
   final Key? resultPanelKey;
   final Key? historyButtonKey;
@@ -144,6 +154,12 @@ class ConversationScreen extends StatelessWidget {
           onThemeModeChanged: onThemeModeChanged,
           onChildAgeChanged: onChildAgeChanged,
           onStartTutorial: onStartTutorial,
+          config: config,
+          privacyConsentGranted: privacyConsentGranted,
+          voiceAccessEnabled: voiceAccessEnabled,
+          onRequestVoiceAccess: onRequestVoiceAccess,
+          onManagePrivacyConsent: onManagePrivacyConsent,
+          onRevokePrivacyConsent: onRevokePrivacyConsent,
         ),
       );
     } finally {

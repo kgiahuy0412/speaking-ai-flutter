@@ -32,12 +32,13 @@ class NextConversationRepository
   }) : _config = config,
        _client = client ?? http.Client(),
        _ownsClient = client == null,
-       _clientId = clientIdProvider();
+       _clientIdProvider = clientIdProvider;
 
   final AppConfig _config;
   final http.Client _client;
   final bool _ownsClient;
-  final Future<String> _clientId;
+  final Future<String> Function() _clientIdProvider;
+  Future<String> get _clientId => _clientIdProvider();
   Future<OfflineIntentManifest>? _offlineIntentManifest;
 
   @override
@@ -1081,6 +1082,7 @@ class NextConversationRepository
           queryParameters: <String, String>{
             'conversationId': conversationId,
             'clientId': clientId,
+            'deleteRelatedData': 'true',
           },
         );
     final response = await _client
@@ -1094,7 +1096,12 @@ class NextConversationRepository
     final clientId = await _clientId;
     final uri = _config
         .resolve('/api/history')
-        .replace(queryParameters: <String, String>{'clientId': clientId});
+        .replace(
+          queryParameters: <String, String>{
+            'clientId': clientId,
+            'deleteRelatedData': 'true',
+          },
+        );
     final response = await _client
         .delete(uri)
         .timeout(const Duration(seconds: 10));

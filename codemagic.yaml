@@ -1,4 +1,107 @@
 workflows:
+  ios-app-store:
+    name: HOMI iOS App Store IPA and TestFlight Upload
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    integrations:
+      app_store_connect: innotrik_app_store_connect
+
+    environment:
+      groups:
+        - homi_app_store
+      flutter: 3.44.6
+      xcode: 26.6
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.innotrik.aispeaking
+      vars:
+        BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
+        USE_DEMO_BACKEND: "false"
+        CHILD_AGE: "6"
+        PREFER_BLE_STREAMING: "false"
+        REALTIME_BATCH_FALLBACK: "true"
+        REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Verify release environment and privacy configuration
+        script: |
+          set -euo pipefail
+          flutter --version
+          xcodebuild -version
+
+          for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL AI_SUBPROCESSORS DATA_RETENTION_SUMMARY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required Codemagic variable: $name"
+              exit 1
+            fi
+          done
+
+          for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL; do
+            case "${!name}" in
+              https://*) ;;
+              *) echo "$name must be an HTTPS URL"; exit 1 ;;
+            esac
+          done
+
+      - name: Resolve Flutter dependencies
+        script: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Analyze Dart code
+        script: |
+          set -euo pipefail
+          flutter analyze
+
+      - name: Run platform-independent automated tests
+        script: |
+          set -euo pipefail
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          if [ -z "$NON_GOLDEN_TESTS" ]; then
+            echo "No platform-independent Flutter tests were found."
+            exit 1
+          fi
+          flutter test $NON_GOLDEN_TESTS
+
+      - name: Apply App Store signing profiles
+        script: |
+          set -euo pipefail
+          xcode-project use-profiles --project ios/Runner.xcodeproj
+
+      - name: Build signed App Store IPA
+        script: |
+          set -euo pipefail
+          flutter build ipa \
+            --release \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist="$CM_EXPORT_OPTIONS_PLIST" \
+            --dart-define=BACKEND_BASE_URL="$BACKEND_BASE_URL" \
+            --dart-define=USE_DEMO_BACKEND="$USE_DEMO_BACKEND" \
+            --dart-define=CHILD_AGE="$CHILD_AGE" \
+            --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
+            --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES" \
+            --dart-define=PRIVACY_POLICY_URL="$PRIVACY_POLICY_URL" \
+            --dart-define=TERMS_URL="$TERMS_URL" \
+            --dart-define=SUPPORT_URL="$SUPPORT_URL" \
+            --dart-define=AI_SUBPROCESSORS="$AI_SUBPROCESSORS" \
+            --dart-define=DATA_RETENTION_SUMMARY="$DATA_RETENTION_SUMMARY"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/archive/*.xcarchive
+      - build/ios/archive/*.xcarchive/dSYMs/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
+
   ios-bootstrap:
     name: iOS Bootstrap and Simulator Validation
     instance_type: mac_mini_m2

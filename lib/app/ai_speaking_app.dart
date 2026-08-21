@@ -31,6 +31,7 @@ import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
 import '../features/onboarding/presentation/startup_setup_screen.dart';
+import '../features/privacy/data/privacy_consent_store.dart';
 import '../features/settings/data/child_age_store.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
 import '../features/voice_navigation/application/main_speaking_command_resolver.dart';
@@ -64,6 +65,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   final ClientIdentity _clientIdentity = ClientIdentity();
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
   final ChildAgeStore _childAgeStore = const ChildAgeStore();
+  final PrivacyConsentStore _privacyConsentStore = const PrivacyConsentStore();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
@@ -87,6 +89,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _startupPermissionRequestInProgress = false;
   bool _microphonePermissionGranted = false;
   bool _bluetoothPermissionGranted = false;
+  bool _privacyConsentGranted = false;
+  bool _limitedModeSelected = false;
   int? _childAge;
   int? _pendingStartupAge;
   String? _startupPermissionError;
@@ -101,8 +105,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool get _startupReady =>
       !_startupProfileLoading &&
       _childAge != null &&
-      _microphonePermissionGranted &&
-      (!_bluetoothPermissionRequired || _bluetoothPermissionGranted);
+      (_privacyConsentGranted || _limitedModeSelected);
+
+  bool get _voiceAccessEnabled =>
+      _privacyConsentGranted && _microphonePermissionGranted;
 
   @override
   void initState() {
@@ -127,12 +133,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   void _startBackgroundStartup() {
-    _startBackgroundWork();
     unawaited(
       Future.wait<void>(<Future<void>>[
-        _runStartupTask(() async {
-          await _clientIdentity.getClientId();
-        }),
         _runStartupTask(() async {
           await AssetListeningContentRepository().load();
         }),
@@ -145,10 +147,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   Future<void> _initializeStartupSetup() async {
     int? storedAge;
+    var storedConsent = false;
+    var storedLimitedMode = false;
     try {
-      storedAge = _validChildAge(await _childAgeStore.read());
+      final values = await Future.wait<Object?>(<Future<Object?>>[
+        _childAgeStore.read(),
+        _privacyConsentStore.readGranted(),
+        _privacyConsentStore.readLimitedMode(),
+      ]);
+      storedAge = _validChildAge(values[0] as int?);
+      storedConsent = values[1] as bool;
+      storedLimitedMode = values[2] as bool;
     } catch (error) {
-      debugPrint('Could not load child age: $error');
+      debugPrint('Could not load startup privacy/profile state: $error');
     }
     if (!mounted) {
       return;
@@ -159,9 +170,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     setState(() {
       _childAge = storedAge;
       _pendingStartupAge = storedAge;
+      _privacyConsentGranted =
+          storedConsent && _config.privacyReleaseConfigurationComplete;
+      _limitedModeSelected = storedLimitedMode && !_privacyConsentGranted;
       _startupProfileLoading = false;
     });
-    await _requestStartupPermissions();
+    if (_privacyConsentGranted) {
+      _startBackgroundWork();
+    }
   }
 
   int? _validChildAge(int? age) {
@@ -207,13 +223,48 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   void _confirmStartupAge() {
     final age = _pendingStartupAge;
-    if (age != null) {
+    if (age != null && _privacyConsentGranted) {
       _setChildAge(age);
+      _startBackgroundWork();
     }
   }
 
+  Future<void> _grantPrivacyConsent() async {
+    if (!_config.privacyReleaseConfigurationComplete) {
+      return;
+    }
+    await _privacyConsentStore.grant();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _privacyConsentGranted = true;
+      _limitedModeSelected = false;
+      _startupPermissionError = null;
+    });
+    _startBackgroundWork();
+  }
+
+  Future<void> _continueWithoutVoice() async {
+    final age = _pendingStartupAge;
+    if (age == null) {
+      return;
+    }
+    await _privacyConsentStore.chooseLimitedMode();
+    if (!mounted) {
+      return;
+    }
+    _setChildAge(age);
+    setState(() {
+      _limitedModeSelected = true;
+      _microphonePermissionGranted = false;
+      _bluetoothPermissionGranted = false;
+      _startupPermissionError = null;
+    });
+  }
+
   Future<void> _requestStartupPermissions() async {
-    if (_startupPermissionRequestInProgress) {
+    if (_startupPermissionRequestInProgress || !_privacyConsentGranted) {
       return;
     }
     if (mounted) {
@@ -267,6 +318,38 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (bluetoothGranted && _config.enableAiv0BleControl) {
       unawaited(_autoConnectH20Ble());
     }
+  }
+
+  Future<void> _showPrivacySetup() async {
+    await _privacyConsentStore.clearLimitedMode();
+    if (mounted) {
+      setState(() => _limitedModeSelected = false);
+    }
+  }
+
+  Future<void> _revokePrivacyConsent() async {
+    final controller = _controller;
+    if (controller != null) {
+      await controller.clearHistory();
+    }
+    await _privacyConsentStore.revoke();
+    await _childAgeStore.clear();
+    await _clientIdentity.resetClientId();
+    await _voiceNavigationController?.pause();
+    _backgroundWorkStarted = false;
+    _deviceRegistrationService = null;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _privacyConsentGranted = false;
+      _limitedModeSelected = false;
+      _microphonePermissionGranted = false;
+      _bluetoothPermissionGranted = false;
+      _childAge = null;
+      _pendingStartupAge = null;
+      _startupPermissionError = null;
+    });
   }
 
   Future<void> _autoConnectH20Ble() async {
@@ -424,6 +507,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       initialAsrMode: supportsAndroidNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
+      voiceDataProcessingAllowed: () => _voiceAccessEnabled,
       beforeRecordingStart: voiceNavigationController?.pause,
       recognizedSpeechCommandMatcher: _matchesMainSpeakingCommand,
       onRecognizedSpeechCommand: _handleMainSpeakingCommand,
@@ -507,7 +591,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   Future<bool> _activateMainAssistant() async {
-    if (!_startupReady) {
+    if (!_startupReady || !_voiceAccessEnabled) {
       return false;
     }
     final voiceController = _voiceNavigationController;
@@ -559,7 +643,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   Future<MainButtonActionResult> _handleUnifiedMainShortPress(
     MainButtonInputEvent event,
   ) async {
-    if (!_startupReady) {
+    if (!_startupReady || !_voiceAccessEnabled) {
       return MainButtonActionResult.busy;
     }
     // Physical BLE MAIN and the on-screen MAIN must always have identical
@@ -722,6 +806,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   void _startMainSpeakingMode() {
+    if (!_voiceAccessEnabled) {
+      return;
+    }
     _hasMainSpeakingTurnStarted = false;
     _isHandlingMainSpeakingNoSpeech = false;
     _mainSpeakingSessionController.enter();
@@ -1002,7 +1089,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'Trợ lý giao tiếp',
+      title: 'HOMI App',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildDarkAppTheme(),
@@ -1017,7 +1104,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
               child ?? const SizedBox.shrink(),
               if (voiceController != null &&
                   !_isGlobalModalOpen &&
-                  _startupReady)
+                  _startupReady &&
+                  _voiceAccessEnabled)
                 Positioned(
                   right: 16,
                   bottom: 0,
@@ -1058,17 +1146,33 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onChildAgeChanged: _setChildAge,
                   onMainSpeakingModeStarted: _startMainSpeakingMode,
                   onModalVisibilityChanged: _setGlobalModalOpen,
+                  privacyConsentGranted: _privacyConsentGranted,
+                  voiceAccessEnabled: _voiceAccessEnabled,
+                  onRequestVoiceAccess: () =>
+                      unawaited(_requestStartupPermissions()),
+                  onManagePrivacyConsent: () => unawaited(_showPrivacySetup()),
+                  onRevokePrivacyConsent: _revokePrivacyConsent,
                 ),
               ),
             )
           : StartupSetupScreen(
               profileLoading: _startupProfileLoading,
               permissionRequestInProgress: _startupPermissionRequestInProgress,
+              privacyConfigurationComplete:
+                  _config.privacyReleaseConfigurationComplete,
+              privacyConsentGranted: _privacyConsentGranted,
               microphoneGranted: _microphonePermissionGranted,
               bluetoothRequired: _bluetoothPermissionRequired,
               bluetoothGranted: _bluetoothPermissionGranted,
               selectedAge: _pendingStartupAge,
+              aiSubprocessors: _config.disclosedAiSubprocessors,
+              dataRetentionSummary: _config.disclosedDataRetention,
+              privacyPolicyUri: _config.privacyPolicyUri,
+              termsUri: _config.termsUri,
+              supportUri: _config.supportUri,
               permissionError: _startupPermissionError,
+              onGrantPrivacyConsent: _grantPrivacyConsent,
+              onContinueWithoutVoice: _continueWithoutVoice,
               onRetryPermissions: () => unawaited(_requestStartupPermissions()),
               onAgeSelected: (age) => setState(() => _pendingStartupAge = age),
               onConfirmAge: _confirmStartupAge,

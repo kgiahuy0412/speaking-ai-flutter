@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/device/aiv0_ble_control.dart';
@@ -9,6 +11,7 @@ import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../listening/domain/listening_catalog.dart';
+import '../../privacy/presentation/parental_gate.dart';
 import 'history_sheet.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -18,6 +21,12 @@ class SettingsSheet extends StatelessWidget {
     this.onThemeModeChanged,
     this.onChildAgeChanged,
     this.onStartTutorial,
+    this.config,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
     super.key,
   });
 
@@ -26,12 +35,21 @@ class SettingsSheet extends StatelessWidget {
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
+  final AppConfig? config;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final isAndroid =
+            !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+        final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
         return DisplayLanguageScope(
           language: controller.displayLanguage,
           child: Builder(
@@ -99,7 +117,7 @@ class SettingsSheet extends StatelessWidget {
                     _StatusTile(
                       icon: Icons.mic_rounded,
                       title: context.trKnown(controller.inputLabel),
-                      detail: !kIsWeb
+                      detail: isAndroid
                           ? context.tr(
                               controller.usesHfpInput
                                   ? 'H20 qua HFP/SCO • Chế độ tiêu chuẩn'
@@ -107,6 +125,11 @@ class SettingsSheet extends StatelessWidget {
                               controller.usesHfpInput
                                   ? 'H20 通过 HFP/SCO • 标准模式'
                                   : '手机麦克风 • 标准模式',
+                            )
+                          : isIOS
+                          ? context.tr(
+                              'Mic iPhone/iPad • xử lý Cloud/Batch sau khi phụ huynh đồng ý',
+                              'iPhone/iPad 麦克风 • 家长同意后使用云端分块处理',
                             )
                           : switch (controller.asrMode) {
                               AsrMode.androidStreaming => context.tr(
@@ -149,24 +172,26 @@ class SettingsSheet extends StatelessWidget {
                       trailing: context.tr('Đang dùng', '使用中'),
                       stateColor: AppColors.success,
                     ),
-                    const SizedBox(height: 10),
-                    _Aiv0BleControlCard(
-                      status: controller.aiv0BleStatus,
-                      events: controller.aiv0ButtonEventLog,
-                      disabled: controller.isBusy,
-                      onScan: () => _scanAndConnectAiv0(context),
-                      onDisconnect: controller.disconnectAiv0Device,
-                    ),
-                    const SizedBox(height: 10),
-                    _HfpStatusCard(
-                      status: controller.hfpAudioStatus,
-                      browserManaged: controller.supportsBrowserHfp,
-                      selected: controller.usesHfpInput,
-                      disabled: controller.isBusy,
-                      onFind: () => _findAndConnectHfp(context),
-                      onDisconnect: controller.disconnectHfpDevice,
-                    ),
-                    if (!kIsWeb) ...<Widget>[
+                    if (!isIOS) ...<Widget>[
+                      const SizedBox(height: 10),
+                      _Aiv0BleControlCard(
+                        status: controller.aiv0BleStatus,
+                        events: controller.aiv0ButtonEventLog,
+                        disabled: controller.isBusy,
+                        onScan: () => _scanAndConnectAiv0(context),
+                        onDisconnect: controller.disconnectAiv0Device,
+                      ),
+                      const SizedBox(height: 10),
+                      _HfpStatusCard(
+                        status: controller.hfpAudioStatus,
+                        browserManaged: controller.supportsBrowserHfp,
+                        selected: controller.usesHfpInput,
+                        disabled: controller.isBusy,
+                        onFind: () => _findAndConnectHfp(context),
+                        onDisconnect: controller.disconnectHfpDevice,
+                      ),
+                    ],
+                    if (isAndroid) ...<Widget>[
                       const SizedBox(height: 10),
                       _H20OfflineHardwareTestCard(
                         enabled: controller.h20HardwareTestModeEnabled,
@@ -195,7 +220,7 @@ class SettingsSheet extends StatelessWidget {
                           : context.tr('Nhận dạng', '语音识别'),
                     ),
                     const SizedBox(height: 8),
-                    if (!kIsWeb)
+                    if (isAndroid)
                       _StatusTile(
                         key: const Key('android-standard-recognition'),
                         icon: Icons.record_voice_over_rounded,
@@ -203,6 +228,18 @@ class SettingsSheet extends StatelessWidget {
                         detail: context.tr(
                           'Nhận dạng trực tiếp bằng dịch vụ Android. Cloudflare chỉ dịch văn bản và tạo giọng đọc khi cần, không nhận dạng audio.',
                           '使用 Android 服务直接识别。Cloudflare 仅在需要时翻译文本和生成语音，不识别音频。',
+                        ),
+                        trailing: context.tr('Mặc định', '默认'),
+                        stateColor: AppColors.success,
+                      )
+                    else if (isIOS)
+                      _StatusTile(
+                        key: const Key('ios-cloud-recognition'),
+                        icon: Icons.cloud_done_rounded,
+                        title: context.tr('Cloud/Batch cho iOS', 'iOS 云端分块识别'),
+                        detail: context.tr(
+                          'Sau khi phụ huynh đồng ý và cấp quyền micro, audio được gửi tới dịch vụ HOMI để nhận dạng, dịch và tạo phản hồi. iOS không dùng dịch vụ Android; điều hướng giọng nói MAIN tự động hiện chưa bật trên iOS.',
+                          '家长同意并授予麦克风权限后，音频会发送至 HOMI 服务进行识别、翻译和生成回复。iOS 不使用 Android 服务，MAIN 自动语音导航目前未在 iOS 启用。',
                         ),
                         trailing: context.tr('Mặc định', '默认'),
                         stateColor: AppColors.success,
@@ -273,6 +310,107 @@ class SettingsSheet extends StatelessWidget {
                       icon: const Icon(Icons.history_rounded),
                       label: Text(context.tr('Xem lịch sử gần đây', '查看最近记录')),
                     ),
+                    const SizedBox(height: 26),
+                    _SectionLabel(
+                      label: context.tr('Dữ liệu và quyền riêng tư', '数据与隐私'),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingsActionTile(
+                      key: const Key('settings-privacy-policy'),
+                      icon: Icons.privacy_tip_outlined,
+                      title: context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                      detail: context.tr(
+                        'Xem dữ liệu được thu thập, nhà cung cấp AI, thời hạn lưu và cách yêu cầu xóa.',
+                        '查看所收集的数据、AI 服务商、保存期限和删除方式。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.privacyPolicyUri,
+                        context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SettingsActionTile(
+                      key: const Key('settings-terms'),
+                      icon: Icons.description_outlined,
+                      title: context.tr('Điều khoản sử dụng', '使用条款'),
+                      detail: context.tr(
+                        'Điều khoản dành cho phụ huynh và người giám hộ.',
+                        '面向家长和监护人的使用条款。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.termsUri,
+                        context.tr('Điều khoản sử dụng', '使用条款'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SettingsActionTile(
+                      key: const Key('settings-support'),
+                      icon: Icons.support_agent_rounded,
+                      title: context.tr('Hỗ trợ', '支持'),
+                      detail: context.tr(
+                        'Liên hệ HOMI về quyền riêng tư, dữ liệu hoặc lỗi ứng dụng.',
+                        '就隐私、数据或应用问题联系 HOMI。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.supportUri,
+                        context.tr('Hỗ trợ', '支持'),
+                      ),
+                    ),
+                    if (privacyConsentGranted &&
+                        !voiceAccessEnabled &&
+                        onRequestVoiceAccess != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-enable-voice'),
+                        icon: Icons.mic_rounded,
+                        title: context.tr('Cho phép micro', '允许麦克风'),
+                        detail: context.tr(
+                          'Mở hộp thoại quyền hệ thống. Audio chỉ được gửi sau khi có cả chấp thuận phụ huynh và quyền micro.',
+                          '打开系统权限对话框。只有家长同意并授予麦克风权限后才会发送音频。',
+                        ),
+                        onTap: onRequestVoiceAccess!,
+                      ),
+                    ],
+                    if (!privacyConsentGranted &&
+                        onManagePrivacyConsent != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-manage-privacy-consent'),
+                        icon: Icons.verified_user_outlined,
+                        title: context.tr(
+                          'Thiết lập tính năng giọng nói',
+                          '设置语音功能',
+                        ),
+                        detail: context.tr(
+                          'Quay lại màn hình dành cho phụ huynh để đọc thông tin và chọn đồng ý.',
+                          '返回家长设置页面，阅读说明并选择是否同意。',
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onManagePrivacyConsent!();
+                        },
+                      ),
+                    ],
+                    if (privacyConsentGranted &&
+                        onRevokePrivacyConsent != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-revoke-privacy-consent'),
+                        icon: Icons.delete_forever_outlined,
+                        title: context.tr(
+                          'Rút chấp thuận và xóa dữ liệu',
+                          '撤回同意并删除数据',
+                        ),
+                        detail: context.tr(
+                          'Yêu cầu backend xóa lịch sử trước, sau đó xóa nhóm tuổi cục bộ và đặt lại mã cài đặt iOS/Web.',
+                          '先请求后端删除历史记录，再删除本地年龄组并重置 iOS/Web 安装标识。',
+                        ),
+                        onTap: () => _revokeConsent(context),
+                      ),
+                    ],
                     if (onStartTutorial != null) ...<Widget>[
                       const SizedBox(height: 26),
                       _SectionLabel(label: context.tr('Hỗ trợ', '帮助')),
@@ -303,6 +441,76 @@ class SettingsSheet extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _openParentLink(
+    BuildContext context,
+    Uri? uri,
+    String label,
+  ) async {
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$label chưa được cấu hình cho bản build này.')),
+      );
+      return;
+    }
+    if (!await showParentalGate(context) || !context.mounted) {
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể mở $label.')));
+    }
+  }
+
+  Future<void> _revokeConsent(BuildContext context) async {
+    final revoke = onRevokePrivacyConsent;
+    if (revoke == null ||
+        !await showParentalGate(context) ||
+        !context.mounted) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rút chấp thuận và yêu cầu xóa dữ liệu?'),
+        content: const Text(
+          'HOMI sẽ gửi yêu cầu xóa history tới backend trước khi xóa chấp thuận, nhóm tuổi lưu cục bộ và mã cài đặt iOS/Web. Nếu máy chủ không xác nhận, thao tác sẽ dừng và hiển thị lỗi.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Tiếp tục xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    try {
+      await revoke();
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Chưa thể xác nhận xóa dữ liệu trên máy chủ. Chấp thuận vẫn được giữ: $error',
+          ),
+        ),
+      );
+    }
   }
 
   void _showHistory(BuildContext context) {

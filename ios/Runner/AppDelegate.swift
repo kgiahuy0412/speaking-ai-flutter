@@ -25,6 +25,8 @@ import UIKit
       switch call.method {
       case "device.clientId":
         result(clientIdentityStore.getOrCreate())
+      case "device.resetClientId":
+        result(clientIdentityStore.reset())
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -44,6 +46,16 @@ private final class IOSClientIdentityStore {
     let clientId = "ios_\(UUID().uuidString.lowercased())"
     store(clientId)
     return clientId
+  }
+
+  func reset() -> Bool {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+    ]
+    let status = SecItemDelete(query as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
   }
 
   private var service: String {

@@ -31,6 +31,32 @@ void main() {
     workerAsrPilotBaseUri: Uri.parse('https://worker.example'),
   );
 
+  test(
+    'does not create a persistent client id until backend work starts',
+    () async {
+      var providerCalls = 0;
+      final repository = NextConversationRepository(
+        config: config,
+        clientIdProvider: () async {
+          providerCalls += 1;
+          return 'android_test_device';
+        },
+        client: MockClient((request) async {
+          return http.Response(
+            jsonEncode(<String, dynamic>{'conversations': <dynamic>[]}),
+            200,
+            headers: const <String, String>{'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      expect(providerCalls, 0);
+      await repository.fetchHistory();
+      expect(providerCalls, 1);
+      await repository.dispose();
+    },
+  );
+
   test('requests a non-blocking all-context warm-up on app startup', () async {
     final client = MockClient((request) async {
       expect(request.method, 'POST');
@@ -2553,6 +2579,7 @@ void main() {
         expect(request.url.path, '/api/history');
         expect(request.url.queryParameters['conversationId'], 'conv_delete');
         expect(request.url.queryParameters['clientId'], 'android_test_device');
+        expect(request.url.queryParameters['deleteRelatedData'], 'true');
         return http.Response(
           jsonEncode(<String, dynamic>{'deleted': true}),
           200,

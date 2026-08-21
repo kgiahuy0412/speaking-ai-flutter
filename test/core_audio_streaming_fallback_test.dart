@@ -93,6 +93,29 @@ void main() {
     controller.dispose();
   });
 
+  test('parental privacy guard blocks every recording start path', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Phone',
+    );
+    final controller = ConversationController(
+      audioInput: input,
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.batchChunks,
+      voiceDataProcessingAllowed: () => false,
+    );
+
+    await controller.startRecording();
+
+    expect(input.startCount, 0);
+    expect(controller.errorMessage, contains('Phụ huynh cần đồng ý'));
+    expect(controller.isRecording, isFalse);
+    controller.dispose();
+  });
+
   test('unlocks browser audio before stopping previous playback', () async {
     final events = <String>[];
     final playback = _GesturePlaybackService(events);
@@ -880,7 +903,7 @@ void main() {
       expect(controller.phase, ConversationPhase.error);
       expect(
         controller.errorMessage,
-        'Mình chưa nghe rõ. Con đưa micro lại gần và nói rõ hơn nhé.',
+        'Cô chưa nghe thấy con nói. Con nói lại nhé.',
       );
       controller.dispose();
     },
@@ -1048,7 +1071,7 @@ void main() {
       expect(repository.fullFileUploads, 0);
       expect(controller.result, isNull);
       expect(controller.phase, ConversationPhase.idle);
-      expect(controller.transientMessage, contains('chưa nghe rõ'));
+      expect(controller.transientMessage, contains('chưa nghe thấy'));
       controller.dispose();
     },
   );

@@ -32,6 +32,11 @@ class HomeLearningShell extends StatefulWidget {
     this.onChildAgeChanged,
     this.onMainSpeakingModeStarted,
     this.onModalVisibilityChanged,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
     this.onboardingStore,
     this.listeningContentFuture,
     super.key,
@@ -45,6 +50,11 @@ class HomeLearningShell extends StatefulWidget {
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
   final ValueChanged<bool>? onModalVisibilityChanged;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
   final OnboardingProgressStore? onboardingStore;
   final Future<ListeningContentCatalog>? listeningContentFuture;
 
@@ -187,6 +197,11 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                       historyButtonKey: _historyButtonKey,
                       settingsButtonKey: _settingsButtonKey,
                       onModalVisibilityChanged: widget.onModalVisibilityChanged,
+                      privacyConsentGranted: widget.privacyConsentGranted,
+                      voiceAccessEnabled: widget.voiceAccessEnabled,
+                      onRequestVoiceAccess: widget.onRequestVoiceAccess,
+                      onManagePrivacyConsent: widget.onManagePrivacyConsent,
+                      onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
@@ -272,6 +287,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool get _continuousVoiceNavigationEnabled =>
       widget.config.enableVoiceNavigation &&
       widget.config.autoStartVoiceNavigation &&
+      widget.voiceAccessEnabled &&
       widget.voiceNavigationController != null &&
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android;
@@ -718,6 +734,12 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           onThemeModeChanged: widget.onThemeModeChanged,
           onChildAgeChanged: widget.onChildAgeChanged,
           onStartTutorial: _startTutorial,
+          config: widget.config,
+          privacyConsentGranted: widget.privacyConsentGranted,
+          voiceAccessEnabled: widget.voiceAccessEnabled,
+          onRequestVoiceAccess: widget.onRequestVoiceAccess,
+          onManagePrivacyConsent: widget.onManagePrivacyConsent,
+          onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
         ),
       );
     } finally {

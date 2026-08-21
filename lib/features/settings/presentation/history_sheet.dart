@@ -269,7 +269,7 @@ class _HistorySheetState extends State<HistorySheet> {
         title: Text(_t('Xóa lượt nói này?', '删除这条记录？')),
         content: Text(
           _t(
-            '“${item.vietnameseText}” sẽ bị xóa khỏi lịch sử.',
+            'HOMI sẽ yêu cầu máy chủ xóa “${item.vietnameseText}” cùng transcript và audio liên quan. Thao tác chỉ hoàn tất khi máy chủ xác nhận.',
             '“${item.vietnameseText}”将从历史记录中删除。',
           ),
         ),
@@ -305,7 +305,9 @@ class _HistorySheetState extends State<HistorySheet> {
             )
             .toList(growable: false);
       });
-      _showMessage(_t('Đã xóa lượt nói.', '已删除这条记录。'));
+      _showMessage(
+        _t('Máy chủ đã xác nhận yêu cầu xóa lượt nói.', '服务器已确认删除这条记录。'),
+      );
     } catch (error) {
       _showMessage(_friendlyError(error), isError: true);
     } finally {
@@ -322,7 +324,7 @@ class _HistorySheetState extends State<HistorySheet> {
         title: Text(_t('Xóa toàn bộ lịch sử?', '清除全部历史记录？')),
         content: Text(
           _t(
-            'Thao tác này sẽ xóa tất cả lượt nói đã lưu và không thể hoàn tác.',
+            'HOMI sẽ yêu cầu máy chủ xóa toàn bộ history, transcript và audio liên quan. Thao tác chỉ hoàn tất khi máy chủ xác nhận và không thể hoàn tác.',
             '此操作将删除所有已保存的对话记录，且无法撤销。',
           ),
         ),
@@ -355,7 +357,12 @@ class _HistorySheetState extends State<HistorySheet> {
         _items = const <ConversationHistoryItem>[];
         _loading = false;
       });
-      _showMessage(_t('Đã xóa toàn bộ lịch sử.', '已清除全部历史记录。'));
+      _showMessage(
+        _t(
+          'Máy chủ đã xác nhận yêu cầu xóa toàn bộ dữ liệu lịch sử.',
+          '服务器已确认删除全部历史数据。',
+        ),
+      );
     } catch (error) {
       if (mounted) {
         setState(() => _loading = false);

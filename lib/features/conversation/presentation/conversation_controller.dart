@@ -89,6 +89,7 @@ class ConversationController extends ChangeNotifier {
     bool? webRuntimeOverride,
     Duration? adaptiveWebUploadDelay,
     bool recordAndroidAudioForArchive = false,
+    bool Function()? voiceDataProcessingAllowed,
     Future<void> Function()? beforeRecordingStart,
     bool Function(String recognizedText)? recognizedSpeechCommandMatcher,
     Future<void> Function(String recognizedText)? onRecognizedSpeechCommand,
@@ -111,6 +112,7 @@ class ConversationController extends ChangeNotifier {
        _hfpInputSelected = initialAsrMode == AsrMode.hfpStreaming,
        _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
        _recordAndroidAudioForArchive = recordAndroidAudioForArchive,
+       _voiceDataProcessingAllowed = voiceDataProcessingAllowed,
        _beforeRecordingStart = beforeRecordingStart,
        _recognizedSpeechCommandMatcher = recognizedSpeechCommandMatcher,
        _onRecognizedSpeechCommand = onRecognizedSpeechCommand,
@@ -212,6 +214,7 @@ class ConversationController extends ChangeNotifier {
   final bool _isWebRuntime;
   final Duration _adaptiveWebUploadDelay;
   final bool _recordAndroidAudioForArchive;
+  final bool Function()? _voiceDataProcessingAllowed;
   final Future<void> Function()? _beforeRecordingStart;
   final bool Function(String recognizedText)? _recognizedSpeechCommandMatcher;
   final Future<void> Function(String recognizedText)?
@@ -1300,6 +1303,12 @@ class ConversationController extends ChangeNotifier {
     bool speakNoSpeechPrompt = true,
     bool stopOnSilence = true,
   }) async {
+    if (!(_voiceDataProcessingAllowed?.call() ?? true)) {
+      _setError(
+        'Giọng nói đang tắt. Phụ huynh cần đồng ý xử lý dữ liệu và cấp quyền micro trong Cài đặt.',
+      );
+      return;
+    }
     if (!_audioInput.isAvailable || isBusy) {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
