@@ -158,6 +158,10 @@ void main() {
       expect(playback.directPlayCount, 3);
       expect(playback.regularPlayCount, 0);
       expect(
+        playback.playbackRate,
+        ConversationController.translatedSpeechPlaybackRate,
+      );
+      expect(
         playback.playedUris,
         everyElement(Uri.parse('https://api.example.com/audio.mp3')),
       );
@@ -635,33 +639,36 @@ void main() {
     },
   );
 
-  test('short Web utterance promotes buffered audio to Batch at stop', () async {
-    final input = _FakeChunkedInput(
-      available: true,
-      bluetooth: false,
-      label: 'Phone',
-      emitOnStart: <int>[1, 2, 3],
-    );
-    final repository = _FallbackRepository();
-    final controller = ConversationController(
-      audioInput: input,
-      playbackService: const _FakePlaybackService(),
-      repository: repository,
-      childAge: 6,
-      initialAsrMode: AsrMode.batchChunks,
-      webRuntimeOverride: true,
-      adaptiveWebUploadDelay: const Duration(seconds: 2),
-    );
+  test(
+    'short Web utterance promotes buffered audio to Batch at stop',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[1, 2, 3],
+      );
+      final repository = _FallbackRepository();
+      final controller = ConversationController(
+        audioInput: input,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.batchChunks,
+        webRuntimeOverride: true,
+        adaptiveWebUploadDelay: const Duration(seconds: 2),
+      );
 
-    await controller.startRecording();
-    await _emitDetectedSpeech(input);
-    await controller.stopRecording(manual: true);
+      await controller.startRecording();
+      await _emitDetectedSpeech(input);
+      await controller.stopRecording(manual: true);
 
-    expect(repository.batchStarted, 1);
-    expect(repository.fullFileUploads, 0);
-    expect(controller.result?.conversationId, 'batch-result');
-    controller.dispose();
-  });
+      expect(repository.batchStarted, 1);
+      expect(repository.fullFileUploads, 0);
+      expect(controller.result?.conversationId, 'batch-result');
+      controller.dispose();
+    },
+  );
 
   test(
     'long Web utterance uploads buffered and live chunks in parallel',
@@ -2367,13 +2374,22 @@ class _GesturePlaybackService
 }
 
 class _DirectGesturePlaybackService
-    implements AudioPlaybackService, DirectUserGestureAudioPlaybackService {
+    implements
+        AudioPlaybackService,
+        DirectUserGestureAudioPlaybackService,
+        PlaybackRateAwareAudioPlaybackService {
   _DirectGesturePlaybackService({this.rejectRegularPlay = false});
 
   final bool rejectRegularPlay;
   int directPlayCount = 0;
   int regularPlayCount = 0;
+  double playbackRate = 1.0;
   final List<Uri> playedUris = <Uri>[];
+
+  @override
+  void setPlaybackRate(double rate) {
+    playbackRate = rate;
+  }
 
   @override
   Stream<bool> get playingStream => const Stream<bool>.empty();

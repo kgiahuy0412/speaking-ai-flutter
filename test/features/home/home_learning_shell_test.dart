@@ -368,10 +368,6 @@ void main() {
         ),
         isTrue,
       );
-      expect(
-        await voiceNavigationController.dispatchRecognizedText('Dịch liên tục'),
-        isTrue,
-      );
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pump();
 
@@ -385,7 +381,7 @@ void main() {
     },
   );
 
-  testWidgets('single sentence choice enables short-short MAIN mode only', (
+  testWidgets('translation choice enters continuous translation directly', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -400,7 +396,6 @@ void main() {
       ownsSpeechInput: true,
     );
     final controller = _controller();
-    final singleSentenceChanges = <bool>[];
     var didStartContinuousMode = false;
 
     await tester.pumpWidget(
@@ -408,7 +403,6 @@ void main() {
         controller,
         voiceNavigationController: voiceNavigationController,
         onMainSpeakingModeStarted: () => didStartContinuousMode = true,
-        onSingleSentenceModeChanged: singleSentenceChanges.add,
       ),
     );
     await tester.pumpAndSettle();
@@ -420,17 +414,11 @@ void main() {
       ),
       isTrue,
     );
-    expect(
-      await voiceNavigationController.dispatchRecognizedText('Một câu'),
-      isTrue,
-    );
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pump();
 
     expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
-    expect(singleSentenceChanges, isNotEmpty);
-    expect(singleSentenceChanges.last, isTrue);
-    expect(didStartContinuousMode, isFalse);
+    expect(didStartContinuousMode, isTrue);
     expect(controller.isRecording, isFalse);
 
     controller.dispose();
@@ -446,7 +434,6 @@ Widget _app(
   VoiceNavigationController? voiceNavigationController,
   Future<ListeningContentCatalog>? listeningContentFuture,
   VoidCallback? onMainSpeakingModeStarted,
-  ValueChanged<bool>? onSingleSentenceModeChanged,
   ValueChanged<bool>? onModalVisibilityChanged,
 }) {
   return MaterialApp(
@@ -457,7 +444,6 @@ Widget _app(
       voiceNavigationController: voiceNavigationController,
       listeningContentFuture: listeningContentFuture,
       onMainSpeakingModeStarted: onMainSpeakingModeStarted,
-      onSingleSentenceModeChanged: onSingleSentenceModeChanged,
       onModalVisibilityChanged: onModalVisibilityChanged,
       config: AppConfig(
         backendBaseUri: Uri.parse('https://example.com'),

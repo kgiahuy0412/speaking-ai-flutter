@@ -107,6 +107,12 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   }
 
   @override
+  void setPlaybackRate(double rate) {
+    _element.defaultPlaybackRate = rate;
+    _element.playbackRate = rate;
+  }
+
+  @override
   bool hasPreloadedSource(Uri uri) =>
       _sourceUri == uri && _preloadedSourceUri == uri;
 

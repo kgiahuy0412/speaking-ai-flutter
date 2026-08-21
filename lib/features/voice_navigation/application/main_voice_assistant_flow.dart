@@ -11,7 +11,6 @@ enum MainVoiceAssistantStage {
   chooseFeature,
   chooseOtherLearning,
   chooseAlternativeAfterLearning,
-  chooseTranslationMode,
   chooseVocabularyCollection,
   activeLearning,
   askAge,
@@ -180,8 +179,6 @@ class MainVoiceAssistantFlow {
             _isTranslationChoice(normalized),
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
-      MainVoiceAssistantStage.chooseTranslationMode =>
-        _isSingleSentenceChoice(normalized) || _isContinuousChoice(normalized),
       MainVoiceAssistantStage.chooseVocabularyCollection =>
         _isReviewVocabularyChoice(normalized) ||
             _isStarVocabularyChoice(normalized),
@@ -212,10 +209,6 @@ class MainVoiceAssistantFlow {
       ),
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         await _handleAlternativeAfterLearning(recognizedText, normalized),
-      MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
-        recognizedText,
-        normalized,
-      ),
       MainVoiceAssistantStage.chooseVocabularyCollection =>
         await _handleVocabularyCollection(normalized),
       MainVoiceAssistantStage.activeLearning => _handleActiveLearning(
@@ -292,11 +285,7 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
-      _stage = MainVoiceAssistantStage.chooseTranslationMode;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
-        continueListening: true,
-      );
+      return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
       promptText: openingPrompt,
@@ -324,11 +313,7 @@ class MainVoiceAssistantFlow {
       return _beginConfiguredTopicSelection();
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
-      _stage = MainVoiceAssistantStage.chooseTranslationMode;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
-        continueListening: true,
-      );
+      return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
       promptText: otherLearningPrompt,
@@ -336,44 +321,17 @@ class MainVoiceAssistantFlow {
     );
   }
 
-  MainVoiceAssistantTurn _handleTranslationMode(
-    String recognizedText,
-    String normalized,
-  ) {
-    if (_looksLikePromptEcho(normalized)) {
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
-        continueListening: true,
-      );
-    }
-    if (_isSingleSentenceChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText:
-            'Con bấm nút MAIN để bắt đầu nói. Khi nói xong, con bấm nút MAIN lần nữa nhé. Muốn dừng và gọi mình, con nói dừng lại hoặc con muốn học cái khác.',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.conversation,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'mot cau',
-          enterMainSpeakingMode: false,
-        ),
-      );
-    }
-    if (_isContinuousChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: 'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
-        continueListening: false,
-        navigationAfterPrompt: VoiceNavigationIntent(
-          destination: VoiceNavigationDestination.conversation,
-          recognizedText: recognizedText.trim(),
-          matchedPhrase: 'lien tuc',
-          enterMainSpeakingMode: true,
-        ),
-      );
-    }
-    return const MainVoiceAssistantTurn(
-      promptText: 'Con muốn dịch một câu hay dịch liên tục?',
-      continueListening: true,
+  MainVoiceAssistantTurn _beginContinuousTranslation(String recognizedText) {
+    reset();
+    return MainVoiceAssistantTurn(
+      promptText: 'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
+      continueListening: false,
+      navigationAfterPrompt: VoiceNavigationIntent(
+        destination: VoiceNavigationDestination.conversation,
+        recognizedText: recognizedText.trim(),
+        matchedPhrase: 'lien tuc',
+        enterMainSpeakingMode: true,
+      ),
     );
   }
 
@@ -394,11 +352,7 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
-      _stage = MainVoiceAssistantStage.chooseTranslationMode;
-      return const MainVoiceAssistantTurn(
-        promptText: 'Con muốn dịch một câu hay dịch liên tục?',
-        continueListening: true,
-      );
+      return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
       promptText: alternativeAfterLearningPrompt,
@@ -891,15 +845,6 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'dich tieng anh') ||
       _containsPhrase(normalized, 'dich');
 
-  static bool _isSingleSentenceChoice(String normalized) =>
-      _containsPhrase(normalized, 'mot cau') ||
-      _containsPhrase(normalized, 'dich mot cau');
-
-  static bool _isContinuousChoice(String normalized) =>
-      _containsPhrase(normalized, 'lien tuc') ||
-      _containsPhrase(normalized, 'dich lien tuc') ||
-      _containsPhrase(normalized, 'noi lien tuc');
-
   static bool _isNextSentenceChoice(String normalized) =>
       _containsPhrase(normalized, 'tiep theo') ||
       normalized == 'cau tiep' ||
@@ -957,10 +902,6 @@ class MainVoiceAssistantFlow {
             normalized == 'hoc tu vung ne',
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         _isTranslationChoice(normalized) && _isVocabularyChoice(normalized),
-      MainVoiceAssistantStage.chooseTranslationMode =>
-        (_isSingleSentenceChoice(normalized) &&
-                _isContinuousChoice(normalized)) ||
-            _containsPhrase(normalized, 'mot cau hay dich lien tuc'),
       MainVoiceAssistantStage.chooseVocabularyCollection =>
         _isReviewVocabularyChoice(normalized) &&
             _isStarVocabularyChoice(normalized),

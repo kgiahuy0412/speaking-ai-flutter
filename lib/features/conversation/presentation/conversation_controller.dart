@@ -69,6 +69,8 @@ class H20HardwareTestResult {
 }
 
 class ConversationController extends ChangeNotifier {
+  static const double translatedSpeechPlaybackRate = 0.45;
+
   ConversationController({
     required AudioInput audioInput,
     StreamingSpeechInput? streamingSpeechInput,
@@ -1223,6 +1225,7 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> _playH20TestUri(Uri uri) async {
+    _useNormalPlaybackRate();
     final playback = _playbackService;
     final completion = playback is CompletionAwareAudioPlaybackService
         ? (playback as CompletionAwareAudioPlaybackService)
@@ -1276,6 +1279,7 @@ class ConversationController extends ChangeNotifier {
           '${(capture.streamedAudioBytes ?? 0) ~/ 1024} KB PCM. '
           'Đang phát lại bản ghi.';
       notifyListeners();
+      _useNormalPlaybackRate();
       await _playbackService.play(Uri.file(capture.filePath));
     } catch (error) {
       await _audioInput.cancel().catchError((Object _) {});
@@ -2288,6 +2292,7 @@ class ConversationController extends ChangeNotifier {
       DateTime? earlyRulePlaybackRequestedAt;
       Uri? earlyRulePlaybackUri;
       String? earlyRuleEnglishText;
+      _useTranslatedSpeechPlaybackRate();
       if (streamingCapture != null) {
         final matchedLocalRule = _applyLocalExactPreview(
           streamingCapture.sourceText,
@@ -2735,6 +2740,8 @@ class ConversationController extends ChangeNotifier {
       return;
     }
 
+    _useTranslatedSpeechPlaybackRate();
+
     var openedHfpForReplay = false;
     try {
       if (usesHfpInput && canUseHfp && !_usingHfpRoute) {
@@ -2768,6 +2775,22 @@ class ConversationController extends ChangeNotifier {
       notifyListeners();
     } finally {
       if (openedHfpForReplay) await _stopHfpRoute();
+    }
+  }
+
+  void _useTranslatedSpeechPlaybackRate() {
+    final playback = _playbackService;
+    if (playback is PlaybackRateAwareAudioPlaybackService) {
+      (playback as PlaybackRateAwareAudioPlaybackService).setPlaybackRate(
+        translatedSpeechPlaybackRate,
+      );
+    }
+  }
+
+  void _useNormalPlaybackRate() {
+    final playback = _playbackService;
+    if (playback is PlaybackRateAwareAudioPlaybackService) {
+      (playback as PlaybackRateAwareAudioPlaybackService).setPlaybackRate(1.0);
     }
   }
 
@@ -2884,6 +2907,7 @@ class ConversationController extends ChangeNotifier {
     if (audioUri == null) {
       throw StateError('Lượt nói này chưa có âm thanh để phát lại.');
     }
+    _useTranslatedSpeechPlaybackRate();
     await _playbackService.play(audioUri);
   }
 

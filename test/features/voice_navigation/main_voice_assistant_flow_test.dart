@@ -11,14 +11,7 @@ void main() {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
 
     expect(flow.begin(), MainVoiceAssistantFlow.openingPrompt);
-    final translationTurn = await flow.handle('Con muốn luyện nói');
-    expect(
-      translationTurn.promptText,
-      'Con muốn dịch một câu hay dịch liên tục?',
-    );
-    expect(translationTurn.continueListening, isTrue);
-
-    final turn = await flow.handle('Dịch liên tục');
+    final turn = await flow.handle('Con muốn luyện nói');
 
     expect(turn.promptText, contains('Muốn dừng thì nói dừng lại'));
     expect(turn.continueListening, isFalse);
@@ -68,21 +61,16 @@ void main() {
     await vocabulary.onPromptCompleted?.call();
     expect(introducedIds, <String>['parent-apple']);
 
-    final singleFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
-    singleFlow.begin();
-    final translation = await singleFlow.handle('Dịch sang tiếng Anh');
-    expect(translation.continueListening, isTrue);
-    final single = await singleFlow.handle('Một câu');
-    expect(single.continueListening, isFalse);
-    expect(single.promptText, contains('bấm nút MAIN để bắt đầu nói'));
-    expect(single.promptText, contains('bấm nút MAIN lần nữa'));
-    expect(single.promptText, contains('con nói dừng lại'));
-    expect(single.promptText, contains('con muốn học cái khác'));
+    final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    translationFlow.begin();
+    final translation = await translationFlow.handle('Dịch sang tiếng Anh');
+    expect(translation.continueListening, isFalse);
+    expect(translation.promptText, contains('Con nói từng câu nhé'));
     expect(
-      single.navigationAfterPrompt?.destination,
+      translation.navigationAfterPrompt?.destination,
       VoiceNavigationDestination.conversation,
     );
-    expect(single.navigationAfterPrompt?.enterMainSpeakingMode, isFalse);
+    expect(translation.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
   });
 
   test('already introduced Family words follow the no-new branch', () async {
@@ -291,12 +279,13 @@ void main() {
     await flow.handle('Con không muốn học nữa');
 
     final translationTurn = await flow.handle('Dịch sang tiếng Anh');
+    expect(translationTurn.promptText, contains('Con nói từng câu nhé'));
+    expect(translationTurn.continueListening, isFalse);
     expect(
-      translationTurn.promptText,
-      'Con muốn dịch một câu hay dịch liên tục?',
+      translationTurn.navigationAfterPrompt?.enterMainSpeakingMode,
+      isTrue,
     );
-    expect(translationTurn.continueListening, isTrue);
-    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
+    expect(flow.stage, MainVoiceAssistantStage.idle);
   });
 
   test('selects age, topic 3 and lesson 1 across multiple turns', () async {

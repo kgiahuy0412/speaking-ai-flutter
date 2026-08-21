@@ -82,10 +82,8 @@ void main() {
     );
     expect(voicePrompt.spokenTexts, <String>[
       MainVoiceAssistantFlow.openingPrompt,
-      'Con muốn dịch một câu hay dịch liên tục?',
+      'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
     ]);
-    expect(controller.isMainButtonSessionActive, isTrue);
-    expect(await controller.dispatchRecognizedText('Dịch liên tục'), isTrue);
     expect(
       receivedIntent?.destination,
       VoiceNavigationDestination.conversation,

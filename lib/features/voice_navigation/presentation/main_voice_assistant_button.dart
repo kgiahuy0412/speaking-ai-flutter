@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/main_speaking_session_controller.dart';
 import '../application/voice_navigation_controller.dart';
@@ -13,7 +12,6 @@ class MainVoiceAssistantButton extends StatelessWidget {
     required this.voiceController,
     required this.conversationController,
     required this.speakingSessionController,
-    required this.singleSentenceModeActive,
     required this.isActivationPending,
     required this.onPressed,
     required this.onLongPressed,
@@ -24,7 +22,6 @@ class MainVoiceAssistantButton extends StatelessWidget {
   final VoiceNavigationController voiceController;
   final ConversationController conversationController;
   final MainSpeakingSessionController speakingSessionController;
-  final bool singleSentenceModeActive;
   final bool isActivationPending;
   final Future<void> Function() onPressed;
   final Future<void> Function() onLongPressed;
@@ -42,29 +39,13 @@ class MainVoiceAssistantButton extends StatelessWidget {
         final speakingState = speakingSessionController.state;
         final isSpeakingMode = speakingSessionController.isActive;
         final isAssistantBusy = voiceController.isMainButtonSessionActive;
-        final canActivate = singleSentenceModeActive
-            ? !isActivationPending &&
-                  !isAssistantBusy &&
-                  !conversationController.isPreparingMicrophone &&
-                  conversationController.phase !=
-                      ConversationPhase.processing &&
-                  !conversationController.isPlaybackPlaying
-            : !isActivationPending &&
-                  !isSpeakingMode &&
-                  !conversationController.isBusy &&
-                  !conversationController.isPlaybackPlaying &&
-                  !isAssistantBusy;
-        final label = singleSentenceModeActive
-            ? switch (conversationController.phase) {
-                ConversationPhase.recording => 'Bấm để dịch',
-                ConversationPhase.processing => 'Đang dịch...',
-                _ when conversationController.isPreparingMicrophone =>
-                  'Đang chuẩn bị...',
-                _ when conversationController.isPlaybackPlaying =>
-                  'Đang phát...',
-                _ => 'Bấm để nói',
-              }
-            : isSpeakingMode
+        final canActivate =
+            !isActivationPending &&
+            !isSpeakingMode &&
+            !conversationController.isBusy &&
+            !conversationController.isPlaybackPlaying &&
+            !isAssistantBusy;
+        final label = isSpeakingMode
             ? switch (speakingState) {
                 MainSpeakingSessionState.ready => 'Đang chuẩn bị...',
                 MainSpeakingSessionState.recording => 'Đang nghe...',
@@ -83,15 +64,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
                       voiceController.isListening)
             ? 'Đang nghe...'
             : 'Main';
-        final icon = singleSentenceModeActive
-            ? switch (conversationController.phase) {
-                ConversationPhase.recording => Icons.stop_rounded,
-                ConversationPhase.processing => Icons.sync_rounded,
-                _ when conversationController.isPlaybackPlaying =>
-                  Icons.volume_up_rounded,
-                _ => Icons.mic_rounded,
-              }
-            : isSpeakingMode
+        final icon = isSpeakingMode
             ? switch (speakingState) {
                 MainSpeakingSessionState.ready => Icons.mic_rounded,
                 MainSpeakingSessionState.recording => Icons.hearing_rounded,
@@ -109,9 +82,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
 
         return Semantics(
           button: true,
-          label: singleSentenceModeActive
-              ? '$label. Bấm ngắn để bắt đầu hoặc kết thúc câu; muốn dừng và gọi trợ lý, hãy nói dừng lại.'
-              : canActivate
+          label: canActivate
               ? 'Main, gọi Bi cô để chọn tính năng'
               : isSpeakingMode
               ? '$label, ứng dụng sẽ tự động chuyển sang lượt tiếp theo'
