@@ -74,6 +74,12 @@ abstract interface class CommunicationRouteAwareAudioPlaybackService {
   void setCommunicationRouteActive(bool active);
 }
 
+/// Optional playback-speed control for translated speech. This affects only
+/// playback, not ASR, translation, TTS generation, or network latency.
+abstract interface class PlaybackRateAwareAudioPlaybackService {
+  void setPlaybackRate(double rate);
+}
+
 class JustAudioPlaybackService
     implements
         AudioPlaybackService,
@@ -81,7 +87,8 @@ class JustAudioPlaybackService
         ProgressAwareAudioPlaybackService,
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService,
-        CommunicationRouteAwareAudioPlaybackService {
+        CommunicationRouteAwareAudioPlaybackService,
+        PlaybackRateAwareAudioPlaybackService {
   static Future<void>? _assetCacheRefresh;
   // A modest boost makes speech clearer on small speakers and HFP headsets
   // without pushing typical voice recordings into heavy clipping.
@@ -130,6 +137,15 @@ class JustAudioPlaybackService
   Uri? _loadedResolvedUri;
   int _preloadRevision = 0;
   bool _communicationRouteActive = false;
+  double _playbackRate = 1.0;
+
+  @override
+  void setPlaybackRate(double rate) {
+    final safeRate = rate.clamp(0.4, 2.0).toDouble();
+    if (_playbackRate == safeRate) return;
+    _playbackRate = safeRate;
+    _browserPlayback?.setPlaybackRate(safeRate);
+  }
 
   @override
   void setCommunicationRouteActive(bool active) {
@@ -237,6 +253,7 @@ class JustAudioPlaybackService
       },
     );
 
+    await _player.setSpeed(_playbackRate);
     final playback = _player.play();
     unawaited(
       playback.catchError((Object error, StackTrace stackTrace) {

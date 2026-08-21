@@ -332,6 +332,12 @@ class _HtmlAudioElementPlayback implements BrowserAudioPlayback {
   }
 
   @override
+  void setPlaybackRate(double rate) {
+    _element.defaultPlaybackRate = rate;
+    _element.playbackRate = rate;
+  }
+
+  @override
   Future<void> dispose() async {
     if (_disposed) {
       return;

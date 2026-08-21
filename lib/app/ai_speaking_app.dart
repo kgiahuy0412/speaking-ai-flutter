@@ -82,7 +82,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
-  bool _singleSentenceMainModeActive = false;
   bool _isResumingActiveModule = false;
   bool _startupProfileLoading = true;
   bool _startupPermissionRequestInProgress = false;
@@ -563,21 +562,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_startupReady) {
       return MainButtonActionResult.busy;
     }
-    final controller = _controller;
     // Physical BLE MAIN and the on-screen MAIN must always have identical
     // application behavior. Hardware loopback remains available through the
     // explicit buttons in Settings; enabling diagnostics must not hijack the
     // child's physical MAIN button.
-    if (_singleSentenceMainModeActive) {
-      if (controller == null ||
-          controller.isPreparingMicrophone ||
-          controller.phase == ConversationPhase.processing ||
-          controller.isPlaybackPlaying) {
-        return MainButtonActionResult.busy;
-      }
-      await controller.onPrimaryAction();
-      return MainButtonActionResult.accepted;
-    }
     final activated = await _activateMainAssistant();
     return activated
         ? MainButtonActionResult.accepted
@@ -645,27 +633,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_startupReady) {
       return MainButtonActionResult.busy;
     }
-    if (_singleSentenceMainModeActive) {
-      final controller = _controller;
-      if (controller == null) {
-        return MainButtonActionResult.ignored;
-      }
-      final stopped = await controller.cancelSingleSentenceMainAction();
-      if (stopped == MainButtonActionResult.busy) {
-        return stopped;
-      }
-      if (mounted) {
-        setState(() => _singleSentenceMainModeActive = false);
-      } else {
-        _singleSentenceMainModeActive = false;
-      }
-      await controller.speakAssistantPrompt('Đã dừng.');
-      final activated = await _activateMainAssistant();
-      return activated
-          ? MainButtonActionResult.accepted
-          : MainButtonActionResult.busy;
-    }
-
     final voiceController = _voiceNavigationController;
     if (voiceController?.isMainButtonSessionActive ?? false) {
       // Keep an interrupted lesson paused. Otherwise the controller listener
@@ -755,30 +722,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   void _startMainSpeakingMode() {
-    if (mounted) {
-      setState(() => _singleSentenceMainModeActive = false);
-    } else {
-      _singleSentenceMainModeActive = false;
-    }
     _hasMainSpeakingTurnStarted = false;
     _isHandlingMainSpeakingNoSpeech = false;
     _mainSpeakingSessionController.enter();
     _synchronizeMainSpeakingSession();
-  }
-
-  void _setSingleSentenceMainMode(bool active) {
-    if (_singleSentenceMainModeActive == active) {
-      return;
-    }
-    if (active && _mainSpeakingSessionController.isActive) {
-      _hasMainSpeakingTurnStarted = false;
-      _mainSpeakingSessionController.exit();
-    }
-    if (mounted) {
-      setState(() => _singleSentenceMainModeActive = active);
-    } else {
-      _singleSentenceMainModeActive = active;
-    }
   }
 
   void _synchronizeMainSpeakingSession() {
@@ -929,7 +876,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final voiceController = _voiceNavigationController;
     final controller = _controller;
     final isContinuousSpeaking = _mainSpeakingSessionController.isActive;
-    final isSingleSentenceSpeaking = _singleSentenceMainModeActive;
     if (voiceController == null ||
         controller == null ||
         _isFinishingMainSpeakingMode) {
@@ -946,18 +892,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (isContinuousSpeaking) {
       _mainSpeakingSessionController.exit();
     }
-    if (isSingleSentenceSpeaking) {
-      _setSingleSentenceMainMode(false);
-    }
     controller.clearMessage();
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      // Both commands leave translation before any English result is shown or
-      // played, then open the normal MAIN assistant routing menu. Keeping one
-      // exit path avoids making the child remember a different gesture for the
-      // single-sentence and continuous modes.
+      // Leave continuous translation before any English result is shown or
+      // played, then open the normal MAIN assistant routing menu.
       await voiceController.activateOtherLearningFromSpeaking();
     } finally {
       _isFinishingMainSpeakingMode = false;
@@ -1086,7 +1027,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                       voiceController: voiceController,
                       conversationController: controller,
                       speakingSessionController: _mainSpeakingSessionController,
-                      singleSentenceModeActive: _singleSentenceMainModeActive,
                       isActivationPending: _isActivatingMainAssistant,
                       onPressed: () async {
                         await _mainButtonCoordinator.handle(
@@ -1117,7 +1057,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onThemeModeChanged: _setThemeMode,
                   onChildAgeChanged: _setChildAge,
                   onMainSpeakingModeStarted: _startMainSpeakingMode,
-                  onSingleSentenceModeChanged: _setSingleSentenceMainMode,
                   onModalVisibilityChanged: _setGlobalModalOpen,
                 ),
               ),
