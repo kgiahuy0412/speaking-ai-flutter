@@ -25,11 +25,11 @@
    certificate or provisioning profile.
 5. Create the Codemagic environment group `homi_app_store`. Add these non-secret
    release values (mark them secure if company policy requires it):
-   - `PRIVACY_POLICY_URL`
-   - `TERMS_URL`
-   - `SUPPORT_URL`
-   - `AI_SUBPROCESSORS`
-   - `DATA_RETENTION_SUMMARY`
+   - `PRIVACY_POLICY_URL=https://homi-app-privacy.lixiang22.chatgpt.site/privacy`
+   - `TERMS_URL=https://homi-app-privacy.lixiang22.chatgpt.site/terms`
+   - `SUPPORT_URL=https://homi-app-privacy.lixiang22.chatgpt.site/support`
+   - `AI_SUBPROCESSORS=HOMI backend trên Railway và Cloudflare`
+   - `DATA_RETENTION_SUMMARY=Audio nhận dạng on-device chỉ giữ trong phiên và không tải lên backend. Audio chỉ gửi khi Cloudflare/Batch dự phòng cần thiết. Transcript, lịch sử tương tác và chẩn đoán hiện được lưu đến khi phụ huynh rút chấp thuận/yêu cầu xóa; thời hạn tự động cụ thể đang được hoàn thiện trước phát hành công khai.`
 6. Run the `ios-app-store` workflow manually. It fetches the matching App Store
    signing assets, builds a signed IPA and uploads it to App Store Connect.
 7. Wait for Apple processing, add internal TestFlight testers, and test on real
