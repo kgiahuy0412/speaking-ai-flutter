@@ -93,6 +93,27 @@ void main() {
     await speechInput.dispose();
     await input.dispose();
   });
+
+  test('uses the phone recorder when the iOS HFP route fails', () async {
+    final input = _FakeChunkedAudioInput();
+    final hfp = _FakeHfpAudioControl(
+      startError: const HfpAudioException('HFP route unavailable'),
+    );
+    final speechInput = _createSpeechInput(
+      input,
+      _FakeRepository(_FakeBatchSession(transcript: 'học từ mới')),
+      hfp: hfp,
+    );
+
+    await speechInput.start();
+
+    expect(hfp.startRouteCount, 1);
+    expect(hfp.disconnectCount, 1);
+    expect(input.started, isTrue);
+    await speechInput.cancel();
+    await speechInput.dispose();
+    await input.dispose();
+  });
 }
 
 WebBatchStreamingSpeechInput _createSpeechInput(
@@ -113,8 +134,12 @@ WebBatchStreamingSpeechInput _createSpeechInput(
 );
 
 class _FakeHfpAudioControl implements HfpAudioControl {
+  _FakeHfpAudioControl({this.startError});
+
+  final Object? startError;
   int startRouteCount = 0;
   int stopRouteCount = 0;
+  int disconnectCount = 0;
 
   @override
   bool get usesBrowserAudioInput => false;
@@ -131,7 +156,11 @@ class _FakeHfpAudioControl implements HfpAudioControl {
       const Stream<BluetoothAudioStatus>.empty();
 
   @override
-  Future<void> startAudioRoute() async => startRouteCount += 1;
+  Future<void> startAudioRoute() async {
+    startRouteCount += 1;
+    final error = startError;
+    if (error != null) throw error;
+  }
 
   @override
   Future<void> stopAudioRoute() async => stopRouteCount += 1;
@@ -146,7 +175,9 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   Future<void> connect(HfpAudioDevice device) async {}
 
   @override
-  Future<void> disconnect() async {}
+  Future<void> disconnect() async {
+    disconnectCount += 1;
+  }
 
   @override
   Future<void> dispose() async {}

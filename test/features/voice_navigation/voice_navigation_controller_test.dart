@@ -122,6 +122,81 @@ void main() {
     },
   );
 
+  test(
+    'Main command window starts only after the microphone is ready',
+    () async {
+      final speechInput = _DelayedNavigationSpeechInput();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        commandWindowDuration: const Duration(milliseconds: 15),
+        microphoneStartTimeout: const Duration(seconds: 2),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 530));
+
+      expect(controller.isStarting, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(controller.isAwaitingCommand, isTrue);
+
+      speechInput.releaseStart();
+      await Future<void>.delayed(const Duration(milliseconds: 3));
+      expect(controller.isListening, isTrue);
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main retries a failed microphone start after the start future clears',
+    () async {
+      final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 1);
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        microphoneStartRetryDelay: const Duration(milliseconds: 2),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 550));
+
+      expect(speechInput.startCount, 2);
+      expect(controller.isListening, isTrue);
+      expect(controller.lastError, isNull);
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main stops automatic retries and exposes the microphone error',
+    () async {
+      final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 10);
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        microphoneStartRetryDelay: const Duration(milliseconds: 2),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 570));
+
+      expect(speechInput.startCount, 3);
+      expect(controller.isMainButtonSessionActive, isFalse);
+      expect(controller.continuousRequested, isFalse);
+      expect(controller.lastErrorMessage, contains('Không mở được micro'));
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
   test('Main activation never exposes a transient inactive session', () async {
     final speechInput = _FakeNavigationSpeechInput();
     final controller = VoiceNavigationController(
@@ -538,14 +613,14 @@ void main() {
       );
 
       expect(await controller.activateFromMainButton(), isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 15));
+      await Future<void>.delayed(const Duration(milliseconds: 530));
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
       ]);
       expect(controller.isMainButtonSessionActive, isTrue);
 
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 520));
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
@@ -674,15 +749,20 @@ void main() {
   );
 
   test('returns to wake-word mode when the command window expires', () async {
+    final speechInput = _FakeNavigationSpeechInput();
     final controller = VoiceNavigationController(
-      speechInput: _FakeNavigationSpeechInput(),
+      speechInput: speechInput,
       voicePromptService: _FakeVoicePromptService(),
-      commandWindowDuration: const Duration(milliseconds: 5),
+      commandWindowDuration: const Duration(milliseconds: 30),
+      partialIntentDebounce: const Duration(milliseconds: 1),
     );
 
-    expect(await controller.dispatchRecognizedText('Hey Pico'), isTrue);
+    controller.startContinuous();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    speechInput.emitPartial('Hey Pico');
+    await Future<void>.delayed(const Duration(milliseconds: 115));
     expect(controller.isAwaitingCommand, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 15));
+    await Future<void>.delayed(const Duration(milliseconds: 35));
 
     expect(controller.isAwaitingCommand, isFalse);
     expect(
@@ -690,6 +770,7 @@ void main() {
       isFalse,
     );
     controller.dispose();
+    await speechInput.dispose();
   });
 
   test(
@@ -985,5 +1066,25 @@ class _DelayedNavigationSpeechInput implements StreamingSpeechInput {
     await _amplitudeController.close();
     await _completedController.close();
     await _partialTextController.close();
+  }
+}
+
+class _FailingNavigationSpeechInput extends _FakeNavigationSpeechInput {
+  _FailingNavigationSpeechInput({required this.failuresRemaining});
+
+  int failuresRemaining;
+  int startCount = 0;
+
+  @override
+  Future<void> start() async {
+    startCount += 1;
+    events.add('start');
+    if (failuresRemaining > 0) {
+      failuresRemaining -= 1;
+      throw const StreamingSpeechInputException(
+        'Không mở được micro thử nghiệm.',
+        code: 'TEST_MICROPHONE_START_FAILED',
+      );
+    }
   }
 }

@@ -34,6 +34,8 @@ class VoiceNavigationController extends ChangeNotifier {
     Duration partialIntentDebounce = const Duration(milliseconds: 160),
     Duration commandWindowDuration = const Duration(seconds: 6),
     Duration speechReadyCueTimeout = const Duration(milliseconds: 900),
+    Duration microphoneStartTimeout = const Duration(seconds: 15),
+    Duration microphoneStartRetryDelay = const Duration(seconds: 2),
     ActiveLearningCommandHandler? activeLearningCommandHandler,
   }) : _speechInput = speechInput,
        _resolver = resolver,
@@ -45,6 +47,8 @@ class VoiceNavigationController extends ChangeNotifier {
        _partialIntentDebounce = partialIntentDebounce,
        _commandWindowDuration = commandWindowDuration,
        _speechReadyCueTimeout = speechReadyCueTimeout,
+       _microphoneStartTimeout = microphoneStartTimeout,
+       _microphoneStartRetryDelay = microphoneStartRetryDelay,
        _activeLearningCommandHandler = activeLearningCommandHandler {
     _completedSubscription = _speechInput.completed.listen((_) {
       if (_listening && !_finishing) {
@@ -71,6 +75,7 @@ class VoiceNavigationController extends ChangeNotifier {
   static const Duration _mainCommandListenRestartDelay = Duration(
     milliseconds: 500,
   );
+  static const int _maximumMicrophoneStartAttempts = 3;
 
   final StreamingSpeechInput _speechInput;
   final VoiceNavigationIntentResolver _resolver;
@@ -82,6 +87,8 @@ class VoiceNavigationController extends ChangeNotifier {
   final Duration _partialIntentDebounce;
   final Duration _commandWindowDuration;
   final Duration _speechReadyCueTimeout;
+  final Duration _microphoneStartTimeout;
+  final Duration _microphoneStartRetryDelay;
   final ActiveLearningCommandHandler? _activeLearningCommandHandler;
 
   StreamSubscription<void>? _completedSubscription;
@@ -108,6 +115,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   int _mainNoSpeechRetryCount = 0;
+  int _microphoneStartAttemptCount = 0;
   Object? _lastError;
 
   bool get isListening => _listening;
@@ -126,6 +134,14 @@ class VoiceNavigationController extends ChangeNotifier {
       _buttonCommandSession || _mainButtonActivationInProgress;
   MainVoiceAssistantStage get mainAssistantStage => _mainAssistantFlow.stage;
   Object? get lastError => _lastError;
+  String get activeInputLabel => _speechInput.label;
+  String? get lastErrorMessage {
+    final error = _lastError;
+    if (error == null) return null;
+    if (error is StreamingSpeechInputException) return error.message;
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Không mở được micro. Con thử lại nhé.' : message;
+  }
 
   void setIntentHandler(VoiceNavigationIntentHandler? handler) {
     _intentHandler = handler;
@@ -138,6 +154,9 @@ class VoiceNavigationController extends ChangeNotifier {
   void startContinuous({Duration delay = Duration.zero}) {
     if (_disposed) {
       return;
+    }
+    if (!_continuousRequested) {
+      _lastError = null;
     }
     _continuousRequested = true;
     _scheduleSession(delay);
@@ -189,8 +208,10 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed) {
         return false;
       }
+      _lastError = null;
       _buttonCommandSession = true;
       _mainNoSpeechRetryCount = 0;
+      _microphoneStartAttemptCount = 0;
       _continuousRequested = true;
       final generation = _generation;
       final acknowledged = await _acknowledgeWakeWord(
@@ -223,6 +244,7 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _buttonCommandSession = false;
     _mainNoSpeechRetryCount = 0;
+    _microphoneStartAttemptCount = 0;
     _mainAssistantFlow.reset();
     _generation += 1;
     _cancelTimers();
@@ -441,7 +463,6 @@ class VoiceNavigationController extends ChangeNotifier {
       return false;
     }
     _awaitingCommand = true;
-    _armCommandWindowTimer(generation);
     notifyListeners();
     return true;
   }
@@ -544,17 +565,24 @@ class VoiceNavigationController extends ChangeNotifier {
       return;
     }
     _starting = true;
-    _lastError = null;
     notifyListeners();
     try {
       final commandInput = _speechInput is CommandStreamingSpeechInput
           ? _speechInput as CommandStreamingSpeechInput
           : null;
-      if (commandInput != null) {
-        await commandInput.startCommandRecognition();
-      } else {
-        await _speechInput.start();
-      }
+      final startOperation = commandInput != null
+          ? commandInput.startCommandRecognition()
+          : _speechInput.start();
+      await startOperation.timeout(
+        _microphoneStartTimeout,
+        onTimeout: () async {
+          await _speechInput.cancel().catchError((Object _) {});
+          throw const StreamingSpeechInputException(
+            'Micro mất quá nhiều thời gian để sẵn sàng. HOMI sẽ thử lại.',
+            code: 'NAVIGATION_MICROPHONE_START_TIMEOUT',
+          );
+        },
+      );
       if (_disposed || !_continuousRequested || generation != _generation) {
         await _speechInput.cancel().catchError((Object _) {});
         return;
@@ -562,6 +590,8 @@ class VoiceNavigationController extends ChangeNotifier {
       _starting = false;
       _listening = true;
       _speechDetected = false;
+      _microphoneStartAttemptCount = 0;
+      _lastError = null;
       // The prompt may have finished well before iOS finishes preparing the
       // HFP route or Apple Speech. Reset the command window here so the child
       // always receives the full listening period after the mic is truly open.
@@ -582,13 +612,39 @@ class VoiceNavigationController extends ChangeNotifier {
       _lastError = error;
       _starting = false;
       _listening = false;
+      _microphoneStartAttemptCount += 1;
+      final exhaustedMainAttempts =
+          _buttonCommandSession &&
+          _microphoneStartAttemptCount >= _maximumMicrophoneStartAttempts;
+      if (exhaustedMainAttempts) {
+        _awaitingCommand = false;
+        _buttonCommandSession = false;
+        _continuousRequested = false;
+        _mainNoSpeechRetryCount = 0;
+        _mainAssistantFlow.reset();
+      }
       if (!_disposed) {
         notifyListeners();
       }
-      if (_continuousRequested && generation == _generation) {
-        _scheduleSession(const Duration(seconds: 2));
+      if (!exhaustedMainAttempts &&
+          _continuousRequested &&
+          generation == _generation) {
+        _scheduleRetryAfterFailedStart(generation, _microphoneStartRetryDelay);
       }
     }
+  }
+
+  void _scheduleRetryAfterFailedStart(int generation, Duration delay) {
+    _restartTimer?.cancel();
+    _restartTimer = Timer(delay, () {
+      _restartTimer = null;
+      if (_disposed || generation != _generation || !_continuousRequested) {
+        return;
+      }
+      // This timer runs after the failed start future has completed, so
+      // _scheduleSession no longer rejects the retry as an active start.
+      _scheduleSession(Duration.zero);
+    });
   }
 
   void _handlePartialText(String text) {

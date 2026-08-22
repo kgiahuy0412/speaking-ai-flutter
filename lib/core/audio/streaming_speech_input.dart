@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'audio_input.dart';
@@ -907,8 +908,19 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
         // Selecting H20 in Settings only remembers the preferred input. The
         // HFP route must be activated immediately before AVAudioEngine opens
         // its input node or Apple Speech can remain on an inactive route.
-        await routeControl.startAudioRoute();
-        _audioRouteStarted = true;
+        try {
+          await routeControl.startAudioRoute();
+          _audioRouteStarted = true;
+        } catch (error) {
+          // HFP is an enhancement, not a prerequisite. If iOS cannot finish
+          // switching the Bluetooth profile, clear the preferred input and
+          // keep opening Apple Speech with the built-in iPhone microphone.
+          debugPrint(
+            'HOMI iOS HFP route failed; falling back to phone mic: $error',
+          );
+          await routeControl.stopAudioRoute().catchError((Object _) {});
+          await routeControl.disconnect().catchError((Object _) {});
+        }
       }
       if (commandMode) {
         await super.startCommandRecognition();
@@ -970,6 +982,7 @@ class NativeFirstStreamingSpeechInput
     required this.fallback,
     this.disposePrimary = false,
     this.disposeFallback = true,
+    this.primaryStartTimeout = const Duration(seconds: 8),
   }) {
     _subscriptions.addAll(<StreamSubscription<dynamic>>[
       primary.amplitudeDbfs.listen((value) {
@@ -1008,6 +1021,7 @@ class NativeFirstStreamingSpeechInput
   final StreamingSpeechInput fallback;
   final bool disposePrimary;
   final bool disposeFallback;
+  final Duration primaryStartTimeout;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
@@ -1065,7 +1079,16 @@ class NativeFirstStreamingSpeechInput
     if (!nativeDisabled && await primary.checkAvailability()) {
       _active = primary;
       try {
-        await _startInput(primary, commandMode: commandMode);
+        await _startInput(primary, commandMode: commandMode).timeout(
+          primaryStartTimeout,
+          onTimeout: () async {
+            await primary.cancel().catchError((Object _) {});
+            throw const StreamingSpeechInputException(
+              'Apple Speech mất quá nhiều thời gian để sẵn sàng.',
+              code: 'NATIVE_SPEECH_START_TIMEOUT',
+            );
+          },
+        );
         return;
       } catch (error) {
         _fallbackReason = error is StreamingSpeechInputException

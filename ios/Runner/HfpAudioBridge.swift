@@ -15,6 +15,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private var phase = "idle"
   private var message: String?
   private var routeActive = false
+  private var routeActivationGeneration = 0
   private var notificationTokens: [NSObjectProtocol] = []
   private var disposed = false
 
@@ -143,6 +144,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func disconnect(_ result: @escaping FlutterResult) {
     do {
+      routeActivationGeneration += 1
       routeActive = false
       try audioSession.setPreferredInput(nil)
       selectedInputId = nil
@@ -157,6 +159,8 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   }
 
   private func startAudioRoute(_ result: @escaping FlutterResult) {
+    routeActivationGeneration += 1
+    let activationGeneration = routeActivationGeneration
     do {
       try configureSession(activate: true)
       if let selectedInputId {
@@ -166,26 +170,86 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
         try audioSession.setPreferredInput(selected)
         selectedInputName = selected.portName
       }
-      guard let hfpInput = activeBluetoothInput() else {
-        throw HfpBridgeError.routeUnavailable
-      }
+      routeActive = false
+      phase = "connecting"
+      message = "Đang kích hoạt đường mic HFP…"
+      emitStatus()
+      waitForActiveBluetoothInput(
+        generation: activationGeneration,
+        attemptsRemaining: 15,
+        result: result
+      )
+    } catch {
+      fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: error)
+    }
+  }
+
+  private func waitForActiveBluetoothInput(
+    generation: Int,
+    attemptsRemaining: Int,
+    result: @escaping FlutterResult
+  ) {
+    guard !disposed, generation == routeActivationGeneration else {
+      result(
+        FlutterError(
+          code: "HFP_ROUTE_CANCELLED",
+          message: HfpBridgeError.routeCancelled.localizedDescription,
+          details: nil
+        )
+      )
+      return
+    }
+    if let hfpInput = activeBluetoothInput() {
       selectedInputId = hfpInput.uid
       selectedInputName = hfpInput.portName
       routeActive = true
       phase = "recording"
       message = "Đang dùng mic HFP cho Apple Native Speech hoặc Batch dự phòng."
       emitStatus()
-      // Give the route a short settling window before the record plugin opens
-      // its input node, mirroring the Android SCO bridge behavior.
-      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(250)) {
+      // Let AVAudioSession finish settling before AVAudioEngine opens its tap.
+      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
+        guard let self,
+          !self.disposed,
+          generation == self.routeActivationGeneration
+        else {
+          result(
+            FlutterError(
+              code: "HFP_ROUTE_CANCELLED",
+              message: HfpBridgeError.routeCancelled.localizedDescription,
+              details: nil
+            )
+          )
+          return
+        }
         result(nil)
       }
-    } catch {
-      fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: error)
+      return
+    }
+    guard attemptsRemaining > 0 else {
+      fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: HfpBridgeError.routeUnavailable)
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+      guard let self else {
+        result(
+          FlutterError(
+            code: "HFP_ROUTE_CANCELLED",
+            message: HfpBridgeError.routeCancelled.localizedDescription,
+            details: nil
+          )
+        )
+        return
+      }
+      self.waitForActiveBluetoothInput(
+        generation: generation,
+        attemptsRemaining: attemptsRemaining - 1,
+        result: result
+      )
     }
   }
 
   private func stopAudioRoute() {
+    routeActivationGeneration += 1
     routeActive = false
     if let selectedInputId,
       bluetoothInputs().contains(where: { $0.uid == selectedInputId })
@@ -325,6 +389,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 private enum HfpBridgeError: LocalizedError {
   case inputUnavailable
   case routeUnavailable
+  case routeCancelled
 
   var errorDescription: String? {
     switch self {
@@ -332,6 +397,8 @@ private enum HfpBridgeError: LocalizedError {
       return "Mic HFP không còn khả dụng. Hãy kết nối lại trong Cài đặt Bluetooth iOS."
     case .routeUnavailable:
       return "iOS chưa định tuyến được mic Bluetooth HFP."
+    case .routeCancelled:
+      return "Yêu cầu mở mic HFP đã được thay thế hoặc hủy."
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
@@ -159,8 +160,18 @@ class WebBatchStreamingSpeechInput
     try {
       final routeControl = _audioRouteControl;
       if (routeControl != null && routeControl.status.isConnected) {
-        await routeControl.startAudioRoute();
-        _audioRouteStarted = true;
+        try {
+          await routeControl.startAudioRoute();
+          _audioRouteStarted = true;
+        } catch (error) {
+          // Batch must remain usable when iOS cannot activate H20 HFP. Clear
+          // the stale preferred route and let the recorder use the phone mic.
+          debugPrint(
+            'HOMI Batch HFP route failed; falling back to phone mic: $error',
+          );
+          await routeControl.stopAudioRoute().catchError((Object _) {});
+          await routeControl.disconnect().catchError((Object _) {});
+        }
       }
       startFuture = _audioInput.startChunked();
       _audioStartFuture = startFuture;

@@ -3,7 +3,7 @@ import Darwin
 import Flutter
 import Speech
 
-enum IOSNativeSpeechEngineKind: String {
+enum IOSNativeSpeechEngineKind: String, Sendable {
   case speechAnalyzer = "speech_analyzer"
   case sfSpeechRecognizer = "sf_speech_recognizer"
 }
@@ -53,6 +53,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var disposed = false
   private var beganSpeech = false
   private var generation = 0
+  private var startRequestGeneration = 0
+  private var preparedEngine: IOSNativeSpeechEngineKind?
+  private var enginePreparationTask: Task<IOSNativeSpeechEngineKind?, Never>?
   private var latestText = ""
   private var latestAlternatives: [String] = []
   private var latestConfidence = -1.0
@@ -95,6 +98,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     case "speech.stop":
       stop(result)
     case "speech.cancel":
+      startRequestGeneration += 1
       cancelCurrent(deleteRecording: true)
       result(true)
     default:
@@ -123,11 +127,17 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   }
 
   private func start(commandMode: Bool, result: @escaping FlutterResult) {
+    startRequestGeneration += 1
+    let requestGeneration = startRequestGeneration
     if active {
       cancelCurrent(deleteRecording: true)
     }
     ensureSpeechAuthorization { [weak self] authorization in
       guard let self else { return }
+      guard self.isCurrentStartRequest(requestGeneration) else {
+        self.completeCancelledStart(result)
+        return
+      }
       guard authorization == .authorized else {
         result(
           FlutterError(
@@ -140,6 +150,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       }
       self.ensureMicrophonePermission { [weak self] granted in
         guard let self else { return }
+        guard self.isCurrentStartRequest(requestGeneration) else {
+          self.completeCancelledStart(result)
+          return
+        }
         guard granted else {
           result(
             FlutterError(
@@ -156,9 +170,23 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
             guard let engine = await self.prepareBestEngine() else {
               throw IOSSpeechBridgeError.onDeviceUnavailable
             }
-            try await self.beginRecognition(engine: engine, commandMode: commandMode)
+            guard self.isCurrentStartRequest(requestGeneration) else {
+              throw IOSSpeechBridgeError.startCancelled
+            }
+            try await self.beginRecognition(
+              engine: engine,
+              commandMode: commandMode,
+              startRequestGeneration: requestGeneration
+            )
+            guard self.isCurrentStartRequest(requestGeneration) else {
+              throw IOSSpeechBridgeError.startCancelled
+            }
             result(true)
           } catch {
+            guard self.isCurrentStartRequest(requestGeneration) else {
+              self.completeCancelledStart(result)
+              return
+            }
             self.cancelCurrent(deleteRecording: true)
             result(
               FlutterError(
@@ -224,9 +252,16 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
 
   private func beginRecognition(
     engine: IOSNativeSpeechEngineKind,
-    commandMode: Bool
+    commandMode: Bool,
+    startRequestGeneration: Int
   ) async throws {
+    guard isCurrentStartRequest(startRequestGeneration) else {
+      throw IOSSpeechBridgeError.startCancelled
+    }
     cancelCurrent(deleteRecording: true)
+    guard isCurrentStartRequest(startRequestGeneration) else {
+      throw IOSSpeechBridgeError.startCancelled
+    }
     generation += 1
     let currentGeneration = generation
     activeEngine = engine
@@ -250,6 +285,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         throw IOSSpeechBridgeError.onDeviceUnavailable
       }
       let session = try await IOSSpeechAnalyzerSession(locale: Self.locale)
+      guard isCurrentStartRequest(startRequestGeneration) else {
+        await session.cancel()
+        throw IOSSpeechBridgeError.startCancelled
+      }
       session.onUpdate = { [weak self] transcript in
         DispatchQueue.main.async {
           guard let self, self.active, self.generation == currentGeneration else { return }
@@ -272,8 +311,14 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       try startLegacyRecognizer(commandMode: commandMode, generation: currentGeneration)
     }
 
+    guard isCurrentStartRequest(startRequestGeneration) else {
+      throw IOSSpeechBridgeError.startCancelled
+    }
     try installAudioTap(generation: currentGeneration)
     audioEngine.prepare()
+    guard isCurrentStartRequest(startRequestGeneration) else {
+      throw IOSSpeechBridgeError.startCancelled
+    }
     try audioEngine.start()
     readyAt = Date()
     emit(type: "speech.ready")
@@ -563,6 +608,20 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     }
   }
 
+  private func isCurrentStartRequest(_ requestGeneration: Int) -> Bool {
+    !disposed && requestGeneration == startRequestGeneration
+  }
+
+  private func completeCancelledStart(_ result: @escaping FlutterResult) {
+    result(
+      FlutterError(
+        code: "SPEECH_START_CANCELLED",
+        message: IOSSpeechBridgeError.startCancelled.localizedDescription,
+        details: nil
+      )
+    )
+  }
+
   @MainActor
   private func selectedEngineWithoutInstallingAssets() async -> IOSNativeSpeechEngineKind? {
     let legacyAvailable = onDeviceLegacyRecognizer() != nil
@@ -582,6 +641,27 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
 
   @MainActor
   private func prepareBestEngine() async -> IOSNativeSpeechEngineKind? {
+    if let preparedEngine {
+      return preparedEngine
+    }
+    if let enginePreparationTask {
+      return await enginePreparationTask.value
+    }
+    let preparationTask = Task<IOSNativeSpeechEngineKind?, Never> { @MainActor [weak self] in
+      guard let self else { return nil }
+      return await self.loadBestEngine()
+    }
+    enginePreparationTask = preparationTask
+    let engine = await preparationTask.value
+    enginePreparationTask = nil
+    if let engine {
+      preparedEngine = engine
+    }
+    return engine
+  }
+
+  @MainActor
+  private func loadBestEngine() async -> IOSNativeSpeechEngineKind? {
     if #available(iOS 26.0, *) {
       let analyzerSupported = await IOSSpeechAnalyzerSession.supports(locale: Self.locale)
       if analyzerSupported {
@@ -696,6 +776,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
 
   func dispose() {
     guard !disposed else { return }
+    startRequestGeneration += 1
     cancelCurrent(deleteRecording: true)
     disposed = true
     eventSink = nil
@@ -921,6 +1002,7 @@ private enum IOSSpeechBridgeError: LocalizedError {
   case audioConversionUnavailable
   case audioConversionFailed
   case noSpeech
+  case startCancelled
 
   var errorDescription: String? {
     switch self {
@@ -936,6 +1018,8 @@ private enum IOSSpeechBridgeError: LocalizedError {
       return "iOS chưa chuyển đổi được âm thanh cho Apple Speech."
     case .noSpeech:
       return "Mình chưa nghe rõ. Con thử nói lại gần micro hơn nhé."
+    case .startCancelled:
+      return "Lượt mở Apple Speech đã được thay thế hoặc hủy."
     }
   }
 }

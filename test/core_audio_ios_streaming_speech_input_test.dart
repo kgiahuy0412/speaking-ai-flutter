@@ -213,6 +213,54 @@ void main() {
     expect(route.status.routeActive, isFalse);
   });
 
+  test('iOS MAIN falls back to the phone mic when HFP route fails', () async {
+    const methodChannel = MethodChannel('test_ios_native_hfp_fallback');
+    final events = StreamController<dynamic>.broadcast();
+    final route = _FakeHfpAudioControl(
+      startError: const HfpAudioException('HFP route unavailable'),
+    );
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var nativeStartCount = 0;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          nativeStartCount += 1;
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{
+              'type': 'speech.ready',
+              'engine': 'sf_speech_recognizer',
+              'audioRoute': 'in=[BuiltInMic:iPhone]',
+            });
+          });
+          return true;
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+      await route.dispose();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      audioRouteControl: route,
+    );
+    addTearDown(input.dispose);
+
+    await input.startCommandRecognition();
+
+    expect(route.startRouteCount, 1);
+    expect(route.disconnectCount, 1);
+    expect(nativeStartCount, 1);
+  });
+
   test('MAIN uses Batch only when Apple native cannot start', () async {
     final primary = _FakeSpeechInput(
       failOnStart: const StreamingSpeechInputException(
@@ -253,6 +301,27 @@ void main() {
       capture.extraBenchmark?['nativeSpeechFallbackReason'],
       'IOS_NATIVE_SPEECH_UNAVAILABLE',
     );
+    await input.dispose();
+  });
+
+  test('MAIN falls back when Apple native start does not complete', () async {
+    final startGate = Completer<void>();
+    final primary = _FakeSpeechInput(startGate: startGate);
+    final fallback = _FakeSpeechInput();
+    final input = NativeFirstStreamingSpeechInput(
+      primary: primary,
+      fallback: fallback,
+      primaryStartTimeout: const Duration(milliseconds: 5),
+      disposePrimary: true,
+      disposeFallback: true,
+    );
+
+    await input.startCommandRecognition();
+
+    expect(primary.commandStartCount, 1);
+    expect(fallback.commandStartCount, 1);
+    expect(input.label, fallback.label);
+    startGate.complete();
     await input.dispose();
   });
 
@@ -319,6 +388,7 @@ class _FakeSpeechInput
     this.failOnStart,
     this.stopError,
     this.fallbackAudio,
+    this.startGate,
     this.capture = const StreamingSpeechCapture(
       sourceText: 'xin chào',
       duration: Duration(seconds: 1),
@@ -332,6 +402,7 @@ class _FakeSpeechInput
   final StreamingSpeechInputException? failOnStart;
   final StreamingSpeechInputException? stopError;
   final AudioCapture? fallbackAudio;
+  final Completer<void>? startGate;
   final StreamingSpeechCapture capture;
   final StreamController<double> _amplitude =
       StreamController<double>.broadcast();
@@ -359,6 +430,7 @@ class _FakeSpeechInput
   @override
   Future<void> start() async {
     startCount += 1;
+    await startGate?.future;
     final error = failOnStart;
     if (error != null) throw error;
   }
@@ -407,6 +479,9 @@ class _FakeRecordedFallbackSpeechInput extends _FakeSpeechInput
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {
+  _FakeHfpAudioControl({this.startError});
+
+  final Object? startError;
   final StreamController<BluetoothAudioStatus> _statuses =
       StreamController<BluetoothAudioStatus>.broadcast(sync: true);
   BluetoothAudioStatus _status = const BluetoothAudioStatus(
@@ -417,6 +492,7 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   );
   int startRouteCount = 0;
   int stopRouteCount = 0;
+  int disconnectCount = 0;
 
   @override
   bool get usesBrowserAudioInput => false;
@@ -437,11 +513,15 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   Future<void> connect(HfpAudioDevice device) async {}
 
   @override
-  Future<void> disconnect() async {}
+  Future<void> disconnect() async {
+    disconnectCount += 1;
+  }
 
   @override
   Future<void> startAudioRoute() async {
     startRouteCount += 1;
+    final error = startError;
+    if (error != null) throw error;
     _status = const BluetoothAudioStatus(
       phase: BluetoothAudioConnectionPhase.recording,
       deviceId: 'h20-hfp',
