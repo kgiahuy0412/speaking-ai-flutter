@@ -85,11 +85,16 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       inputTypes: session.currentRoute.inputs.map(\.portType),
       outputTypes: session.currentRoute.outputs.map(\.portType)
     )
+    // HfpAudioBridge has already configured this shared AVAudioSession. Keep
+    // the stable route intact while the assistant prompt and ready cue play;
+    // mutating it again can drop both HFP and the H20 BLE control connection.
+    if hasCurrentTwoWayHfp {
+      promptUsesHfpRoute = true
+      return
+    }
     if let preferredHfpInput {
       promptUsesHfpRoute = true
-      if !hasCurrentTwoWayHfp {
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-      }
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
       try? session.setCategory(
         .playAndRecord,
         mode: .voiceChat,
@@ -139,10 +144,11 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
 
   private func releasePromptAudioSession() {
     let session = AVAudioSession.sharedInstance()
+    // A prompt on HFP borrows the route owned by HfpAudioBridge. Do not touch
+    // its output override or active state during the prompt-to-mic hand-off.
+    if promptUsesHfpRoute { return }
     try? session.overrideOutputAudioPort(.none)
-    if !promptUsesHfpRoute {
-      try? session.setActive(false, options: .notifyOthersOnDeactivation)
-    }
+    try? session.setActive(false, options: .notifyOthersOnDeactivation)
   }
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {

@@ -228,6 +228,23 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private func startAudioRoute(_ result: @escaping FlutterResult) {
     routeActivationGeneration += 1
     let activationGeneration = routeActivationGeneration
+    // H20 can already own a confirmed two-way HFP route after Settings or a
+    // previous MAIN turn. Re-applying the category, active flag and preferred
+    // input here makes iOS renegotiate the Classic Bluetooth profile. On the
+    // combined H20 firmware that renegotiation also interrupts the BLE control
+    // link, so the physical MAIN packet is followed by an unnecessary reconnect.
+    if let activeInput = activeTwoWayHfpInput(),
+      selectedInputId == nil || selectedInputId == activeInput.uid
+    {
+      selectedInputId = activeInput.uid
+      selectedInputName = activeInput.portName
+      routeActive = true
+      phase = "recording"
+      message = "Đang dùng lại mic và loa H20 trên route bluetoothHFP hai chiều."
+      emitStatus()
+      result(nil)
+      return
+    }
     do {
       try configureSession(activate: true)
       if let selectedInputId {

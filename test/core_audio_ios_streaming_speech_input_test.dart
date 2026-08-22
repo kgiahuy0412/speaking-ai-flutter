@@ -9,6 +9,26 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('iOS forwards native speech activity and preserves dBFS', () async {
+    final events = StreamController<dynamic>.broadcast();
+    final input = AndroidStreamingSpeechInput(
+      eventStream: events.stream,
+      platformName: 'iOS',
+    );
+    addTearDown(() async {
+      await input.dispose();
+      await events.close();
+    });
+
+    final beganSpeech = input.speechStarted.first;
+    events.add(<String, dynamic>{'type': 'speech.begin'});
+    await beganSpeech;
+
+    final amplitude = input.amplitudeDbfs.first;
+    events.add(<String, dynamic>{'type': 'speech.rms', 'rmsDb': -18.5});
+    expect(await amplitude, -18.5);
+  });
+
   test('iOS native speech keeps Apple latency and privacy telemetry', () async {
     const methodChannel = MethodChannel('test_ios_native_speech');
     final events = StreamController<dynamic>.broadcast();

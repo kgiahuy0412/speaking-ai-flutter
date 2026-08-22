@@ -158,6 +158,36 @@ void main() {
   );
 
   test(
+    'HFP speech activity extends MAIN command window before transcript',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 250),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => controller.isListening);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      speechInput.emitSpeechStarted();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      expect(controller.isListening, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      expect(
+        voicePrompt.spokenTexts,
+        isNot(contains(MainVoiceAssistantFlow.noSpeechRetryPrompt)),
+      );
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
     'Main retries a failed microphone start after the start future clears',
     () async {
       final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 1);
@@ -947,6 +977,7 @@ Future<ListeningContentCatalog> _loadMainAssistantContent() async {
 class _FakeNavigationSpeechInput
     implements
         StreamingSpeechInput,
+        SpeechActivityStreamingSpeechInput,
         AlternativeTranscriptStreamingSpeechInput,
         NativeSpeechDiagnostics {
   _FakeNavigationSpeechInput({
@@ -956,6 +987,8 @@ class _FakeNavigationSpeechInput
 
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
+  final StreamController<void> _speechStartedController =
+      StreamController<void>.broadcast();
   final StreamController<void> _completedController =
       StreamController<void>.broadcast();
   final StreamController<String> _partialTextController =
@@ -977,11 +1010,16 @@ class _FakeNavigationSpeechInput
 
   void emitCompleted() => _completedController.add(null);
 
+  void emitSpeechStarted() => _speechStartedController.add(null);
+
   @override
   String get label => 'Navigation ASR';
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;
+
+  @override
+  Stream<void> get speechStarted => _speechStartedController.stream;
 
   @override
   Stream<void> get completed => _completedController.stream;
@@ -1047,6 +1085,7 @@ class _FakeNavigationSpeechInput
   @override
   Future<void> dispose() async {
     await _amplitudeController.close();
+    await _speechStartedController.close();
     await _completedController.close();
     await _partialTextController.close();
     await _alternativeTextController.close();

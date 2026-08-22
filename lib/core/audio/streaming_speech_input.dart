@@ -123,6 +123,15 @@ abstract interface class StreamingSpeechInput {
   Future<void> dispose();
 }
 
+/// Optional signal emitted as soon as the native audio engine detects speech.
+///
+/// A partial transcript can arrive noticeably later (especially on an HFP
+/// route), so navigation must not use transcript delivery as its only proof
+/// that the child has started answering.
+abstract interface class SpeechActivityStreamingSpeechInput {
+  Stream<void> get speechStarted;
+}
+
 /// Optional fast profile for short navigation commands.
 ///
 /// Conversation recording continues to use [StreamingSpeechInput.start] so a
@@ -225,6 +234,7 @@ abstract interface class RecordedAudioStreamingSpeechInput {
 class AndroidStreamingSpeechInput
     implements
         StreamingSpeechInput,
+        SpeechActivityStreamingSpeechInput,
         RecordedAudioStreamingSpeechInput,
         CommandStreamingSpeechInput,
         AlternativeTranscriptStreamingSpeechInput,
@@ -261,6 +271,8 @@ class AndroidStreamingSpeechInput
   final Duration _readyTimeout;
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
+  final StreamController<void> _speechStartedController =
+      StreamController<void>.broadcast();
   final StreamController<void> _completedController =
       StreamController<void>.broadcast();
   final StreamController<String> _partialTextController =
@@ -304,6 +316,9 @@ class AndroidStreamingSpeechInput
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;
+
+  @override
+  Stream<void> get speechStarted => _speechStartedController.stream;
 
   @override
   Stream<void> get completed => _completedController.stream;
@@ -806,10 +821,21 @@ class AndroidStreamingSpeechInput
       }
       return;
     }
+    if (type == 'speech.begin') {
+      _speechStartedController.add(null);
+      return;
+    }
     if (type == 'speech.rms') {
       final rmsDb = (event['rmsDb'] as num?)?.toDouble() ?? -2;
-      final level = ((rmsDb + 2) / 12).clamp(0.0, 1.0);
-      _amplitudeController.add(-60 + (level * 60));
+      if (_platformName == 'iOS') {
+        // IOSSpeechRecognizerBridge already reports conventional dBFS
+        // (-60...0). Applying Android's positive RMS conversion flattened
+        // almost every iOS sample to -60 and hid real H20 microphone activity.
+        _amplitudeController.add(rmsDb.clamp(-60.0, 0.0));
+      } else {
+        final level = ((rmsDb + 2) / 12).clamp(0.0, 1.0);
+        _amplitudeController.add(-60 + (level * 60));
+      }
       return;
     }
 
@@ -1015,6 +1041,7 @@ class AndroidStreamingSpeechInput
     }
     await _eventSubscription.cancel();
     await _amplitudeController.close();
+    await _speechStartedController.close();
     await _completedController.close();
     await _partialTextController.close();
     await _transcriptAlternativesController.close();
@@ -1174,6 +1201,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
 class NativeFirstStreamingSpeechInput
     implements
         StreamingSpeechInput,
+        SpeechActivityStreamingSpeechInput,
         CommandStreamingSpeechInput,
         AlternativeTranscriptStreamingSpeechInput,
         NativeSpeechFallbackAudioProvider,
@@ -1216,6 +1244,26 @@ class NativeFirstStreamingSpeechInput
         }),
       );
     }
+    final primaryActivity = primary is SpeechActivityStreamingSpeechInput
+        ? primary as SpeechActivityStreamingSpeechInput
+        : null;
+    if (primaryActivity != null) {
+      _subscriptions.add(
+        primaryActivity.speechStarted.listen((_) {
+          if (identical(_active, primary)) _speechStartedController.add(null);
+        }),
+      );
+    }
+    final fallbackActivity = fallback is SpeechActivityStreamingSpeechInput
+        ? fallback as SpeechActivityStreamingSpeechInput
+        : null;
+    if (fallbackActivity != null) {
+      _subscriptions.add(
+        fallbackActivity.speechStarted.listen((_) {
+          if (identical(_active, fallback)) _speechStartedController.add(null);
+        }),
+      );
+    }
   }
 
   final StreamingSpeechInput primary;
@@ -1226,6 +1274,8 @@ class NativeFirstStreamingSpeechInput
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
+  final StreamController<void> _speechStartedController =
+      StreamController<void>.broadcast();
   final StreamController<void> _completedController =
       StreamController<void>.broadcast();
   final StreamController<String> _partialController =
@@ -1242,6 +1292,9 @@ class NativeFirstStreamingSpeechInput
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;
+
+  @override
+  Stream<void> get speechStarted => _speechStartedController.stream;
 
   @override
   Stream<void> get completed => _completedController.stream;
@@ -1453,6 +1506,7 @@ class NativeFirstStreamingSpeechInput
     if (disposeFallback) await fallback.dispose();
     if (disposePrimary) await primary.dispose();
     await _amplitudeController.close();
+    await _speechStartedController.close();
     await _completedController.close();
     await _partialController.close();
     await _alternativesController.close();

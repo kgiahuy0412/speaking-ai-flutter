@@ -58,6 +58,15 @@ class VoiceNavigationController extends ChangeNotifier {
     _partialTextSubscription = _speechInput.partialText.listen(
       _handlePartialText,
     );
+    _amplitudeSubscription = _speechInput.amplitudeDbfs.listen(
+      _handleAmplitude,
+    );
+    final activityInput = _speechInput is SpeechActivityStreamingSpeechInput
+        ? _speechInput as SpeechActivityStreamingSpeechInput
+        : null;
+    _speechActivitySubscription = activityInput?.speechStarted.listen((_) {
+      _markSpeechActivity();
+    });
     final alternativeInput =
         _speechInput is AlternativeTranscriptStreamingSpeechInput
         ? _speechInput as AlternativeTranscriptStreamingSpeechInput
@@ -93,6 +102,8 @@ class VoiceNavigationController extends ChangeNotifier {
 
   StreamSubscription<void>? _completedSubscription;
   StreamSubscription<String>? _partialTextSubscription;
+  StreamSubscription<double>? _amplitudeSubscription;
+  StreamSubscription<void>? _speechActivitySubscription;
   StreamSubscription<List<String>>? _alternativeTextSubscription;
   Timer? _restartTimer;
   Timer? _noSpeechTimer;
@@ -108,6 +119,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _listening = false;
   bool _finishing = false;
   bool _speechDetected = false;
+  int _speechActivitySamples = 0;
   bool _awaitingCommand = false;
   bool _acknowledgingWakeWord = false;
   bool _buttonCommandSession = false;
@@ -446,8 +458,8 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed || generation != _generation) {
       return false;
     }
-    _acknowledgingWakeWord = false;
     if (!openCommandWindow) {
+      _acknowledgingWakeWord = false;
       _awaitingCommand = false;
       notifyListeners();
       return true;
@@ -470,6 +482,10 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed || generation != _generation) {
       return false;
     }
+    // Keep the visible prompt state through the ready cue. The previous gap
+    // showed an idle "Main" button between the beep and microphone startup,
+    // even though the same activation was still in progress.
+    _acknowledgingWakeWord = false;
     final diagnostics = _speechInput is NativeSpeechDiagnostics
         ? _speechInput as NativeSpeechDiagnostics
         : null;
@@ -606,6 +622,7 @@ class VoiceNavigationController extends ChangeNotifier {
       _starting = false;
       _listening = true;
       _speechDetected = false;
+      _speechActivitySamples = 0;
       _microphoneStartAttemptCount = 0;
       _lastError = null;
       diagnostics?.reportNativeSpeechStage('microphone_listening');
@@ -682,9 +699,7 @@ class VoiceNavigationController extends ChangeNotifier {
     if (!_listening || text.trim().isEmpty) {
       return;
     }
-    _speechDetected = true;
-    _noSpeechTimer?.cancel();
-    _noSpeechTimer = null;
+    _markSpeechActivity();
 
     // A wake phrase can react from a partial result. Once awake, only explicit
     // action phrases use this fast path; short destination names still wait for
@@ -704,6 +719,34 @@ class VoiceNavigationController extends ChangeNotifier {
       _partialIntentTimer = null;
       unawaited(_finishFromPartialRecognition(generation, text));
     });
+  }
+
+  void _handleAmplitude(double dbfs) {
+    if (!_listening) return;
+    if (dbfs <= -42) {
+      _speechActivitySamples = 0;
+      return;
+    }
+    _speechActivitySamples += 1;
+    // Require two adjacent loud buffers so a route click or the tail of the
+    // ready cue does not count as the child's answer. speech.begin remains the
+    // immediate native fast path when Swift has already confirmed activity.
+    if (_speechActivitySamples >= 2) {
+      _markSpeechActivity();
+    }
+  }
+
+  void _markSpeechActivity() {
+    if (!_listening) return;
+    final firstActivity = !_speechDetected;
+    _speechDetected = true;
+    _noSpeechTimer?.cancel();
+    _noSpeechTimer = null;
+    if (firstActivity && _buttonCommandSession && _awaitingCommand) {
+      // Give Apple Speech a complete command window after the child actually
+      // starts talking; HFP audio can precede its first partial transcript.
+      _armCommandWindowTimer(_generation);
+    }
   }
 
   void _handleAlternativeTranscripts(List<String> candidates) {
@@ -894,6 +937,8 @@ class VoiceNavigationController extends ChangeNotifier {
     _cancelTimers();
     unawaited(_completedSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_amplitudeSubscription?.cancel());
+    unawaited(_speechActivitySubscription?.cancel());
     unawaited(_alternativeTextSubscription?.cancel());
     if (_ownsSpeechInput) {
       unawaited(_speechInput.dispose());

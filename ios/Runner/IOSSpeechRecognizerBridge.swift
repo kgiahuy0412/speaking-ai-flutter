@@ -643,6 +643,20 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func configureAudioSession(
     audioSource: IOSNativeSpeechAudioSource
   ) async throws {
+    // Prompt playback and HfpAudioBridge already leave H20 on a valid
+    // playAndRecord/voiceChat route. Reusing it is an atomic hand-off to
+    // AVAudioEngine; reconfiguring this shared session here caused iOS to tear
+    // down HFP and the H20 BLE control link immediately after the ready cue.
+    if audioSource == .hfp,
+      IOSHfpRoutePolicy.isTwoWayHfpRoute(
+        inputTypes: audioSession.currentRoute.inputs.map(\.portType),
+        outputTypes: audioSession.currentRoute.outputs.map(\.portType)
+      )
+    {
+      emitStage("audio_session_active")
+      emitStage("route_confirmed")
+      return
+    }
     if audioSource == .builtInMic {
       // Clear any preferred HFP route left by Settings/H20 before applying a
       // category that deliberately excludes Bluetooth recording inputs.
