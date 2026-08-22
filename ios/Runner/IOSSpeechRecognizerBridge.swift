@@ -24,6 +24,14 @@ struct IOSNativeSpeechEngineSelector {
   }
 }
 
+struct IOSNativeSpeechTaskHintSelector {
+  static func select(commandMode: Bool) -> SFSpeechRecognitionTaskHint {
+    // MAIN accepts normal navigation phrases, so both modes use dictation.
+    // `.confirmation` can terminate Vietnamese recognition immediately.
+    .dictation
+  }
+}
+
 /// Native, on-device-first speech recognition for iOS.
 ///
 /// iOS 26 uses SpeechAnalyzer when the Vietnamese model is supported. Older
@@ -332,7 +340,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     let request = SFSpeechAudioBufferRecognitionRequest()
     request.shouldReportPartialResults = true
     request.requiresOnDeviceRecognition = true
-    request.taskHint = commandMode ? .confirmation : .dictation
+    request.taskHint = IOSNativeSpeechTaskHintSelector.select(
+      commandMode: commandMode
+    )
     recognitionRequest = request
     recognitionTask = recognizer.recognitionTask(with: request) { [weak self] recognitionResult, error in
       DispatchQueue.main.async {

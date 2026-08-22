@@ -1,5 +1,6 @@
 import Flutter
 @testable import Runner
+import Speech
 import UIKit
 import XCTest
 
@@ -80,6 +81,13 @@ class RunnerTests: XCTestCase {
         speechAnalyzerSupported: false,
         sfOnDeviceSupported: false
       )
+    )
+  }
+
+  func testIOSMainUsesDictationForVietnameseNavigationPhrases() {
+    XCTAssertEqual(
+      IOSNativeSpeechTaskHintSelector.select(commandMode: true),
+      .dictation
     )
   }
 

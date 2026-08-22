@@ -161,6 +161,7 @@ void main() {
     const methodChannel = MethodChannel('test_ios_native_hfp_route');
     final events = StreamController<dynamic>.broadcast();
     final route = _FakeHfpAudioControl();
+    bool? receivedCommandMode;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(methodChannel, (call) async {
@@ -168,6 +169,9 @@ void main() {
         case 'speech.isAvailable':
           return true;
         case 'speech.start':
+          receivedCommandMode =
+              (call.arguments as Map<Object?, Object?>?)?['commandMode']
+                  as bool?;
           scheduleMicrotask(() {
             events.add(<String, dynamic>{
               'type': 'speech.ready',
@@ -198,6 +202,11 @@ void main() {
     await input.startCommandRecognition();
     expect(route.startRouteCount, 1);
     expect(route.status.routeActive, isTrue);
+    expect(
+      receivedCommandMode,
+      isFalse,
+      reason: 'MAIN must use the same iOS dictation path as manual recording.',
+    );
 
     events.add(<String, dynamic>{
       'type': 'speech.final',

@@ -892,8 +892,12 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   Future<void> start() => _startWithAudioRoute(commandMode: false);
 
   @override
+  // iOS navigation accepts normal phrases (for example "học từ vựng"), not
+  // confirmation-only speech. Reuse the dictation start that is already
+  // proven by the conversation button; the controller still owns the shorter
+  // MAIN command window and intent handling.
   Future<void> startCommandRecognition() =>
-      _startWithAudioRoute(commandMode: true);
+      _startWithAudioRoute(commandMode: false);
 
   Future<void> _startWithAudioRoute({required bool commandMode}) async {
     // Clear a stale native recognition turn before mutating AVAudioSession.

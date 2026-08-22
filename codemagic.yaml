@@ -43,6 +43,16 @@ workflows:
             fi
           done
 
+          case "$BACKEND_BASE_URL" in
+            https://*) ;;
+            *) echo "BACKEND_BASE_URL must be an HTTPS URL"; exit 1 ;;
+          esac
+
+          curl --fail --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 10 --max-time 20 \
+            "$BACKEND_BASE_URL/api/health" >/dev/null
+
           for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL; do
             case "${!name}" in
               https://*) ;;

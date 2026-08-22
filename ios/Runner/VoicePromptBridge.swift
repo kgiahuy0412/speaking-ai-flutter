@@ -89,6 +89,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     }
     completeWaitingResult()
     completeReadyCue()
+    releasePromptAudioSession()
   }
 
   private func completeWaitingResult() {
@@ -98,11 +99,19 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    releasePromptAudioSession()
     completeWaitingResult()
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    releasePromptAudioSession()
     completeWaitingResult()
+  }
+
+  private func releasePromptAudioSession() {
+    let session = AVAudioSession.sharedInstance()
+    try? session.overrideOutputAudioPort(.none)
+    try? session.setActive(false, options: .notifyOthersOnDeactivation)
   }
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {
@@ -189,6 +198,11 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     readyCueToken = nil
     let result = readyCueResult
     readyCueResult = nil
+    // Hand AVAudioSession back before Dart opens AVAudioEngine. Without this
+    // explicit release, the MAIN prompt can leave the speaker session active
+    // and the following recognition start fails even though manual recording
+    // works moments later.
+    releasePromptAudioSession()
     result?(nil)
   }
 
