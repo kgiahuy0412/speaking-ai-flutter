@@ -19,10 +19,12 @@
    `.p8` once and keep its Issuer ID and Key ID outside Git.
 3. In Codemagic, add the Apple Developer Portal integration and name it exactly
    `innotrik_app_store_connect`, matching `codemagic.yaml`.
-4. In Codemagic **Code signing identities**, generate or upload an Apple
-   Distribution certificate, then fetch/upload an App Store provisioning
-   profile for `com.innotrik.aispeaking`. The API key alone is not a signing
-   certificate or provisioning profile.
+4. The signed workflow uses the connected API key to fetch or create an Apple
+   Distribution certificate and an App Store provisioning profile for
+   `com.innotrik.aispeaking`. If Apple reports that the Distribution certificate
+   limit has been reached, remove an unused certificate in Apple Developer or
+   add an existing Codemagic-generated certificate under **Code signing
+   identities**.
 5. Create the Codemagic environment group `homi_app_store`. Add these non-secret
    release values (mark them secure if company policy requires it):
    - `PRIVACY_POLICY_URL=https://homi-app-privacy.lixiang22.chatgpt.site/privacy`

@@ -12,10 +12,8 @@ workflows:
         - homi_app_store
       flutter: 3.44.6
       xcode: 26.6
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.innotrik.aispeaking
       vars:
+        BUNDLE_ID: com.innotrik.aispeaking
         BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
         USE_DEMO_BACKEND: "false"
         CHILD_AGE: "6"
@@ -76,9 +74,22 @@ workflows:
           fi
           flutter test $NON_GOLDEN_TESTS
 
-      - name: Apply App Store signing profiles
+      - name: Initialize iOS signing keychain
         script: |
           set -euo pipefail
+          keychain initialize
+
+      - name: Fetch or create App Store signing files
+        script: |
+          set -euo pipefail
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Install certificate and apply App Store profile
+        script: |
+          set -euo pipefail
+          keychain add-certificates
           xcode-project use-profiles --project ios/Runner.xcodeproj
 
       - name: Build signed App Store IPA
