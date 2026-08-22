@@ -261,6 +261,51 @@ void main() {
     expect(nativeStartCount, 1);
   });
 
+  test(
+    'iOS clears HFP when Apple Speech fails after route activation',
+    () async {
+      const methodChannel = MethodChannel('test_ios_native_start_failure');
+      final events = StreamController<dynamic>.broadcast();
+      final route = _FakeHfpAudioControl();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(methodChannel, (call) async {
+        switch (call.method) {
+          case 'speech.isAvailable':
+            return true;
+          case 'speech.start':
+            throw PlatformException(
+              code: 'IOS_NATIVE_SPEECH_START_FAILED',
+              message: 'AVAudioEngine could not open HFP input',
+            );
+          case 'speech.cancel':
+            return true;
+        }
+        return null;
+      });
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(methodChannel, null);
+        await events.close();
+        await route.dispose();
+      });
+
+      final input = IOSStreamingSpeechInput(
+        methodChannel: methodChannel,
+        eventStream: events.stream,
+        audioRouteControl: route,
+      );
+      addTearDown(input.dispose);
+
+      await expectLater(
+        input.startCommandRecognition(),
+        throwsA(isA<StreamingSpeechInputException>()),
+      );
+      expect(route.startRouteCount, 1);
+      expect(route.stopRouteCount, 1);
+      expect(route.disconnectCount, 1);
+    },
+  );
+
   test('MAIN uses Batch only when Apple native cannot start', () async {
     final primary = _FakeSpeechInput(
       failOnStart: const StreamingSpeechInputException(

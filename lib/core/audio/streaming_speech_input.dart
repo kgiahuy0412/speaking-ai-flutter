@@ -929,6 +929,12 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
       }
     } catch (_) {
       await _stopAudioRoute();
+      // If Apple Speech fails after HFP became active, leaving the preferred
+      // Bluetooth input selected makes the Batch fallback attempt the same
+      // broken route again. Clear it so the fallback can immediately open the
+      // built-in iPhone microphone instead of looping on HFP for another
+      // command-window timeout.
+      await routeControl?.disconnect().catchError((Object _) {});
       rethrow;
     }
   }

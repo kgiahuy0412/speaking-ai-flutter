@@ -95,6 +95,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   int? _pendingStartupAge;
   String? _startupPermissionError;
   DateTime? _lastAiv0AutoConnectAttempt;
+  DateTime? _suppressH20AutoConnectUntil;
+  bool _restoreHfpAfterPhysicalMain = false;
+  bool _isRestoringHfpAfterPhysicalMain = false;
 
   bool get _bluetoothPermissionRequired {
     return !kIsWeb &&
@@ -370,10 +373,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   Future<void> _autoConnectH20Ble() async {
     final control = _aiv0BleControl;
     final controller = _controller;
-    if (control == null || controller == null || controller.isBusy) {
+    final voiceController = _voiceNavigationController;
+    final now = DateTime.now();
+    if (control == null ||
+        controller == null ||
+        controller.isBusy ||
+        _isActivatingMainAssistant ||
+        (voiceController?.isMainButtonSessionActive ?? false) ||
+        (voiceController?.isActive ?? false) ||
+        (_suppressH20AutoConnectUntil?.isAfter(now) ?? false)) {
       return;
     }
-    final now = DateTime.now();
     final lastAttempt = _lastAiv0AutoConnectAttempt;
     if (lastAttempt != null &&
         now.difference(lastAttempt) < const Duration(seconds: 10)) {
@@ -396,6 +406,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     for (var attempt = 0; attempt < 3; attempt += 1) {
       if (attempt > 0) {
         await Future<void>.delayed(const Duration(milliseconds: 600));
+      }
+      final currentVoiceController = _voiceNavigationController;
+      if ((_suppressH20AutoConnectUntil?.isAfter(DateTime.now()) ?? false) ||
+          _isActivatingMainAssistant ||
+          (currentVoiceController?.isMainButtonSessionActive ?? false) ||
+          (currentVoiceController?.isActive ?? false)) {
+        return;
       }
       final hfpConnected = await controller.autoConnectH20Hfp(
         bleDeviceName:
@@ -660,7 +677,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
   }
 
-  Future<bool> _activateMainAssistant() async {
+  Future<bool> _activateMainAssistant({String? inputLabelOverride}) async {
     if (!_startupReady || !_voiceAccessEnabled) {
       return false;
     }
@@ -698,6 +715,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       final activated = await voiceController.activateFromMainButton(
         activeLearning: hasActiveModule,
         activeLearningKind: _activeLearningModules.activeKind,
+        inputLabelOverride: inputLabelOverride,
       );
       if (!activated && _activeModulePausedForMain) {
         await _resumeActiveModuleAfterMain();
@@ -716,11 +734,45 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_startupReady || !_voiceAccessEnabled) {
       return MainButtonActionResult.busy;
     }
-    // Physical BLE MAIN and the on-screen MAIN must always have identical
-    // application behavior. Hardware loopback remains available through the
-    // explicit buttons in Settings; enabling diagnostics must not hijack the
-    // child's physical MAIN button.
-    final activated = await _activateMainAssistant();
+    String? inputLabelOverride;
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        event.source == MainButtonSource.ble) {
+      // A physical MAIN press may arrive while the H20 diagnostics sheet is
+      // open. Dismiss it first so the child can see the microphone state on the
+      // global MAIN button instead of listening behind an opaque modal.
+      if (_isGlobalModalOpen) {
+        await (_navigatorKey.currentState?.maybePop() ??
+            Future<bool>.value(false));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      }
+
+      // Do not let an app-resume callback start a new BLE scan while the MAIN
+      // command owns the microphone. H20 firmware 1.0.0 drops its BLE link when
+      // iOS switches the accessory to HFP, so use the phone microphone for this
+      // short navigation command and restore the remembered HFP input later.
+      _suppressH20AutoConnectUntil = DateTime.now().add(
+        const Duration(seconds: 45),
+      );
+      final controller = _controller;
+      if (controller != null) {
+        final shouldRestore = await controller
+            .preparePhoneMicrophoneForPhysicalMain()
+            .timeout(const Duration(seconds: 2), onTimeout: () => false);
+        _restoreHfpAfterPhysicalMain =
+            _restoreHfpAfterPhysicalMain || shouldRestore;
+      }
+      inputLabelOverride = 'Mic iPhone (giữ BLE H20)';
+    }
+
+    // Physical BLE MAIN and the on-screen MAIN share the same assistant flow;
+    // only the iOS audio route preparation above differs for radio stability.
+    final activated = await _activateMainAssistant(
+      inputLabelOverride: inputLabelOverride,
+    );
+    if (!activated && _restoreHfpAfterPhysicalMain) {
+      unawaited(_restoreHfpSelectionAfterPhysicalMain());
+    }
     return activated
         ? MainButtonActionResult.accepted
         : MainButtonActionResult.busy;
@@ -749,14 +801,52 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   void _synchronizeMainAssistantSession() {
     final voiceController = _voiceNavigationController;
-    if (!_activeModulePausedForMain ||
-        _isActivatingMainAssistant ||
-        voiceController == null) {
+    if (voiceController == null) {
       return;
     }
     if (!voiceController.isMainButtonSessionActive &&
         !voiceController.isActive) {
-      unawaited(_resumeActiveModuleAfterMain());
+      if (_restoreHfpAfterPhysicalMain) {
+        unawaited(_restoreHfpSelectionAfterPhysicalMain());
+      }
+      if (_activeModulePausedForMain && !_isActivatingMainAssistant) {
+        unawaited(_resumeActiveModuleAfterMain());
+      }
+    }
+  }
+
+  Future<void> _restoreHfpSelectionAfterPhysicalMain() async {
+    if (!_restoreHfpAfterPhysicalMain ||
+        _isRestoringHfpAfterPhysicalMain ||
+        !mounted) {
+      return;
+    }
+    _isRestoringHfpAfterPhysicalMain = true;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      final controller = _controller;
+      final ble = _aiv0BleControl;
+      if (controller == null ||
+          ble == null ||
+          controller.isBusy ||
+          !controller.canUseAiv0Ble) {
+        return;
+      }
+      for (var attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+        final restored = await controller.autoConnectH20Hfp(
+          bleDeviceName:
+              ble.status.deviceName ?? controller.aiv0BleStatus.deviceName,
+        );
+        if (restored) {
+          _restoreHfpAfterPhysicalMain = false;
+          return;
+        }
+      }
+    } finally {
+      _isRestoringHfpAfterPhysicalMain = false;
     }
   }
 

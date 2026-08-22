@@ -117,6 +117,7 @@ class VoiceNavigationController extends ChangeNotifier {
   int _mainNoSpeechRetryCount = 0;
   int _microphoneStartAttemptCount = 0;
   Object? _lastError;
+  String? _activeInputLabelOverride;
 
   bool get isListening => _listening;
   bool get isStarting => _starting;
@@ -134,7 +135,8 @@ class VoiceNavigationController extends ChangeNotifier {
       _buttonCommandSession || _mainButtonActivationInProgress;
   MainVoiceAssistantStage get mainAssistantStage => _mainAssistantFlow.stage;
   Object? get lastError => _lastError;
-  String get activeInputLabel => _speechInput.label;
+  String get activeInputLabel =>
+      _activeInputLabelOverride ?? _speechInput.label;
   String? get lastErrorMessage {
     final error = _lastError;
     if (error == null) return null;
@@ -170,11 +172,13 @@ class VoiceNavigationController extends ChangeNotifier {
   Future<bool> activateFromMainButton({
     bool activeLearning = false,
     ActiveLearningModuleKind? activeLearningKind,
+    String? inputLabelOverride,
   }) async {
     return _activateMainAssistantFlow(
       activeLearning
           ? _mainAssistantFlow.beginActiveLearning
           : _mainAssistantFlow.begin,
+      inputLabelOverride: inputLabelOverride,
     );
   }
 
@@ -197,7 +201,10 @@ class VoiceNavigationController extends ChangeNotifier {
     );
   }
 
-  Future<bool> _activateMainAssistantFlow(String Function() beginFlow) async {
+  Future<bool> _activateMainAssistantFlow(
+    String Function() beginFlow, {
+    String? inputLabelOverride,
+  }) async {
     if (_disposed) {
       return false;
     }
@@ -208,6 +215,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed) {
         return false;
       }
+      _activeInputLabelOverride = inputLabelOverride;
       _lastError = null;
       _buttonCommandSession = true;
       _mainNoSpeechRetryCount = 0;

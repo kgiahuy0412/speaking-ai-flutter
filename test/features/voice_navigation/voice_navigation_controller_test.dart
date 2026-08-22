@@ -67,7 +67,12 @@ void main() {
     VoiceNavigationIntent? receivedIntent;
     controller.setIntentHandler((intent) => receivedIntent = intent);
 
-    expect(await controller.activateFromMainButton(), isTrue);
+    expect(
+      await controller.activateFromMainButton(
+        inputLabelOverride: 'Mic iPhone (giữ BLE H20)',
+      ),
+      isTrue,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 520));
 
     expect(voicePrompt.spokenTexts, <String>[
@@ -76,6 +81,7 @@ void main() {
     expect(voicePrompt.readyCueCount, 1);
     expect(controller.isAwaitingCommand, isTrue);
     expect(controller.isListening, isTrue);
+    expect(controller.activeInputLabel, 'Mic iPhone (giữ BLE H20)');
     expect(
       await controller.dispatchRecognizedText('Con ghi muốn luyện nói'),
       isTrue,

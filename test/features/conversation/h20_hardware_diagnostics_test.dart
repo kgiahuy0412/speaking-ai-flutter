@@ -185,6 +185,28 @@ void main() {
   });
 
   test(
+    'physical MAIN suspends HFP so iOS can keep the BLE control link',
+    () async {
+      final hfp = _FakeHfpAudioControl();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        hfpAudioControl: hfp,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+
+      expect(await controller.preparePhoneMicrophoneForPhysicalMain(), isTrue);
+      expect(hfp.stopRouteCount, 1);
+      expect(hfp.disconnectCount, 1);
+      expect(controller.usesHfpInput, isFalse);
+      expect(controller.transientMessage, contains('giữ kết nối BLE'));
+      controller.dispose();
+    },
+  );
+
+  test(
     'BLE long press stops once and release does not restart capture',
     () async {
       final aiv0 = _FakeAiv0BleControl(protocolConfirmed: true);
@@ -293,6 +315,7 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   );
   int startRouteCount = 0;
   int stopRouteCount = 0;
+  int disconnectCount = 0;
   HfpAudioDevice? connectedDevice;
 
   @override
@@ -323,7 +346,14 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   }
 
   @override
-  Future<void> disconnect() async {}
+  Future<void> disconnect() async {
+    disconnectCount += 1;
+    _status = const BluetoothAudioStatus(
+      phase: BluetoothAudioConnectionPhase.idle,
+      sampleRate: 16000,
+    );
+    _statuses.add(_status);
+  }
 
   @override
   Future<void> startAudioRoute() async {

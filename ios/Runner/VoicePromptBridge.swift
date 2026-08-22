@@ -1,17 +1,17 @@
 import AVFoundation
-import AudioToolbox
 import Flutter
 import Foundation
 
 /// Native iOS prompt output for the fixed MAIN assistant. Keeping prompts in
 /// AVSpeechSynthesizer avoids a network round trip before command recognition.
-final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
+final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
   private let channel: FlutterMethodChannel
   private let synthesizer = AVSpeechSynthesizer()
   private var waitingResult: FlutterResult?
   private var readyCueResult: FlutterResult?
   private var readyCueToken: UUID?
   private var readyCueFallback: DispatchWorkItem?
+  private var readyCuePlayer: AVAudioPlayer?
   private var disposed = false
 
   init(messenger: FlutterBinaryMessenger) {
@@ -56,7 +56,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
       return
     }
     stop()
-    configureAudioSession()
+    configurePromptAudioSession()
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: locale)
       ?? AVSpeechSynthesisVoice(language: "vi-VN")
@@ -70,14 +70,17 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
     synthesizer.speak(utterance)
   }
 
-  private func configureAudioSession() {
+  private func configurePromptAudioSession() {
     let session = AVAudioSession.sharedInstance()
+    try? session.setActive(false, options: .notifyOthersOnDeactivation)
     try? session.setCategory(
       .playAndRecord,
-      mode: .voiceChat,
-      options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+      mode: .default,
+      options: [.defaultToSpeaker, .duckOthers]
     )
+    try? session.setPreferredInput(nil)
     try? session.setActive(true)
+    try? session.overrideOutputAudioPort(.speaker)
   }
 
   private func stop() {
@@ -104,7 +107,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {
     completeReadyCue()
-    configureAudioSession()
+    configurePromptAudioSession()
 
     let token = UUID()
     readyCueToken = token
@@ -114,18 +117,64 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
     }
     readyCueFallback = fallback
 
-    AudioServicesPlaySystemSoundWithCompletion(1104) { [weak self] in
-      DispatchQueue.main.async {
-        self?.completeReadyCue(token: token)
+    do {
+      let player = try AVAudioPlayer(data: Self.makeReadyCueWavData())
+      player.delegate = self
+      player.volume = 1.0
+      player.numberOfLoops = 0
+      player.prepareToPlay()
+      readyCuePlayer = player
+      guard player.play() else {
+        throw ReadyCueError.playbackFailed
       }
+    } catch {
+      completeReadyCue(token: token)
+      return
     }
-    // Some iOS/HFP combinations do not deliver the system-sound completion
-    // callback. Release Flutter after a bounded cue interval so recognition
-    // can still start immediately after the prompt.
+
+    // AVAudioPlayer normally completes after 170 ms. Keep a bounded fallback
+    // so a route interruption can never prevent Apple Speech from opening.
     DispatchQueue.main.asyncAfter(
-      deadline: .now() + .milliseconds(650),
+      deadline: .now() + .milliseconds(380),
       execute: fallback
     )
+  }
+
+  func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    completeReadyCue()
+  }
+
+  private static func makeReadyCueWavData() -> Data {
+    let sampleRate: UInt32 = 44_100
+    let durationSeconds = 0.17
+    let sampleCount = Int(Double(sampleRate) * durationSeconds)
+    let dataByteCount = UInt32(sampleCount * MemoryLayout<Int16>.size)
+    var data = Data()
+    data.append(contentsOf: Array("RIFF".utf8))
+    data.appendLittleEndian(UInt32(36) + dataByteCount)
+    data.append(contentsOf: Array("WAVEfmt ".utf8))
+    data.appendLittleEndian(UInt32(16))
+    data.appendLittleEndian(UInt16(1))
+    data.appendLittleEndian(UInt16(1))
+    data.appendLittleEndian(sampleRate)
+    data.appendLittleEndian(sampleRate * UInt32(MemoryLayout<Int16>.size))
+    data.appendLittleEndian(UInt16(MemoryLayout<Int16>.size))
+    data.appendLittleEndian(UInt16(16))
+    data.append(contentsOf: Array("data".utf8))
+    data.appendLittleEndian(dataByteCount)
+
+    let frequency = 880.0
+    let fadeSamples = 220.0
+    for index in 0..<sampleCount {
+      let position = Double(index)
+      let fadeIn = min(1.0, position / fadeSamples)
+      let fadeOut = min(1.0, Double(sampleCount - index - 1) / fadeSamples)
+      let envelope = min(fadeIn, fadeOut)
+      let phase = 2.0 * Double.pi * frequency * position / Double(sampleRate)
+      let value = sin(phase) * envelope * 0.42 * Double(Int16.max)
+      data.appendLittleEndian(Int16(value.rounded()))
+    }
+    return data
   }
 
   private func completeReadyCue(token: UUID? = nil) {
@@ -134,6 +183,9 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
     }
     readyCueFallback?.cancel()
     readyCueFallback = nil
+    readyCuePlayer?.delegate = nil
+    readyCuePlayer?.stop()
+    readyCuePlayer = nil
     readyCueToken = nil
     let result = readyCueResult
     readyCueResult = nil
@@ -146,5 +198,18 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
     disposed = true
     synthesizer.delegate = nil
     channel.setMethodCallHandler(nil)
+  }
+}
+
+private enum ReadyCueError: Error {
+  case playbackFailed
+}
+
+private extension Data {
+  mutating func appendLittleEndian<T: FixedWidthInteger>(_ value: T) {
+    var littleEndianValue = value.littleEndian
+    Swift.withUnsafeBytes(of: &littleEndianValue) { bytes in
+      append(contentsOf: bytes)
+    }
   }
 }
