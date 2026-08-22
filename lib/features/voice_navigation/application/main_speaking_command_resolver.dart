@@ -12,7 +12,8 @@ class MainSpeakingCommandResolver {
       return null;
     }
 
-    if (_stopPhrases.contains(normalized)) {
+    final commandText = _stripPoliteSuffix(normalized);
+    if (_stopPhrases.contains(commandText)) {
       return MainSpeakingCommand.stop;
     }
 
@@ -54,7 +55,28 @@ class MainSpeakingCommandResolver {
     'con khong dich nua',
     'con khong muon dich nua',
     'thoat dich',
+    'hay dung lai',
+    'hay ngung lai',
+    'lam on dung lai',
+    'lam on ngung lai',
   };
+
+  static String _stripPoliteSuffix(String value) {
+    var result = value;
+    const suffixes = <String>[' nhe a', ' di a', ' nhe', ' di', ' a'];
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final suffix in suffixes) {
+        if (result.endsWith(suffix)) {
+          result = result.substring(0, result.length - suffix.length).trim();
+          changed = true;
+          break;
+        }
+      }
+    }
+    return result;
+  }
 
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');

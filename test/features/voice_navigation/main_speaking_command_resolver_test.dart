@@ -26,6 +26,11 @@ void main() {
       'Con muốn ngừng lại',
       'Con không dịch nữa',
       'Thoát dịch',
+      'Dừng dịch liên tục nhé',
+      'Con muốn dừng lại ạ',
+      'Hãy dừng lại',
+      'Làm ơn ngừng lại nhé ạ',
+      'Dừng lại đi ạ',
     ]) {
       expect(resolver.resolve(text), MainSpeakingCommand.stop);
     }

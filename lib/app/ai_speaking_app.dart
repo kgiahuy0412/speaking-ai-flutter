@@ -120,6 +120,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     WidgetsBinding.instance.addObserver(this);
     _config = AppConfig.fromEnvironment();
     _mainSpeakingSessionController = MainSpeakingSessionController();
+    _mainSpeakingSessionController.addListener(
+      _synchronizePendingMainSpeakingAudioHandoff,
+    );
     // Build the lightweight runtime before the first frame so the real home
     // screen appears immediately on both Android and web.
     _createRuntime();
@@ -379,6 +382,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         controller == null ||
         controller.isBusy ||
         _isActivatingMainAssistant ||
+        _mainSpeakingSessionController.isActive ||
         (voiceController?.isMainButtonSessionActive ?? false) ||
         (voiceController?.isActive ?? false) ||
         (_suppressH20AutoConnectUntil?.isAfter(now) ?? false)) {
@@ -410,6 +414,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       final currentVoiceController = _voiceNavigationController;
       if ((_suppressH20AutoConnectUntil?.isAfter(DateTime.now()) ?? false) ||
           _isActivatingMainAssistant ||
+          _mainSpeakingSessionController.isActive ||
           (currentVoiceController?.isMainButtonSessionActive ?? false) ||
           (currentVoiceController?.isActive ?? false)) {
         return;
@@ -806,7 +811,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     if (!voiceController.isMainButtonSessionActive &&
         !voiceController.isActive) {
-      if (_restoreHfpAfterPhysicalMain) {
+      if (_restoreHfpAfterPhysicalMain &&
+          !_mainSpeakingSessionController.isActive) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
       }
       if (_activeModulePausedForMain && !_isActivatingMainAssistant) {
@@ -818,12 +824,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   Future<void> _restoreHfpSelectionAfterPhysicalMain() async {
     if (!_restoreHfpAfterPhysicalMain ||
         _isRestoringHfpAfterPhysicalMain ||
+        !_canRestoreHfpAfterMainFlow ||
         !mounted) {
       return;
     }
     _isRestoringHfpAfterPhysicalMain = true;
     try {
       await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!_canRestoreHfpAfterMainFlow) {
+        return;
+      }
       final controller = _controller;
       final ble = _aiv0BleControl;
       if (controller == null ||
@@ -836,6 +846,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         if (attempt > 0) {
           await Future<void>.delayed(const Duration(milliseconds: 500));
         }
+        if (!_canRestoreHfpAfterMainFlow) {
+          return;
+        }
         final restored = await controller.autoConnectH20Hfp(
           bleDeviceName:
               ble.status.deviceName ?? controller.aiv0BleStatus.deviceName,
@@ -847,6 +860,27 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
     } finally {
       _isRestoringHfpAfterPhysicalMain = false;
+    }
+  }
+
+  bool get _canRestoreHfpAfterMainFlow {
+    final voiceController = _voiceNavigationController;
+    final conversationController = _controller;
+    return !_mainSpeakingSessionController.isActive &&
+        !_isStartingMainSpeakingTurn &&
+        !_isFinishingMainSpeakingMode &&
+        !_isHandlingMainSpeakingNoSpeech &&
+        !_isActivatingMainAssistant &&
+        !(conversationController?.isBusy ?? false) &&
+        !(conversationController?.isPlaybackPlaying ?? false) &&
+        !(voiceController?.isMainButtonSessionActive ?? false) &&
+        !(voiceController?.isActive ?? false);
+  }
+
+  void _synchronizePendingMainSpeakingAudioHandoff() {
+    if (!_mainSpeakingSessionController.isActive &&
+        _restoreHfpAfterPhysicalMain) {
+      unawaited(_restoreHfpSelectionAfterPhysicalMain());
     }
   }
 
@@ -908,6 +942,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     if (endedMainSpeakingSession) {
       await controller.speakAssistantPrompt('Đã dừng.');
+      if (_restoreHfpAfterPhysicalMain) {
+        unawaited(_restoreHfpSelectionAfterPhysicalMain());
+      }
       return MainButtonActionResult.accepted;
     }
 
@@ -988,6 +1025,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_mainSpeakingSessionController.isActive ||
         _isFinishingMainSpeakingMode ||
         _isHandlingMainSpeakingNoSpeech) {
+      if (!_mainSpeakingSessionController.isActive &&
+          _restoreHfpAfterPhysicalMain) {
+        unawaited(_restoreHfpSelectionAfterPhysicalMain());
+      }
       return;
     }
 
@@ -1033,14 +1074,47 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
 
     _isStartingMainSpeakingTurn = true;
+    var recordingStarted = false;
     try {
       await controller.startRecording(
         noSpeechTimeout: const Duration(seconds: 6),
         speakNoSpeechPrompt: false,
       );
-      _hasMainSpeakingTurnStarted = controller.isRecording;
+      recordingStarted = controller.isRecording;
+
+      // A stale/unsupported HFP route must not strand continuous translation
+      // at "Đang chuẩn bị". iOS can always retry the same turn with the phone
+      // microphone while BLE remains connected; HFP is restored only after the
+      // whole continuous session ends.
+      if (!recordingStarted &&
+          defaultTargetPlatform == TargetPlatform.iOS &&
+          controller.usesHfpInput &&
+          _mainSpeakingSessionController.isActive) {
+        final shouldRestore = await controller
+            .preparePhoneMicrophoneForPhysicalMain();
+        _restoreHfpAfterPhysicalMain =
+            _restoreHfpAfterPhysicalMain || shouldRestore;
+        _suppressH20AutoConnectUntil = DateTime.now().add(
+          const Duration(seconds: 45),
+        );
+        controller.clearMessage();
+        await controller.startRecording(
+          noSpeechTimeout: const Duration(seconds: 6),
+          speakNoSpeechPrompt: false,
+        );
+        recordingStarted = controller.isRecording;
+      }
+      _hasMainSpeakingTurnStarted = recordingStarted;
     } finally {
       _isStartingMainSpeakingTurn = false;
+    }
+
+    if (!recordingStarted && _mainSpeakingSessionController.isActive) {
+      await _finishMainSpeakingMode(
+        sayGoodbye: true,
+        goodbyeText:
+            'Cô chưa mở được micro để dịch liên tục. Con kiểm tra quyền micro rồi thử lại nhé.',
+      );
     }
   }
 
@@ -1108,6 +1182,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       if (mounted) {
         setState(() => _isActivatingMainAssistant = false);
       }
+      if (_restoreHfpAfterPhysicalMain) {
+        unawaited(_restoreHfpSelectionAfterPhysicalMain());
+      }
     }
   }
 
@@ -1144,13 +1221,22 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      // Leave continuous translation before any English result is shown or
-      // played, then open the normal MAIN assistant routing menu.
-      await voiceController.activateOtherLearningFromSpeaking();
+      // A stop command only ends hands-free translation. Requests to learn
+      // something else reopen the normal MAIN routing menu.
+      if (command == MainSpeakingCommand.stop && isContinuousSpeaking) {
+        await controller.speakAssistantPrompt('Đã dừng dịch liên tục.');
+      } else {
+        await voiceController.activateOtherLearningFromSpeaking();
+      }
     } finally {
       _isFinishingMainSpeakingMode = false;
       if (mounted) {
         setState(() => _isActivatingMainAssistant = false);
+      }
+      if (command == MainSpeakingCommand.stop &&
+          isContinuousSpeaking &&
+          _restoreHfpAfterPhysicalMain) {
+        unawaited(_restoreHfpSelectionAfterPhysicalMain());
       }
     }
   }
@@ -1231,6 +1317,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.removeListener(_synchronizeMainSpeakingSession);
+    _mainSpeakingSessionController.removeListener(
+      _synchronizePendingMainSpeakingAudioHandoff,
+    );
     _mainSpeakingSessionController.dispose();
     _voiceNavigationController?.removeListener(
       _synchronizeMainAssistantSession,

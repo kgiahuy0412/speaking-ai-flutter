@@ -811,7 +811,10 @@ class MainVoiceAssistantFlow {
   static bool _isSpeakingChoice(String normalized) =>
       _containsPhrase(normalized, 'luyen noi') ||
       _containsPhrase(normalized, 'luyen giao tiep') ||
-      _containsPhrase(normalized, 'noi chuyen');
+      _containsPhrase(normalized, 'noi chuyen') ||
+      _containsPhrase(normalized, 'dich lien tuc') ||
+      _containsPhrase(normalized, 'con muon noi') ||
+      normalized == 'noi';
 
   static bool _isTopicChoice(String normalized) =>
       _containsPhrase(normalized, 'bat dau bai hoc') ||

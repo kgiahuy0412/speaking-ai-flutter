@@ -22,6 +22,22 @@ void main() {
     expect(turn.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
   });
 
+  test('accepts short child-friendly continuous speaking choices', () async {
+    for (final choice in <String>['Nói', 'Con muốn nói', 'Dịch liên tục']) {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.begin();
+
+      final turn = await flow.handle(choice);
+
+      expect(
+        turn.navigationAfterPrompt?.destination,
+        VoiceNavigationDestination.conversation,
+        reason: choice,
+      );
+      expect(turn.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
+    }
+  });
+
   test('offers all three top-level choices from Main', () async {
     final introducedIds = <String>[];
     final vocabularyFlow = MainVoiceAssistantFlow(
