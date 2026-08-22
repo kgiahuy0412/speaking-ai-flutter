@@ -498,7 +498,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         supportsAndroidNativeSpeech
         ? AndroidStreamingSpeechInput()
         : supportsAppleNativeSpeech
-        ? IOSStreamingSpeechInput()
+        ? IOSStreamingSpeechInput(audioRouteControl: hfpAudioControl)
         : null;
     _nativeStreamingSpeechInput = streamingSpeechInput;
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;

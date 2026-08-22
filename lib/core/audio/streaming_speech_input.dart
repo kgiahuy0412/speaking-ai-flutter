@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 
 import 'audio_input.dart';
+import 'hfp_audio_control.dart';
 
 const _incompleteVietnameseEndings = <String>{
   'ba',
@@ -871,7 +872,9 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),
     super.eventStream,
-  }) : super(
+    HfpAudioControl? audioRouteControl,
+  }) : _audioRouteControl = audioRouteControl,
+       super(
          platformName: 'iOS',
          inputLabel: 'Apple Native Speech',
          // Keep the established backend contract while engine/platform detail
@@ -880,6 +883,76 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
          preferOnDevice: true,
          failOnRuntimeError: true,
        );
+
+  final HfpAudioControl? _audioRouteControl;
+  bool _audioRouteStarted = false;
+
+  @override
+  Future<void> start() => _startWithAudioRoute(commandMode: false);
+
+  @override
+  Future<void> startCommandRecognition() =>
+      _startWithAudioRoute(commandMode: true);
+
+  Future<void> _startWithAudioRoute({required bool commandMode}) async {
+    // Clear a stale native recognition turn before mutating AVAudioSession.
+    // NativeFirstStreamingSpeechInput normally does this already, but keeping
+    // the iOS input self-contained also protects direct conversation starts.
+    await super.cancel().catchError((Object _) {});
+    await _stopAudioRoute();
+
+    final routeControl = _audioRouteControl;
+    try {
+      if (routeControl != null && routeControl.status.isConnected) {
+        // Selecting H20 in Settings only remembers the preferred input. The
+        // HFP route must be activated immediately before AVAudioEngine opens
+        // its input node or Apple Speech can remain on an inactive route.
+        await routeControl.startAudioRoute();
+        _audioRouteStarted = true;
+      }
+      if (commandMode) {
+        await super.startCommandRecognition();
+      } else {
+        await super.start();
+      }
+    } catch (_) {
+      await _stopAudioRoute();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<StreamingSpeechCapture> stop() async {
+    try {
+      return await super.stop();
+    } finally {
+      await _stopAudioRoute();
+    }
+  }
+
+  @override
+  Future<void> cancel() async {
+    try {
+      await super.cancel();
+    } finally {
+      await _stopAudioRoute();
+    }
+  }
+
+  Future<void> _stopAudioRoute() async {
+    if (!_audioRouteStarted) return;
+    _audioRouteStarted = false;
+    await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
+  }
+
+  @override
+  Future<void> dispose() async {
+    try {
+      await super.dispose();
+    } finally {
+      await _stopAudioRoute();
+    }
+  }
 }
 
 /// Uses Apple Speech first for MAIN and switches to Cloudflare/Batch only when

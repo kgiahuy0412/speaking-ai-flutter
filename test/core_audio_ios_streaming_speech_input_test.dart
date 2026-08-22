@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
+import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -154,6 +155,62 @@ void main() {
     expect(fallback?.isBluetoothInput, isTrue);
     expect(fallback?.recordingSampleRate, 16000);
     expect(input.takeFallbackAudioCapture(), isNull);
+  });
+
+  test('iOS MAIN opens and releases the selected H20 HFP route', () async {
+    const methodChannel = MethodChannel('test_ios_native_hfp_route');
+    final events = StreamController<dynamic>.broadcast();
+    final route = _FakeHfpAudioControl();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{
+              'type': 'speech.ready',
+              'engine': 'speech_analyzer',
+              'audioRoute': 'in=[BluetoothHFP:H20]',
+            });
+          });
+          return true;
+        case 'speech.stop':
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+      await route.dispose();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      audioRouteControl: route,
+    );
+    addTearDown(input.dispose);
+
+    await input.startCommandRecognition();
+    expect(route.startRouteCount, 1);
+    expect(route.status.routeActive, isTrue);
+
+    events.add(<String, dynamic>{
+      'type': 'speech.final',
+      'text': 'học từ vựng',
+      'alternatives': <String>['học từ vựng'],
+      'engine': 'speech_analyzer',
+    });
+    await Future<void>.delayed(Duration.zero);
+    final capture = await input.stop();
+
+    expect(capture.sourceText, 'học từ vựng');
+    expect(route.stopRouteCount, 1);
+    expect(route.status.routeActive, isFalse);
   });
 
   test('MAIN uses Batch only when Apple native cannot start', () async {
@@ -347,4 +404,66 @@ class _FakeRecordedFallbackSpeechInput extends _FakeSpeechInput
     receivedRecording = capture;
     return this.capture;
   }
+}
+
+class _FakeHfpAudioControl implements HfpAudioControl {
+  final StreamController<BluetoothAudioStatus> _statuses =
+      StreamController<BluetoothAudioStatus>.broadcast(sync: true);
+  BluetoothAudioStatus _status = const BluetoothAudioStatus(
+    phase: BluetoothAudioConnectionPhase.ready,
+    deviceId: 'h20-hfp',
+    deviceName: 'H20',
+    sampleRate: 16000,
+  );
+  int startRouteCount = 0;
+  int stopRouteCount = 0;
+
+  @override
+  bool get usesBrowserAudioInput => false;
+
+  @override
+  BluetoothAudioStatus get status => _status;
+
+  @override
+  Stream<BluetoothAudioStatus> get statusChanges => _statuses.stream;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<HfpAudioDevice>> findDevices() async => const <HfpAudioDevice>[];
+
+  @override
+  Future<void> connect(HfpAudioDevice device) async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> startAudioRoute() async {
+    startRouteCount += 1;
+    _status = const BluetoothAudioStatus(
+      phase: BluetoothAudioConnectionPhase.recording,
+      deviceId: 'h20-hfp',
+      deviceName: 'H20',
+      sampleRate: 16000,
+      routeActive: true,
+    );
+    _statuses.add(_status);
+  }
+
+  @override
+  Future<void> stopAudioRoute() async {
+    stopRouteCount += 1;
+    _status = const BluetoothAudioStatus(
+      phase: BluetoothAudioConnectionPhase.ready,
+      deviceId: 'h20-hfp',
+      deviceName: 'H20',
+      sampleRate: 16000,
+    );
+    _statuses.add(_status);
+  }
+
+  @override
+  Future<void> dispose() => _statuses.close();
 }
