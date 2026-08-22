@@ -15,6 +15,7 @@ workflows:
       vars:
         BUNDLE_ID: com.innotrik.aispeaking
         BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
+        REQUIRE_BACKEND_HEALTH: "false"
         USE_DEMO_BACKEND: "false"
         CHILD_AGE: "6"
         PREFER_BLE_STREAMING: "false"
@@ -48,10 +49,17 @@ workflows:
             *) echo "BACKEND_BASE_URL must be an HTTPS URL"; exit 1 ;;
           esac
 
-          curl --fail --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 \
-            --connect-timeout 10 --max-time 20 \
-            "$BACKEND_BASE_URL/api/health" >/dev/null
+          if curl --fail --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 2 \
+              --connect-timeout 10 --max-time 20 \
+              "$BACKEND_BASE_URL/api/health" >/dev/null; then
+            echo "Backend health check passed."
+          elif [ "${REQUIRE_BACKEND_HEALTH:-true}" = "true" ]; then
+            echo "Backend health check failed and is required for this release."
+            exit 1
+          else
+            echo "WARNING: Backend health check failed; continuing this TestFlight navigation test build."
+          fi
 
           for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL; do
             case "${!name}" in
