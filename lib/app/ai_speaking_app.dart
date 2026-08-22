@@ -128,7 +128,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _bluetoothPermissionGranted) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+    // Flutter state is recreated after a cold launch/TestFlight update, while
+    // iOS keeps the system permission grants. Refresh them whenever the app
+    // returns to the foreground so MAIN does not stay hidden after the user
+    // grants Microphone/Speech/Bluetooth access in Settings.
+    if (_privacyConsentGranted) {
+      unawaited(_requestStartupPermissions());
+    } else if (_bluetoothPermissionGranted) {
       unawaited(_autoConnectH20Ble());
     }
   }
@@ -178,6 +187,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     });
     if (_privacyConsentGranted) {
       _startBackgroundWork();
+      // Stored parental consent allows us to query the existing native grants.
+      // Without this refresh `_microphonePermissionGranted` remains false on
+      // every cold launch even though iOS already authorized the app, hiding
+      // both the virtual MAIN entry point and the physical MAIN action.
+      unawaited(_requestStartupPermissions());
     }
   }
 
