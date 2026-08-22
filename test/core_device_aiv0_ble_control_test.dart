@@ -83,7 +83,7 @@ void main() {
       expect(event.rawHex, '01 01 10 01 01 04 3E 00 3A F2 0B 00');
     });
 
-    test('decodes observed H20 long press and release from byte 3', () {
+    test('does not invent long press or release for current H20 packets', () {
       const codec = Aiv0DraftProtocolCodec(confirmed: false);
       final longPress = codec.decodeButtonEvent(
         Uint8List.fromList(<int>[
@@ -118,12 +118,14 @@ void main() {
         ]),
       );
 
-      expect(longPress.button, Aiv0Button.main);
-      expect(longPress.gesture, Aiv0ButtonGesture.longPress);
-      expect(longPress.sequence, 0x11);
-      expect(longPress.isActionable, isTrue);
-      expect(release.gesture, Aiv0ButtonGesture.release);
-      expect(release.sequence, 0x11);
+      expect(longPress.button, Aiv0Button.unknown);
+      expect(longPress.gesture, Aiv0ButtonGesture.unknown);
+      expect(longPress.isObservedH20Packet, isFalse);
+      expect(longPress.isActionable, isFalse);
+      expect(release.button, Aiv0Button.unknown);
+      expect(release.gesture, Aiv0ButtonGesture.unknown);
+      expect(release.isObservedH20Packet, isFalse);
+      expect(release.isActionable, isFalse);
     });
 
     test('keeps an unknown raw packet diagnostic-only', () {

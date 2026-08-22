@@ -147,9 +147,10 @@ class Aiv0DraftProtocolCodec {
     DateTime? receivedAt,
   }) {
     // Real H20 firmware 1.0.0 packet observed on 9E3B0002:
-    //   01 BB SS GG FF FF PP 00 UU UU UU UU
-    // BB is MAIN (01), SS increments once per press, GG is the gesture,
-    // PP is the battery percentage and UU is uptime in milliseconds (LE).
+    //   01 BB SS 01 FF FF PP 00 UU UU UU UU
+    // BB is MAIN (01), SS is a transport sequence, PP is the battery
+    // percentage and UU is uptime in milliseconds (LE). The current firmware
+    // exposes one MAIN action only; it does not expose long-press or release.
     //
     // Decode this independently from [confirmed]. That flag still protects
     // the unconfirmed 8-byte APP State writer; receiving MAIN must not require
@@ -158,8 +159,7 @@ class Aiv0DraftProtocolCodec {
         bytes.length == buttonPacketLength &&
         bytes[0] == protocolVersion &&
         bytes[1] == 0x01 &&
-        bytes[3] >= 0x01 &&
-        bytes[3] <= 0x03;
+        bytes[3] == 0x01;
     if (isObservedH20Packet) {
       final data = ByteData.sublistView(bytes);
       return Aiv0ButtonEvent(
@@ -167,12 +167,7 @@ class Aiv0DraftProtocolCodec {
         deviceId: deviceId,
         receivedAt: receivedAt ?? DateTime.now(),
         button: Aiv0Button.main,
-        gesture: switch (bytes[3]) {
-          0x01 => Aiv0ButtonGesture.shortPress,
-          0x02 => Aiv0ButtonGesture.longPress,
-          0x03 => Aiv0ButtonGesture.release,
-          _ => Aiv0ButtonGesture.unknown,
-        },
+        gesture: Aiv0ButtonGesture.shortPress,
         sequence: bytes[2],
         flags: data.getUint16(4, Endian.little),
         batteryPercent: data.getUint16(6, Endian.little).clamp(0, 100),

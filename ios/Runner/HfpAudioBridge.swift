@@ -86,7 +86,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func findDevices(_ result: @escaping FlutterResult) {
     do {
-      try configureSession(activate: true)
+      // Discovery must not activate the HFP route. Activating `.voiceChat`
+      // while merely listing inputs can switch the H20 Bluetooth profile and
+      // briefly drop its independent BLE control link. The session category is
+      // prepared by `initialize`; discovery only reads `availableInputs` and
+      // defers every route mutation until connect or startAudioRoute.
       let currentIds = Set(audioSession.currentRoute.inputs.map(\.uid))
       let inputs = bluetoothInputs()
       phase = inputs.isEmpty ? "idle" : "ready"

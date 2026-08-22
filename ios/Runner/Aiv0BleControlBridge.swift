@@ -5,24 +5,40 @@ import Foundation
 struct Aiv0DuplicatePacketFilter {
   static let windowMilliseconds: TimeInterval = 750
 
-  private var lastRawHex: String?
+  private var lastPacketIdentity: String?
   private var lastPacketUptimeMilliseconds: TimeInterval?
   private(set) var duplicateCount = 0
 
   mutating func register(
-    rawHex: String,
+    bytes: [UInt8],
     uptimeMilliseconds: TimeInterval
   ) -> Bool {
-    let isDuplicate = lastRawHex == rawHex
+    let packetIdentity = Self.identity(for: bytes)
+    let isDuplicate = lastPacketIdentity == packetIdentity
       && lastPacketUptimeMilliseconds.map {
         uptimeMilliseconds - $0 <= Self.windowMilliseconds
       } == true
     if isDuplicate {
       duplicateCount += 1
     }
-    lastRawHex = rawHex
+    lastPacketIdentity = packetIdentity
     lastPacketUptimeMilliseconds = uptimeMilliseconds
     return isDuplicate
+  }
+
+  /// H20 firmware 1.0.0 can emit a burst for one physical MAIN press while
+  /// incrementing sequence and uptime in every packet. Those transport fields
+  /// must not turn the burst into multiple app actions. The current firmware
+  /// exposes only one MAIN action (byte 3 == 0x01), without long-press/release.
+  private static func identity(for bytes: [UInt8]) -> String {
+    if bytes.count == 12,
+      bytes[0] == 0x01,
+      bytes[1] == 0x01,
+      bytes[3] == 0x01
+    {
+      return String(format: "H20:%02X:%02X", bytes[0], bytes[1])
+    }
+    return bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
   }
 
   mutating func resetWindow() {
@@ -656,7 +672,7 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
       if bytes.count != 12 { invalidPacketCount += 1 }
       let rawHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
       let duplicate = duplicatePacketFilter.register(
-        rawHex: rawHex,
+        bytes: bytes,
         uptimeMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
       )
       lastRawHex = rawHex
