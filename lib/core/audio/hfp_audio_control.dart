@@ -26,6 +26,45 @@ class HfpAudioDevice {
   String get displayName => name.isEmpty ? id : name;
 }
 
+/// Selects only an HFP input that can be tied to the connected H20 control
+/// device. iOS may expose unrelated headsets (for example AirPods) at the same
+/// time, so automatic startup must never pick an arbitrary Bluetooth mic.
+HfpAudioDevice? selectLikelyH20HfpDevice(
+  Iterable<HfpAudioDevice> devices, {
+  String? bleDeviceName,
+}) {
+  final normalizedBleName = _normalizeH20DeviceName(bleDeviceName ?? '');
+  final candidates = devices
+      .where((device) {
+        final normalizedName = _normalizeH20DeviceName(device.displayName);
+        if (normalizedName.isEmpty) return false;
+        final matchesBleName =
+            normalizedBleName.length >= 3 &&
+            (normalizedName.contains(normalizedBleName) ||
+                normalizedBleName.contains(normalizedName));
+        return matchesBleName ||
+            normalizedName.contains('h20') ||
+            normalizedName.contains('innotrik') ||
+            normalizedName.contains('ailingo') ||
+            normalizedName.contains('yinluo') ||
+            device.displayName.contains('音洛');
+      })
+      .toList(growable: false);
+  if (candidates.isEmpty) return null;
+  candidates.sort((a, b) {
+    if (a.isConnected != b.isConnected) {
+      return a.isConnected ? -1 : 1;
+    }
+    return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+  });
+  return candidates.first;
+}
+
+String _normalizeH20DeviceName(String value) => value
+    .trim()
+    .toLowerCase()
+    .replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff]+'), '');
+
 abstract interface class HfpAudioControl {
   bool get usesBrowserAudioInput;
   BluetoothAudioStatus get status;

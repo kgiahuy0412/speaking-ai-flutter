@@ -163,6 +163,27 @@ void main() {
     controller.dispose();
   });
 
+  test('automatically selects the H20 HFP input after BLE connects', () async {
+    final hfp = _FakeHfpAudioControl(
+      devices: const <HfpAudioDevice>[
+        HfpAudioDevice(id: 'airpods', name: 'AirPods Pro', isConnected: true),
+        HfpAudioDevice(id: 'h20', name: 'H20', isConnected: false),
+      ],
+    );
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      hfpAudioControl: hfp,
+      playbackService: _FakePlaybackService(),
+      repository: _NoNetworkRepository(),
+      childAge: 6,
+    );
+
+    expect(await controller.autoConnectH20Hfp(bleDeviceName: 'H20'), isTrue);
+    expect(hfp.connectedDevice?.id, 'h20');
+    expect(controller.usesHfpInput, isTrue);
+    controller.dispose();
+  });
+
   test(
     'BLE long press stops once and release does not restart capture',
     () async {
@@ -255,9 +276,13 @@ class _FakeAudioInput implements AudioInput {
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {
-  _FakeHfpAudioControl({this.activateRoute = true});
+  _FakeHfpAudioControl({
+    this.activateRoute = true,
+    this.devices = const <HfpAudioDevice>[],
+  });
 
   final bool activateRoute;
+  final List<HfpAudioDevice> devices;
   final StreamController<BluetoothAudioStatus> _statuses =
       StreamController<BluetoothAudioStatus>.broadcast(sync: true);
   BluetoothAudioStatus _status = const BluetoothAudioStatus(
@@ -268,6 +293,7 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   );
   int startRouteCount = 0;
   int stopRouteCount = 0;
+  HfpAudioDevice? connectedDevice;
 
   @override
   bool get usesBrowserAudioInput => false;
@@ -282,10 +308,19 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   Future<void> initialize() async {}
 
   @override
-  Future<List<HfpAudioDevice>> findDevices() async => const <HfpAudioDevice>[];
+  Future<List<HfpAudioDevice>> findDevices() async => devices;
 
   @override
-  Future<void> connect(HfpAudioDevice device) async {}
+  Future<void> connect(HfpAudioDevice device) async {
+    connectedDevice = device;
+    _status = BluetoothAudioStatus(
+      phase: BluetoothAudioConnectionPhase.ready,
+      deviceId: device.id,
+      deviceName: device.displayName,
+      sampleRate: 16000,
+    );
+    _statuses.add(_status);
+  }
 
   @override
   Future<void> disconnect() async {}

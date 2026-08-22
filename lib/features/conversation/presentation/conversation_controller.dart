@@ -988,6 +988,49 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  /// After BLE Control reconnects, selects the matching H20 HFP input already
+  /// paired by iOS. Pairing Classic Bluetooth is not available to apps, but an
+  /// existing HFP input can be discovered and selected without opening the
+  /// Settings sheet. Unrelated Bluetooth microphones are deliberately ignored.
+  Future<bool> autoConnectH20Hfp({String? bleDeviceName}) async {
+    final control = _hfpAudioControl;
+    if (control == null ||
+        supportsBrowserHfp ||
+        _preparingMicrophone ||
+        phase == ConversationPhase.recording ||
+        phase == ConversationPhase.processing ||
+        hfpAudioStatus.isBusy) {
+      return false;
+    }
+    if (_hfpInputSelected && hfpAudioStatus.isConnected) {
+      return true;
+    }
+    try {
+      final devices = await control.findDevices();
+      final device = selectLikelyH20HfpDevice(
+        devices,
+        bleDeviceName: bleDeviceName,
+      );
+      if (device == null) {
+        return false;
+      }
+      await control.connect(device);
+      _hfpInputSelected = true;
+      asrMode = supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.batchChunks;
+      transientMessage =
+          'Đã tự kết nối BLE Control và chọn mic HFP ${device.displayName}.';
+      notifyListeners();
+      return true;
+    } catch (error) {
+      // Automatic startup is best effort. Keep the phone microphone available
+      // and let Settings show the detailed error if the user chooses to retry.
+      debugPrint('Automatic H20 HFP selection was skipped: $error');
+      return false;
+    }
+  }
+
   Future<void> connectHfpDevice(HfpAudioDevice device) async {
     final control = _hfpAudioControl;
     if (control == null || isBusy) {

@@ -121,7 +121,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       phase = "connecting"
       message = "Đang chọn mic HFP trên iOS…"
       emitStatus()
-      try configureSession(activate: true)
+      // Remember the preferred H20 input without opening the voice route yet.
+      // Activating HFP during app startup can force a Bluetooth profile switch
+      // while CoreBluetooth is still settling. `startAudioRoute` activates and
+      // verifies the route only when recognition is about to begin.
+      try configureSession(activate: false)
       guard let input = bluetoothInputs().first(where: { $0.uid == deviceId }) else {
         throw HfpBridgeError.inputUnavailable
       }
