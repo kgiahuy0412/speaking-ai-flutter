@@ -92,14 +92,14 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testIOSMainPrefersStableOnDeviceLegacyRecognizerWhenAvailable() {
+  func testIOSMainKeepsPreparedSpeechAnalyzerOnIOS26() {
     XCTAssertEqual(
       IOSNativeSpeechEngineSelector.selectForRecognition(
         preparedEngine: .speechAnalyzer,
         commandMode: true,
         sfOnDeviceSupported: true
       ),
-      .sfSpeechRecognizer
+      .speechAnalyzer
     )
     XCTAssertEqual(
       IOSNativeSpeechEngineSelector.selectForRecognition(
@@ -108,6 +108,30 @@ class RunnerTests: XCTestCase {
         sfOnDeviceSupported: true
       ),
       .speechAnalyzer
+    )
+  }
+
+  func testIOSSpeechAnalyzerRuntimeFallbackOnlyRunsOnceBeforeTranscript() {
+    XCTAssertTrue(
+      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
+        fallbackAttempted: false,
+        hasTranscript: false,
+        sfOnDeviceSupported: true
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
+        fallbackAttempted: true,
+        hasTranscript: false,
+        sfOnDeviceSupported: true
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
+        fallbackAttempted: false,
+        hasTranscript: true,
+        sfOnDeviceSupported: true
+      )
     )
   }
 

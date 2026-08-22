@@ -66,17 +66,22 @@ struct IOSNativeSpeechEngineSelector {
 
   static func selectForRecognition(
     preparedEngine: IOSNativeSpeechEngineKind,
-    commandMode: Bool,
-    sfOnDeviceSupported: Bool
+    commandMode _: Bool,
+    sfOnDeviceSupported _: Bool
   ) -> IOSNativeSpeechEngineKind {
-    // SpeechAnalyzer remains the preferred engine for normal conversation on
-    // iOS 26. For short MAIN commands, SFSpeechRecognizer has more predictable
-    // endpointing after an HFP prompt/beep and avoids an analyzer failure
-    // closing the navigation window before the child can answer.
-    if commandMode, sfOnDeviceSupported {
-      return .sfSpeechRecognizer
-    }
+    // `prepareBestEngine` has already selected the best on-device engine for
+    // this OS/locale. MAIN must not replace SpeechAnalyzer with the legacy
+    // recognizer: on iOS 26 that recognizer can fail immediately for vi-VN,
+    // which presents as "ready cue, then the listening UI disappears".
     return preparedEngine
+  }
+
+  static func shouldFallbackToLegacyAfterAnalyzerFailure(
+    fallbackAttempted: Bool,
+    hasTranscript: Bool,
+    sfOnDeviceSupported: Bool
+  ) -> Bool {
+    !fallbackAttempted && !hasTranscript && sfOnDeviceSupported
   }
 }
 
@@ -129,6 +134,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var finalAt: Date?
   private var requestedAudioSource = IOSNativeSpeechAudioSource.builtInMic
   private var lastDiagnosticStage = "idle"
+  private var activeCommandMode = false
+  private var runtimeFallbackAttempted = false
 
   init(messenger: FlutterBinaryMessenger) {
     methodChannel = FlutterMethodChannel(name: "ailingo_speech", binaryMessenger: messenger)
@@ -383,6 +390,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     readyAt = nil
     firstPartialAt = nil
     finalAt = nil
+    activeCommandMode = commandMode
+    runtimeFallbackAttempted = false
+    emitStage("engine_selected", message: recognitionEngine.rawValue)
 
     try await configureAudioSession(audioSource: audioSource)
     try createPrivateFallbackRecording()
@@ -391,29 +401,54 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       guard #available(iOS 26.0, *) else {
         throw IOSSpeechBridgeError.onDeviceUnavailable
       }
-      let session = try await IOSSpeechAnalyzerSession(locale: Self.locale)
-      guard isCurrentStartRequest(startRequestGeneration) else {
-        await session.cancel()
-        throw IOSSpeechBridgeError.startCancelled
-      }
-      session.onUpdate = { [weak self] transcript in
-        DispatchQueue.main.async {
-          guard let self, self.active, self.generation == currentGeneration else { return }
-          self.handleTranscriptUpdate(
-            text: transcript.text,
-            alternatives: transcript.alternatives,
-            confidence: -1,
-            isFinal: false
-          )
+      do {
+        let session = try await IOSSpeechAnalyzerSession(locale: Self.locale)
+        guard isCurrentStartRequest(startRequestGeneration) else {
+          await session.cancel()
+          throw IOSSpeechBridgeError.startCancelled
+        }
+        session.onUpdate = { [weak self] transcript in
+          DispatchQueue.main.async {
+            guard let self, self.active, self.generation == currentGeneration else { return }
+            self.handleTranscriptUpdate(
+              text: transcript.text,
+              alternatives: transcript.alternatives,
+              confidence: -1,
+              isFinal: false
+            )
+          }
+        }
+        session.onFailure = { [weak self] error in
+          DispatchQueue.main.async {
+            guard let self,
+              self.active,
+              self.generation == currentGeneration,
+              self.activeEngine == .speechAnalyzer
+            else {
+              // A late cancellation/error from the analyzer must not terminate
+              // the legacy recognizer after an in-place fallback.
+              return
+            }
+            if self.fallbackToLegacyRecognizer(
+              analyzerErrorCode: "SPEECH_ANALYZER_FAILED",
+              error: error,
+              generation: currentGeneration
+            ) {
+              return
+            }
+            self.finishWithError(code: "SPEECH_ANALYZER_FAILED", error: error)
+          }
+        }
+        analyzerSession = session
+      } catch {
+        guard fallbackToLegacyRecognizer(
+          analyzerErrorCode: "SPEECH_ANALYZER_START_FAILED",
+          error: error,
+          generation: currentGeneration
+        ) else {
+          throw error
         }
       }
-      session.onFailure = { [weak self] error in
-        DispatchQueue.main.async {
-          guard let self, self.active, self.generation == currentGeneration else { return }
-          self.finishWithError(code: "SPEECH_ANALYZER_FAILED", error: error)
-        }
-      }
-      analyzerSession = session
     } else {
       try startLegacyRecognizer(commandMode: commandMode, generation: currentGeneration)
     }
@@ -485,6 +520,53 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     }
   }
 
+  /// Keep the current audio session/tap alive when SpeechAnalyzer fails before
+  /// producing text. Switching engines in-place avoids replaying the prompt,
+  /// reopening HFP, or collapsing the MAIN navigation state.
+  private func fallbackToLegacyRecognizer(
+    analyzerErrorCode: String,
+    error: Error,
+    generation: Int
+  ) -> Bool {
+    guard active,
+      self.generation == generation,
+      activeEngine == .speechAnalyzer,
+      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
+        fallbackAttempted: runtimeFallbackAttempted,
+        hasTranscript: !latestText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        sfOnDeviceSupported: onDeviceLegacyRecognizer() != nil
+      )
+    else {
+      return false
+    }
+
+    runtimeFallbackAttempted = true
+    if #available(iOS 26.0, *), let analyzer = analyzerSession as? IOSSpeechAnalyzerSession {
+      analyzerSession = nil
+      Task { await analyzer.cancel() }
+    } else {
+      analyzerSession = nil
+    }
+
+    do {
+      try startLegacyRecognizer(commandMode: activeCommandMode, generation: generation)
+      activeEngine = .sfSpeechRecognizer
+      emitStage(
+        "engine_fallback",
+        code: analyzerErrorCode,
+        message: "SpeechAnalyzer failed; continuing with SFSpeechRecognizer: \(error.localizedDescription)"
+      )
+      return true
+    } catch {
+      emitStage(
+        "engine_fallback_failed",
+        code: "SF_SPEECH_RECOGNIZER_START_FAILED",
+        message: error.localizedDescription
+      )
+      return false
+    }
+  }
+
   private func installAudioTap(generation: Int) throws {
     let inputNode = audioEngine.inputNode
     let format = inputNode.outputFormat(forBus: 0)
@@ -511,8 +593,22 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         }
         self.emitRms(buffer)
       } catch {
+        let failedEngine = self.activeEngine
         DispatchQueue.main.async {
           guard self.active, self.generation == generation else { return }
+          if failedEngine == .speechAnalyzer {
+            // More than one tap buffer can fail before the first error reaches
+            // the main queue. Once fallback succeeded, ignore those stale
+            // analyzer errors instead of closing the new legacy session.
+            guard self.activeEngine == .speechAnalyzer else { return }
+            if self.fallbackToLegacyRecognizer(
+              analyzerErrorCode: "AUDIO_STREAM_FAILED",
+              error: error,
+              generation: generation
+            ) {
+              return
+            }
+          }
           self.finishWithError(code: "AUDIO_STREAM_FAILED", error: error)
         }
       }
@@ -1058,7 +1154,7 @@ private final class IOSSpeechAnalyzerSession {
   private let analyzerFormat: AVAudioFormat
   private let inputContinuation: AsyncStream<AnalyzerInput>.Continuation
   private var audioConverter: AVAudioConverter?
-  private var analysisTask: Task<Void, Error>?
+  private var analysisTask: Task<Void, Never>?
   private var resultTask: Task<Void, Never>?
   private var finalizedSegments: [String] = []
   private var volatileText = ""
@@ -1087,12 +1183,18 @@ private final class IOSSpeechAnalyzerSession {
     inputContinuation = stream.continuation
 
     let analyzer = self.analyzer
-    analysisTask = Task {
-      let lastSample = try await analyzer.analyzeSequence(stream.stream)
-      if let lastSample {
-        try await analyzer.finalizeAndFinish(through: lastSample)
-      } else {
-        await analyzer.cancelAndFinishNow()
+    analysisTask = Task { [weak self] in
+      do {
+        let lastSample = try await analyzer.analyzeSequence(stream.stream)
+        if let lastSample {
+          try await analyzer.finalizeAndFinish(through: lastSample)
+        } else {
+          await analyzer.cancelAndFinishNow()
+        }
+      } catch is CancellationError {
+        return
+      } catch {
+        self?.onFailure?(error)
       }
     }
     let transcriber = self.transcriber
@@ -1132,7 +1234,7 @@ private final class IOSSpeechAnalyzerSession {
       inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
     }
     inputContinuation.finish()
-    try await analysisTask?.value
+    await analysisTask?.value
     await resultTask?.value
     return snapshot()
   }
