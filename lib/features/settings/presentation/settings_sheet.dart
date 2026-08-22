@@ -50,6 +50,23 @@ class SettingsSheet extends StatelessWidget {
         final isAndroid =
             !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
         final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+        final nativeDiagnostic = controller.nativeSpeechDiagnostic;
+        final nativeDiagnosticTimeline = controller.nativeSpeechDiagnosticLog
+            .map((item) => item.stage)
+            .join(' → ');
+        final nativeDiagnosticDetail = nativeDiagnostic == null
+            ? null
+            : <String>[
+                if (nativeDiagnosticTimeline.isNotEmpty)
+                  nativeDiagnosticTimeline,
+                if (nativeDiagnostic.audioSource != null)
+                  'source=${nativeDiagnostic.audioSource}',
+                if (nativeDiagnostic.audioRoute != null)
+                  'route=${nativeDiagnostic.audioRoute}',
+                if (nativeDiagnostic.code != null)
+                  'code=${nativeDiagnostic.code}',
+                if (nativeDiagnostic.message != null) nativeDiagnostic.message!,
+              ].join(' • ');
         return DisplayLanguageScope(
           language: controller.displayLanguage,
           child: Builder(
@@ -245,11 +262,15 @@ class SettingsSheet extends StatelessWidget {
                           'Apple 原生语音识别',
                         ),
                         detail: context.tr(
-                          'iOS ưu tiên nhận dạng tiếng Việt ngay trên thiết bị bằng SpeechAnalyzer hoặc SFSpeechRecognizer. Khi native không được hỗ trợ hoặc gặp lỗi, HOMI mới chuyển audio sang Cloudflare/Batch dự phòng. MAIN dùng cùng cơ chế này.',
-                          'iOS 优先通过 SpeechAnalyzer 或 SFSpeechRecognizer 在设备端识别越南语。仅当原生识别不受支持或发生错误时，HOMI 才会把音频切换到 Cloudflare 分块备用流程；MAIN 使用同一机制。',
+                          'iOS ưu tiên nhận dạng tiếng Việt ngay trên thiết bị bằng SpeechAnalyzer hoặc SFSpeechRecognizer. Khi native không được hỗ trợ hoặc gặp lỗi, HOMI mới chuyển audio sang Cloudflare/Batch dự phòng. MAIN dùng cùng cơ chế này.${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
+                          'iOS 优先通过 SpeechAnalyzer 或 SFSpeechRecognizer 在设备端识别越南语。仅当原生识别不受支持或发生错误时，HOMI 才会把音频切换到 Cloudflare 分块备用流程；MAIN 使用同一机制。${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
                         ),
-                        trailing: context.tr('Ưu tiên', '优先'),
-                        stateColor: AppColors.success,
+                        trailing:
+                            nativeDiagnostic?.stage ??
+                            context.tr('Ưu tiên', '优先'),
+                        stateColor: nativeDiagnostic?.isError == true
+                            ? AppColors.coral
+                            : AppColors.success,
                       )
                     else
                       _StatusTile(
@@ -1842,7 +1863,7 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final hfpConnected = hfpStatus.isConnected;
+    final hfpConnected = hfpStatus.isConnected || hfpStatus.deviceId != null;
     final routeActive = hfpStatus.routeActive;
     final canStart = enabled && hfpConnected && !conversationBusy && !_running;
     final canToggleRecording =

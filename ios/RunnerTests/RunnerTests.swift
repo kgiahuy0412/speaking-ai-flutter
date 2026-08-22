@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 @testable import Runner
 import Speech
@@ -88,6 +89,66 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(
       IOSNativeSpeechTaskHintSelector.select(commandMode: true),
       .dictation
+    )
+  }
+
+  func testIOSPhysicalMainPolicyForcesBuiltInMicWithoutBluetoothOptions() {
+    let options = IOSNativeSpeechAudioRoutePolicy.categoryOptions(
+      for: .builtInMic
+    )
+
+    XCTAssertTrue(options.contains(.defaultToSpeaker))
+    XCTAssertFalse(options.contains(.allowBluetooth))
+    XCTAssertFalse(options.contains(.allowBluetoothA2DP))
+    XCTAssertTrue(
+      IOSNativeSpeechAudioRoutePolicy.accepts(
+        portType: .builtInMic,
+        for: .builtInMic
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechAudioRoutePolicy.accepts(
+        portType: .bluetoothHFP,
+        for: .builtInMic
+      )
+    )
+  }
+
+  func testIOSHfpPolicyRequiresARealBluetoothInputRoute() {
+    let options = IOSNativeSpeechAudioRoutePolicy.categoryOptions(for: .hfp)
+
+    XCTAssertTrue(options.contains(.allowBluetooth))
+    XCTAssertFalse(options.contains(.defaultToSpeaker))
+    XCTAssertFalse(options.contains(.allowBluetoothA2DP))
+    XCTAssertTrue(
+      IOSNativeSpeechAudioRoutePolicy.accepts(
+        portType: .bluetoothHFP,
+        for: .hfp
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechAudioRoutePolicy.accepts(
+        portType: .bluetoothLE,
+        for: .hfp
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechAudioRoutePolicy.accepts(
+        portType: .builtInMic,
+        for: .hfp
+      )
+    )
+    XCTAssertTrue(
+      IOSHfpRoutePolicy.isTwoWayHfpRoute(
+        inputTypes: [.bluetoothHFP],
+        outputTypes: [.bluetoothHFP]
+      )
+    )
+    XCTAssertFalse(
+      IOSHfpRoutePolicy.isTwoWayHfpRoute(
+        inputTypes: [.bluetoothHFP],
+        outputTypes: [.builtInSpeaker]
+      )
     )
   }
 

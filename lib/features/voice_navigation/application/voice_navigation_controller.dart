@@ -470,6 +470,10 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed || generation != _generation) {
       return false;
     }
+    final diagnostics = _speechInput is NativeSpeechDiagnostics
+        ? _speechInput as NativeSpeechDiagnostics
+        : null;
+    diagnostics?.reportNativeSpeechStage('prompt_done');
     _awaitingCommand = true;
     notifyListeners();
     return true;
@@ -578,6 +582,10 @@ class VoiceNavigationController extends ChangeNotifier {
       final commandInput = _speechInput is CommandStreamingSpeechInput
           ? _speechInput as CommandStreamingSpeechInput
           : null;
+      final diagnostics = _speechInput is NativeSpeechDiagnostics
+          ? _speechInput as NativeSpeechDiagnostics
+          : null;
+      diagnostics?.reportNativeSpeechStage('microphone_start_requested');
       final startOperation = commandInput != null
           ? commandInput.startCommandRecognition()
           : _speechInput.start();
@@ -600,6 +608,7 @@ class VoiceNavigationController extends ChangeNotifier {
       _speechDetected = false;
       _microphoneStartAttemptCount = 0;
       _lastError = null;
+      diagnostics?.reportNativeSpeechStage('microphone_listening');
       // The prompt may have finished well before iOS finishes preparing the
       // HFP route or Apple Speech. Reset the command window here so the child
       // always receives the full listening period after the mic is truly open.
@@ -617,6 +626,14 @@ class VoiceNavigationController extends ChangeNotifier {
       );
       notifyListeners();
     } catch (error) {
+      final diagnostics = _speechInput is NativeSpeechDiagnostics
+          ? _speechInput as NativeSpeechDiagnostics
+          : null;
+      diagnostics?.reportNativeSpeechStage(
+        'microphone_start_failed',
+        code: error is StreamingSpeechInputException ? error.code : null,
+        message: error.toString(),
+      );
       _lastError = error;
       _starting = false;
       _listening = false;

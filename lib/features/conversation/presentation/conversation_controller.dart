@@ -141,6 +141,32 @@ class ConversationController extends ChangeNotifier {
     _partialTextSubscription = streamingSpeechInput?.partialText.listen(
       _onPartialText,
     );
+    final nativeDiagnostics = streamingSpeechInput is NativeSpeechDiagnostics
+        ? streamingSpeechInput as NativeSpeechDiagnostics
+        : null;
+    nativeSpeechDiagnostic = nativeDiagnostics?.nativeSpeechDiagnostic;
+    if (nativeSpeechDiagnostic != null) {
+      _nativeSpeechDiagnosticLog.add(nativeSpeechDiagnostic!);
+    }
+    _nativeSpeechDiagnosticSubscription = nativeDiagnostics
+        ?.nativeSpeechDiagnostics
+        .listen((diagnostic) {
+          nativeSpeechDiagnostic = diagnostic;
+          if (diagnostic.stage == 'prompt_done') {
+            _nativeSpeechDiagnosticLog.clear();
+          }
+          if (_nativeSpeechDiagnosticLog.isNotEmpty &&
+              _nativeSpeechDiagnosticLog.last.stage == diagnostic.stage) {
+            _nativeSpeechDiagnosticLog[_nativeSpeechDiagnosticLog.length - 1] =
+                diagnostic;
+          } else {
+            _nativeSpeechDiagnosticLog.add(diagnostic);
+          }
+          if (_nativeSpeechDiagnosticLog.length > 12) {
+            _nativeSpeechDiagnosticLog.removeAt(0);
+          }
+          if (!_disposed) notifyListeners();
+        });
     final bluetoothControl = _bluetoothAudioControl;
     if (bluetoothControl != null) {
       _bluetoothStatusSubscription = bluetoothControl.bluetoothStatusChanges
@@ -158,7 +184,10 @@ class ConversationController extends ChangeNotifier {
     final hfpControl = _hfpAudioControl;
     if (hfpControl != null) {
       _hfpStatusSubscription = hfpControl.statusChanges.listen((status) {
-        if (_hfpInputSelected && !status.isConnected && !status.isBusy) {
+        if (_hfpInputSelected &&
+            status.deviceId == null &&
+            !status.isConnected &&
+            !status.isBusy) {
           _hfpInputSelected = false;
         }
         if (!_disposed) {
@@ -233,6 +262,8 @@ class ConversationController extends ChangeNotifier {
   StreamSubscription<bool>? _playbackPlayingSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
+  StreamSubscription<NativeSpeechDiagnostic>?
+  _nativeSpeechDiagnosticSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
   StreamSubscription<ConversationPreview>? _batchPreviewSubscription;
   StreamSubscription<Uint8List>? _realtimeChunkSubscription;
@@ -284,6 +315,8 @@ class ConversationController extends ChangeNotifier {
   Uri? _preferredPlaybackUri;
   Uri? _speculativePreloadUri;
   final List<Aiv0ButtonEvent> _aiv0ButtonEventLog = <Aiv0ButtonEvent>[];
+  final List<NativeSpeechDiagnostic> _nativeSpeechDiagnosticLog =
+      <NativeSpeechDiagnostic>[];
 
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
@@ -302,6 +335,7 @@ class ConversationController extends ChangeNotifier {
   H20HardwareTestPhase h20HardwareTestPhase = H20HardwareTestPhase.idle;
   H20HardwareTestResult? h20HardwareTestResult;
   String? h20HardwareTestMessage;
+  NativeSpeechDiagnostic? nativeSpeechDiagnostic;
 
   int get childAge => _childAge;
 
@@ -504,13 +538,17 @@ class ConversationController extends ChangeNotifier {
         sampleRate: 16000,
       );
   bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
-  bool get canUseHfp => hfpAudioStatus.isConnected;
+  bool get canUseHfp =>
+      hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;
+  bool get hasSelectedHfpInput => hfpAudioStatus.deviceId != null;
   Aiv0BleStatus get aiv0BleStatus =>
       _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
   bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
   bool get canUseAiv0Ble => aiv0BleStatus.isConnected;
   List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
       List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
+  List<NativeSpeechDiagnostic> get nativeSpeechDiagnosticLog =>
+      List<NativeSpeechDiagnostic>.unmodifiable(_nativeSpeechDiagnosticLog);
   bool get supportsBrowserHfp =>
       (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
       _audioInput is ChunkedAudioInput;
@@ -1002,7 +1040,7 @@ class ConversationController extends ChangeNotifier {
         hfpAudioStatus.isBusy) {
       return false;
     }
-    if (_hfpInputSelected && hfpAudioStatus.isConnected) {
+    if (_hfpInputSelected && hfpAudioStatus.deviceId != null) {
       return true;
     }
     try {
@@ -1086,11 +1124,21 @@ class ConversationController extends ChangeNotifier {
   /// command therefore uses the built-in iPhone microphone; the app can select
   /// HFP again after the command session finishes.
   Future<bool> preparePhoneMicrophoneForPhysicalMain() async {
+    final sourceControl =
+        _streamingSpeechInput is NativeSpeechAudioSourceControl
+        ? _streamingSpeechInput as NativeSpeechAudioSourceControl
+        : null;
+    sourceControl?.useNativeSpeechAudioSourceOnce(
+      NativeSpeechAudioSource.builtInMic,
+    );
     final control = _hfpAudioControl;
     if (control == null) {
       return false;
     }
-    final hadHfpSelection = _hfpInputSelected || control.status.isConnected;
+    final hadHfpSelection =
+        _hfpInputSelected ||
+        control.status.isConnected ||
+        control.status.deviceId != null;
     try {
       await control.stopAudioRoute();
       await control.disconnect();
@@ -1142,7 +1190,9 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     final hfp = _hfpAudioControl;
-    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+    if (hfp == null ||
+        (!hfp.status.isConnected && hfp.status.deviceId == null) ||
+        supportsBrowserHfp) {
       throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra micro.');
     }
 
@@ -1235,7 +1285,9 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     final hfp = _hfpAudioControl;
-    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+    if (hfp == null ||
+        (!hfp.status.isConnected && hfp.status.deviceId == null) ||
+        supportsBrowserHfp) {
       throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra loa.');
     }
     h20HardwareTestPhase = H20HardwareTestPhase.openingRoute;
@@ -3240,6 +3292,7 @@ class ConversationController extends ChangeNotifier {
     }
     unawaited(_streamingCompletionSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_nativeSpeechDiagnosticSubscription?.cancel());
     unawaited(_bluetoothStatusSubscription?.cancel());
     unawaited(_hfpStatusSubscription?.cancel());
     unawaited(_aiv0StatusSubscription?.cancel());

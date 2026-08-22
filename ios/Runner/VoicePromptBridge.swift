@@ -12,6 +12,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private var readyCueToken: UUID?
   private var readyCueFallback: DispatchWorkItem?
   private var readyCuePlayer: AVAudioPlayer?
+  private var promptUsesHfpRoute = false
   private var disposed = false
 
   init(messenger: FlutterBinaryMessenger) {
@@ -72,15 +73,43 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
 
   private func configurePromptAudioSession() {
     let session = AVAudioSession.sharedInstance()
-    try? session.setActive(false, options: .notifyOthersOnDeactivation)
-    try? session.setCategory(
-      .playAndRecord,
-      mode: .default,
-      options: [.defaultToSpeaker, .duckOthers]
+    // Capture the HFP port before changing the shared session. HfpAudioBridge
+    // activates and selects it; the prompt bridge must preserve that choice
+    // instead of forcing every assistant utterance back to the iPhone speaker.
+    let preferredHfpInput = session.currentRoute.inputs.first {
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
+    } ?? session.availableInputs?.first {
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
+    }
+    let hasCurrentTwoWayHfp = IOSHfpRoutePolicy.isTwoWayHfpRoute(
+      inputTypes: session.currentRoute.inputs.map(\.portType),
+      outputTypes: session.currentRoute.outputs.map(\.portType)
     )
-    try? session.setPreferredInput(nil)
-    try? session.setActive(true)
-    try? session.overrideOutputAudioPort(.speaker)
+    if let preferredHfpInput {
+      promptUsesHfpRoute = true
+      if !hasCurrentTwoWayHfp {
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+      }
+      try? session.setCategory(
+        .playAndRecord,
+        mode: .voiceChat,
+        options: IOSHfpRoutePolicy.categoryOptions
+      )
+      try? session.setActive(true)
+      try? session.setPreferredInput(preferredHfpInput)
+      try? session.overrideOutputAudioPort(.none)
+    } else {
+      promptUsesHfpRoute = false
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
+      try? session.setCategory(
+        .playAndRecord,
+        mode: .default,
+        options: [.defaultToSpeaker, .duckOthers]
+      )
+      try? session.setPreferredInput(nil)
+      try? session.setActive(true)
+      try? session.overrideOutputAudioPort(.speaker)
+    }
   }
 
   private func stop() {
@@ -111,7 +140,9 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private func releasePromptAudioSession() {
     let session = AVAudioSession.sharedInstance()
     try? session.overrideOutputAudioPort(.none)
-    try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    if !promptUsesHfpRoute {
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    }
   }
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {

@@ -257,14 +257,20 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
 
   BluetoothAudioStatus _statusFromMap(Map<dynamic, dynamic> map) {
     final phaseName = '${map['phase'] ?? 'idle'}';
+    final hasSelectedInput = map['hasSelectedInput'];
+    final clearsSelectedInput = hasSelectedInput == false;
     final phase = BluetoothAudioConnectionPhase.values.firstWhere(
       (item) => item.name == phaseName,
       orElse: () => BluetoothAudioConnectionPhase.error,
     );
     return BluetoothAudioStatus(
       phase: phase,
-      deviceId: _nullableString(map['deviceId']) ?? _status.deviceId,
-      deviceName: _nullableString(map['deviceName']) ?? _status.deviceName,
+      deviceId: clearsSelectedInput
+          ? null
+          : _nullableString(map['deviceId']) ?? _status.deviceId,
+      deviceName: clearsSelectedInput
+          ? null
+          : _nullableString(map['deviceName']) ?? _status.deviceName,
       message: _nullableString(map['message']),
       sampleRate: 16000,
       routeActive: map['routeActive'] == true,

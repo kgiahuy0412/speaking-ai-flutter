@@ -2,6 +2,26 @@ import AVFoundation
 import Flutter
 import Foundation
 
+struct IOSHfpRoutePolicy {
+  static let categoryOptions: AVAudioSession.CategoryOptions = [.allowBluetooth]
+
+  static func isHfpInput(_ portType: AVAudioSession.Port) -> Bool {
+    portType == .bluetoothHFP
+  }
+
+  static func isHfpOutput(_ portType: AVAudioSession.Port) -> Bool {
+    portType == .bluetoothHFP
+  }
+
+  static func isTwoWayHfpRoute(
+    inputTypes: [AVAudioSession.Port],
+    outputTypes: [AVAudioSession.Port]
+  ) -> Bool {
+    inputTypes.contains { isHfpInput($0) }
+      && outputTypes.contains { isHfpOutput($0) }
+  }
+}
+
 /// Selects an HFP microphone already connected in iOS Settings. iOS does not
 /// expose public APIs for pairing or forcing a Classic Bluetooth profile link,
 /// so `connect` means selecting an available AVAudioSession input.
@@ -72,7 +92,9 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     try audioSession.setCategory(
       .playAndRecord,
       mode: .voiceChat,
-      options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+      // HFP is bidirectional. A2DP is output-only and defaultToSpeaker can
+      // leave the assistant on the iPhone after the H20 mic is selected.
+      options: IOSHfpRoutePolicy.categoryOptions
     )
     if activate {
       try audioSession.setActive(true, options: [])
@@ -81,33 +103,74 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func bluetoothInputs() -> [AVAudioSessionPortDescription] {
     (audioSession.availableInputs ?? []).filter {
-      $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
     }
   }
 
   private func findDevices(_ result: @escaping FlutterResult) {
     do {
-      // Discovery must not activate the HFP route. Activating `.voiceChat`
-      // while merely listing inputs can switch the H20 Bluetooth profile and
-      // briefly drop its independent BLE control link. The session category is
-      // prepared by `initialize`; discovery only reads `availableInputs` and
-      // defers every route mutation until connect or startAudioRoute.
-      let currentIds = Set(audioSession.currentRoute.inputs.map(\.uid))
-      let inputs = bluetoothInputs()
-      phase = inputs.isEmpty ? "idle" : "ready"
-      message = inputs.isEmpty
-        ? "iOS chưa thấy mic HFP. Hãy kết nối H20 trong Cài đặt Bluetooth rồi thử lại."
-        : "Đã tìm thấy \(inputs.count) mic Bluetooth khả dụng."
+      // iOS can keep a connected headset out of availableInputs until a
+      // record-capable session is active. Wake the voice profile, then give
+      // AVAudioSession a bounded window to publish the bluetoothHFP input.
+      phase = "scanning"
+      message = "Đang yêu cầu iOS mở profile âm thanh HFP…"
       emitStatus()
+      try configureSession(activate: true)
+      waitForDiscoverableInputs(attemptsRemaining: 15, result: result)
+    } catch {
+      fail(result, code: "HFP_LIST_FAILED", error: error)
+    }
+  }
+
+  private func waitForDiscoverableInputs(
+    attemptsRemaining: Int,
+    result: @escaping FlutterResult
+  ) {
+    let inputs = bluetoothInputs()
+    if !inputs.isEmpty || attemptsRemaining <= 0 {
+      let activeInput = activeTwoWayHfpInput()
+      if let activeInput {
+        selectedInputId = activeInput.uid
+        selectedInputName = activeInput.portName
+        routeActive = true
+        phase = "ready"
+        message = "Đã xác nhận mic và loa H20 trên route bluetoothHFP."
+      } else {
+        routeActive = false
+        phase = "idle"
+        message = inputs.isEmpty
+          ? "iOS chưa công bố đầu vào bluetoothHFP dù H20 đang ghép đôi. Hãy tắt/bật lại H20 rồi thử lại."
+          : "Đã tìm thấy \(inputs.count) mic HFP; hãy chọn H20 để mở route hai chiều."
+        if inputs.isEmpty {
+          try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
+        }
+      }
+      emitStatus()
+      let currentIds = Set(audioSession.currentRoute.inputs.map(\.uid))
       result(inputs.map { input in
         [
           "id": input.uid,
           "name": input.portName,
-          "isConnected": currentIds.contains(input.uid) || selectedInputId == input.uid,
+          "isConnected": currentIds.contains(input.uid) && hasActiveHfpOutput(),
         ] as [String: Any]
       })
-    } catch {
-      fail(result, code: "HFP_LIST_FAILED", error: error)
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+      guard let self, !self.disposed else {
+        result(
+          FlutterError(
+            code: "HFP_ROUTE_CANCELLED",
+            message: HfpBridgeError.routeCancelled.localizedDescription,
+            details: nil
+          )
+        )
+        return
+      }
+      self.waitForDiscoverableInputs(
+        attemptsRemaining: attemptsRemaining - 1,
+        result: result
+      )
     }
   }
 
@@ -118,25 +181,29 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       result(FlutterError(code: "INVALID_DEVICE", message: "Thiếu mã mic HFP.", details: nil))
       return
     }
+    routeActivationGeneration += 1
+    let activationGeneration = routeActivationGeneration
     do {
       phase = "connecting"
       message = "Đang chọn mic HFP trên iOS…"
       emitStatus()
-      // Remember the preferred H20 input without opening the voice route yet.
-      // Activating HFP during app startup can force a Bluetooth profile switch
-      // while CoreBluetooth is still settling. `startAudioRoute` activates and
-      // verifies the route only when recognition is about to begin.
-      try configureSession(activate: false)
+      try configureSession(activate: true)
       guard let input = bluetoothInputs().first(where: { $0.uid == deviceId }) else {
         throw HfpBridgeError.inputUnavailable
       }
       try audioSession.setPreferredInput(input)
       selectedInputId = input.uid
       selectedInputName = input.portName
-      phase = "ready"
-      message = "Mic HFP đã sẵn sàng trên iOS."
+      routeActive = false
+      phase = "connecting"
+      message = "Đang xác nhận mic và loa H20 trên route bluetoothHFP…"
       emitStatus()
-      result(nil)
+      waitForActiveBluetoothInput(
+        generation: activationGeneration,
+        attemptsRemaining: 15,
+        recording: false,
+        result: result
+      )
     } catch {
       fail(result, code: "HFP_CONNECT_FAILED", error: error)
     }
@@ -177,6 +244,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       waitForActiveBluetoothInput(
         generation: activationGeneration,
         attemptsRemaining: 15,
+        recording: true,
         result: result
       )
     } catch {
@@ -187,6 +255,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private func waitForActiveBluetoothInput(
     generation: Int,
     attemptsRemaining: Int,
+    recording: Bool,
     result: @escaping FlutterResult
   ) {
     guard !disposed, generation == routeActivationGeneration else {
@@ -199,12 +268,14 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       )
       return
     }
-    if let hfpInput = activeBluetoothInput() {
+    if let hfpInput = activeTwoWayHfpInput() {
       selectedInputId = hfpInput.uid
       selectedInputName = hfpInput.portName
       routeActive = true
-      phase = "recording"
-      message = "Đang dùng mic HFP cho Apple Native Speech hoặc Batch dự phòng."
+      phase = recording ? "recording" : "ready"
+      message = recording
+        ? "Đang dùng mic và loa H20 trên route bluetoothHFP hai chiều."
+        : "Đã xác nhận mic và loa H20 trên route bluetoothHFP."
       emitStatus()
       // Let AVAudioSession finish settling before AVAudioEngine opens its tap.
       DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
@@ -243,6 +314,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       self.waitForActiveBluetoothInput(
         generation: generation,
         attemptsRemaining: attemptsRemaining - 1,
+        recording: recording,
         result: result
       )
     }
@@ -250,46 +322,66 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func stopAudioRoute() {
     routeActivationGeneration += 1
-    routeActive = false
     if let selectedInputId,
-      bluetoothInputs().contains(where: { $0.uid == selectedInputId })
+      let activeInput = activeTwoWayHfpInput(),
+      activeInput.uid == selectedInputId
     {
+      routeActive = true
       phase = "ready"
-      message = "Mic HFP đã kết nối; sẵn sàng cho lượt tiếp theo."
+      message = "Mic và loa H20 vẫn ở trên currentRoute bluetoothHFP."
     } else {
+      routeActive = false
       phase = "idle"
-      message = nil
+      message = selectedInputId == nil
+        ? nil
+        : "Đã chọn mic HFP; route hiện chưa hoạt động."
     }
     emitStatus()
   }
 
-  private func activeBluetoothInput() -> AVAudioSessionPortDescription? {
+  private func activeHfpInput() -> AVAudioSessionPortDescription? {
     audioSession.currentRoute.inputs.first {
-      $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
     }
   }
 
+  private func hasActiveHfpOutput() -> Bool {
+    audioSession.currentRoute.outputs.contains {
+      IOSHfpRoutePolicy.isHfpOutput($0.portType)
+    }
+  }
+
+  private func activeTwoWayHfpInput() -> AVAudioSessionPortDescription? {
+    guard hasActiveHfpOutput() else { return nil }
+    return activeHfpInput()
+  }
+
   private func refreshStatus() {
-    if routeActive, let active = activeBluetoothInput() {
+    if phase == "recording", let active = activeTwoWayHfpInput() {
       selectedInputId = active.uid
       selectedInputName = active.portName
       phase = "recording"
-      message = "Đang dùng mic HFP cho Apple Native Speech hoặc Batch dự phòng."
+      message = "Đang dùng mic và loa H20 trên route bluetoothHFP hai chiều."
     } else if let selectedInputId,
-      bluetoothInputs().contains(where: { $0.uid == selectedInputId })
+      let active = activeTwoWayHfpInput(),
+      active.uid == selectedInputId
     {
+      routeActive = true
       phase = "ready"
-      message = "Mic HFP đã kết nối; sẵn sàng."
-    } else if let active = activeBluetoothInput() {
+      message = "Mic và loa H20 đã được xác nhận trên currentRoute."
+    } else if let active = activeTwoWayHfpInput() {
       selectedInputId = active.uid
       selectedInputName = active.portName
+      routeActive = true
       phase = "ready"
-      message = "iOS đang định tuyến qua mic Bluetooth."
+      message = "iOS đang định tuyến mic và loa qua bluetoothHFP."
     } else {
       routeActive = false
       phase = "idle"
       if selectedInputId != nil {
-        message = "Mic HFP không còn khả dụng; hãy kiểm tra Bluetooth iOS."
+        message = bluetoothInputs().contains(where: { $0.uid == selectedInputId })
+          ? "Đã chọn mic HFP; route hiện chưa hoạt động."
+          : "Mic HFP không còn khả dụng; hãy kiểm tra Bluetooth iOS."
       }
     }
     emitStatus()
@@ -337,6 +429,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       "sampleRate": Int(audioSession.sampleRate.rounded()),
       "routeActive": routeActive,
       "audioRoute": routeDescription(),
+      "hasSelectedInput": selectedInputId != nil,
     ]
     if let selectedInputId { value["deviceId"] = selectedInputId }
     if let selectedInputName { value["deviceName"] = selectedInputName }
@@ -396,7 +489,7 @@ private enum HfpBridgeError: LocalizedError {
     case .inputUnavailable:
       return "Mic HFP không còn khả dụng. Hãy kết nối lại trong Cài đặt Bluetooth iOS."
     case .routeUnavailable:
-      return "iOS chưa định tuyến được mic Bluetooth HFP."
+      return "iOS chưa định tuyến đồng thời mic và loa qua bluetoothHFP."
     case .routeCancelled:
       return "Yêu cầu mở mic HFP đã được thay thế hoặc hủy."
     }

@@ -131,6 +131,58 @@ abstract interface class CommandStreamingSpeechInput {
   Future<void> startCommandRecognition();
 }
 
+enum NativeSpeechAudioSource {
+  builtInMic('builtInMic'),
+  hfp('hfp');
+
+  const NativeSpeechAudioSource(this.channelValue);
+
+  final String channelValue;
+}
+
+/// Lets the caller pin the next native recognition turn to a verified input.
+///
+/// This is intentionally one-shot: a physical H20 MAIN press can force the
+/// iPhone microphone without permanently overriding a later, explicitly
+/// selected HFP route.
+abstract interface class NativeSpeechAudioSourceControl {
+  void useNativeSpeechAudioSourceOnce(NativeSpeechAudioSource source);
+}
+
+class NativeSpeechDiagnostic {
+  const NativeSpeechDiagnostic({
+    required this.stage,
+    required this.occurredAt,
+    this.audioSource,
+    this.audioRoute,
+    this.code,
+    this.message,
+  });
+
+  final String stage;
+  final DateTime occurredAt;
+  final String? audioSource;
+  final String? audioRoute;
+  final String? code;
+  final String? message;
+
+  bool get isError => stage == 'error' || code != null;
+}
+
+/// Exposes the real microphone hand-off stages for on-device diagnostics.
+abstract interface class NativeSpeechDiagnostics {
+  NativeSpeechDiagnostic? get nativeSpeechDiagnostic;
+  Stream<NativeSpeechDiagnostic> get nativeSpeechDiagnostics;
+
+  void reportNativeSpeechStage(
+    String stage, {
+    String? audioSource,
+    String? audioRoute,
+    String? code,
+    String? message,
+  });
+}
+
 /// Optional stream of all transcripts produced for the same utterance.
 ///
 /// Normal conversation UI keeps using [StreamingSpeechInput.partialText].
@@ -176,7 +228,9 @@ class AndroidStreamingSpeechInput
         RecordedAudioStreamingSpeechInput,
         CommandStreamingSpeechInput,
         AlternativeTranscriptStreamingSpeechInput,
-        NativeSpeechFallbackAudioProvider {
+        NativeSpeechFallbackAudioProvider,
+        NativeSpeechAudioSourceControl,
+        NativeSpeechDiagnostics {
   AndroidStreamingSpeechInput({
     MethodChannel methodChannel = const MethodChannel('ailingo_speech'),
     EventChannel eventChannel = const EventChannel('ailingo_speech/events'),
@@ -186,12 +240,14 @@ class AndroidStreamingSpeechInput
     String asrMode = 'android_streaming',
     bool preferOnDevice = false,
     bool failOnRuntimeError = false,
+    Duration readyTimeout = const Duration(seconds: 2),
   }) : _methodChannel = methodChannel,
        _platformName = platformName,
        _inputLabel = inputLabel,
        _asrMode = asrMode,
        _preferOnDevice = preferOnDevice,
-       _failOnRuntimeError = failOnRuntimeError {
+       _failOnRuntimeError = failOnRuntimeError,
+       _readyTimeout = readyTimeout {
     _eventSubscription = (eventStream ?? eventChannel.receiveBroadcastStream())
         .listen(_handleEvent, onError: _handleChannelError);
   }
@@ -202,6 +258,7 @@ class AndroidStreamingSpeechInput
   final String _asrMode;
   final bool _preferOnDevice;
   final bool _failOnRuntimeError;
+  final Duration _readyTimeout;
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
   final StreamController<void> _completedController =
@@ -210,6 +267,8 @@ class AndroidStreamingSpeechInput
       StreamController<String>.broadcast();
   final StreamController<List<String>> _transcriptAlternativesController =
       StreamController<List<String>>.broadcast();
+  final StreamController<NativeSpeechDiagnostic> _nativeDiagnosticsController =
+      StreamController<NativeSpeechDiagnostic>.broadcast();
 
   late final StreamSubscription<dynamic> _eventSubscription;
   Completer<String>? _resultCompleter;
@@ -236,6 +295,9 @@ class AndroidStreamingSpeechInput
   bool _active = false;
   bool _disposed = false;
   bool? _availabilityCache;
+  NativeSpeechAudioSource? _nextAudioSource;
+  NativeSpeechAudioSource? _activeAudioSource;
+  NativeSpeechDiagnostic? _nativeDiagnostic;
 
   @override
   String get label => _inputLabel;
@@ -252,6 +314,54 @@ class AndroidStreamingSpeechInput
   @override
   Stream<List<String>> get transcriptAlternatives =>
       _transcriptAlternativesController.stream;
+
+  @override
+  NativeSpeechDiagnostic? get nativeSpeechDiagnostic => _nativeDiagnostic;
+
+  @override
+  Stream<NativeSpeechDiagnostic> get nativeSpeechDiagnostics =>
+      _nativeDiagnosticsController.stream;
+
+  @override
+  void useNativeSpeechAudioSourceOnce(NativeSpeechAudioSource source) {
+    _nextAudioSource = source;
+  }
+
+  NativeSpeechAudioSource takeNativeSpeechAudioSource(
+    NativeSpeechAudioSource fallback,
+  ) {
+    final selected = _nextAudioSource ?? fallback;
+    _nextAudioSource = null;
+    return selected;
+  }
+
+  @override
+  void reportNativeSpeechStage(
+    String stage, {
+    String? audioSource,
+    String? audioRoute,
+    String? code,
+    String? message,
+  }) {
+    if (_disposed) return;
+    final diagnostic = NativeSpeechDiagnostic(
+      stage: stage,
+      occurredAt: DateTime.now(),
+      audioSource: audioSource ?? _activeAudioSource?.channelValue,
+      audioRoute: audioRoute,
+      code: code,
+      message: message,
+    );
+    _nativeDiagnostic = diagnostic;
+    _nativeDiagnosticsController.add(diagnostic);
+    if (_platformName == 'iOS') {
+      debugPrint(
+        'HOMI Apple Speech [$stage] source=${diagnostic.audioSource ?? '-'} '
+        'route=${diagnostic.audioRoute ?? '-'} code=${code ?? '-'} '
+        '${message ?? ''}',
+      );
+    }
+  }
 
   @override
   Future<bool> checkAvailability() async {
@@ -404,12 +514,25 @@ class AndroidStreamingSpeechInput
   }
 
   @override
-  Future<void> start() => _start(commandMode: false);
+  Future<void> start() => startWithNativeAudioSource(
+    commandMode: false,
+    audioSource: takeNativeSpeechAudioSource(
+      NativeSpeechAudioSource.builtInMic,
+    ),
+  );
 
   @override
-  Future<void> startCommandRecognition() => _start(commandMode: true);
+  Future<void> startCommandRecognition() => startWithNativeAudioSource(
+    commandMode: true,
+    audioSource: takeNativeSpeechAudioSource(
+      NativeSpeechAudioSource.builtInMic,
+    ),
+  );
 
-  Future<void> _start({required bool commandMode}) async {
+  Future<void> startWithNativeAudioSource({
+    required bool commandMode,
+    required NativeSpeechAudioSource audioSource,
+  }) async {
     if (_active) {
       await cancel();
     }
@@ -443,25 +566,36 @@ class AndroidStreamingSpeechInput
     final readyCompleter = Completer<void>();
     _readyCompleter = readyCompleter;
     _active = true;
-
+    _activeAudioSource = audioSource;
     try {
       await _methodChannel.invokeMethod<void>('speech.start', {
         'commandMode': commandMode,
         'preferOnDevice': _preferOnDevice,
+        'audioSource': audioSource.channelValue,
       });
-      await readyCompleter.future.timeout(const Duration(seconds: 2));
+      await readyCompleter.future.timeout(_readyTimeout);
       _startedAt = DateTime.now();
     } on TimeoutException {
       _active = false;
       await _methodChannel
           .invokeMethod<void>('speech.cancel')
           .catchError((Object _) {});
+      reportNativeSpeechStage(
+        'error',
+        code: 'SPEECH_READY_TIMEOUT',
+        message: 'Micro $_platformName chưa phát speech.ready đúng hạn.',
+      );
       throw StreamingSpeechInputException(
         'Micro $_platformName chưa sẵn sàng. Hãy thử lại sau một chút.',
         code: 'SPEECH_READY_TIMEOUT',
       );
     } on PlatformException catch (error) {
       _active = false;
+      reportNativeSpeechStage(
+        'error',
+        code: error.code,
+        message: error.message,
+      );
       throw StreamingSpeechInputException(
         error.message ?? 'Không thể bắt đầu nhận diện giọng nói.',
         code: error.code,
@@ -649,8 +783,23 @@ class AndroidStreamingSpeechInput
     }
 
     final type = event['type'];
+    if (type == 'speech.stage') {
+      reportNativeSpeechStage(
+        '${event['stage'] ?? 'unknown'}',
+        audioSource: event['audioSource'] as String?,
+        audioRoute: event['audioRoute'] as String?,
+        code: event['code'] as String?,
+        message: event['message'] as String?,
+      );
+      return;
+    }
     if (type == 'speech.ready') {
       _readNativeTelemetry(event);
+      reportNativeSpeechStage(
+        'speech.ready',
+        audioSource: event['audioSource'] as String?,
+        audioRoute: event['audioRoute'] as String?,
+      );
       final readyCompleter = _readyCompleter;
       if (readyCompleter != null && !readyCompleter.isCompleted) {
         readyCompleter.complete();
@@ -714,6 +863,13 @@ class AndroidStreamingSpeechInput
       _resultAt = DateTime.now();
       final message =
           event['message'] as String? ?? 'Không thể nhận diện giọng nói.';
+      reportNativeSpeechStage(
+        'error',
+        audioSource: event['audioSource'] as String?,
+        audioRoute: event['audioRoute'] as String?,
+        code: '${event['code'] ?? 'ERROR'}',
+        message: message,
+      );
       final readyCompleter = _readyCompleter;
       if (readyCompleter != null && !readyCompleter.isCompleted) {
         readyCompleter.completeError(
@@ -862,6 +1018,7 @@ class AndroidStreamingSpeechInput
     await _completedController.close();
     await _partialTextController.close();
     await _transcriptAlternativesController.close();
+    await _nativeDiagnosticsController.close();
   }
 }
 
@@ -883,6 +1040,10 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
          asrMode: 'android_streaming',
          preferOnDevice: true,
          failOnRuntimeError: true,
+         // Route confirmation may legitimately take about two seconds after
+         // iOS changes from HFP to the built-in microphone. Do not let Dart
+         // cancel the native start while AVAudioSession is still settling.
+         readyTimeout: const Duration(seconds: 6),
        );
 
   final HfpAudioControl? _audioRouteControl;
@@ -907,13 +1068,30 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     await _stopAudioRoute();
 
     final routeControl = _audioRouteControl;
+    var audioSource = takeNativeSpeechAudioSource(
+      routeControl != null &&
+              (routeControl.status.deviceId != null ||
+                  routeControl.status.isConnected)
+          ? NativeSpeechAudioSource.hfp
+          : NativeSpeechAudioSource.builtInMic,
+    );
     try {
-      if (routeControl != null && routeControl.status.isConnected) {
+      if (audioSource == NativeSpeechAudioSource.hfp &&
+          routeControl != null &&
+          (routeControl.status.deviceId != null ||
+              routeControl.status.isConnected)) {
         // Selecting H20 in Settings only remembers the preferred input. The
         // HFP route must be activated immediately before AVAudioEngine opens
         // its input node or Apple Speech can remain on an inactive route.
         try {
           await routeControl.startAudioRoute();
+          if (!routeControl.status.routeActive ||
+              routeControl.status.phase !=
+                  BluetoothAudioConnectionPhase.recording) {
+            throw const HfpAudioException(
+              'iOS chưa xác nhận currentRoute là bluetoothHFP.',
+            );
+          }
           _audioRouteStarted = true;
         } catch (error) {
           // HFP is an enhancement, not a prerequisite. If iOS cannot finish
@@ -924,13 +1102,13 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
           );
           await routeControl.stopAudioRoute().catchError((Object _) {});
           await routeControl.disconnect().catchError((Object _) {});
+          audioSource = NativeSpeechAudioSource.builtInMic;
         }
       }
-      if (commandMode) {
-        await super.startCommandRecognition();
-      } else {
-        await super.start();
-      }
+      await super.startWithNativeAudioSource(
+        commandMode: commandMode,
+        audioSource: audioSource,
+      );
     } catch (_) {
       await _stopAudioRoute();
       // If Apple Speech fails after HFP became active, leaving the preferred
@@ -986,7 +1164,8 @@ class NativeFirstStreamingSpeechInput
         StreamingSpeechInput,
         CommandStreamingSpeechInput,
         AlternativeTranscriptStreamingSpeechInput,
-        NativeSpeechFallbackAudioProvider {
+        NativeSpeechFallbackAudioProvider,
+        NativeSpeechDiagnostics {
   NativeFirstStreamingSpeechInput({
     required this.primary,
     required this.fallback,
@@ -1062,6 +1241,37 @@ class NativeFirstStreamingSpeechInput
   Stream<List<String>> get transcriptAlternatives =>
       _alternativesController.stream;
 
+  NativeSpeechDiagnostics? get _primaryDiagnostics =>
+      primary is NativeSpeechDiagnostics
+      ? primary as NativeSpeechDiagnostics
+      : null;
+
+  @override
+  NativeSpeechDiagnostic? get nativeSpeechDiagnostic =>
+      _primaryDiagnostics?.nativeSpeechDiagnostic;
+
+  @override
+  Stream<NativeSpeechDiagnostic> get nativeSpeechDiagnostics =>
+      _primaryDiagnostics?.nativeSpeechDiagnostics ??
+      const Stream<NativeSpeechDiagnostic>.empty();
+
+  @override
+  void reportNativeSpeechStage(
+    String stage, {
+    String? audioSource,
+    String? audioRoute,
+    String? code,
+    String? message,
+  }) {
+    _primaryDiagnostics?.reportNativeSpeechStage(
+      stage,
+      audioSource: audioSource,
+      audioRoute: audioRoute,
+      code: code,
+      message: message,
+    );
+  }
+
   @override
   Future<bool> checkAvailability() async {
     if (_disposed) return false;
@@ -1086,9 +1296,15 @@ class NativeFirstStreamingSpeechInput
     _fallbackReason = null;
     final nativeDisabled =
         _nativeDisabledUntil?.isAfter(DateTime.now()) ?? false;
-    if (!nativeDisabled && await primary.checkAvailability()) {
+    if (!nativeDisabled) {
       _active = primary;
       try {
+        // The concrete primary start already checks availability. Keeping a
+        // separate check here made iOS query SpeechTranscriber.supportedLocale
+        // twice and, more importantly, left the first asynchronous query
+        // outside [primaryStartTimeout]. If that Apple API stalled, MAIN stayed
+        // after prompt_done forever without ever invoking native speech.start.
+        reportNativeSpeechStage('native_primary_start_requested');
         await _startInput(primary, commandMode: commandMode).timeout(
           primaryStartTimeout,
           onTimeout: () async {
@@ -1107,9 +1323,7 @@ class NativeFirstStreamingSpeechInput
         await primary.cancel().catchError((Object _) {});
       }
     } else {
-      _fallbackReason = nativeDisabled
-          ? 'native_temporarily_disabled_after_error'
-          : 'native_unavailable';
+      _fallbackReason = 'native_temporarily_disabled_after_error';
     }
     _active = fallback;
     await _startInput(fallback, commandMode: commandMode);

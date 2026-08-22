@@ -14,12 +14,16 @@ void main() {
     final events = StreamController<dynamic>.broadcast();
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    String? receivedAudioSource;
     messenger.setMockMethodCallHandler(methodChannel, (call) async {
       switch (call.method) {
         case 'speech.isAvailable':
         case 'speech.prepare':
           return true;
         case 'speech.start':
+          receivedAudioSource =
+              (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                  as String?;
           scheduleMicrotask(() {
             events.add(<String, dynamic>{
               'type': 'speech.ready',
@@ -50,6 +54,7 @@ void main() {
     addTearDown(input.dispose);
 
     await input.start();
+    expect(receivedAudioSource, 'builtInMic');
     events.add(<String, dynamic>{
       'type': 'speech.partial',
       'text': 'xin chào',
@@ -162,6 +167,7 @@ void main() {
     final events = StreamController<dynamic>.broadcast();
     final route = _FakeHfpAudioControl();
     bool? receivedCommandMode;
+    String? receivedAudioSource;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(methodChannel, (call) async {
@@ -172,6 +178,9 @@ void main() {
           receivedCommandMode =
               (call.arguments as Map<Object?, Object?>?)?['commandMode']
                   as bool?;
+          receivedAudioSource =
+              (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                  as String?;
           scheduleMicrotask(() {
             events.add(<String, dynamic>{
               'type': 'speech.ready',
@@ -207,6 +216,7 @@ void main() {
       isFalse,
       reason: 'MAIN must use the same iOS dictation path as manual recording.',
     );
+    expect(receivedAudioSource, 'hfp');
 
     events.add(<String, dynamic>{
       'type': 'speech.final',
@@ -231,12 +241,16 @@ void main() {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     var nativeStartCount = 0;
+    String? receivedAudioSource;
     messenger.setMockMethodCallHandler(methodChannel, (call) async {
       switch (call.method) {
         case 'speech.isAvailable':
           return true;
         case 'speech.start':
           nativeStartCount += 1;
+          receivedAudioSource =
+              (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                  as String?;
           scheduleMicrotask(() {
             events.add(<String, dynamic>{
               'type': 'speech.ready',
@@ -268,6 +282,55 @@ void main() {
     expect(route.startRouteCount, 1);
     expect(route.disconnectCount, 1);
     expect(nativeStartCount, 1);
+    expect(receivedAudioSource, 'builtInMic');
+  });
+
+  test('physical MAIN one-shot source bypasses a selected HFP route', () async {
+    const methodChannel = MethodChannel('test_ios_forced_phone_mic');
+    final events = StreamController<dynamic>.broadcast();
+    final route = _FakeHfpAudioControl();
+    String? receivedAudioSource;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          receivedAudioSource =
+              (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                  as String?;
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{
+              'type': 'speech.ready',
+              'audioSource': 'builtInMic',
+              'audioRoute': 'in=[BuiltInMic:iPhone]',
+            });
+          });
+          return true;
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+      await route.dispose();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      audioRouteControl: route,
+    );
+    addTearDown(input.dispose);
+
+    input.useNativeSpeechAudioSourceOnce(NativeSpeechAudioSource.builtInMic);
+    await input.startCommandRecognition();
+
+    expect(receivedAudioSource, 'builtInMic');
+    expect(route.startRouteCount, 0);
   });
 
   test(
@@ -379,6 +442,30 @@ void main() {
     await input.dispose();
   });
 
+  test(
+    'MAIN bounds a stalled native availability check before using fallback',
+    () async {
+      final availabilityGate = Completer<bool>();
+      final primary = _FakeSpeechInput(availabilityGate: availabilityGate);
+      final fallback = _FakeSpeechInput();
+      final input = NativeFirstStreamingSpeechInput(
+        primary: primary,
+        fallback: fallback,
+        primaryStartTimeout: const Duration(milliseconds: 5),
+        disposePrimary: true,
+        disposeFallback: true,
+      );
+
+      await input.startCommandRecognition();
+
+      expect(primary.commandStartCount, 1);
+      expect(fallback.commandStartCount, 1);
+      expect(input.label, fallback.label);
+      availabilityGate.complete(true);
+      await input.dispose();
+    },
+  );
+
   test('MAIN recovers the same WAV when Apple native fails at stop', () async {
     const safetyRecording = AudioCapture(
       filePath: '/tmp/homi-ios-speech.wav',
@@ -443,6 +530,7 @@ class _FakeSpeechInput
     this.stopError,
     this.fallbackAudio,
     this.startGate,
+    this.availabilityGate,
     this.capture = const StreamingSpeechCapture(
       sourceText: 'xin chào',
       duration: Duration(seconds: 1),
@@ -457,6 +545,7 @@ class _FakeSpeechInput
   final StreamingSpeechInputException? stopError;
   final AudioCapture? fallbackAudio;
   final Completer<void>? startGate;
+  final Completer<bool>? availabilityGate;
   final StreamingSpeechCapture capture;
   final StreamController<double> _amplitude =
       StreamController<double>.broadcast();
@@ -479,11 +568,15 @@ class _FakeSpeechInput
   Stream<String> get partialText => _partial.stream;
 
   @override
-  Future<bool> checkAvailability() async => true;
+  Future<bool> checkAvailability() async =>
+      availabilityGate == null ? true : await availabilityGate!.future;
 
   @override
   Future<void> start() async {
     startCount += 1;
+    if (availabilityGate != null) {
+      await availabilityGate!.future;
+    }
     await startGate?.future;
     final error = failOnStart;
     if (error != null) throw error;

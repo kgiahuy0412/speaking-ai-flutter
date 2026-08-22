@@ -809,6 +809,14 @@ void main() {
       expect(controller.isAwaitingCommand, isTrue);
       expect(controller.isListening, isTrue);
       expect(
+        speechInput.diagnosticStages,
+        containsAllInOrder(<String>[
+          'prompt_done',
+          'microphone_start_requested',
+          'microphone_listening',
+        ]),
+      );
+      expect(
         speechInput.events.where((event) => event == 'start'),
         hasLength(2),
       );
@@ -895,7 +903,10 @@ Future<ListeningContentCatalog> _loadMainAssistantContent() async {
 }
 
 class _FakeNavigationSpeechInput
-    implements StreamingSpeechInput, AlternativeTranscriptStreamingSpeechInput {
+    implements
+        StreamingSpeechInput,
+        AlternativeTranscriptStreamingSpeechInput,
+        NativeSpeechDiagnostics {
   _FakeNavigationSpeechInput({
     this.stopText = 'Con muốn học từ vựng',
     this.stopAlternatives = const <String>[],
@@ -909,9 +920,13 @@ class _FakeNavigationSpeechInput
       StreamController<String>.broadcast();
   final StreamController<List<String>> _alternativeTextController =
       StreamController<List<String>>.broadcast();
+  final StreamController<NativeSpeechDiagnostic> _diagnosticsController =
+      StreamController<NativeSpeechDiagnostic>.broadcast();
   final List<String> events = <String>[];
+  final List<String> diagnosticStages = <String>[];
   final String stopText;
   final List<String> stopAlternatives;
+  NativeSpeechDiagnostic? _nativeDiagnostic;
 
   void emitPartial(String text) => _partialTextController.add(text);
 
@@ -935,6 +950,33 @@ class _FakeNavigationSpeechInput
   @override
   Stream<List<String>> get transcriptAlternatives =>
       _alternativeTextController.stream;
+
+  @override
+  NativeSpeechDiagnostic? get nativeSpeechDiagnostic => _nativeDiagnostic;
+
+  @override
+  Stream<NativeSpeechDiagnostic> get nativeSpeechDiagnostics =>
+      _diagnosticsController.stream;
+
+  @override
+  void reportNativeSpeechStage(
+    String stage, {
+    String? audioSource,
+    String? audioRoute,
+    String? code,
+    String? message,
+  }) {
+    diagnosticStages.add(stage);
+    _nativeDiagnostic = NativeSpeechDiagnostic(
+      stage: stage,
+      occurredAt: DateTime.now(),
+      audioSource: audioSource,
+      audioRoute: audioRoute,
+      code: code,
+      message: message,
+    );
+    _diagnosticsController.add(_nativeDiagnostic!);
+  }
 
   @override
   Future<bool> checkAvailability() async => true;
@@ -966,6 +1008,7 @@ class _FakeNavigationSpeechInput
     await _completedController.close();
     await _partialTextController.close();
     await _alternativeTextController.close();
+    await _diagnosticsController.close();
   }
 }
 

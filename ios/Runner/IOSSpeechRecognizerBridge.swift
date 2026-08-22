@@ -8,6 +8,47 @@ enum IOSNativeSpeechEngineKind: String, Sendable {
   case sfSpeechRecognizer = "sf_speech_recognizer"
 }
 
+enum IOSNativeSpeechAudioSource: String, Sendable {
+  case builtInMic
+  case hfp
+
+  static func fromChannelValue(_ value: Any?) -> IOSNativeSpeechAudioSource {
+    guard let rawValue = value as? String,
+      let source = IOSNativeSpeechAudioSource(rawValue: rawValue)
+    else {
+      return .builtInMic
+    }
+    return source
+  }
+}
+
+struct IOSNativeSpeechAudioRoutePolicy {
+  static func categoryOptions(
+    for source: IOSNativeSpeechAudioSource
+  ) -> AVAudioSession.CategoryOptions {
+    switch source {
+    case .builtInMic:
+      return [.defaultToSpeaker]
+    case .hfp:
+      // A2DP is output-only and can prevent the bidirectional HFP profile from
+      // becoming the active recording route.
+      return IOSHfpRoutePolicy.categoryOptions
+    }
+  }
+
+  static func accepts(
+    portType: AVAudioSession.Port,
+    for source: IOSNativeSpeechAudioSource
+  ) -> Bool {
+    switch source {
+    case .builtInMic:
+      return portType == .builtInMic
+    case .hfp:
+      return portType == .bluetoothHFP
+    }
+  }
+}
+
 struct IOSNativeSpeechEngineSelector {
   static func select(
     isIOS26OrNewer: Bool,
@@ -71,6 +112,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var readyAt: Date?
   private var firstPartialAt: Date?
   private var finalAt: Date?
+  private var requestedAudioSource = IOSNativeSpeechAudioSource.builtInMic
+  private var lastDiagnosticStage = "idle"
 
   init(messenger: FlutterBinaryMessenger) {
     methodChannel = FlutterMethodChannel(name: "ailingo_speech", binaryMessenger: messenger)
@@ -102,7 +145,14 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     case "speech.start":
       let arguments = call.arguments as? [String: Any]
       let commandMode = arguments?["commandMode"] as? Bool ?? false
-      start(commandMode: commandMode, result: result)
+      let audioSource = IOSNativeSpeechAudioSource.fromChannelValue(
+        arguments?["audioSource"]
+      )
+      start(
+        commandMode: commandMode,
+        audioSource: audioSource,
+        result: result
+      )
     case "speech.stop":
       stop(result)
     case "speech.cancel":
@@ -134,9 +184,15 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     }
   }
 
-  private func start(commandMode: Bool, result: @escaping FlutterResult) {
+  private func start(
+    commandMode: Bool,
+    audioSource: IOSNativeSpeechAudioSource,
+    result: @escaping FlutterResult
+  ) {
     startRequestGeneration += 1
     let requestGeneration = startRequestGeneration
+    requestedAudioSource = audioSource
+    startRequestedAt = Date()
     if active {
       cancelCurrent(deleteRecording: true)
     }
@@ -147,6 +203,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         return
       }
       guard authorization == .authorized else {
+        self.emitStage(
+          "error",
+          code: "SPEECH_PERMISSION_DENIED",
+          message: "Quyền Nhận dạng giọng nói đã bị từ chối."
+        )
         result(
           FlutterError(
             code: "SPEECH_PERMISSION_DENIED",
@@ -163,6 +224,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
           return
         }
         guard granted else {
+          self.emitStage(
+            "error",
+            code: "MICROPHONE_PERMISSION_DENIED",
+            message: "Ứng dụng cần quyền micro để nghe con nói."
+          )
           result(
             FlutterError(
               code: "MICROPHONE_PERMISSION_DENIED",
@@ -184,6 +250,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
             try await self.beginRecognition(
               engine: engine,
               commandMode: commandMode,
+              audioSource: audioSource,
               startRequestGeneration: requestGeneration
             )
             guard self.isCurrentStartRequest(requestGeneration) else {
@@ -195,12 +262,23 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
               self.completeCancelledStart(result)
               return
             }
+            let errorCode = self.diagnosticCode(for: error)
+            let failedStage = self.lastDiagnosticStage
+            self.emitStage(
+              "error",
+              code: errorCode,
+              message: error.localizedDescription
+            )
             self.cancelCurrent(deleteRecording: true)
             result(
               FlutterError(
-                code: "IOS_NATIVE_SPEECH_UNAVAILABLE",
+                code: errorCode,
                 message: error.localizedDescription,
-                details: nil
+                details: [
+                  "stage": failedStage,
+                  "audioSource": audioSource.rawValue,
+                  "audioRoute": self.routeDescription(),
+                ]
               )
             )
           }
@@ -261,6 +339,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func beginRecognition(
     engine: IOSNativeSpeechEngineKind,
     commandMode: Bool,
+    audioSource: IOSNativeSpeechAudioSource,
     startRequestGeneration: Int
   ) async throws {
     guard isCurrentStartRequest(startRequestGeneration) else {
@@ -280,12 +359,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     latestText = ""
     latestAlternatives = []
     latestConfidence = -1
-    startRequestedAt = Date()
+    startRequestedAt = startRequestedAt ?? Date()
     readyAt = nil
     firstPartialAt = nil
     finalAt = nil
 
-    try configureAudioSession()
+    try await configureAudioSession(audioSource: audioSource)
     try createPrivateFallbackRecording()
 
     if engine == .speechAnalyzer {
@@ -328,7 +407,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       throw IOSSpeechBridgeError.startCancelled
     }
     try audioEngine.start()
+    try await waitForRequestedAudioRoute(audioSource)
+    emitStage("engine_started")
     readyAt = Date()
+    emitStage("speech.ready")
     emit(type: "speech.ready")
   }
 
@@ -516,6 +598,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     if let metadata = fallbackRecordingMetadata() {
       values.merge(metadata) { _, new in new }
     }
+    emitStage("error", code: code, message: error.localizedDescription)
     emit(type: "speech.error", values: values)
   }
 
@@ -537,13 +620,79 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     emit(type: "speech.rms", values: ["rmsDb": db])
   }
 
-  private func configureAudioSession() throws {
+  private func configureAudioSession(
+    audioSource: IOSNativeSpeechAudioSource
+  ) async throws {
+    if audioSource == .builtInMic {
+      // Clear any preferred HFP route left by Settings/H20 before applying a
+      // category that deliberately excludes Bluetooth recording inputs.
+      try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
+      try audioSession.setPreferredInput(nil)
+    }
     try audioSession.setCategory(
       .playAndRecord,
       mode: .voiceChat,
-      options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+      options: IOSNativeSpeechAudioRoutePolicy.categoryOptions(for: audioSource)
     )
-    try audioSession.setActive(true)
+    try audioSession.setActive(true, options: [])
+
+    let preferredInput: AVAudioSessionPortDescription?
+    switch audioSource {
+    case .builtInMic:
+      preferredInput = audioSession.availableInputs?.first {
+        $0.portType == .builtInMic
+      }
+      guard preferredInput != nil else {
+        throw IOSSpeechBridgeError.builtInMicUnavailable
+      }
+    case .hfp:
+      preferredInput = audioSession.currentRoute.inputs.first {
+        IOSNativeSpeechAudioRoutePolicy.accepts(
+          portType: $0.portType,
+          for: .hfp
+        )
+      } ?? audioSession.availableInputs?.first {
+        IOSNativeSpeechAudioRoutePolicy.accepts(
+          portType: $0.portType,
+          for: .hfp
+        )
+      }
+      guard preferredInput != nil else {
+        throw IOSSpeechBridgeError.hfpInputUnavailable
+      }
+    }
+    try audioSession.setPreferredInput(preferredInput)
+    emitStage("audio_session_active")
+    try await waitForRequestedAudioRoute(audioSource)
+    emitStage("route_confirmed")
+  }
+
+  private func waitForRequestedAudioRoute(
+    _ audioSource: IOSNativeSpeechAudioSource,
+    attempts: Int = 20
+  ) async throws {
+    for attempt in 0..<attempts {
+      let inputConfirmed = audioSession.currentRoute.inputs.contains(where: {
+        IOSNativeSpeechAudioRoutePolicy.accepts(
+          portType: $0.portType,
+          for: audioSource
+        )
+      })
+      let outputConfirmed = audioSource != .hfp
+        || audioSession.currentRoute.outputs.contains(where: {
+          IOSHfpRoutePolicy.isHfpOutput($0.portType)
+        })
+      if inputConfirmed && outputConfirmed {
+        return
+      }
+      if attempt + 1 < attempts {
+        try await Task<Never, Never>.sleep(nanoseconds: 100_000_000)
+      }
+    }
+    throw IOSSpeechBridgeError.audioRouteMismatch(
+      expected: audioSource.rawValue,
+      actual: routeDescription()
+    )
   }
 
   private func createPrivateFallbackRecording() throws {
@@ -737,6 +886,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       "onDevice": true,
       "audioRoute": routeDescription(),
       "isBluetoothInput": isBluetoothInput(),
+      "audioSource": requestedAudioSource.rawValue,
+      "diagnosticStage": lastDiagnosticStage,
     ]
     if let startRequestedAt, let readyAt {
       values["listeningReadyMs"] = max(0, Int(readyAt.timeIntervalSince(startRequestedAt) * 1_000))
@@ -769,6 +920,46 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     payload["type"] = type
     payload.merge(values) { _, new in new }
     eventSink?(payload)
+  }
+
+  private func emitStage(
+    _ stage: String,
+    code: String? = nil,
+    message: String? = nil
+  ) {
+    lastDiagnosticStage = stage
+    var values: [String: Any] = ["stage": stage]
+    if let code { values["code"] = code }
+    if let message { values["message"] = message }
+    emit(type: "speech.stage", values: values)
+  }
+
+  private func diagnosticCode(for error: Error) -> String {
+    guard let bridgeError = error as? IOSSpeechBridgeError else {
+      return "IOS_NATIVE_SPEECH_UNAVAILABLE"
+    }
+    switch bridgeError {
+    case .builtInMicUnavailable:
+      return "BUILT_IN_MIC_UNAVAILABLE"
+    case .hfpInputUnavailable:
+      return "HFP_INPUT_UNAVAILABLE"
+    case .audioRouteMismatch:
+      return "AUDIO_ROUTE_MISMATCH"
+    case .audioInputUnavailable:
+      return "AUDIO_INPUT_UNAVAILABLE"
+    case .onDeviceUnavailable:
+      return "ON_DEVICE_SPEECH_UNAVAILABLE"
+    case .startCancelled:
+      return "SPEECH_START_CANCELLED"
+    case .audioBufferCopyFailed:
+      return "AUDIO_BUFFER_COPY_FAILED"
+    case .audioConversionUnavailable:
+      return "AUDIO_CONVERSION_UNAVAILABLE"
+    case .audioConversionFailed:
+      return "AUDIO_CONVERSION_FAILED"
+    case .noSpeech:
+      return "NO_SPEECH"
+    }
   }
 
   func onListen(
@@ -1007,6 +1198,9 @@ private final class IOSSpeechAnalyzerSession {
 
 private enum IOSSpeechBridgeError: LocalizedError {
   case onDeviceUnavailable
+  case builtInMicUnavailable
+  case hfpInputUnavailable
+  case audioRouteMismatch(expected: String, actual: String)
   case audioInputUnavailable
   case audioBufferCopyFailed
   case audioConversionUnavailable
@@ -1018,6 +1212,12 @@ private enum IOSSpeechBridgeError: LocalizedError {
     switch self {
     case .onDeviceUnavailable:
       return "Thiết bị chưa hỗ trợ nhận dạng tiếng Việt on-device; HOMI sẽ dùng Cloudflare/Batch dự phòng."
+    case .builtInMicUnavailable:
+      return "iOS không tìm thấy micro tích hợp để mở MAIN."
+    case .hfpInputUnavailable:
+      return "iOS chưa có đầu vào bluetoothHFP đang khả dụng."
+    case let .audioRouteMismatch(expected, actual):
+      return "Audio route không đúng nguồn \(expected). Route hiện tại: \(actual)"
     case .audioInputUnavailable:
       return "iOS chưa mở được micro iPhone hoặc H20 HFP."
     case .audioBufferCopyFailed:
