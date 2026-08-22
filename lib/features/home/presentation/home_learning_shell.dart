@@ -448,7 +448,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   List<UserOnboardingStep> get _tutorialSteps => <UserOnboardingStep>[
     UserOnboardingStep(
       kind: UserOnboardingStepKind.welcome,
-      title: context.tr('Chào mừng đến với INNOTRIK', '欢迎使用 INNOTRIK'),
+      title: context.tr('Chào mừng đến với HOMI', '欢迎使用 HOMI'),
       description: context.tr(
         'Mình sẽ chỉ cho bạn những khu vực quan trọng để bắt đầu học thật dễ dàng.',
         '接下来带你快速认识几个重要功能，轻松开始学习。',
@@ -459,8 +459,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       kind: UserOnboardingStepKind.spotlight,
       title: context.tr('Bắt đầu nói', '开始说话'),
       description: context.tr(
-        'Chạm nút micro, nói một câu tiếng Việt và INNOTRIK sẽ giúp chuyển sang tiếng Anh.',
-        '点击麦克风，说一句越南语，INNOTRIK 会帮你转换成英语。',
+        'Chạm nút micro, nói một câu tiếng Việt và HOMI sẽ giúp chuyển sang tiếng Anh.',
+        '点击麦克风，说一句越南语，HOMI 会帮你转换成英语。',
       ),
       icon: Icons.mic_rounded,
       targetKey: _speakActionKey,

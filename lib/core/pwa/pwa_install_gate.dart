@@ -7,11 +7,7 @@ import 'pwa_runtime.dart';
 import 'pwa_update_gate.dart';
 
 class PwaInstallGate extends StatelessWidget {
-  const PwaInstallGate({
-    required this.child,
-    this.runtimeState,
-    super.key,
-  });
+  const PwaInstallGate({required this.child, this.runtimeState, super.key});
 
   final Widget child;
   final PwaRuntimeState? runtimeState;
@@ -60,7 +56,7 @@ class PwaInstallGate extends StatelessWidget {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            'Cài INNOTRIK lên iPhone',
+                            'Cài HOMI lên iPhone',
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
@@ -103,7 +99,7 @@ class PwaInstallGate extends StatelessWidget {
                             number: runtime.inAppBrowser ? 4 : 3,
                             icon: Icons.touch_app_rounded,
                             text:
-                                'Quay về Màn hình chính và mở biểu tượng INNOTRIK.',
+                                'Quay về Màn hình chính và mở biểu tượng HOMI.',
                           ),
                           const SizedBox(height: 20),
                           const Text(

@@ -27,7 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>HOMI dùng micro sau khi phụ huynh đồng ý để ghi lời nói của trẻ, gửi tới dịch vụ HOMI và nhà cung cấp AI nhằm nhận dạng, dịch và hỗ trợ luyện nói.</string>
+	<string>HOMI dùng micro sau khi phụ huynh đồng ý để nhận dạng lời nói trên thiết bị. Chỉ khi Apple Speech không khả dụng hoặc gặp lỗi, bản ghi mới được gửi tới dịch vụ HOMI/Cloudflare để nhận dạng dự phòng.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>HOMI dùng Apple Speech để chuyển lời nói tiếng Việt thành văn bản ngay trên iPhone/iPad trước khi gửi văn bản tới dịch vụ dịch và tạo giọng đọc.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>HOMI dùng Bluetooth để nhận nút MAIN và trạng thái pin từ thiết bị H20, đồng thời chọn micro HFP đã được kết nối trong Cài đặt iOS.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>

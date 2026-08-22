@@ -55,7 +55,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   late final AppConfig _config;
   ConversationController? _controller;
   VoiceNavigationController? _voiceNavigationController;
-  AndroidStreamingSpeechInput? _androidStreamingSpeechInput;
+  AndroidStreamingSpeechInput? _nativeStreamingSpeechInput;
   PhoneMicrophoneInput? _phoneMicrophoneInput;
   MethodChannelAiv0BleControl? _aiv0BleControl;
   MethodChannelHfpAudioControl? _nativeHfpAudioControl;
@@ -426,6 +426,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final supportsAppleNativeSpeech =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    final supportsNativeSpeech =
+        supportsAndroidNativeSpeech || supportsAppleNativeSpeech;
     final supportsNativeBluetooth =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
@@ -452,15 +456,34 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       enabled: supportsNativeBluetooth && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
     );
-    final streamingSpeechInput = supportsAndroidNativeSpeech
+    final AndroidStreamingSpeechInput? streamingSpeechInput =
+        supportsAndroidNativeSpeech
         ? AndroidStreamingSpeechInput()
+        : supportsAppleNativeSpeech
+        ? IOSStreamingSpeechInput()
         : null;
-    _androidStreamingSpeechInput = streamingSpeechInput;
+    _nativeStreamingSpeechInput = streamingSpeechInput;
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
     final StreamingSpeechInput? voiceNavigationSpeechInput;
-    if (streamingSpeechInput != null) {
+    final bool voiceNavigationOwnsSpeechInput;
+    if (supportsAppleNativeSpeech && streamingSpeechInput != null) {
+      webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
+        audioInput: phoneMicrophoneInput,
+        repository: repository,
+        childAge: _config.childAge,
+        audioRouteControl: hfpAudioControl,
+      );
+      voiceNavigationSpeechInput = NativeFirstStreamingSpeechInput(
+        primary: streamingSpeechInput,
+        fallback: webBatchStreamingSpeechInput,
+        disposePrimary: false,
+        disposeFallback: true,
+      );
+      voiceNavigationOwnsSpeechInput = true;
+    } else if (streamingSpeechInput != null) {
       webBatchStreamingSpeechInput = null;
       voiceNavigationSpeechInput = streamingSpeechInput;
+      voiceNavigationOwnsSpeechInput = false;
     } else if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
       webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
         audioInput: phoneMicrophoneInput,
@@ -471,18 +494,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
             : null,
       );
       voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
+      voiceNavigationOwnsSpeechInput = true;
     } else {
       webBatchStreamingSpeechInput = null;
       voiceNavigationSpeechInput = null;
+      voiceNavigationOwnsSpeechInput = false;
     }
     final voiceNavigationController =
         voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(
             speechInput: voiceNavigationSpeechInput,
-            // Android's recognizer is shared with ConversationController and
-            // remains owned there. The Cloud/Batch adapter on Web/iOS is
-            // exclusive to MAIN and may close its own event streams.
-            ownsSpeechInput: streamingSpeechInput == null,
+            // Native speech is shared with ConversationController. On iOS the
+            // native-first wrapper owns only its private Cloud/Batch fallback.
+            ownsSpeechInput: voiceNavigationOwnsSpeechInput,
             voicePromptService: createVoicePromptService(),
             ownsVoicePromptService: true,
             activeLearningCommandHandler: _handleActiveLearningCommand,
@@ -512,7 +536,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       // session creation and chunk upload overlap the child's whole utterance.
       // No-speech turns are discarded by the adaptive upload gate.
       adaptiveWebUploadDelay: Duration.zero,
-      initialAsrMode: supportsAndroidNativeSpeech
+      initialAsrMode: supportsNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
       voiceDataProcessingAllowed: () => _voiceAccessEnabled,
@@ -544,9 +568,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return;
     }
     _backgroundWorkStarted = true;
-    final androidStreamingSpeechInput = _androidStreamingSpeechInput;
-    if (androidStreamingSpeechInput != null) {
-      unawaited(androidStreamingSpeechInput.prewarm());
+    final nativeStreamingSpeechInput = _nativeStreamingSpeechInput;
+    if (nativeStreamingSpeechInput != null) {
+      unawaited(nativeStreamingSpeechInput.prewarm());
     }
     final repository = _repository;
     final controller = _controller;

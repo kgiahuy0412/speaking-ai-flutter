@@ -184,6 +184,8 @@ void main() {
       find.byType(LessonPracticeScreen),
       matchesGoldenFile('goldens/lesson-reminder-popup-390x844.png'),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 301));
   });
 
   testWidgets('recording praise fireworks match the approved direction', (
@@ -221,6 +223,8 @@ void main() {
       find.byType(LessonPracticeScreen),
       matchesGoldenFile('goldens/lesson-praise-fireworks-390x844.png'),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 301));
   });
 
   testWidgets('English-only lesson review matches the approved direction', (

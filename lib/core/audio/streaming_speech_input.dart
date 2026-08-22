@@ -138,6 +138,27 @@ abstract interface class AlternativeTranscriptStreamingSpeechInput {
   Stream<List<String>> get transcriptAlternatives;
 }
 
+/// Marks a native recognizer whose microphone turn may safely fall back to the
+/// existing Cloudflare/Batch path when Apple Speech is unavailable.
+abstract interface class BatchFallbackCapableNativeSpeechInput {}
+
+/// Exposes the private, local-only safety recording after native recognition
+/// fails. Successful native turns never expose this file and therefore never
+/// upload their audio merely for archiving.
+abstract interface class NativeSpeechFallbackAudioProvider {
+  AudioCapture? takeFallbackAudioCapture();
+}
+
+/// Recognizes a complete safety recording without opening another microphone
+/// turn. This lets MAIN recover the same utterance when native iOS recognition
+/// fails after audio capture has already begun.
+abstract interface class RecordedAudioFallbackSpeechInput {
+  Future<StreamingSpeechCapture> recognizeRecordedAudio(
+    AudioCapture capture, {
+    String? fallbackReason,
+  });
+}
+
 /// Android 13+ can feed an already recorded PCM WAV to SpeechRecognizer.
 /// Recording once avoids competing microphone consumers and guarantees that
 /// the exact utterance sent to recognition can also be archived for admin.
@@ -152,18 +173,33 @@ class AndroidStreamingSpeechInput
         StreamingSpeechInput,
         RecordedAudioStreamingSpeechInput,
         CommandStreamingSpeechInput,
-        AlternativeTranscriptStreamingSpeechInput {
+        AlternativeTranscriptStreamingSpeechInput,
+        NativeSpeechFallbackAudioProvider {
   AndroidStreamingSpeechInput({
     MethodChannel methodChannel = const MethodChannel('ailingo_speech'),
     EventChannel eventChannel = const EventChannel('ailingo_speech/events'),
-  }) : _methodChannel = methodChannel {
-    _eventSubscription = eventChannel.receiveBroadcastStream().listen(
-      _handleEvent,
-      onError: _handleChannelError,
-    );
+    Stream<dynamic>? eventStream,
+    String platformName = 'Android',
+    String inputLabel = 'Chế độ tiêu chuẩn',
+    String asrMode = 'android_streaming',
+    bool preferOnDevice = false,
+    bool failOnRuntimeError = false,
+  }) : _methodChannel = methodChannel,
+       _platformName = platformName,
+       _inputLabel = inputLabel,
+       _asrMode = asrMode,
+       _preferOnDevice = preferOnDevice,
+       _failOnRuntimeError = failOnRuntimeError {
+    _eventSubscription = (eventStream ?? eventChannel.receiveBroadcastStream())
+        .listen(_handleEvent, onError: _handleChannelError);
   }
 
   final MethodChannel _methodChannel;
+  final String _platformName;
+  final String _inputLabel;
+  final String _asrMode;
+  final bool _preferOnDevice;
+  final bool _failOnRuntimeError;
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
   final StreamController<void> _completedController =
@@ -187,12 +223,20 @@ class AndroidStreamingSpeechInput
   String? _recordedAudioMimeType;
   int? _recordedAudioByteLength;
   int? _recordedAudioSampleRate;
+  bool _recordedAudioBluetoothInput = false;
+  String? _nativeSpeechEngine;
+  String? _nativeSpeechLocale;
+  String? _nativeAudioRoute;
+  bool? _nativeSpeechOnDevice;
+  int? _nativeListeningReadyMs;
+  int? _nativeFirstPartialMs;
+  int? _nativeFinalTranscriptMs;
   bool _active = false;
   bool _disposed = false;
   bool? _availabilityCache;
 
   @override
-  String get label => 'Chế độ tiêu chuẩn';
+  String get label => _inputLabel;
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;
@@ -368,8 +412,8 @@ class AndroidStreamingSpeechInput
       await cancel();
     }
     if (!await checkAvailability()) {
-      throw const StreamingSpeechInputException(
-        'Thiết bị chưa có dịch vụ nhận diện giọng nói Android.',
+      throw StreamingSpeechInputException(
+        'Thiết bị chưa có dịch vụ nhận diện giọng nói $_platformName.',
       );
     }
 
@@ -383,6 +427,8 @@ class AndroidStreamingSpeechInput
     _recordedAudioMimeType = null;
     _recordedAudioByteLength = null;
     _recordedAudioSampleRate = null;
+    _recordedAudioBluetoothInput = false;
+    _resetNativeTelemetry();
     final resultCompleter = Completer<String>();
     _resultCompleter = resultCompleter;
     unawaited(
@@ -399,6 +445,7 @@ class AndroidStreamingSpeechInput
     try {
       await _methodChannel.invokeMethod<void>('speech.start', {
         'commandMode': commandMode,
+        'preferOnDevice': _preferOnDevice,
       });
       await readyCompleter.future.timeout(const Duration(seconds: 2));
       _startedAt = DateTime.now();
@@ -407,8 +454,8 @@ class AndroidStreamingSpeechInput
       await _methodChannel
           .invokeMethod<void>('speech.cancel')
           .catchError((Object _) {});
-      throw const StreamingSpeechInputException(
-        'Micro Android chưa sẵn sàng. Hãy thử lại sau một chút.',
+      throw StreamingSpeechInputException(
+        'Micro $_platformName chưa sẵn sàng. Hãy thử lại sau một chút.',
         code: 'SPEECH_READY_TIMEOUT',
       );
     } on PlatformException catch (error) {
@@ -514,8 +561,42 @@ class AndroidStreamingSpeechInput
           )
           .toInt(),
       alternatives: List<String>.unmodifiable(_latestAlternatives),
+      asrMode: _asrMode,
+      isBluetoothInput: _recordedAudioBluetoothInput,
+      extraBenchmark: _nativeBenchmark,
       recordedAudio: recordedAudio,
     );
+  }
+
+  Map<String, dynamic>? get _nativeBenchmark {
+    final values = <String, dynamic>{
+      'nativeSpeechPlatform': _platformName.toLowerCase(),
+      if (_nativeSpeechEngine != null)
+        'nativeSpeechEngine': _nativeSpeechEngine,
+      if (_nativeSpeechLocale != null)
+        'nativeSpeechLocale': _nativeSpeechLocale,
+      if (_nativeSpeechOnDevice != null)
+        'nativeSpeechOnDevice': _nativeSpeechOnDevice,
+      if (_nativeAudioRoute != null)
+        'nativeSpeechAudioRoute': _nativeAudioRoute,
+      if (_nativeListeningReadyMs != null)
+        'nativeSpeechListeningReadyMs': _nativeListeningReadyMs,
+      if (_nativeFirstPartialMs != null)
+        'nativeSpeechFirstPartialMs': _nativeFirstPartialMs,
+      if (_nativeFinalTranscriptMs != null)
+        'nativeSpeechFinalTranscriptMs': _nativeFinalTranscriptMs,
+    };
+    return values.length == 1 && _platformName == 'Android' ? null : values;
+  }
+
+  void _resetNativeTelemetry() {
+    _nativeSpeechEngine = null;
+    _nativeSpeechLocale = null;
+    _nativeAudioRoute = null;
+    _nativeSpeechOnDevice = null;
+    _nativeListeningReadyMs = null;
+    _nativeFirstPartialMs = null;
+    _nativeFinalTranscriptMs = null;
   }
 
   String? _stablePartialTranscript({required Duration minimumStableFor}) {
@@ -567,6 +648,7 @@ class AndroidStreamingSpeechInput
 
     final type = event['type'];
     if (type == 'speech.ready') {
+      _readNativeTelemetry(event);
       final readyCompleter = _readyCompleter;
       if (readyCompleter != null && !readyCompleter.isCompleted) {
         readyCompleter.complete();
@@ -581,6 +663,7 @@ class AndroidStreamingSpeechInput
     }
 
     if (type == 'speech.partial' || type == 'speech.final') {
+      _readNativeTelemetry(event);
       _readRecordedAudioMetadata(event);
       final alternatives = _readTranscriptAlternatives(event);
       final text = event['text'];
@@ -623,6 +706,7 @@ class AndroidStreamingSpeechInput
     }
 
     if (type == 'speech.error') {
+      _readNativeTelemetry(event);
       _readRecordedAudioMetadata(event);
       _active = false;
       _resultAt = DateTime.now();
@@ -633,18 +717,20 @@ class AndroidStreamingSpeechInput
         readyCompleter.completeError(
           StreamingSpeechInputException(
             message,
-            code: 'ANDROID_SPEECH_${event['code'] ?? 'ERROR'}',
+            code:
+                '${_platformName.toUpperCase()}_SPEECH_${event['code'] ?? 'ERROR'}',
           ),
         );
       }
       final completer = _resultCompleter;
-      if (_latestText.isNotEmpty) {
+      if (_latestText.isNotEmpty && !_failOnRuntimeError) {
         _completeResult(_latestText);
       } else if (completer != null && !completer.isCompleted) {
         completer.completeError(
           StreamingSpeechInputException(
             message,
-            code: 'ANDROID_SPEECH_${event['code'] ?? 'ERROR'}',
+            code:
+                '${_platformName.toUpperCase()}_SPEECH_${event['code'] ?? 'ERROR'}',
           ),
         );
       }
@@ -686,7 +772,48 @@ class AndroidStreamingSpeechInput
       _recordedAudioMimeType = mimeType is String ? mimeType : 'audio/wav';
       _recordedAudioByteLength = byteLength;
       _recordedAudioSampleRate = sampleRate;
+      _recordedAudioBluetoothInput = event['isBluetoothInput'] == true;
     }
+  }
+
+  void _readNativeTelemetry(Map<dynamic, dynamic> event) {
+    _nativeSpeechEngine = event['engine'] as String? ?? _nativeSpeechEngine;
+    _nativeSpeechLocale = event['locale'] as String? ?? _nativeSpeechLocale;
+    _nativeAudioRoute = event['audioRoute'] as String? ?? _nativeAudioRoute;
+    _nativeSpeechOnDevice = event['onDevice'] as bool? ?? _nativeSpeechOnDevice;
+    _nativeListeningReadyMs =
+        (event['listeningReadyMs'] as num?)?.toInt() ?? _nativeListeningReadyMs;
+    _nativeFirstPartialMs =
+        (event['firstPartialMs'] as num?)?.toInt() ?? _nativeFirstPartialMs;
+    _nativeFinalTranscriptMs =
+        (event['finalTranscriptMs'] as num?)?.toInt() ??
+        _nativeFinalTranscriptMs;
+  }
+
+  @override
+  AudioCapture? takeFallbackAudioCapture() {
+    final path = _recordedAudioPath;
+    final byteLength = _recordedAudioByteLength ?? 0;
+    final startedAt = _startedAt;
+    if (path == null || byteLength <= 44 || startedAt == null) {
+      return null;
+    }
+    final capture = AudioCapture(
+      filePath: path,
+      mimeType: _recordedAudioMimeType ?? 'audio/wav',
+      duration: DateTime.now().difference(startedAt),
+      inputLabel: label,
+      isBluetoothInput: _recordedAudioBluetoothInput,
+      initialNoiseRms: null,
+      recordingSampleRate: _recordedAudioSampleRate,
+      streamedAudioBytes: byteLength - 44,
+    );
+    _recordedAudioPath = null;
+    _recordedAudioMimeType = null;
+    _recordedAudioByteLength = null;
+    _recordedAudioSampleRate = null;
+    _recordedAudioBluetoothInput = false;
+    return capture;
   }
 
   void _handleChannelError(Object error) {
@@ -733,6 +860,270 @@ class AndroidStreamingSpeechInput
     await _completedController.close();
     await _partialTextController.close();
     await _transcriptAlternativesController.close();
+  }
+}
+
+class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
+    implements
+        BatchFallbackCapableNativeSpeechInput,
+        NativeSpeechFallbackAudioProvider {
+  IOSStreamingSpeechInput({
+    super.methodChannel = const MethodChannel('ailingo_speech'),
+    super.eventChannel = const EventChannel('ailingo_speech/events'),
+    super.eventStream,
+  }) : super(
+         platformName: 'iOS',
+         inputLabel: 'Apple Native Speech',
+         // Keep the established backend contract while engine/platform detail
+         // travels in benchmark metadata.
+         asrMode: 'android_streaming',
+         preferOnDevice: true,
+         failOnRuntimeError: true,
+       );
+}
+
+/// Uses Apple Speech first for MAIN and switches to Cloudflare/Batch only when
+/// native recognition cannot start. A recognition failure after speech begins
+/// disables native for the next attempt because replaying the same utterance
+/// would otherwise require uploading audio that was never captured by Batch.
+class NativeFirstStreamingSpeechInput
+    implements
+        StreamingSpeechInput,
+        CommandStreamingSpeechInput,
+        AlternativeTranscriptStreamingSpeechInput,
+        NativeSpeechFallbackAudioProvider {
+  NativeFirstStreamingSpeechInput({
+    required this.primary,
+    required this.fallback,
+    this.disposePrimary = false,
+    this.disposeFallback = true,
+  }) {
+    _subscriptions.addAll(<StreamSubscription<dynamic>>[
+      primary.amplitudeDbfs.listen((value) {
+        if (identical(_active, primary)) _amplitudeController.add(value);
+      }),
+      fallback.amplitudeDbfs.listen((value) {
+        if (identical(_active, fallback)) _amplitudeController.add(value);
+      }),
+      primary.partialText.listen((value) {
+        if (identical(_active, primary)) _partialController.add(value);
+      }),
+      fallback.partialText.listen((value) {
+        if (identical(_active, fallback)) _partialController.add(value);
+      }),
+      primary.completed.listen((_) {
+        if (identical(_active, primary)) _completedController.add(null);
+      }),
+      fallback.completed.listen((_) {
+        if (identical(_active, fallback)) _completedController.add(null);
+      }),
+    ]);
+    final primaryAlternatives =
+        primary is AlternativeTranscriptStreamingSpeechInput
+        ? primary as AlternativeTranscriptStreamingSpeechInput
+        : null;
+    if (primaryAlternatives != null) {
+      _subscriptions.add(
+        primaryAlternatives.transcriptAlternatives.listen((value) {
+          if (identical(_active, primary)) _alternativesController.add(value);
+        }),
+      );
+    }
+  }
+
+  final StreamingSpeechInput primary;
+  final StreamingSpeechInput fallback;
+  final bool disposePrimary;
+  final bool disposeFallback;
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  final StreamController<double> _amplitudeController =
+      StreamController<double>.broadcast();
+  final StreamController<void> _completedController =
+      StreamController<void>.broadcast();
+  final StreamController<String> _partialController =
+      StreamController<String>.broadcast();
+  final StreamController<List<String>> _alternativesController =
+      StreamController<List<String>>.broadcast();
+  StreamingSpeechInput? _active;
+  String? _fallbackReason;
+  DateTime? _nativeDisabledUntil;
+  bool _disposed = false;
+
+  @override
+  String get label => _active?.label ?? primary.label;
+
+  @override
+  Stream<double> get amplitudeDbfs => _amplitudeController.stream;
+
+  @override
+  Stream<void> get completed => _completedController.stream;
+
+  @override
+  Stream<String> get partialText => _partialController.stream;
+
+  @override
+  Stream<List<String>> get transcriptAlternatives =>
+      _alternativesController.stream;
+
+  @override
+  Future<bool> checkAvailability() async {
+    if (_disposed) return false;
+    return await primary.checkAvailability() ||
+        await fallback.checkAvailability();
+  }
+
+  @override
+  Future<void> start() => _start(commandMode: false);
+
+  @override
+  Future<void> startCommandRecognition() => _start(commandMode: true);
+
+  Future<void> _start({required bool commandMode}) async {
+    if (_disposed) {
+      throw const StreamingSpeechInputException(
+        'Bộ nhận dạng native-first đã đóng.',
+        code: 'NATIVE_FIRST_DISPOSED',
+      );
+    }
+    await cancel();
+    _fallbackReason = null;
+    final nativeDisabled =
+        _nativeDisabledUntil?.isAfter(DateTime.now()) ?? false;
+    if (!nativeDisabled && await primary.checkAvailability()) {
+      _active = primary;
+      try {
+        await _startInput(primary, commandMode: commandMode);
+        return;
+      } catch (error) {
+        _fallbackReason = error is StreamingSpeechInputException
+            ? error.code ?? error.message
+            : error.toString();
+        await primary.cancel().catchError((Object _) {});
+      }
+    } else {
+      _fallbackReason = nativeDisabled
+          ? 'native_temporarily_disabled_after_error'
+          : 'native_unavailable';
+    }
+    _active = fallback;
+    await _startInput(fallback, commandMode: commandMode);
+  }
+
+  Future<void> _startInput(
+    StreamingSpeechInput input, {
+    required bool commandMode,
+  }) {
+    if (commandMode && input is CommandStreamingSpeechInput) {
+      return (input as CommandStreamingSpeechInput).startCommandRecognition();
+    }
+    return input.start();
+  }
+
+  @override
+  Future<StreamingSpeechCapture> stop() async {
+    final active = _active;
+    if (active == null) {
+      throw const StreamingSpeechInputException(
+        'Không tìm thấy lượt nhận dạng đang chạy.',
+        code: 'NATIVE_FIRST_NOT_ACTIVE',
+      );
+    }
+    try {
+      final capture = await active.stop();
+      if (!identical(active, fallback)) return capture;
+      return _tagFallback(capture);
+    } catch (error) {
+      if (identical(active, primary)) {
+        _nativeDisabledUntil = DateTime.now().add(const Duration(seconds: 30));
+        final provider = primary is NativeSpeechFallbackAudioProvider
+            ? primary as NativeSpeechFallbackAudioProvider
+            : null;
+        final recordedFallback = fallback is RecordedAudioFallbackSpeechInput
+            ? fallback as RecordedAudioFallbackSpeechInput
+            : null;
+        final safetyRecording = provider?.takeFallbackAudioCapture();
+        if (recordedFallback != null && safetyRecording != null) {
+          _fallbackReason = error is StreamingSpeechInputException
+              ? error.code ?? error.message
+              : error.toString();
+          _active = fallback;
+          final capture = await recordedFallback.recognizeRecordedAudio(
+            safetyRecording,
+            fallbackReason: _fallbackReason,
+          );
+          return _tagFallback(capture);
+        }
+      }
+      rethrow;
+    }
+  }
+
+  StreamingSpeechCapture _tagFallback(StreamingSpeechCapture capture) {
+    return StreamingSpeechCapture(
+      sourceText: capture.sourceText,
+      duration: capture.duration,
+      inputLabel: capture.inputLabel,
+      confidence: capture.confidence,
+      firstResultMs: capture.firstResultMs,
+      finalAfterStopMs: capture.finalAfterStopMs,
+      asrMode: capture.asrMode,
+      isBluetoothInput: capture.isBluetoothInput,
+      initialNoiseRms: capture.initialNoiseRms,
+      realtimeSessionCreateMs: capture.realtimeSessionCreateMs,
+      realtimeWebSocketConnectMs: capture.realtimeWebSocketConnectMs,
+      realtimeWebSocketOpenAfterRecordingMs:
+          capture.realtimeWebSocketOpenAfterRecordingMs,
+      realtimeChunkDurationMs: capture.realtimeChunkDurationMs,
+      workerAsrPilotRttMs: capture.workerAsrPilotRttMs,
+      workerAsrPilotAsrMs: capture.workerAsrPilotAsrMs,
+      workerAsrPilotAudioBytes: capture.workerAsrPilotAudioBytes,
+      alternatives: capture.alternatives,
+      recordedAudio: capture.recordedAudio,
+      extraBenchmark: <String, dynamic>{
+        ...?capture.extraBenchmark,
+        'nativeSpeechFallbackUsed': true,
+        if (_fallbackReason != null)
+          'nativeSpeechFallbackReason': _fallbackReason,
+      },
+    );
+  }
+
+  @override
+  Future<void> cancel() async {
+    final active = _active;
+    _active = null;
+    if (active != null) await active.cancel();
+  }
+
+  @override
+  AudioCapture? takeFallbackAudioCapture() {
+    final provider = primary is NativeSpeechFallbackAudioProvider
+        ? primary as NativeSpeechFallbackAudioProvider
+        : null;
+    return provider?.takeFallbackAudioCapture();
+  }
+
+  Future<bool> prewarm() async {
+    final native = primary is AndroidStreamingSpeechInput
+        ? primary as AndroidStreamingSpeechInput
+        : null;
+    return native?.prewarm() ?? primary.checkAvailability();
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await cancel().catchError((Object _) {});
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    if (disposeFallback) await fallback.dispose();
+    if (disposePrimary) await primary.dispose();
+    await _amplitudeController.close();
+    await _completedController.close();
+    await _partialController.close();
+    await _alternativesController.close();
   }
 }
 

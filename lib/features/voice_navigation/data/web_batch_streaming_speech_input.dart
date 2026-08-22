@@ -19,7 +19,10 @@ import '../../conversation/domain/speech_gated_batch_upload_session.dart';
 /// the child is speaking, then the authoritative result is finalized after a
 /// short VAD silence.
 class WebBatchStreamingSpeechInput
-    implements StreamingSpeechInput, CommandStreamingSpeechInput {
+    implements
+        StreamingSpeechInput,
+        CommandStreamingSpeechInput,
+        RecordedAudioFallbackSpeechInput {
   WebBatchStreamingSpeechInput({
     required ChunkedAudioInput audioInput,
     required ConversationRepository repository,
@@ -344,6 +347,52 @@ class WebBatchStreamingSpeechInput
       childAge: _childAge,
       vadSilenceMs: vadSilenceDuration.inMilliseconds,
       fallbackReason: 'web_virtual_main_batch_unavailable',
+    );
+  }
+
+  @override
+  Future<StreamingSpeechCapture> recognizeRecordedAudio(
+    AudioCapture capture, {
+    String? fallbackReason,
+  }) async {
+    if (_disposed) {
+      throw const StreamingSpeechInputException(
+        'Bộ nhận lệnh Batch đã đóng.',
+        code: 'WEB_BATCH_DISPOSED',
+      );
+    }
+    final stopwatch = Stopwatch()..start();
+    final result = await _repository.processAudio(
+      capture: capture,
+      context: PracticeContext.home,
+      childAge: _childAge,
+      vadSilenceMs: vadSilenceDuration.inMilliseconds,
+      fallbackReason: fallbackReason ?? 'ios_native_main_runtime_failure',
+    );
+    final transcript = result.vietnameseText.trim();
+    if (transcript.isEmpty) {
+      throw const StreamingSpeechInputException(
+        'Mình chưa nghe rõ. Con thử nói lại nhé.',
+        code: 'WEB_BATCH_NO_SPEECH',
+      );
+    }
+    return StreamingSpeechCapture(
+      sourceText: transcript,
+      duration: capture.duration,
+      inputLabel: label,
+      confidence: null,
+      firstResultMs: null,
+      finalAfterStopMs: stopwatch.elapsedMilliseconds,
+      asrMode: AsrMode.batchChunks.apiValue,
+      isBluetoothInput: capture.isBluetoothInput,
+      initialNoiseRms: capture.initialNoiseRms,
+      recordedAudio: capture,
+      extraBenchmark: <String, dynamic>{
+        'navigationCommand': true,
+        'cloudBatchMain': true,
+        'nativeRuntimeFallback': true,
+        'batchFinalizeMs': stopwatch.elapsedMilliseconds,
+      },
     );
   }
 

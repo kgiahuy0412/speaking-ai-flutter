@@ -69,7 +69,7 @@ class H20HardwareTestResult {
 }
 
 class ConversationController extends ChangeNotifier {
-  static const double translatedSpeechPlaybackRate = 0.45;
+  static const double translatedSpeechPlaybackRate = 0.57;
 
   ConversationController({
     required AudioInput audioInput,
@@ -1007,7 +1007,7 @@ class ConversationController extends ChangeNotifier {
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
           : supportsAndroidStreaming
           ? 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.'
-          : 'Đã chọn mic HFP trên iOS. Cloud/Batch sẽ nhận âm thanh từ thiết bị Bluetooth.';
+          : 'Đã chọn mic HFP trên iOS. Apple Speech sẽ nhận âm thanh từ thiết bị Bluetooth; Cloud/Batch chỉ dùng khi cần dự phòng.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -1356,9 +1356,9 @@ class ConversationController extends ChangeNotifier {
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
-      // Android V1 has one recognition path only. HFP is an audio source,
-      // never a separate ASR mode, and Android must not upload audio to
-      // Cloudflare when the platform recognizer is available.
+      // Native Android/iOS speech has one recognition path. HFP is an audio
+      // source, never a separate ASR mode. Audio reaches Cloudflare only when
+      // native recognition cannot start or fails without a usable transcript.
       if (!_isWebRuntime &&
           _streamingSpeechInput != null &&
           (asrMode == AsrMode.hfpStreaming || asrMode == AsrMode.batchChunks)) {
@@ -1433,11 +1433,10 @@ class ConversationController extends ChangeNotifier {
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
           }
-          // Live translation must stay on Android SpeechRecognizer so partial
-          // recognition overlaps the child's speech. Capturing a WAV first and
-          // injecting it only after stop is retained as an explicit archival
-          // compatibility mode, but is deliberately off in the production app
-          // because it adds a full post-recording ASR stage.
+          // Live translation stays on the native platform recognizer so partial
+          // recognition overlaps the child's speech. Android's recorded-audio
+          // compatibility mode remains deliberately off in production because
+          // it adds a full post-recording ASR stage.
           final recordedAudioRecognizer =
               _recordAndroidAudioForArchive &&
                   _streamingSpeechInput is RecordedAudioStreamingSpeechInput
@@ -1478,7 +1477,11 @@ class ConversationController extends ChangeNotifier {
           }
           _usingStreamingSpeech = false;
           _usingRecordedAudioSpeech = false;
-          if (!_isWebRuntime && _streamingSpeechInput != null) {
+          final supportsBatchFallback =
+              _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput;
+          if (!_isWebRuntime &&
+              _streamingSpeechInput != null &&
+              !supportsBatchFallback) {
             await _stopHfpRoute();
             asrMode = AsrMode.androidStreaming;
             throw const StreamingSpeechInputException(
@@ -1488,7 +1491,7 @@ class ConversationController extends ChangeNotifier {
           }
           asrMode = AsrMode.batchChunks;
           transientMessage =
-              'Nhận dạng trực tiếp chưa sẵn sàng; đang ghi âm để gửi Cloudflare.';
+              'Apple Speech chưa sẵn sàng; đang ghi âm bằng Cloudflare/Batch dự phòng.';
           await _startBatchRecording();
         }
       } else if (isBrowserHfpMode && _audioInput is ChunkedAudioInput) {
@@ -2133,18 +2136,36 @@ class ConversationController extends ChangeNotifier {
             recognizerReportedNoSpeech = true;
           } else {
             _usingStreamingSpeech = false;
-            if (!_isWebRuntime && _streamingSpeechInput != null) {
+            final fallbackAudio =
+                _streamingSpeechInput is NativeSpeechFallbackAudioProvider
+                ? (_streamingSpeechInput! as NativeSpeechFallbackAudioProvider)
+                      .takeFallbackAudioCapture()
+                : null;
+            if (fallbackAudio != null) {
+              audioCapture = fallbackAudio;
+              asrMode = AsrMode.batchChunks;
+              transientMessage =
+                  'Apple Speech bị gián đoạn; đang gửi bản ghi cục bộ qua Cloudflare/Batch dự phòng.';
+            } else if (!_isWebRuntime && _streamingSpeechInput != null) {
               asrMode = AsrMode.androidStreaming;
-              throw const StreamingSpeechInputException(
-                'Chế độ tiêu chuẩn bị gián đoạn. Hãy nói lại câu vừa rồi.',
-                code: 'ANDROID_STANDARD_RECOGNITION_INTERRUPTED',
+              throw StreamingSpeechInputException(
+                _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput
+                    ? 'Apple Speech bị gián đoạn và không giữ được bản ghi dự phòng. Hãy nói lại câu vừa rồi.'
+                    : 'Chế độ tiêu chuẩn bị gián đoạn. Hãy nói lại câu vừa rồi.',
+                code:
+                    _streamingSpeechInput
+                        is BatchFallbackCapableNativeSpeechInput
+                    ? 'IOS_NATIVE_RECOGNITION_INTERRUPTED'
+                    : 'ANDROID_STANDARD_RECOGNITION_INTERRUPTED',
               );
             }
-            asrMode = AsrMode.batchChunks;
-            throw StreamingSpeechInputException(
-              'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
-              code: 'STREAMING_FAILED_USE_BATCH',
-            );
+            if (fallbackAudio == null) {
+              asrMode = AsrMode.batchChunks;
+              throw StreamingSpeechInputException(
+                'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
+                code: 'STREAMING_FAILED_USE_BATCH',
+              );
+            }
           }
         }
         if (_usingHfpRoute && streamingCapture != null) {
@@ -2155,9 +2176,20 @@ class ConversationController extends ChangeNotifier {
             confidence: streamingCapture.confidence,
             firstResultMs: streamingCapture.firstResultMs,
             finalAfterStopMs: streamingCapture.finalAfterStopMs,
-            asrMode: AsrMode.androidStreaming.apiValue,
+            asrMode: streamingCapture.asrMode,
             isBluetoothInput: true,
             initialNoiseRms: streamingCapture.initialNoiseRms,
+            realtimeSessionCreateMs: streamingCapture.realtimeSessionCreateMs,
+            realtimeWebSocketConnectMs:
+                streamingCapture.realtimeWebSocketConnectMs,
+            realtimeWebSocketOpenAfterRecordingMs:
+                streamingCapture.realtimeWebSocketOpenAfterRecordingMs,
+            realtimeChunkDurationMs: streamingCapture.realtimeChunkDurationMs,
+            workerAsrPilotRttMs: streamingCapture.workerAsrPilotRttMs,
+            workerAsrPilotAsrMs: streamingCapture.workerAsrPilotAsrMs,
+            workerAsrPilotAudioBytes: streamingCapture.workerAsrPilotAudioBytes,
+            alternatives: streamingCapture.alternatives,
+            extraBenchmark: streamingCapture.extraBenchmark,
             recordedAudio: streamingCapture.recordedAudio,
           );
         }
@@ -2976,7 +3008,9 @@ class ConversationController extends ChangeNotifier {
       if (nextMode == AsrMode.batchChunks) {
         asrMode = AsrMode.androidStreaming;
         transientMessage =
-            'Android chỉ dùng Chế độ tiêu chuẩn để nhận dạng. Cloudflare vẫn được dùng cho dịch và phát âm khi cần.';
+            _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput
+            ? 'iOS ưu tiên Apple Native Speech; Cloudflare/Batch chỉ nhận audio khi cần dự phòng.'
+            : 'Android chỉ dùng Chế độ tiêu chuẩn để nhận dạng. Cloudflare vẫn được dùng cho dịch và phát âm khi cần.';
         notifyListeners();
         return;
       }
@@ -3002,7 +3036,7 @@ class ConversationController extends ChangeNotifier {
         return;
       }
       if (_streamingSpeechInput == null && !supportsBrowserHfp) {
-        transientMessage = 'HFP streaming chỉ khả dụng trên Android.';
+        transientMessage = 'HFP streaming chưa khả dụng trên nền tảng này.';
         notifyListeners();
         return;
       }

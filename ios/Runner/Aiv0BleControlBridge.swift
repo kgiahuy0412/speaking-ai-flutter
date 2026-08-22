@@ -2,6 +2,34 @@ import CoreBluetooth
 import Flutter
 import Foundation
 
+struct Aiv0DuplicatePacketFilter {
+  static let windowMilliseconds: TimeInterval = 750
+
+  private var lastRawHex: String?
+  private var lastPacketUptimeMilliseconds: TimeInterval?
+  private(set) var duplicateCount = 0
+
+  mutating func register(
+    rawHex: String,
+    uptimeMilliseconds: TimeInterval
+  ) -> Bool {
+    let isDuplicate = lastRawHex == rawHex
+      && lastPacketUptimeMilliseconds.map {
+        uptimeMilliseconds - $0 <= Self.windowMilliseconds
+      } == true
+    if isDuplicate {
+      duplicateCount += 1
+    }
+    lastRawHex = rawHex
+    lastPacketUptimeMilliseconds = uptimeMilliseconds
+    return isDuplicate
+  }
+
+  mutating func resetWindow() {
+    lastPacketUptimeMilliseconds = nil
+  }
+}
+
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
 /// Android bridge. Audio remains on HFP; BLE carries MAIN button notifications,
 /// battery/firmware diagnostics, and the optional APP State packet only.
@@ -55,6 +83,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var batteryPercent: Int?
   private var firmwareRevision: String?
   private var lastRawHex: String?
+  private var duplicatePacketFilter = Aiv0DuplicatePacketFilter()
   private var packetCount = 0
   private var invalidPacketCount = 0
   private var reconnectCount = 0
@@ -371,6 +400,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     writeMode = nil
     batteryPercent = nil
     firmwareRevision = nil
+    duplicatePacketFilter.resetWindow()
   }
 
   private func finishScanIfNeeded() {
@@ -384,7 +414,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "phase": phase,
       "packetCount": packetCount,
       "invalidPacketCount": invalidPacketCount,
-      "duplicatePacketCount": 0,
+      "duplicatePacketCount": duplicatePacketFilter.duplicateCount,
       "reconnectCount": reconnectCount,
     ]
     if let peripheral = connectedPeripheral {
@@ -623,11 +653,18 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
     if characteristic.uuid == ProtocolUUID.buttonEvent {
       let bytes = [UInt8](data)
       packetCount += 1
-      lastRawHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+      if bytes.count != 12 { invalidPacketCount += 1 }
+      let rawHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+      let duplicate = duplicatePacketFilter.register(
+        rawHex: rawHex,
+        uptimeMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
+      )
+      lastRawHex = rawHex
       eventSink?([
         "type": "button",
         "bytes": bytes.map { Int($0) },
         "deviceId": peripheral.identifier.uuidString,
+        "duplicate": duplicate,
         "receivedAtEpochMs": Int(Date().timeIntervalSince1970 * 1_000),
       ])
       emitStatus()

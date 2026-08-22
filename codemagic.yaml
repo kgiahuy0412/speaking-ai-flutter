@@ -208,6 +208,23 @@ workflows:
             --dart-define=AIV0_DRAFT_PROTOCOL_CONFIRMED="$AIV0_DRAFT_PROTOCOL_CONFIRMED" \
             --dart-define=ENABLE_HFP_AUDIO="$ENABLE_HFP_AUDIO"
 
+      - name: Run iOS native unit tests
+        script: |
+          set -euo pipefail
+          SIMULATOR_UDID="$(
+            xcrun simctl list devices available -j |
+              python3 -c 'import json, sys; data = json.load(sys.stdin); devices = [device for runtime in data["devices"].values() for device in runtime if device.get("isAvailable") and device.get("name", "").startswith("iPhone")]; print(devices[0]["udid"] if devices else "")'
+          )"
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No available iPhone simulator was found."
+            exit 1
+          fi
+          xcodebuild test \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Package generated iOS scaffold
         script: |
           set -euo pipefail

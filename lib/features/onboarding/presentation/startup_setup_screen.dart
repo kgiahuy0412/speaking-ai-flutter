@@ -129,13 +129,19 @@ class StartupSetupScreen extends StatelessWidget {
                           const _DisclosureItem(
                             icon: Icons.graphic_eq_rounded,
                             text:
-                                'Thu thập audio, transcript/nội dung trẻ nói, nhóm tuổi, lịch sử tương tác, mã cài đặt lâu dài và chẩn đoán hiệu năng.',
+                                'Micro thu audio để nhận dạng; ứng dụng xử lý transcript/nội dung trẻ nói, nhóm tuổi, lịch sử tương tác, mã cài đặt lâu dài và chẩn đoán hiệu năng.',
+                          ),
+                          const SizedBox(height: 10),
+                          const _DisclosureItem(
+                            icon: Icons.phone_iphone_rounded,
+                            text:
+                                'Trên iOS, HOMI ưu tiên Apple Speech ngay trên thiết bị. Khi native hoạt động, backend chỉ nhận transcript để dịch và tạo giọng đọc; audio chỉ được gửi khi phải dùng Cloudflare/Batch dự phòng.',
                           ),
                           const SizedBox(height: 10),
                           _DisclosureItem(
                             icon: Icons.cloud_outlined,
                             text:
-                                'Dữ liệu cần thiết được gửi tới: $aiSubprocessors để nhận dạng, dịch, tạo phản hồi/giọng đọc và vận hành dịch vụ.',
+                                'Tùy luồng xử lý, dữ liệu cần thiết được gửi tới: $aiSubprocessors để nhận dạng dự phòng, dịch, tạo phản hồi/giọng đọc và vận hành dịch vụ.',
                           ),
                           const SizedBox(height: 10),
                           _DisclosureItem(

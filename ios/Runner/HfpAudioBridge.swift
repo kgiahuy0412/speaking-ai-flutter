@@ -165,7 +165,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       selectedInputName = hfpInput.portName
       routeActive = true
       phase = "recording"
-      message = "Đang dùng mic HFP để nhận dạng Cloud/Batch."
+      message = "Đang dùng mic HFP cho Apple Native Speech hoặc Batch dự phòng."
       emitStatus()
       // Give the route a short settling window before the record plugin opens
       // its input node, mirroring the Android SCO bridge behavior.
@@ -202,7 +202,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       selectedInputId = active.uid
       selectedInputName = active.portName
       phase = "recording"
-      message = "Đang dùng mic HFP để nhận dạng Cloud/Batch."
+      message = "Đang dùng mic HFP cho Apple Native Speech hoặc Batch dự phòng."
     } else if let selectedInputId,
       bluetoothInputs().contains(where: { $0.uid == selectedInputId })
     {

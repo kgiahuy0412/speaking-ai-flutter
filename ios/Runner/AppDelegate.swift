@@ -9,6 +9,7 @@ import UIKit
   private var aiv0BleControlBridge: Aiv0BleControlBridge?
   private var hfpAudioBridge: HfpAudioBridge?
   private var voicePromptBridge: VoicePromptBridge?
+  private var speechRecognizerBridge: IOSSpeechRecognizerBridge?
 
   override func application(
     _ application: UIApplication,
@@ -24,9 +25,11 @@ import UIKit
     aiv0BleControlBridge?.dispose()
     hfpAudioBridge?.dispose()
     voicePromptBridge?.dispose()
+    speechRecognizerBridge?.dispose()
     aiv0BleControlBridge = Aiv0BleControlBridge(messenger: messenger)
     hfpAudioBridge = HfpAudioBridge(messenger: messenger)
     voicePromptBridge = VoicePromptBridge(messenger: messenger)
+    speechRecognizerBridge = IOSSpeechRecognizerBridge(messenger: messenger)
 
     let channel = FlutterMethodChannel(
       name: "ailingo_platform",

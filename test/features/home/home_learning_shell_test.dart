@@ -13,7 +13,9 @@ import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_li
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabulary_home_screen.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
+import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_speaking_session_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
+import 'package:ai_speaking_flutter_app/features/voice_navigation/presentation/main_voice_assistant_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -101,6 +103,77 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(visibilityChanges, <bool>[true, false]);
+  });
+
+  testWidgets('iOS exposes every primary navigation action and MAIN', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final speechInput = _FakeStreamingSpeechInput();
+    final voiceNavigationController = VoiceNavigationController(
+      speechInput: speechInput,
+      ownsSpeechInput: true,
+    );
+    final speakingSessionController = MainSpeakingSessionController();
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    addTearDown(voiceNavigationController.dispose);
+    addTearDown(speakingSessionController.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        controller,
+        autoStartVoiceNavigation: true,
+        voiceNavigationController: voiceNavigationController,
+        speakingSessionController: speakingSessionController,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+    expect(speechInput.startCount, 0);
+
+    await tester.tap(find.byTooltip('Lịch sử gần đây'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lịch sử gần đây'), findsWidgets);
+    Navigator.of(tester.element(find.text('Lịch sử gần đây').last)).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Cài đặt'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cài đặt lượt nói'), findsOneWidget);
+    expect(find.byKey(const Key('ios-native-recognition')), findsOneWidget);
+    expect(find.byKey(const Key('android-standard-recognition')), findsNothing);
+    Navigator.of(tester.element(find.text('Cài đặt lượt nói'))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('vocabulary-edge-tab')));
+    await tester.pumpAndSettle();
+    expect(find.byType(VocabularyHomeScreen).hitTestable(), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vocabulary-edge-tab')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('main-voice-assistant-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(speechInput.startCount, 1);
+    expect(voiceNavigationController.isMainButtonSessionActive, isTrue);
+
+    await voiceNavigationController.pause();
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TopicListeningScreen), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('opens vocabulary from a recognized voice command', (
@@ -433,25 +506,49 @@ Widget _app(
   int childAge = 6,
   VoiceNavigationController? voiceNavigationController,
   Future<ListeningContentCatalog>? listeningContentFuture,
+  MainSpeakingSessionController? speakingSessionController,
   VoidCallback? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
 }) {
+  final home = HomeLearningShell(
+    controller: controller,
+    voiceNavigationController: voiceNavigationController,
+    listeningContentFuture: listeningContentFuture,
+    onMainSpeakingModeStarted: onMainSpeakingModeStarted,
+    onModalVisibilityChanged: onModalVisibilityChanged,
+    config: AppConfig(
+      backendBaseUri: Uri.parse('https://example.com'),
+      useDemoBackend: true,
+      childAge: childAge,
+      autoStartVoiceNavigation: autoStartVoiceNavigation,
+    ),
+  );
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
-    home: HomeLearningShell(
-      controller: controller,
-      voiceNavigationController: voiceNavigationController,
-      listeningContentFuture: listeningContentFuture,
-      onMainSpeakingModeStarted: onMainSpeakingModeStarted,
-      onModalVisibilityChanged: onModalVisibilityChanged,
-      config: AppConfig(
-        backendBaseUri: Uri.parse('https://example.com'),
-        useDemoBackend: true,
-        childAge: childAge,
-        autoStartVoiceNavigation: autoStartVoiceNavigation,
-      ),
-    ),
+    home: speakingSessionController == null
+        ? home
+        : Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              home,
+              Positioned(
+                right: 16,
+                bottom: 88,
+                child: MainVoiceAssistantButton(
+                  voiceController: voiceNavigationController!,
+                  conversationController: controller,
+                  speakingSessionController: speakingSessionController,
+                  isActivationPending: false,
+                  onPressed: () async {
+                    await voiceNavigationController.activateFromMainButton();
+                  },
+                  onLongPressed: () async {},
+                  onLongPressReleased: () async {},
+                ),
+              ),
+            ],
+          ),
   );
 }
 

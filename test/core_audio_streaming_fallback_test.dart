@@ -1407,7 +1407,7 @@ void main() {
     controller.dispose();
   });
 
-  test('native iOS HFP keeps Cloudflare Batch recognition', () async {
+  test('native iOS HFP prefers Apple Speech and reports Bluetooth', () async {
     final input = _FakeChunkedInput(
       available: true,
       bluetooth: false,
@@ -1415,13 +1415,15 @@ void main() {
     );
     final hfp = _FakeHfpAudioControl();
     final repository = _FallbackRepository();
+    final recognizer = _FakeIOSStreamingSpeechInput();
     final controller = ConversationController(
       audioInput: input,
+      streamingSpeechInput: recognizer,
       hfpAudioControl: hfp,
       playbackService: const _FakePlaybackService(),
       repository: repository,
       childAge: 6,
-      initialAsrMode: AsrMode.batchChunks,
+      initialAsrMode: AsrMode.androidStreaming,
     );
 
     await controller.connectHfpDevice(
@@ -1431,21 +1433,88 @@ void main() {
         isConnected: true,
       ),
     );
-    expect(controller.asrMode, AsrMode.batchChunks);
+    expect(controller.asrMode, AsrMode.androidStreaming);
 
     await controller.startRecording();
     expect(hfp.startRouteCount, 1);
-    expect(input.startCount, 1);
-    await _emitDetectedSpeech(input);
+    expect(recognizer.startCount, 1);
+    expect(input.startCount, 0);
     await Future<void>.delayed(const Duration(milliseconds: 500));
     await controller.stopRecording(manual: true);
 
     expect(hfp.stopRouteCount, 1);
+    expect(repository.batchStarted, 0);
+    expect(repository.streamingCapture?.isBluetoothInput, isTrue);
+    expect(controller.result?.conversationId, 'stream-result');
+    controller.dispose();
+  });
+
+  test('iOS start failure records with Cloudflare Batch fallback', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Mic iPhone',
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: _FakeIOSStreamingSpeechInput(failOnStart: true),
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+    expect(input.startCount, 1);
+    expect(controller.asrMode, AsrMode.batchChunks);
+    await _emitDetectedSpeech(input);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
     expect(repository.batchStarted, greaterThanOrEqualTo(1));
     expect(
       controller.result?.conversationId,
       anyOf('file-result', 'batch-result'),
     );
+    controller.dispose();
+  });
+
+  test('iOS runtime failure uploads only the private fallback WAV', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Mic iPhone',
+    );
+    final repository = _FallbackRepository();
+    final fallbackCapture = AudioCapture(
+      filePath: 'ios-native-fallback.wav',
+      mimeType: 'audio/wav',
+      duration: const Duration(seconds: 1),
+      inputLabel: 'Apple Native Speech',
+      isBluetoothInput: false,
+      initialNoiseRms: null,
+    );
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: _FakeIOSStreamingSpeechInput(
+        failOnStop: true,
+        fallbackCapture: fallbackCapture,
+      ),
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(repository.audioCapture, same(fallbackCapture));
+    expect(repository.streamingCapture, isNull);
+    expect(controller.asrMode, AsrMode.batchChunks);
+    expect(controller.result?.conversationId, 'file-result');
     controller.dispose();
   });
 
@@ -1750,6 +1819,29 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _FakeIOSStreamingSpeechInput extends _FakeStreamingSpeechInput
+    implements
+        BatchFallbackCapableNativeSpeechInput,
+        NativeSpeechFallbackAudioProvider {
+  _FakeIOSStreamingSpeechInput({
+    super.failOnStart,
+    super.failOnStop,
+    this.fallbackCapture,
+  });
+
+  AudioCapture? fallbackCapture;
+
+  @override
+  String get label => 'Apple Native Speech';
+
+  @override
+  AudioCapture? takeFallbackAudioCapture() {
+    final capture = fallbackCapture;
+    fallbackCapture = null;
+    return capture;
+  }
 }
 
 class _ArchivingFallbackRepository extends _FallbackRepository

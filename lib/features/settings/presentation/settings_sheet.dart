@@ -129,11 +129,11 @@ class SettingsSheet extends StatelessWidget {
                           : isIOS
                           ? context.tr(
                               controller.usesHfpInput
-                                  ? 'Mic H20 qua HFP • xử lý Cloud/Batch'
-                                  : 'Mic iPhone/iPad • xử lý Cloud/Batch sau khi phụ huynh đồng ý',
+                                  ? 'Mic H20 qua HFP • Apple Speech ưu tiên'
+                                  : 'Mic iPhone/iPad • Apple Speech ưu tiên',
                               controller.usesHfpInput
-                                  ? 'H20 HFP 麦克风 • 云端分块处理'
-                                  : 'iPhone/iPad 麦克风 • 家长同意后使用云端分块处理',
+                                  ? 'H20 HFP 麦克风 • 优先使用 Apple Speech'
+                                  : 'iPhone/iPad 麦克风 • 优先使用 Apple Speech',
                             )
                           : switch (controller.asrMode) {
                               AsrMode.androidStreaming => context.tr(
@@ -238,14 +238,17 @@ class SettingsSheet extends StatelessWidget {
                       )
                     else if (isIOS)
                       _StatusTile(
-                        key: const Key('ios-cloud-recognition'),
-                        icon: Icons.cloud_done_rounded,
-                        title: context.tr('Cloud/Batch cho iOS', 'iOS 云端分块识别'),
-                        detail: context.tr(
-                          'Sau khi phụ huynh đồng ý và cấp quyền micro, audio được truyền theo từng chunk tới dịch vụ HOMI để nhận dạng Cloud/Batch. Điều hướng giọng nói MAIN đã dùng cùng pipeline này trên iOS.',
-                          '家长同意并授予麦克风权限后，音频会分块发送至 HOMI 云端进行识别。iOS 的 MAIN 语音导航已使用同一流程。',
+                        key: const Key('ios-native-recognition'),
+                        icon: Icons.record_voice_over_rounded,
+                        title: context.tr(
+                          'Apple Native Speech',
+                          'Apple 原生语音识别',
                         ),
-                        trailing: context.tr('Mặc định', '默认'),
+                        detail: context.tr(
+                          'iOS ưu tiên nhận dạng tiếng Việt ngay trên thiết bị bằng SpeechAnalyzer hoặc SFSpeechRecognizer. Khi native không được hỗ trợ hoặc gặp lỗi, HOMI mới chuyển audio sang Cloudflare/Batch dự phòng. MAIN dùng cùng cơ chế này.',
+                          'iOS 优先通过 SpeechAnalyzer 或 SFSpeechRecognizer 在设备端识别越南语。仅当原生识别不受支持或发生错误时，HOMI 才会把音频切换到 Cloudflare 分块备用流程；MAIN 使用同一机制。',
+                        ),
+                        trailing: context.tr('Ưu tiên', '优先'),
                         stateColor: AppColors.success,
                       )
                     else
