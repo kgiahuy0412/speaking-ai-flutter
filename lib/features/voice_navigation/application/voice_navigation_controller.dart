@@ -33,6 +33,7 @@ class VoiceNavigationController extends ChangeNotifier {
     Duration restartDelay = const Duration(milliseconds: 300),
     Duration partialIntentDebounce = const Duration(milliseconds: 160),
     Duration commandWindowDuration = const Duration(seconds: 6),
+    Duration speechReadyCueTimeout = const Duration(milliseconds: 900),
     ActiveLearningCommandHandler? activeLearningCommandHandler,
   }) : _speechInput = speechInput,
        _resolver = resolver,
@@ -43,6 +44,7 @@ class VoiceNavigationController extends ChangeNotifier {
        _restartDelay = restartDelay,
        _partialIntentDebounce = partialIntentDebounce,
        _commandWindowDuration = commandWindowDuration,
+       _speechReadyCueTimeout = speechReadyCueTimeout,
        _activeLearningCommandHandler = activeLearningCommandHandler {
     _completedSubscription = _speechInput.completed.listen((_) {
       if (_listening && !_finishing) {
@@ -79,6 +81,7 @@ class VoiceNavigationController extends ChangeNotifier {
   final Duration _restartDelay;
   final Duration _partialIntentDebounce;
   final Duration _commandWindowDuration;
+  final Duration _speechReadyCueTimeout;
   final ActiveLearningCommandHandler? _activeLearningCommandHandler;
 
   StreamSubscription<void>? _completedSubscription;
@@ -422,7 +425,12 @@ class VoiceNavigationController extends ChangeNotifier {
     try {
       final readyCuePlayer = _voicePromptService;
       if (readyCuePlayer is SpeechReadyCuePlayer) {
-        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+        // AudioServices completion is not guaranteed to arrive promptly while
+        // iOS is switching a Bluetooth HFP route after prompt playback. Never
+        // let a missing ready-cue callback prevent Apple Speech from opening.
+        await (readyCuePlayer as SpeechReadyCuePlayer)
+            .playSpeechReadyCue()
+            .timeout(_speechReadyCueTimeout);
       }
     } catch (error) {
       if (!_disposed && generation == _generation) {
@@ -433,6 +441,13 @@ class VoiceNavigationController extends ChangeNotifier {
       return false;
     }
     _awaitingCommand = true;
+    _armCommandWindowTimer(generation);
+    notifyListeners();
+    return true;
+  }
+
+  void _armCommandWindowTimer(int generation) {
+    _commandWindowTimer?.cancel();
     _commandWindowTimer = Timer(_commandWindowDuration, () {
       _commandWindowTimer = null;
       if (_disposed || generation != _generation || !_awaitingCommand) {
@@ -445,8 +460,6 @@ class VoiceNavigationController extends ChangeNotifier {
       _awaitingCommand = false;
       notifyListeners();
     });
-    notifyListeners();
-    return true;
   }
 
   Future<void> _handleMainCommandTimeout(int generation) async {
@@ -549,6 +562,12 @@ class VoiceNavigationController extends ChangeNotifier {
       _starting = false;
       _listening = true;
       _speechDetected = false;
+      // The prompt may have finished well before iOS finishes preparing the
+      // HFP route or Apple Speech. Reset the command window here so the child
+      // always receives the full listening period after the mic is truly open.
+      if (_awaitingCommand) {
+        _armCommandWindowTimer(generation);
+      }
       _noSpeechTimer = Timer(_noSpeechTimeout, () {
         if (!_speechDetected) {
           unawaited(_cancelSessionAndRestart(generation));

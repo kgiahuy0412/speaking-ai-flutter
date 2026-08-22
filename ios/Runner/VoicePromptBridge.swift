@@ -9,6 +9,9 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
   private let channel: FlutterMethodChannel
   private let synthesizer = AVSpeechSynthesizer()
   private var waitingResult: FlutterResult?
+  private var readyCueResult: FlutterResult?
+  private var readyCueToken: UUID?
+  private var readyCueFallback: DispatchWorkItem?
   private var disposed = false
 
   init(messenger: FlutterBinaryMessenger) {
@@ -33,8 +36,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
       let locale = arguments?["locale"] as? String ?? "vi-VN"
       speak(text, locale: locale, waitForCompletion: call.method == "speakAndWait", result: result)
     case "playSpeechReadyCue":
-      configureAudioSession()
-      AudioServicesPlaySystemSoundWithCompletion(1104) { result(nil) }
+      playSpeechReadyCue(result)
     case "stop":
       stop()
       result(nil)
@@ -83,6 +85,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
       synthesizer.stopSpeaking(at: .immediate)
     }
     completeWaitingResult()
+    completeReadyCue()
   }
 
   private func completeWaitingResult() {
@@ -97,6 +100,44 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate {
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
     completeWaitingResult()
+  }
+
+  private func playSpeechReadyCue(_ result: @escaping FlutterResult) {
+    completeReadyCue()
+    configureAudioSession()
+
+    let token = UUID()
+    readyCueToken = token
+    readyCueResult = result
+    let fallback = DispatchWorkItem { [weak self] in
+      self?.completeReadyCue(token: token)
+    }
+    readyCueFallback = fallback
+
+    AudioServicesPlaySystemSoundWithCompletion(1104) { [weak self] in
+      DispatchQueue.main.async {
+        self?.completeReadyCue(token: token)
+      }
+    }
+    // Some iOS/HFP combinations do not deliver the system-sound completion
+    // callback. Release Flutter after a bounded cue interval so recognition
+    // can still start immediately after the prompt.
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + .milliseconds(650),
+      execute: fallback
+    )
+  }
+
+  private func completeReadyCue(token: UUID? = nil) {
+    if let token, token != readyCueToken {
+      return
+    }
+    readyCueFallback?.cancel()
+    readyCueFallback = nil
+    readyCueToken = nil
+    let result = readyCueResult
+    readyCueResult = nil
+    result?(nil)
   }
 
   func dispose() {

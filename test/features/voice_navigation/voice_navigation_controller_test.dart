@@ -95,6 +95,33 @@ void main() {
     await speechInput.dispose();
   });
 
+  test(
+    'Main opens the microphone when the native ready cue never completes',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _HangingReadyCueVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        speechReadyCueTimeout: const Duration(milliseconds: 5),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 520));
+
+      expect(voicePrompt.readyCueCount, 1);
+      expect(controller.isAwaitingCommand, isTrue);
+      expect(controller.isListening, isTrue);
+      expect(
+        speechInput.events.where((event) => event == 'start'),
+        hasLength(1),
+      );
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
   test('Main activation never exposes a transient inactive session', () async {
     final speechInput = _FakeNavigationSpeechInput();
     final controller = VoiceNavigationController(
@@ -892,6 +919,16 @@ class _BlockingVoicePromptService extends _FakeVoicePromptService {
   Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
     await super.speak(text, locale: locale);
     await _completion.future;
+  }
+}
+
+class _HangingReadyCueVoicePromptService extends _FakeVoicePromptService {
+  final Completer<void> _neverCompletes = Completer<void>();
+
+  @override
+  Future<void> playSpeechReadyCue() {
+    readyCueCount += 1;
+    return _neverCompletes.future;
   }
 }
 
