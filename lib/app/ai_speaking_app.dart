@@ -753,25 +753,21 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
 
       // Do not let an app-resume callback start a new BLE scan while the MAIN
-      // command owns the microphone. H20 firmware 1.0.0 drops its BLE link when
-      // iOS switches the accessory to HFP, so use the phone microphone for this
-      // short navigation command and restore the remembered HFP input later.
+      // command owns the microphone. BLE control and the already-selected HFP
+      // audio route are independent links on H20, so keep both connections and
+      // let IOSStreamingSpeechInput use HFP (with its own phone-mic fallback).
       _suppressH20AutoConnectUntil = DateTime.now().add(
         const Duration(seconds: 45),
       );
       final controller = _controller;
-      if (controller != null) {
-        final shouldRestore = await controller
-            .preparePhoneMicrophoneForPhysicalMain()
-            .timeout(const Duration(seconds: 2), onTimeout: () => false);
-        _restoreHfpAfterPhysicalMain =
-            _restoreHfpAfterPhysicalMain || shouldRestore;
-      }
-      inputLabelOverride = 'Mic iPhone (giữ BLE H20)';
+      inputLabelOverride = controller?.hasSelectedHfpInput == true
+          ? 'Mic H20 qua HFP'
+          : 'Mic iPhone';
     }
 
-    // Physical BLE MAIN and the on-screen MAIN share the same assistant flow;
-    // only the iOS audio route preparation above differs for radio stability.
+    // Physical BLE MAIN and the on-screen MAIN now share the same assistant and
+    // microphone route. The iOS-only block above only closes diagnostics and
+    // suppresses redundant BLE scans; it no longer forces a different mic.
     final activated = await _activateMainAssistant(
       inputLabelOverride: inputLabelOverride,
     );

@@ -92,7 +92,26 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testIOSPhysicalMainPolicyForcesBuiltInMicWithoutBluetoothOptions() {
+  func testIOSMainPrefersStableOnDeviceLegacyRecognizerWhenAvailable() {
+    XCTAssertEqual(
+      IOSNativeSpeechEngineSelector.selectForRecognition(
+        preparedEngine: .speechAnalyzer,
+        commandMode: true,
+        sfOnDeviceSupported: true
+      ),
+      .sfSpeechRecognizer
+    )
+    XCTAssertEqual(
+      IOSNativeSpeechEngineSelector.selectForRecognition(
+        preparedEngine: .speechAnalyzer,
+        commandMode: false,
+        sfOnDeviceSupported: true
+      ),
+      .speechAnalyzer
+    )
+  }
+
+  func testIOSBuiltInMicPolicyExcludesBluetoothOptions() {
     let options = IOSNativeSpeechAudioRoutePolicy.categoryOptions(
       for: .builtInMic
     )

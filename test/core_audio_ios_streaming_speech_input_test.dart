@@ -211,11 +211,7 @@ void main() {
     await input.startCommandRecognition();
     expect(route.startRouteCount, 1);
     expect(route.status.routeActive, isTrue);
-    expect(
-      receivedCommandMode,
-      isFalse,
-      reason: 'MAIN must use the same iOS dictation path as manual recording.',
-    );
+    expect(receivedCommandMode, isTrue);
     expect(receivedAudioSource, 'hfp');
 
     events.add(<String, dynamic>{
@@ -280,7 +276,7 @@ void main() {
     await input.startCommandRecognition();
 
     expect(route.startRouteCount, 1);
-    expect(route.disconnectCount, 1);
+    expect(route.disconnectCount, 0);
     expect(nativeStartCount, 1);
     expect(receivedAudioSource, 'builtInMic');
   });
@@ -334,22 +330,38 @@ void main() {
   });
 
   test(
-    'iOS clears HFP when Apple Speech fails after route activation',
+    'iOS retries Apple Speech with phone mic without forgetting HFP',
     () async {
       const methodChannel = MethodChannel('test_ios_native_start_failure');
       final events = StreamController<dynamic>.broadcast();
       final route = _FakeHfpAudioControl();
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final receivedSources = <String>[];
       messenger.setMockMethodCallHandler(methodChannel, (call) async {
         switch (call.method) {
           case 'speech.isAvailable':
             return true;
           case 'speech.start':
-            throw PlatformException(
-              code: 'IOS_NATIVE_SPEECH_START_FAILED',
-              message: 'AVAudioEngine could not open HFP input',
-            );
+            final source =
+                (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                    as String? ??
+                '';
+            receivedSources.add(source);
+            if (source == 'hfp') {
+              throw PlatformException(
+                code: 'IOS_NATIVE_SPEECH_START_FAILED',
+                message: 'AVAudioEngine could not open HFP input',
+              );
+            }
+            scheduleMicrotask(() {
+              events.add(<String, dynamic>{
+                'type': 'speech.ready',
+                'audioSource': 'builtInMic',
+                'audioRoute': 'in=[BuiltInMic:iPhone]',
+              });
+            });
+            return true;
           case 'speech.cancel':
             return true;
         }
@@ -368,13 +380,11 @@ void main() {
       );
       addTearDown(input.dispose);
 
-      await expectLater(
-        input.startCommandRecognition(),
-        throwsA(isA<StreamingSpeechInputException>()),
-      );
+      await input.startCommandRecognition();
       expect(route.startRouteCount, 1);
       expect(route.stopRouteCount, 1);
-      expect(route.disconnectCount, 1);
+      expect(route.disconnectCount, 0);
+      expect(receivedSources, <String>['hfp', 'builtInMic']);
     },
   );
 

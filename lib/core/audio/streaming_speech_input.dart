@@ -1053,12 +1053,11 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   Future<void> start() => _startWithAudioRoute(commandMode: false);
 
   @override
-  // iOS navigation accepts normal phrases (for example "học từ vựng"), not
-  // confirmation-only speech. Reuse the dictation start that is already
-  // proven by the conversation button; the controller still owns the shorter
-  // MAIN command window and intent handling.
+  // The native bridge still uses the dictation task hint for Vietnamese MAIN
+  // phrases. Passing commandMode lets iOS prefer its stable legacy on-device
+  // recognizer for short navigation turns when that engine is available.
   Future<void> startCommandRecognition() =>
-      _startWithAudioRoute(commandMode: false);
+      _startWithAudioRoute(commandMode: true);
 
   Future<void> _startWithAudioRoute({required bool commandMode}) async {
     // Clear a stale native recognition turn before mutating AVAudioSession.
@@ -1095,28 +1094,41 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
           _audioRouteStarted = true;
         } catch (error) {
           // HFP is an enhancement, not a prerequisite. If iOS cannot finish
-          // switching the Bluetooth profile, clear the preferred input and
-          // keep opening Apple Speech with the built-in iPhone microphone.
+          // switching the Bluetooth profile, keep the remembered H20
+          // selection and open this turn with the built-in iPhone microphone.
           debugPrint(
             'HOMI iOS HFP route failed; falling back to phone mic: $error',
           );
           await routeControl.stopAudioRoute().catchError((Object _) {});
-          await routeControl.disconnect().catchError((Object _) {});
           audioSource = NativeSpeechAudioSource.builtInMic;
         }
       }
-      await super.startWithNativeAudioSource(
-        commandMode: commandMode,
-        audioSource: audioSource,
-      );
+      try {
+        await super.startWithNativeAudioSource(
+          commandMode: commandMode,
+          audioSource: audioSource,
+        );
+      } catch (error) {
+        await _stopAudioRoute();
+        if (audioSource != NativeSpeechAudioSource.hfp) {
+          rethrow;
+        }
+        // The physical BLE command must remain usable even when AVAudioEngine
+        // cannot reopen HFP immediately after the assistant prompt. Retry the
+        // same Apple Speech turn once with the phone mic without forgetting
+        // H20; a later MAIN turn can attempt HFP again.
+        debugPrint(
+          'HOMI iOS Apple Speech could not open HFP; retrying phone mic: '
+          '$error',
+        );
+        await super.cancel().catchError((Object _) {});
+        await super.startWithNativeAudioSource(
+          commandMode: commandMode,
+          audioSource: NativeSpeechAudioSource.builtInMic,
+        );
+      }
     } catch (_) {
       await _stopAudioRoute();
-      // If Apple Speech fails after HFP became active, leaving the preferred
-      // Bluetooth input selected makes the Batch fallback attempt the same
-      // broken route again. Clear it so the fallback can immediately open the
-      // built-in iPhone microphone instead of looping on HFP for another
-      // command-window timeout.
-      await routeControl?.disconnect().catchError((Object _) {});
       rethrow;
     }
   }

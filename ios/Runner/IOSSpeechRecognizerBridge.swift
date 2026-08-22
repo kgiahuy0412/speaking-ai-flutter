@@ -63,6 +63,21 @@ struct IOSNativeSpeechEngineSelector {
     }
     return nil
   }
+
+  static func selectForRecognition(
+    preparedEngine: IOSNativeSpeechEngineKind,
+    commandMode: Bool,
+    sfOnDeviceSupported: Bool
+  ) -> IOSNativeSpeechEngineKind {
+    // SpeechAnalyzer remains the preferred engine for normal conversation on
+    // iOS 26. For short MAIN commands, SFSpeechRecognizer has more predictable
+    // endpointing after an HFP prompt/beep and avoids an analyzer failure
+    // closing the navigation window before the child can answer.
+    if commandMode, sfOnDeviceSupported {
+      return .sfSpeechRecognizer
+    }
+    return preparedEngine
+  }
 }
 
 struct IOSNativeSpeechTaskHintSelector {
@@ -351,7 +366,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     }
     generation += 1
     let currentGeneration = generation
-    activeEngine = engine
+    let recognitionEngine = IOSNativeSpeechEngineSelector.selectForRecognition(
+      preparedEngine: engine,
+      commandMode: commandMode,
+      sfOnDeviceSupported: onDeviceLegacyRecognizer() != nil
+    )
+    activeEngine = recognitionEngine
     active = true
     stopping = false
     cancelled = false
@@ -367,7 +387,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     try await configureAudioSession(audioSource: audioSource)
     try createPrivateFallbackRecording()
 
-    if engine == .speechAnalyzer {
+    if recognitionEngine == .speechAnalyzer {
       guard #available(iOS 26.0, *) else {
         throw IOSSpeechBridgeError.onDeviceUnavailable
       }

@@ -32,7 +32,7 @@ class VoiceNavigationController extends ChangeNotifier {
     bool ownsVoicePromptService = false,
     Duration restartDelay = const Duration(milliseconds: 300),
     Duration partialIntentDebounce = const Duration(milliseconds: 160),
-    Duration commandWindowDuration = const Duration(seconds: 6),
+    Duration commandWindowDuration = const Duration(seconds: 8),
     Duration speechReadyCueTimeout = const Duration(milliseconds: 900),
     Duration microphoneStartTimeout = const Duration(seconds: 15),
     Duration microphoneStartRetryDelay = const Duration(seconds: 2),
@@ -615,11 +615,17 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_awaitingCommand) {
         _armCommandWindowTimer(generation);
       }
-      _noSpeechTimer = Timer(_noSpeechTimeout, () {
-        if (!_speechDetected) {
-          unawaited(_cancelSessionAndRestart(generation));
-        }
-      });
+      // MAIN already owns a command-window timer which speaks a child-friendly
+      // retry prompt. Running the generic no-speech timer at the same deadline
+      // raced it, cancelled Apple Speech, and could make the button return to
+      // Main immediately after the ready beep.
+      if (!_buttonCommandSession || !_awaitingCommand) {
+        _noSpeechTimer = Timer(_noSpeechTimeout, () {
+          if (!_speechDetected) {
+            unawaited(_cancelSessionAndRestart(generation));
+          }
+        });
+      }
       _maximumSessionTimer = Timer(
         _maximumSessionDuration,
         () => unawaited(_finishSession(generation)),
@@ -795,6 +801,14 @@ class VoiceNavigationController extends ChangeNotifier {
       return Future<void>.value();
     }
     _cancelSessionTimers();
+    if (_buttonCommandSession && _awaitingCommand) {
+      // A native runtime completion can arrive before a usable transcript
+      // (for example while HFP is settling). Pause the command deadline while
+      // stop/fallback is being resolved; the next confirmed microphone start
+      // rearms the full window in _startSession.
+      _commandWindowTimer?.cancel();
+      _commandWindowTimer = null;
+    }
     _listening = false;
     _finishing = true;
     notifyListeners();

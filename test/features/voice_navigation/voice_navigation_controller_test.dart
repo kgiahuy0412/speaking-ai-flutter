@@ -181,6 +181,35 @@ void main() {
   );
 
   test(
+    'Main pauses its command deadline while a premature completion recovers',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(stopText: '');
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 200),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => controller.isListening);
+      expect(controller.isListening, isTrue);
+
+      speechInput.emitCompleted();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(controller.isMainButtonSessionActive, isTrue);
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+      ]);
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
     'Main stops automatic retries and exposes the microphone error',
     () async {
       final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 10);
@@ -619,14 +648,14 @@ void main() {
       );
 
       expect(await controller.activateFromMainButton(), isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 530));
+      await _waitUntil(() => voicePrompt.spokenTexts.length >= 2);
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
       ]);
       expect(controller.isMainButtonSessionActive, isTrue);
 
-      await Future<void>.delayed(const Duration(milliseconds: 520));
+      await _waitUntil(() => voicePrompt.spokenTexts.length >= 3);
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
@@ -859,6 +888,19 @@ void main() {
       await speechInput.dispose();
     },
   );
+}
+
+Future<void> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for the expected navigation state.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
 }
 
 Future<ListeningContentCatalog> _loadMainAssistantContent() async {
