@@ -346,8 +346,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
           self.activeEngine == .speechAnalyzer,
           let analyzer = self.analyzerSession as? IOSSpeechAnalyzerSession
         {
-          // AnalyzerInputConverter may retain its input. AVAudioEngine owns and
-          // reuses tap buffers, so pass a deep copy to avoid later corruption.
+          // AVAudioConverter may retain its input. AVAudioEngine owns and reuses
+          // tap buffers, so pass a deep copy to avoid later corruption.
           try analyzer.append(self.copyForSpeechAnalyzer(buffer))
         } else {
           self.recognitionRequest?.append(buffer)
@@ -739,8 +739,9 @@ private final class IOSSpeechAnalyzerSession {
 
   private let transcriber: SpeechTranscriber
   private let analyzer: SpeechAnalyzer
-  private let converter: AnalyzerInputConverter
+  private let analyzerFormat: AVAudioFormat
   private let inputContinuation: AsyncStream<AnalyzerInput>.Continuation
+  private var audioConverter: AVAudioConverter?
   private var analysisTask: Task<Void, Error>?
   private var resultTask: Task<Void, Never>?
   private var finalizedSegments: [String] = []
@@ -760,7 +761,12 @@ private final class IOSSpeechAnalyzerSession {
       attributeOptions: []
     )
     analyzer = SpeechAnalyzer(modules: [transcriber])
-    converter = try await AnalyzerInputConverter.converter(compatibleWith: [transcriber])
+    guard let compatibleFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
+      compatibleWith: [transcriber]
+    ) else {
+      throw IOSSpeechBridgeError.onDeviceUnavailable
+    }
+    analyzerFormat = compatibleFormat
     let stream = AsyncStream<AnalyzerInput>.makeStream()
     inputContinuation = stream.continuation
 
@@ -800,14 +806,14 @@ private final class IOSSpeechAnalyzerSession {
   }
 
   func append(_ buffer: AVAudioPCMBuffer) throws {
-    for input in try converter.convert(buffer, at: nil) {
-      inputContinuation.yield(input)
+    if let convertedBuffer = try convert(buffer) {
+      inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
     }
   }
 
   func stop() async throws -> IOSAnalyzerTranscript {
-    for input in try converter.flush() {
-      inputContinuation.yield(input)
+    for convertedBuffer in try flushAudioConverter() {
+      inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
     }
     inputContinuation.finish()
     try await analysisTask?.value
@@ -822,6 +828,84 @@ private final class IOSSpeechAnalyzerSession {
     await analyzer.cancelAndFinishNow()
   }
 
+  private func convert(_ inputBuffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer? {
+    let activeConverter = try makeOrReuseConverter(for: inputBuffer.format)
+    let sampleRateRatio = analyzerFormat.sampleRate / inputBuffer.format.sampleRate
+    let estimatedFrames = ceil(Double(inputBuffer.frameLength) * sampleRateRatio)
+    let outputCapacity = max(AVAudioFrameCount(estimatedFrames) + 64, 1)
+    guard let outputBuffer = AVAudioPCMBuffer(
+      pcmFormat: analyzerFormat,
+      frameCapacity: outputCapacity
+    ) else {
+      throw IOSSpeechBridgeError.audioConversionUnavailable
+    }
+
+    var suppliedInput = false
+    var conversionError: NSError?
+    let status = activeConverter.convert(to: outputBuffer, error: &conversionError) {
+      _, inputStatus in
+      guard !suppliedInput else {
+        inputStatus.pointee = .noDataNow
+        return nil
+      }
+      suppliedInput = true
+      inputStatus.pointee = .haveData
+      return inputBuffer
+    }
+    if status == .error {
+      if let conversionError { throw conversionError }
+      throw IOSSpeechBridgeError.audioConversionFailed
+    }
+    return outputBuffer.frameLength == 0 ? nil : outputBuffer
+  }
+
+  private func makeOrReuseConverter(for inputFormat: AVAudioFormat) throws -> AVAudioConverter {
+    if let audioConverter, audioConverter.inputFormat.isEqual(inputFormat) {
+      return audioConverter
+    }
+    guard let replacement = AVAudioConverter(from: inputFormat, to: analyzerFormat) else {
+      throw IOSSpeechBridgeError.audioConversionUnavailable
+    }
+    audioConverter = replacement
+    return replacement
+  }
+
+  private func flushAudioConverter() throws -> [AVAudioPCMBuffer] {
+    guard let audioConverter else { return [] }
+    var convertedBuffers: [AVAudioPCMBuffer] = []
+    let sampleRateRatio = analyzerFormat.sampleRate / audioConverter.inputFormat.sampleRate
+    let outputCapacity = max(AVAudioFrameCount(ceil(1_024.0 * sampleRateRatio)) + 64, 1_024)
+
+    // A sample-rate converter may retain a small tail. Signal end-of-stream and
+    // drain it before terminating SpeechAnalyzer's AsyncStream.
+    for _ in 0..<8 {
+      guard let outputBuffer = AVAudioPCMBuffer(
+        pcmFormat: analyzerFormat,
+        frameCapacity: outputCapacity
+      ) else {
+        throw IOSSpeechBridgeError.audioConversionUnavailable
+      }
+      var conversionError: NSError?
+      let status = audioConverter.convert(to: outputBuffer, error: &conversionError) {
+        _, inputStatus in
+        inputStatus.pointee = .endOfStream
+        return nil
+      }
+      if status == .error {
+        if let conversionError { throw conversionError }
+        throw IOSSpeechBridgeError.audioConversionFailed
+      }
+      if outputBuffer.frameLength > 0 {
+        convertedBuffers.append(outputBuffer)
+      }
+      if status == .endOfStream || (status == .inputRanDry && outputBuffer.frameLength == 0) {
+        break
+      }
+    }
+    self.audioConverter = nil
+    return convertedBuffers
+  }
+
   private func snapshot() -> IOSAnalyzerTranscript {
     let components = finalizedSegments + (volatileText.isEmpty ? [] : [volatileText])
     let text = components.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -834,6 +918,8 @@ private enum IOSSpeechBridgeError: LocalizedError {
   case onDeviceUnavailable
   case audioInputUnavailable
   case audioBufferCopyFailed
+  case audioConversionUnavailable
+  case audioConversionFailed
   case noSpeech
 
   var errorDescription: String? {
@@ -844,6 +930,10 @@ private enum IOSSpeechBridgeError: LocalizedError {
       return "iOS chưa mở được micro iPhone hoặc H20 HFP."
     case .audioBufferCopyFailed:
       return "iOS chưa sao chép được luồng micro cho Apple Speech."
+    case .audioConversionUnavailable:
+      return "iOS chưa tạo được bộ chuyển đổi âm thanh cho Apple Speech."
+    case .audioConversionFailed:
+      return "iOS chưa chuyển đổi được âm thanh cho Apple Speech."
     case .noSpeech:
       return "Mình chưa nghe rõ. Con thử nói lại gần micro hơn nhé."
     }
