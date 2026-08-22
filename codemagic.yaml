@@ -30,13 +30,13 @@ workflows:
         - $HOME/Library/Caches/CocoaPods
 
     scripts:
-      - name: Verify release environment and privacy configuration
+      - name: Verify release, privacy, and signing configuration
         script: |
           set -euo pipefail
           flutter --version
           xcodebuild -version
 
-          for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL AI_SUBPROCESSORS DATA_RETENTION_SUMMARY; do
+          for name in CERTIFICATE_PRIVATE_KEY PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL AI_SUBPROCESSORS DATA_RETENTION_SUMMARY; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required Codemagic variable: $name"
               exit 1

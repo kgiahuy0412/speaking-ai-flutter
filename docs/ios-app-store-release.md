@@ -19,22 +19,27 @@
    `.p8` once and keep its Issuer ID and Key ID outside Git.
 3. In Codemagic, add the Apple Developer Portal integration and name it exactly
    `innotrik_app_store_connect`, matching `codemagic.yaml`.
-4. The signed workflow uses the connected API key to fetch or create an Apple
-   Distribution certificate and an App Store provisioning profile for
-   `com.innotrik.aispeaking`. If Apple reports that the Distribution certificate
-   limit has been reached, remove an unused certificate in Apple Developer or
-   add an existing Codemagic-generated certificate under **Code signing
-   identities**.
-5. Create the Codemagic environment group `homi_app_store`. Add these non-secret
-   release values (mark them secure if company policy requires it):
+4. Generate a dedicated 2048-bit RSA private key for iOS Distribution signing.
+   Add its complete PEM contents to the Codemagic environment group
+   `homi_app_store` as a **Secret** variable named
+   `CERTIFICATE_PRIVATE_KEY`. Keep the key outside Git. The `.p8` API key does
+   not replace this signing private key.
+5. The signed workflow uses this private key and the connected API key to fetch
+   or create an Apple Distribution certificate and an App Store provisioning
+   profile for `com.innotrik.aispeaking`. If Apple reports that the Distribution
+   certificate limit has been reached, remove an unused certificate in Apple
+   Developer or add an existing Codemagic-generated certificate under **Code
+   signing identities**.
+6. In the same Codemagic environment group `homi_app_store`, add these release
+   values (mark them secure if company policy requires it):
    - `PRIVACY_POLICY_URL=https://homi-app-privacy.lixiang22.chatgpt.site/privacy`
    - `TERMS_URL=https://homi-app-privacy.lixiang22.chatgpt.site/terms`
    - `SUPPORT_URL=https://homi-app-privacy.lixiang22.chatgpt.site/support`
    - `AI_SUBPROCESSORS=HOMI backend trên Railway và Cloudflare`
    - `DATA_RETENTION_SUMMARY=Audio nhận dạng on-device chỉ giữ trong phiên và không tải lên backend. Audio chỉ gửi khi Cloudflare/Batch dự phòng cần thiết. Transcript, lịch sử tương tác và chẩn đoán hiện được lưu đến khi phụ huynh rút chấp thuận/yêu cầu xóa; thời hạn tự động cụ thể đang được hoàn thiện trước phát hành công khai.`
-6. Run the `ios-app-store` workflow manually. It fetches the matching App Store
+7. Run the `ios-app-store` workflow manually. It fetches the matching App Store
    signing assets, builds a signed IPA and uploads it to App Store Connect.
-7. Wait for Apple processing, add internal TestFlight testers, and test on real
+8. Wait for Apple processing, add internal TestFlight testers, and test on real
    iPhone/iPad before sending the build to external beta review or App Review.
 
 No `.p8`, certificate, provisioning profile, Apple password or signing secret
