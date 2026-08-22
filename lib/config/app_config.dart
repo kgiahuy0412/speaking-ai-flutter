@@ -182,7 +182,7 @@ class AppConfig {
       dataRetentionSummary.trim().isNotEmpty;
 
   String get disclosedAiSubprocessors => aiSubprocessors.trim().isEmpty
-      ? 'HOMI backend, Cloudflare và OpenAI'
+      ? 'HOMI backend trên Railway và Cloudflare'
       : aiSubprocessors.trim();
 
   String get disclosedDataRetention => dataRetentionSummary.trim().isEmpty

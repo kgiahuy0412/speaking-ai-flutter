@@ -30,7 +30,7 @@ void main() {
           bluetoothRequired: true,
           bluetoothGranted: permissionsGranted,
           selectedAge: selectedAge,
-          aiSubprocessors: 'HOMI backend, Cloudflare và OpenAI',
+          aiSubprocessors: 'HOMI backend trên Railway và Cloudflare',
           dataRetentionSummary: 'Audio được xóa sau 24 giờ.',
           privacyPolicyUri: Uri.parse('https://example.com/privacy'),
           termsUri: Uri.parse('https://example.com/terms'),

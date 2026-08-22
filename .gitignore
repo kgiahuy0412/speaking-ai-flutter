@@ -54,3 +54,6 @@ flutter_*.log
 *.zip
 /.codex-tmp/
 /test/**/failures/
+
+# Deployed from its own Sites source repository.
+/homi-legal-site/

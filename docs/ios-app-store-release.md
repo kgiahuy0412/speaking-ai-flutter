@@ -46,8 +46,9 @@ production backend actually implements the same claims.
 
 - Choose one primary Kids Category age band: 5 and under, 6–8, or 9–11. The
   current product range 3–15 does not map to one Apple Kids age band.
-- Publish a Privacy Policy that names Railway/HOMI infrastructure, Cloudflare,
-  OpenAI and every other real subprocessor that receives child data.
+- Publish a Privacy Policy that names Railway/HOMI infrastructure, Cloudflare
+  and every other real subprocessor that receives child data. HOMI currently
+  does not use OpenAI.
 - Define separate TTL/retention for raw audio, transcripts, history, telemetry,
   caches and backups.
 - Make `DELETE /api/history?deleteRelatedData=true` delete history, transcript,
