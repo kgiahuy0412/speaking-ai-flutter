@@ -167,6 +167,19 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     expect(speechInput.startCount, 1);
     expect(voiceNavigationController.isMainButtonSessionActive, isTrue);
+    expect(voiceNavigationController.isListening, isTrue);
+    expect(find.text('Đang nghe...'), findsOneWidget);
+
+    // BLE/HFP status and diagnostics are surfaced through ConversationController
+    // notifications. On iOS they must not cancel the explicit MAIN recognizer;
+    // only Android owns the optional always-on navigation lifecycle here.
+    controller.setChildAge(7);
+    await tester.pump();
+    await tester.pump();
+    expect(voiceNavigationController.isMainButtonSessionActive, isTrue);
+    expect(voiceNavigationController.isListening, isTrue);
+    expect(speechInput.cancelCount, 0);
+    expect(find.text('Đang nghe...'), findsOneWidget);
 
     await voiceNavigationController.pause();
     await tester.pump();

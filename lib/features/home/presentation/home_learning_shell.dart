@@ -303,9 +303,16 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       widget.controller.isInputAvailable;
 
   void _onConversationControllerChanged() {
-    if (!_continuousVoiceNavigationEnabled ||
-        widget.controller.isBusy ||
-        widget.controller.isPlaybackPlaying) {
+    // This listener owns Android's optional, always-on wake-word session only.
+    // iOS uses the same VoiceNavigationController for an explicit MAIN turn.
+    // Pausing when continuous navigation is disabled therefore cancelled an
+    // iOS MAIN turn whenever BLE/HFP diagnostics notified the conversation
+    // controller -- often only a few milliseconds after beginMainTurn().
+    if (!_continuousVoiceNavigationEnabled) {
+      _voiceNavigationRestartTimer?.cancel();
+      return;
+    }
+    if (widget.controller.isBusy || widget.controller.isPlaybackPlaying) {
       _voiceNavigationRestartTimer?.cancel();
       unawaited(widget.voiceNavigationController?.pause());
       return;
