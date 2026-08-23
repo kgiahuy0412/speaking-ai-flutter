@@ -322,6 +322,19 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
           )
           return
         }
+        if !recording {
+          // `connect` only verifies and remembers the paired HFP input. Do not
+          // leave SCO active while idle: H20 exposes BLE and Classic Bluetooth
+          // on the same firmware and an always-open voice profile makes its
+          // GATT control link disconnect/reconnect continuously on iOS.
+          self.audioSessionCoordinator.releaseAudioSessionIfIdle(
+            caller: "HfpAudioBridge.connectVerified"
+          )
+          self.routeActive = false
+          self.phase = "idle"
+          self.message = "Đã chọn mic HFP; route sẽ mở khi bắt đầu nghe."
+          self.emitStatus()
+        }
         result(self.snapshot())
       }
       return
@@ -352,7 +365,8 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func stopAudioRoute() {
     routeActivationGeneration += 1
-    if let selectedInputId,
+    if audioSessionCoordinator.isMainTurnActive,
+      let selectedInputId,
       let activeInput = activeTwoWayHfpInput(),
       activeInput.uid == selectedInputId
     {
@@ -360,6 +374,9 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       phase = "ready"
       message = "Mic và loa H20 vẫn ở trên currentRoute bluetoothHFP."
     } else {
+      audioSessionCoordinator.releaseAudioSessionIfIdle(
+        caller: "HfpAudioBridge.stopAudioRoute"
+      )
       routeActive = false
       phase = "idle"
       message = selectedInputId == nil

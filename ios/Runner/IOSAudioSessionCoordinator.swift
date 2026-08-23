@@ -88,6 +88,11 @@ final class IOSAudioSessionCoordinator: NSObject {
     activeTurnId = nil
     activeTurnStartedAt = nil
     sequence = 0
+    // A two-way HFP/SCO route is only owned for the duration of a MAIN turn.
+    // Keeping AVAudioSession active after the turn leaves H20 in its voice
+    // profile and the combined firmware repeatedly drops its BLE GATT link.
+    // Release the voice profile before resuming the deferred BLE reconnect.
+    releaseAudioSessionIfIdle(caller: "IOSAudioSessionCoordinator.endMainTurn")
     onMainTurnEnded?()
   }
 
@@ -175,15 +180,39 @@ final class IOSAudioSessionCoordinator: NSObject {
     return false
   }
 
-  func releasePrompt(usedHfp: Bool, caller: String) {
+  func releasePrompt(usedHfp _: Bool, caller: String) {
     trace(stage: "prompt_audio_release", caller: caller)
     guard !isMainTurnActive else {
       trace(stage: "prompt_audio_release_preserved_for_main", caller: caller)
       return
     }
-    guard !usedHfp else { return }
-    try? ensureOutputOverride(.none, caller: caller)
-    try? setActive(false, notifyOthers: true, caller: caller)
+    releaseAudioSessionIfIdle(caller: caller)
+  }
+
+  /// Releases a record-capable route when no MAIN turn owns it.
+  ///
+  /// The selected HFP UID is kept by `HfpAudioBridge`; only the live SCO/audio
+  /// session is released. A later MAIN turn can therefore reactivate and
+  /// verify the same H20 input without keeping BLE-hostile SCO open at idle.
+  func releaseAudioSessionIfIdle(caller: String) {
+    guard !isMainTurnActive else {
+      trace(stage: "audio_session_release_preserved_for_main", caller: caller)
+      return
+    }
+    trace(stage: "audio_session_release_requested", caller: caller)
+    do {
+      try ensureOutputOverride(.none, caller: caller)
+      try setActive(false, notifyOthers: true, caller: caller)
+      trace(stage: "audio_session_release_completed", caller: caller)
+    } catch {
+      let nsError = error as NSError
+      trace(
+        stage: "audio_session_release_failed",
+        caller: caller,
+        code: "\(nsError.domain):\(nsError.code)",
+        message: error.localizedDescription
+      )
+    }
   }
 
   func configureHfp(activate: Bool, preferredInput: AVAudioSessionPortDescription?, caller: String) throws {
