@@ -226,7 +226,12 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
   Future<void> startAudioRoute() async {
     await initialize();
     _requireSupport();
-    await _methodChannel.invokeMethod<void>('startAudioRoute');
+    final snapshot = await _methodChannel.invokeMapMethod<dynamic, dynamic>(
+      'startAudioRoute',
+    );
+    if (snapshot != null) {
+      _setStatus(_statusFromMap(snapshot));
+    }
   }
 
   @override

@@ -13,6 +13,7 @@ import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/aiv0_ble_control.dart';
+import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
@@ -152,18 +153,21 @@ class ConversationController extends ChangeNotifier {
         ?.nativeSpeechDiagnostics
         .listen((diagnostic) {
           nativeSpeechDiagnostic = diagnostic;
-          if (diagnostic.stage == 'prompt_done') {
+          final currentTurnId = diagnostic.turnId;
+          final previousTurnId = _nativeSpeechDiagnosticLog.isEmpty
+              ? null
+              : _nativeSpeechDiagnosticLog.last.turnId;
+          if (currentTurnId != null &&
+              previousTurnId != null &&
+              currentTurnId != previousTurnId) {
             _nativeSpeechDiagnosticLog.clear();
           }
-          if (_nativeSpeechDiagnosticLog.isNotEmpty &&
-              _nativeSpeechDiagnosticLog.last.stage == diagnostic.stage) {
-            _nativeSpeechDiagnosticLog[_nativeSpeechDiagnosticLog.length - 1] =
-                diagnostic;
-          } else {
-            _nativeSpeechDiagnosticLog.add(diagnostic);
-          }
-          if (_nativeSpeechDiagnosticLog.length > 12) {
-            _nativeSpeechDiagnosticLog.removeAt(0);
+          _nativeSpeechDiagnosticLog.add(diagnostic);
+          if (_nativeSpeechDiagnosticLog.length > 200) {
+            _nativeSpeechDiagnosticLog.removeRange(
+              0,
+              _nativeSpeechDiagnosticLog.length - 200,
+            );
           }
           if (!_disposed) notifyListeners();
         });
@@ -545,6 +549,12 @@ class ConversationController extends ChangeNotifier {
       _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
   bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
   bool get canUseAiv0Ble => aiv0BleStatus.isConnected;
+  H20ConnectionState h20ConnectionState({bool mainTurnActive = false}) =>
+      H20ConnectionState.from(
+        hfpStatus: hfpAudioStatus,
+        bleStatus: aiv0BleStatus,
+        mainTurnActive: mainTurnActive,
+      );
   List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
       List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
   List<NativeSpeechDiagnostic> get nativeSpeechDiagnosticLog =>

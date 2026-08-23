@@ -28,7 +28,8 @@ struct IOSHfpRoutePolicy {
 final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private let methodChannel: FlutterMethodChannel
   private let eventChannel: FlutterEventChannel
-  private let audioSession = AVAudioSession.sharedInstance()
+  private let audioSessionCoordinator: IOSAudioSessionCoordinator
+  private var audioSession: AVAudioSession { audioSessionCoordinator.session }
   private var eventSink: FlutterEventSink?
   private var selectedInputId: String?
   private var selectedInputName: String?
@@ -39,7 +40,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private var notificationTokens: [NSObjectProtocol] = []
   private var disposed = false
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(
+    messenger: FlutterBinaryMessenger,
+    audioSessionCoordinator: IOSAudioSessionCoordinator
+  ) {
+    self.audioSessionCoordinator = audioSessionCoordinator
     methodChannel = FlutterMethodChannel(name: "ailingo_hfp_audio", binaryMessenger: messenger)
     eventChannel = FlutterEventChannel(name: "ailingo_hfp_audio/events", binaryMessenger: messenger)
     super.init()
@@ -89,16 +94,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   }
 
   private func configureSession(activate: Bool) throws {
-    try audioSession.setCategory(
-      .playAndRecord,
-      mode: .voiceChat,
-      // HFP is bidirectional. A2DP is output-only and defaultToSpeaker can
-      // leave the assistant on the iPhone after the H20 mic is selected.
-      options: IOSHfpRoutePolicy.categoryOptions
+    try audioSessionCoordinator.configureHfp(
+      activate: activate,
+      preferredInput: nil,
+      caller: "HfpAudioBridge.configureSession"
     )
-    if activate {
-      try audioSession.setActive(true, options: [])
-    }
   }
 
   private func bluetoothInputs() -> [AVAudioSessionPortDescription] {
@@ -142,7 +142,10 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
           ? "iOS chưa công bố đầu vào bluetoothHFP dù H20 đang ghép đôi. Hãy tắt/bật lại H20 rồi thử lại."
           : "Đã tìm thấy \(inputs.count) mic HFP; hãy chọn H20 để mở route hai chiều."
         if inputs.isEmpty {
-          try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
+          audioSessionCoordinator.trace(
+            stage: "hfp_inputs_unavailable",
+            caller: "HfpAudioBridge.findDevices"
+          )
         }
       }
       emitStatus()
@@ -191,7 +194,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       guard let input = bluetoothInputs().first(where: { $0.uid == deviceId }) else {
         throw HfpBridgeError.inputUnavailable
       }
-      try audioSession.setPreferredInput(input)
+      try audioSessionCoordinator.configureHfp(
+        activate: true,
+        preferredInput: input,
+        caller: "HfpAudioBridge.connect"
+      )
       selectedInputId = input.uid
       selectedInputName = input.portName
       routeActive = false
@@ -213,7 +220,9 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     do {
       routeActivationGeneration += 1
       routeActive = false
-      try audioSession.setPreferredInput(nil)
+      try audioSessionCoordinator.clearPreferredInput(
+        caller: "HfpAudioBridge.disconnect"
+      )
       selectedInputId = nil
       selectedInputName = nil
       phase = "idle"
@@ -242,7 +251,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       phase = "recording"
       message = "Đang dùng lại mic và loa H20 trên route bluetoothHFP hai chiều."
       emitStatus()
-      result(nil)
+      result(snapshot())
       return
     }
     do {
@@ -251,7 +260,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
         guard let selected = bluetoothInputs().first(where: { $0.uid == selectedInputId }) else {
           throw HfpBridgeError.inputUnavailable
         }
-        try audioSession.setPreferredInput(selected)
+        try audioSessionCoordinator.configureHfp(
+          activate: true,
+          preferredInput: selected,
+          caller: "HfpAudioBridge.startAudioRoute"
+        )
         selectedInputName = selected.portName
       }
       routeActive = false
@@ -309,7 +322,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
           )
           return
         }
-        result(nil)
+        result(self.snapshot())
       }
       return
     }

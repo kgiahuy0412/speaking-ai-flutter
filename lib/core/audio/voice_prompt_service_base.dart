@@ -15,3 +15,12 @@ abstract interface class SpeechReadyCuePlayer {
   /// Plays a short audible cue and completes after the cue has finished.
   Future<void> playSpeechReadyCue();
 }
+
+/// Optional native capability that brackets one physical/virtual MAIN turn.
+/// The iOS implementation uses this boundary to keep one AVAudioSession owner
+/// from the first prompt through the final speech result.
+abstract interface class MainTurnVoicePromptService {
+  Future<String?> beginMainTurn();
+
+  Future<void> endMainTurn(String reason);
+}

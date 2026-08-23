@@ -6,6 +6,7 @@ import Foundation
 /// AVSpeechSynthesizer avoids a network round trip before command recognition.
 final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
   private let channel: FlutterMethodChannel
+  private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private let synthesizer = AVSpeechSynthesizer()
   private var waitingResult: FlutterResult?
   private var readyCueResult: FlutterResult?
@@ -15,7 +16,11 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private var promptUsesHfpRoute = false
   private var disposed = false
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(
+    messenger: FlutterBinaryMessenger,
+    audioSessionCoordinator: IOSAudioSessionCoordinator
+  ) {
+    self.audioSessionCoordinator = audioSessionCoordinator
     channel = FlutterMethodChannel(name: "ailingo_voice_prompt", binaryMessenger: messenger)
     super.init()
     synthesizer.delegate = self
@@ -30,6 +35,15 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       return
     }
     switch call.method {
+    case "beginMainTurn":
+      result(audioSessionCoordinator.beginMainTurn(source: "VoicePromptBridge.beginMainTurn"))
+    case "endMainTurn":
+      let arguments = call.arguments as? [String: Any]
+      audioSessionCoordinator.endMainTurn(
+        reason: arguments?["reason"] as? String ?? "dart_requested",
+        caller: "VoicePromptBridge.endMainTurn"
+      )
+      result(nil)
     case "speak", "speakAndWait":
       let arguments = call.arguments as? [String: Any]
       let text = (arguments?["text"] as? String)?
@@ -58,6 +72,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     }
     stop()
     configurePromptAudioSession()
+    audioSessionCoordinator.trace(stage: "prompt_started", caller: "VoicePromptBridge.speak")
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: locale)
       ?? AVSpeechSynthesisVoice(language: "vi-VN")
@@ -72,7 +87,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   private func configurePromptAudioSession() {
-    let session = AVAudioSession.sharedInstance()
+    let session = audioSessionCoordinator.session
     // Capture the HFP port before changing the shared session. HfpAudioBridge
     // activates and selects it; the prompt bridge must preserve that choice
     // instead of forcing every assistant utterance back to the iPhone speaker.
@@ -81,39 +96,18 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     } ?? session.availableInputs?.first {
       IOSHfpRoutePolicy.isHfpInput($0.portType)
     }
-    let hasCurrentTwoWayHfp = IOSHfpRoutePolicy.isTwoWayHfpRoute(
-      inputTypes: session.currentRoute.inputs.map(\.portType),
-      outputTypes: session.currentRoute.outputs.map(\.portType)
-    )
-    // HfpAudioBridge has already configured this shared AVAudioSession. Keep
-    // the stable route intact while the assistant prompt and ready cue play;
-    // mutating it again can drop both HFP and the H20 BLE control connection.
-    if hasCurrentTwoWayHfp {
-      promptUsesHfpRoute = true
-      return
-    }
-    if let preferredHfpInput {
-      promptUsesHfpRoute = true
-      try? session.setActive(false, options: .notifyOthersOnDeactivation)
-      try? session.setCategory(
-        .playAndRecord,
-        mode: .voiceChat,
-        options: IOSHfpRoutePolicy.categoryOptions
+    do {
+      promptUsesHfpRoute = try audioSessionCoordinator.preparePrompt(
+        preferredHfpInput: preferredHfpInput,
+        caller: "VoicePromptBridge.configurePromptAudioSession"
       )
-      try? session.setActive(true)
-      try? session.setPreferredInput(preferredHfpInput)
-      try? session.overrideOutputAudioPort(.none)
-    } else {
-      promptUsesHfpRoute = false
-      try? session.setActive(false, options: .notifyOthersOnDeactivation)
-      try? session.setCategory(
-        .playAndRecord,
-        mode: .default,
-        options: [.defaultToSpeaker, .duckOthers]
+    } catch {
+      audioSessionCoordinator.trace(
+        stage: "prompt_audio_error",
+        caller: "VoicePromptBridge.configurePromptAudioSession",
+        code: "PROMPT_AUDIO_SESSION_FAILED",
+        message: error.localizedDescription
       )
-      try? session.setPreferredInput(nil)
-      try? session.setActive(true)
-      try? session.overrideOutputAudioPort(.speaker)
     }
   }
 
@@ -133,27 +127,29 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    audioSessionCoordinator.trace(stage: "prompt_finished", caller: "VoicePromptBridge.didFinish")
+    audioSessionCoordinator.trace(stage: "prompt_done", caller: "VoicePromptBridge.didFinish")
     releasePromptAudioSession()
     completeWaitingResult()
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    audioSessionCoordinator.trace(stage: "prompt_cancelled", caller: "VoicePromptBridge.didCancel")
     releasePromptAudioSession()
     completeWaitingResult()
   }
 
   private func releasePromptAudioSession() {
-    let session = AVAudioSession.sharedInstance()
-    // A prompt on HFP borrows the route owned by HfpAudioBridge. Do not touch
-    // its output override or active state during the prompt-to-mic hand-off.
-    if promptUsesHfpRoute { return }
-    try? session.overrideOutputAudioPort(.none)
-    try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    audioSessionCoordinator.releasePrompt(
+      usedHfp: promptUsesHfpRoute,
+      caller: "VoicePromptBridge.releasePromptAudioSession"
+    )
   }
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {
     completeReadyCue()
     configurePromptAudioSession()
+    audioSessionCoordinator.trace(stage: "ready_cue_started", caller: "VoicePromptBridge.playSpeechReadyCue")
 
     let token = UUID()
     readyCueToken = token
@@ -227,6 +223,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     if let token, token != readyCueToken {
       return
     }
+    let hadActiveCue = readyCueToken != nil || readyCueResult != nil || readyCuePlayer != nil
     readyCueFallback?.cancel()
     readyCueFallback = nil
     readyCuePlayer?.delegate = nil
@@ -235,6 +232,12 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     readyCueToken = nil
     let result = readyCueResult
     readyCueResult = nil
+    if hadActiveCue {
+      audioSessionCoordinator.trace(
+        stage: "ready_cue_finished",
+        caller: "VoicePromptBridge.completeReadyCue"
+      )
+    }
     // Hand AVAudioSession back before Dart opens AVAudioEngine. Without this
     // explicit release, the MAIN prompt can leave the speaker session active
     // and the following recognition start fails even though manual recording
@@ -246,6 +249,10 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   func dispose() {
     guard !disposed else { return }
     stop()
+    audioSessionCoordinator.endMainTurn(
+      reason: "prompt_bridge_disposed",
+      caller: "VoicePromptBridge.dispose"
+    )
     disposed = true
     synthesizer.delegate = nil
     channel.setMethodCallHandler(nil)

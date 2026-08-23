@@ -7,12 +7,37 @@ VoicePromptService createPlatformVoicePromptService() =>
     const MethodChannelVoicePromptService();
 
 class MethodChannelVoicePromptService
-    implements VoicePromptService, SpeechReadyCuePlayer {
+    implements
+        VoicePromptService,
+        SpeechReadyCuePlayer,
+        MainTurnVoicePromptService {
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
   }) : _channel = channel;
 
   final MethodChannel _channel;
+
+  @override
+  Future<String?> beginMainTurn() async {
+    try {
+      return await _channel.invokeMethod<String>('beginMainTurn');
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> endMainTurn(String reason) async {
+    try {
+      await _channel.invokeMethod<void>('endMainTurn', <String, dynamic>{
+        'reason': reason,
+      });
+    } on MissingPluginException {
+      // Optional native capability.
+    } on PlatformException {
+      // Turn cleanup is best effort during navigation cancellation.
+    }
+  }
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {

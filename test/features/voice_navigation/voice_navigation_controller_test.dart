@@ -1070,15 +1070,24 @@ class _FakeNavigationSpeechInput
     String? audioRoute,
     String? code,
     String? message,
+    String? turnId,
+    int? sequence,
+    int? elapsedMs,
+    String? caller,
+    DateTime? occurredAt,
   }) {
     diagnosticStages.add(stage);
     _nativeDiagnostic = NativeSpeechDiagnostic(
       stage: stage,
-      occurredAt: DateTime.now(),
+      occurredAt: occurredAt ?? DateTime.now(),
       audioSource: audioSource,
       audioRoute: audioRoute,
       code: code,
       message: message,
+      turnId: turnId,
+      sequence: sequence,
+      elapsedMs: elapsedMs,
+      caller: caller,
     );
     _diagnosticsController.add(_nativeDiagnostic!);
   }

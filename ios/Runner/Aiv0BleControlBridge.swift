@@ -53,6 +53,10 @@ struct Aiv0ReconnectPolicy {
   static func delaySeconds(forAttempt attempt: Int) -> TimeInterval {
     min(pow(2.0, Double(max(attempt, 1) - 1)), 4.0)
   }
+
+  static func shouldDefer(mainTurnActive: Bool) -> Bool {
+    mainTurnActive
+  }
 }
 
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
@@ -89,6 +93,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
 
   private let methodChannel: FlutterMethodChannel
   private let eventChannel: FlutterEventChannel
+  private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private var eventSink: FlutterEventSink?
   private var central: CBCentralManager?
   private var discoveredDevices: [UUID: DiscoveredDevice] = [:]
@@ -103,6 +108,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var connectTimeoutWorkItem: DispatchWorkItem?
   private var reconnectWorkItem: DispatchWorkItem?
   private var reconnectTimeoutWorkItem: DispatchWorkItem?
+  private weak var deferredReconnectPeripheral: CBPeripheral?
   private var phase = "idle"
   private var message: String?
   private var writeMode: String?
@@ -116,7 +122,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var manualDisconnect = false
   private var disposed = false
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(
+    messenger: FlutterBinaryMessenger,
+    audioSessionCoordinator: IOSAudioSessionCoordinator
+  ) {
+    self.audioSessionCoordinator = audioSessionCoordinator
     methodChannel = FlutterMethodChannel(
       name: "ailingo_aiv0_ble_control",
       binaryMessenger: messenger
@@ -130,6 +140,15 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self?.handle(call, result: result)
     }
     eventChannel.setStreamHandler(self)
+    audioSessionCoordinator.onMainTurnEnded = { [weak self] in
+      guard let self, let peripheral = self.deferredReconnectPeripheral else { return }
+      self.deferredReconnectPeripheral = nil
+      self.audioSessionCoordinator.trace(
+        stage: "ble_reconnect_resumed",
+        caller: "Aiv0BleControlBridge"
+      )
+      self.scheduleReconnect(peripheral)
+    }
   }
 
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -377,6 +396,19 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func scheduleReconnect(_ peripheral: CBPeripheral) {
+    if Aiv0ReconnectPolicy.shouldDefer(
+      mainTurnActive: audioSessionCoordinator.isMainTurnActive
+    ) {
+      deferredReconnectPeripheral = peripheral
+      phase = "reconnecting"
+      message = "BLE H20 tạm chờ đến khi lượt MAIN kết thúc; HFP không bị thay đổi."
+      audioSessionCoordinator.trace(
+        stage: "ble_reconnect_deferred",
+        caller: "Aiv0BleControlBridge.scheduleReconnect"
+      )
+      emitStatus()
+      return
+    }
     guard reconnectWorkItem == nil, reconnectTimeoutWorkItem == nil else {
       return
     }
@@ -397,6 +429,14 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let item = DispatchWorkItem { [weak self, weak peripheral] in
       guard let self, let peripheral, !self.manualDisconnect, !self.disposed else { return }
       self.reconnectWorkItem = nil
+      if self.audioSessionCoordinator.isMainTurnActive {
+        self.deferredReconnectPeripheral = peripheral
+        self.audioSessionCoordinator.trace(
+          stage: "ble_reconnect_deferred",
+          caller: "Aiv0BleControlBridge.reconnectWorkItem"
+        )
+        return
+      }
       self.resetCharacteristics()
       peripheral.delegate = self
       self.central?.connect(peripheral, options: nil)
@@ -416,6 +456,14 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         self.stateCharacteristic == nil
       else { return }
       self.reconnectTimeoutWorkItem = nil
+      if self.audioSessionCoordinator.isMainTurnActive {
+        self.deferredReconnectPeripheral = peripheral
+        self.audioSessionCoordinator.trace(
+          stage: "ble_reconnect_deferred",
+          caller: "Aiv0BleControlBridge.reconnectTimeout"
+        )
+        return
+      }
       self.phase = "reconnecting"
       self.message = "H20 chưa phản hồi ở lần \(attempt); đang thử lại…"
       self.emitStatus()
@@ -512,6 +560,8 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   func dispose() {
     guard !disposed else { return }
     disposed = true
+    audioSessionCoordinator.onMainTurnEnded = nil
+    deferredReconnectPeripheral = nil
     scanTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem?.cancel()
     cancelReconnectTasks()
@@ -616,6 +666,13 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     message = "Không kết nối được H20: \(error?.localizedDescription ?? "không rõ lỗi")"
     emitStatus()
     failPendingConnect(code: "CONNECT_FAILED", message: message!)
+    let nsError = error as NSError?
+    audioSessionCoordinator.trace(
+      stage: "ble_connect_failed",
+      caller: "Aiv0BleControlBridge.didFailToConnect",
+      code: nsError.map { "\($0.domain):\($0.code)" },
+      message: error?.localizedDescription ?? "unknown"
+    )
     scheduleReconnect(peripheral)
   }
 
@@ -624,6 +681,13 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     didDisconnectPeripheral peripheral: CBPeripheral,
     error: Error?
   ) {
+    let nsError = error as NSError?
+    audioSessionCoordinator.trace(
+      stage: "didDisconnectPeripheral",
+      caller: "Aiv0BleControlBridge",
+      code: nsError.map { "\($0.domain):\($0.code)" },
+      message: error?.localizedDescription ?? "no CoreBluetooth error"
+    )
     resetCharacteristics()
     reconnectTimeoutWorkItem?.cancel()
     reconnectTimeoutWorkItem = nil
@@ -728,6 +792,14 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         uptimeMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
       )
       lastRawHex = rawHex
+      if !duplicate,
+        bytes.count == 12,
+        bytes[0] == 0x01,
+        bytes[1] == 0x01,
+        bytes[3] == 0x01
+      {
+        audioSessionCoordinator.notePhysicalMain(rawHex: rawHex)
+      }
       eventSink?([
         "type": "button",
         "bytes": bytes.map { Int($0) },

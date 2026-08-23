@@ -155,7 +155,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
 
   private let methodChannel: FlutterMethodChannel
   private let eventChannel: FlutterEventChannel
-  private let audioSession = AVAudioSession.sharedInstance()
+  private let audioSessionCoordinator: IOSAudioSessionCoordinator
+  private var audioSession: AVAudioSession { audioSessionCoordinator.session }
   private let audioEngine = AVAudioEngine()
 
   private var eventSink: FlutterEventSink?
@@ -185,7 +186,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var lastDiagnosticStage = "idle"
   private var firstAnalyzerInputGeneration: Int?
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(
+    messenger: FlutterBinaryMessenger,
+    audioSessionCoordinator: IOSAudioSessionCoordinator
+  ) {
+    self.audioSessionCoordinator = audioSessionCoordinator
     methodChannel = FlutterMethodChannel(name: "ailingo_speech", binaryMessenger: messenger)
     eventChannel = FlutterEventChannel(name: "ailingo_speech/events", binaryMessenger: messenger)
     super.init()
@@ -227,7 +232,18 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       stop(result)
     case "speech.cancel":
       startRequestGeneration += 1
-      cancelCurrent(deleteRecording: true)
+      audioSessionCoordinator.trace(
+        stage: "speech.cancel",
+        caller: "IOSSpeechRecognizerBridge.channel"
+      )
+      cancelCurrent(
+        deleteRecording: true,
+        caller: "IOSSpeechRecognizerBridge.channel"
+      )
+      audioSessionCoordinator.endMainTurn(
+        reason: "speech_cancelled",
+        caller: "IOSSpeechRecognizerBridge.channel"
+      )
       result(true)
     default:
       result(FlutterMethodNotImplemented)
@@ -264,7 +280,19 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     requestedAudioSource = audioSource
     startRequestedAt = Date()
     if active {
-      cancelCurrent(deleteRecording: true)
+      cancelCurrent(
+        deleteRecording: true,
+        caller: "IOSSpeechRecognizerBridge.start.replaceActive"
+      )
+      audioSessionCoordinator.endMainTurn(
+        reason: "speech_replaced",
+        caller: "IOSSpeechRecognizerBridge.start"
+      )
+    }
+    if commandMode {
+      _ = audioSessionCoordinator.beginMainTurn(
+        source: "IOSSpeechRecognizerBridge.speech.start"
+      )
     }
     ensureSpeechAuthorization { [weak self] authorization in
       guard let self else { return }
@@ -284,6 +312,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
             message: "Quyền Nhận dạng giọng nói đã bị từ chối.",
             details: nil
           )
+        )
+        self.audioSessionCoordinator.endMainTurn(
+          reason: "speech_permission_denied",
+          caller: "IOSSpeechRecognizerBridge.start"
         )
         return
       }
@@ -305,6 +337,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
               message: "Ứng dụng cần quyền micro để nghe con nói.",
               details: nil
             )
+          )
+          self.audioSessionCoordinator.endMainTurn(
+            reason: "microphone_permission_denied",
+            caller: "IOSSpeechRecognizerBridge.start"
           )
           return
         }
@@ -339,7 +375,14 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
               code: errorCode,
               message: error.localizedDescription
             )
-            self.cancelCurrent(deleteRecording: true)
+            self.cancelCurrent(
+              deleteRecording: true,
+              caller: "IOSSpeechRecognizerBridge.start.failed"
+            )
+            self.audioSessionCoordinator.endMainTurn(
+              reason: errorCode,
+              caller: "IOSSpeechRecognizerBridge.start"
+            )
             result(
               FlutterError(
                 code: errorCode,
@@ -363,6 +406,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       return
     }
     stopping = true
+    audioSessionCoordinator.trace(
+      stage: "speech.stop",
+      caller: "IOSSpeechRecognizerBridge.channel"
+    )
     stopAudioCapture()
     emit(type: "speech.end")
 
@@ -415,7 +462,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     guard isCurrentStartRequest(startRequestGeneration) else {
       throw IOSSpeechBridgeError.startCancelled
     }
-    cancelCurrent(deleteRecording: true)
+    cancelCurrent(
+      deleteRecording: true,
+      caller: "IOSSpeechRecognizerBridge.beginRecognition.cleanup"
+    )
     guard isCurrentStartRequest(startRequestGeneration) else {
       throw IOSSpeechBridgeError.startCancelled
     }
@@ -580,6 +630,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       } catch {
         DispatchQueue.main.async {
           guard self.active, self.generation == generation else { return }
+          self.audioSessionCoordinator.trace(
+            stage: "SpeechAnalyzer.append_failed",
+            caller: "IOSSpeechRecognizerBridge.audioTap",
+            code: "AUDIO_STREAM_FAILED",
+            message: error.localizedDescription
+          )
           self.finishWithError(code: "AUDIO_STREAM_FAILED", error: error)
         }
       }
@@ -630,6 +686,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     latestAlternatives = alternatives.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     latestConfidence = confidence
     firstPartialAt = firstPartialAt ?? Date()
+    audioSessionCoordinator.trace(
+      stage: isFinal ? "speech.final_update" : "speech.partial",
+      caller: "IOSSpeechRecognizerBridge.handleTranscriptUpdate",
+      message: normalized
+    )
     emit(
       type: isFinal ? "speech.final" : "speech.partial",
       values: [
@@ -656,6 +717,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     analyzerSession = nil
     active = false
     stopping = false
+    audioSessionCoordinator.trace(
+      stage: "speech.final",
+      caller: "IOSSpeechRecognizerBridge.finishSuccessfully",
+      message: normalized
+    )
     emit(
       type: "speech.final",
       values: [
@@ -663,6 +729,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         "alternatives": alternatives.isEmpty ? [normalized] : alternatives,
         "confidence": confidence,
       ]
+    )
+    audioSessionCoordinator.endMainTurn(
+      reason: "speech_final",
+      caller: "IOSSpeechRecognizerBridge.finishSuccessfully"
     )
   }
 
@@ -686,6 +756,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     ]
     emitStage("error", code: code, message: error.localizedDescription)
     emit(type: "speech.error", values: values)
+    audioSessionCoordinator.endMainTurn(
+      reason: code,
+      caller: "IOSSpeechRecognizerBridge.finishWithError"
+    )
   }
 
   private func processCapturedAudio(
@@ -694,15 +768,21 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     generation: Int
   ) {
     let frameLength = Int(buffer.frameLength)
+    let sampleRate = Int(buffer.format.sampleRate.rounded())
     let db = IOSAudioBufferLevel.dbfs(buffer)
     let dbText = db.map { String(format: "%.1f", $0) } ?? "unknown"
     DispatchQueue.main.async { [weak self] in
       guard let self, self.active, self.generation == generation else { return }
       if analyzerInputCount > 0, self.firstAnalyzerInputGeneration != generation {
         self.firstAnalyzerInputGeneration = generation
+        self.audioSessionCoordinator.trace(
+          stage: "SpeechAnalyzer.append_succeeded",
+          caller: "IOSSpeechRecognizerBridge.audioTap",
+          message: "inputs=\(analyzerInputCount)"
+        )
         self.emitStage(
           "first_audio_buffer",
-          message: "frames=\(frameLength) analyzerInputs=\(analyzerInputCount) rmsDb=\(dbText)"
+          message: "frames=\(frameLength) sampleRate=\(sampleRate) analyzerInputs=\(analyzerInputCount) rmsDb=\(dbText)"
         )
       }
       guard let db else { return }
@@ -736,60 +816,20 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func configureAudioSession(
     audioSource: IOSNativeSpeechAudioSource
   ) async throws {
-    // Prompt playback and HfpAudioBridge already leave H20 on a valid
-    // playAndRecord/voiceChat route. Reusing it is an atomic hand-off to
-    // AVAudioEngine; reconfiguring this shared session here caused iOS to tear
-    // down HFP and the H20 BLE control link immediately after the ready cue.
-    if audioSource == .hfp,
-      IOSHfpRoutePolicy.isTwoWayHfpRoute(
-        inputTypes: audioSession.currentRoute.inputs.map(\.portType),
-        outputTypes: audioSession.currentRoute.outputs.map(\.portType)
+    let target: IOSAudioInputTarget = audioSource == .hfp ? .hfp : .builtInMic
+    do {
+      try audioSessionCoordinator.prepareCapture(
+        target: target,
+        caller: "IOSSpeechRecognizerBridge.configureAudioSession"
       )
-    {
-      emitStage("audio_session_active")
-      emitStage("route_confirmed")
-      return
-    }
-    if audioSource == .builtInMic {
-      // Clear any preferred HFP route left by Settings/H20 before applying a
-      // category that deliberately excludes Bluetooth recording inputs.
-      try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
-      try audioSession.setPreferredInput(nil)
-    }
-    try audioSession.setCategory(
-      .playAndRecord,
-      mode: .voiceChat,
-      options: IOSNativeSpeechAudioRoutePolicy.categoryOptions(for: audioSource)
-    )
-    try audioSession.setActive(true, options: [])
-
-    let preferredInput: AVAudioSessionPortDescription?
-    switch audioSource {
-    case .builtInMic:
-      preferredInput = audioSession.availableInputs?.first {
-        $0.portType == .builtInMic
-      }
-      guard preferredInput != nil else {
+    } catch {
+      switch audioSource {
+      case .builtInMic:
         throw IOSSpeechBridgeError.builtInMicUnavailable
-      }
-    case .hfp:
-      preferredInput = audioSession.currentRoute.inputs.first {
-        IOSNativeSpeechAudioRoutePolicy.accepts(
-          portType: $0.portType,
-          for: .hfp
-        )
-      } ?? audioSession.availableInputs?.first {
-        IOSNativeSpeechAudioRoutePolicy.accepts(
-          portType: $0.portType,
-          for: .hfp
-        )
-      }
-      guard preferredInput != nil else {
+      case .hfp:
         throw IOSSpeechBridgeError.hfpInputUnavailable
       }
     }
-    try audioSession.setPreferredInput(preferredInput)
-    emitStage("audio_session_active")
     try await waitForRequestedAudioRoute(audioSource)
     emitStage("route_confirmed")
   }
@@ -833,7 +873,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     audioEngine.reset()
   }
 
-  private func cancelCurrent(deleteRecording _: Bool) {
+  private func cancelCurrent(deleteRecording _: Bool, caller: String) {
+    audioSessionCoordinator.trace(stage: "speech.cancel_internal", caller: caller)
     generation += 1
     cancelled = true
     stopAudioCapture()
@@ -981,13 +1022,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       values["finalTranscriptMs"] = max(0, Int(finalAt.timeIntervalSince(startRequestedAt) * 1_000))
     }
     values["eventEpochMs"] = Int(now.timeIntervalSince1970 * 1_000)
+    values.merge(audioSessionCoordinator.eventMetadata()) { _, new in new }
     return values
   }
 
   private func routeDescription() -> String {
-    let inputs = audioSession.currentRoute.inputs.map { "\($0.portType.rawValue):\($0.portName)" }
-    let outputs = audioSession.currentRoute.outputs.map { "\($0.portType.rawValue):\($0.portName)" }
-    return "in=[\(inputs.joined(separator: ", "))] out=[\(outputs.joined(separator: ", "))]"
+    audioSessionCoordinator.routeDescription()
   }
 
   private func isBluetoothInput() -> Bool {
@@ -1010,10 +1050,13 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     message: String? = nil
   ) {
     lastDiagnosticStage = stage
-    var values: [String: Any] = ["stage": stage]
-    if let code { values["code"] = code }
-    if let message { values["message"] = message }
-    emit(type: "speech.stage", values: values)
+    audioSessionCoordinator.trace(
+      stage: stage,
+      caller: "IOSSpeechRecognizerBridge",
+      code: code,
+      message: message,
+      values: ["audioSource": requestedAudioSource.rawValue]
+    )
   }
 
   private func diagnosticCode(for error: Error) -> String {
@@ -1051,18 +1094,30 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     eventSink events: @escaping FlutterEventSink
   ) -> FlutterError? {
     eventSink = events
+    audioSessionCoordinator.attachTraceSink { [weak self] payload in
+      guard let self, !self.disposed else { return }
+      events(payload)
+    }
     return nil
   }
 
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
     eventSink = nil
+    audioSessionCoordinator.detachTraceSink()
     return nil
   }
 
   func dispose() {
     guard !disposed else { return }
     startRequestGeneration += 1
-    cancelCurrent(deleteRecording: true)
+    cancelCurrent(
+      deleteRecording: true,
+      caller: "IOSSpeechRecognizerBridge.dispose"
+    )
+    audioSessionCoordinator.endMainTurn(
+      reason: "speech_bridge_disposed",
+      caller: "IOSSpeechRecognizerBridge.dispose"
+    )
     disposed = true
     eventSink = nil
     methodChannel.setMethodCallHandler(nil)

@@ -63,6 +63,27 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
+    XCTAssertTrue(Aiv0ReconnectPolicy.shouldDefer(mainTurnActive: true))
+    XCTAssertFalse(Aiv0ReconnectPolicy.shouldDefer(mainTurnActive: false))
+  }
+
+  func testIOSAudioCoordinatorPromotesPhysicalMainIntoOneTurnTimeline() {
+    let coordinator = IOSAudioSessionCoordinator()
+    var timeline: [[String: Any]] = []
+    coordinator.attachTraceSink { timeline.append($0) }
+
+    coordinator.notePhysicalMain(rawHex: "01 01 01 01")
+    let turnId = coordinator.beginMainTurn(source: "RunnerTests")
+
+    XCTAssertEqual(timeline.first?["turnId"] as? String, turnId)
+    XCTAssertEqual(timeline.first?["stage"] as? String, "main_raw_received")
+    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_started")
+    XCTAssertTrue(coordinator.isMainTurnActive)
+
+    coordinator.endMainTurn(reason: "test_complete", caller: "RunnerTests")
+    XCTAssertFalse(coordinator.isMainTurnActive)
+    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_ended")
+    coordinator.dispose()
   }
 
   func testIOSNativeSpeechPrefersSpeechAnalyzerOnIOS26() {

@@ -21,6 +21,7 @@
 		A11CE0132F00000100000001 /* HfpAudioBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0142F00000100000001 /* HfpAudioBridge.swift */; };
 		A11CE0152F00000100000001 /* VoicePromptBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0162F00000100000001 /* VoicePromptBridge.swift */; };
 		A11CE0172F00000100000001 /* IOSSpeechRecognizerBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0182F00000100000001 /* IOSSpeechRecognizerBridge.swift */; };
+		A11CE0192F00000100000001 /* IOSAudioSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE01A2F00000100000001 /* IOSAudioSessionCoordinator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 		A11CE0142F00000100000001 /* HfpAudioBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HfpAudioBridge.swift; sourceTree = "<group>"; };
 		A11CE0162F00000100000001 /* VoicePromptBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePromptBridge.swift; sourceTree = "<group>"; };
 		A11CE0182F00000100000001 /* IOSSpeechRecognizerBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSpeechRecognizerBridge.swift; sourceTree = "<group>"; };
+		A11CE01A2F00000100000001 /* IOSAudioSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSAudioSessionCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +139,7 @@
 				A11CE0142F00000100000001 /* HfpAudioBridge.swift */,
 				A11CE0162F00000100000001 /* VoicePromptBridge.swift */,
 				A11CE0182F00000100000001 /* IOSSpeechRecognizerBridge.swift */,
+				A11CE01A2F00000100000001 /* IOSAudioSessionCoordinator.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
@@ -302,6 +305,7 @@
 				A11CE0132F00000100000001 /* HfpAudioBridge.swift in Sources */,
 				A11CE0152F00000100000001 /* VoicePromptBridge.swift in Sources */,
 				A11CE0172F00000100000001 /* IOSSpeechRecognizerBridge.swift in Sources */,
+				A11CE0192F00000100000001 /* IOSAudioSessionCoordinator.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);

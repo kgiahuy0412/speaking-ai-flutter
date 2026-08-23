@@ -51,14 +51,28 @@ class SettingsSheet extends StatelessWidget {
             !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
         final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
         final nativeDiagnostic = controller.nativeSpeechDiagnostic;
-        final nativeDiagnosticTimeline = controller.nativeSpeechDiagnosticLog
-            .map((item) => item.stage)
-            .join(' → ');
+        final h20State = controller.h20ConnectionState();
+        final nativeDiagnosticTimeline = controller
+            .nativeSpeechDiagnosticLog
+            .reversed
+            .take(40)
+            .toList(growable: false)
+            .reversed
+            .map(
+              (item) => <String>[
+                if (item.elapsedMs != null) '+${item.elapsedMs}ms',
+                item.stage,
+                if (item.caller != null) '@${item.caller}',
+              ].join(' '),
+            )
+            .join('\n');
         final nativeDiagnosticDetail = nativeDiagnostic == null
             ? null
             : <String>[
                 if (nativeDiagnosticTimeline.isNotEmpty)
                   nativeDiagnosticTimeline,
+                if (nativeDiagnostic.turnId != null)
+                  'turn=${nativeDiagnostic.turnId}',
                 if (nativeDiagnostic.audioSource != null)
                   'source=${nativeDiagnostic.audioSource}',
                 if (nativeDiagnostic.audioRoute != null)
@@ -193,6 +207,33 @@ class SettingsSheet extends StatelessWidget {
                       trailing: context.tr('Đang dùng', '使用中'),
                       stateColor: AppColors.success,
                     ),
+                    const SizedBox(height: 10),
+                    _StatusTile(
+                      icon: Icons.headset_mic_rounded,
+                      title: context.tr('Trạng thái H20 tổng hợp', 'H20 综合状态'),
+                      detail: context.tr(
+                        h20State.isH20Ready
+                            ? 'HFP và BLE Control đều sẵn sàng.'
+                            : h20State.hfpReady
+                            ? 'HFP sẵn sàng; BLE Control chưa sẵn sàng.'
+                            : h20State.bleReady
+                            ? 'BLE Control sẵn sàng; HFP chưa sẵn sàng.'
+                            : 'HFP và BLE Control chưa sẵn sàng.',
+                        h20State.isH20Ready
+                            ? 'HFP 与 BLE 控制均已就绪。'
+                            : h20State.hfpReady
+                            ? 'HFP 已就绪；BLE 控制尚未就绪。'
+                            : h20State.bleReady
+                            ? 'BLE 控制已就绪；HFP 尚未就绪。'
+                            : 'HFP 与 BLE 控制均未就绪。',
+                      ),
+                      trailing: h20State.isH20Ready
+                          ? context.tr('Sẵn sàng', '已就绪')
+                          : context.tr('Chưa đủ', '未完整'),
+                      stateColor: h20State.isH20Ready
+                          ? AppColors.success
+                          : AppColors.coral,
+                    ),
                     ...<Widget>[
                       const SizedBox(height: 10),
                       _Aiv0BleControlCard(
@@ -262,8 +303,8 @@ class SettingsSheet extends StatelessWidget {
                           'Apple 原生语音识别',
                         ),
                         detail: context.tr(
-                          'iOS ưu tiên nhận dạng tiếng Việt ngay trên thiết bị bằng SpeechAnalyzer hoặc SFSpeechRecognizer. Khi native không được hỗ trợ hoặc gặp lỗi, HOMI mới chuyển audio sang Cloudflare/Batch dự phòng. MAIN dùng cùng cơ chế này.${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
-                          'iOS 优先通过 SpeechAnalyzer 或 SFSpeechRecognizer 在设备端识别越南语。仅当原生识别不受支持或发生错误时，HOMI 才会把音频切换到 Cloudflare 分块备用流程；MAIN 使用同一机制。${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
+                          'iOS dùng một luồng Apple Native Speech cho MAIN; không đổi mic hoặc chuyển sang Batch trong cùng lượt.${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
+                          'iOS 的 MAIN 仅使用一条 Apple 原生语音识别流程；同一轮不会切换麦克风或转入 Batch。${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
                         ),
                         trailing:
                             nativeDiagnostic?.stage ??

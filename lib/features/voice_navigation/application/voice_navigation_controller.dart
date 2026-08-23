@@ -224,6 +224,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed) {
         return false;
       }
+      await _beginNativeMainTurn();
       _activeInputLabelOverride = inputLabelOverride;
       _lastError = null;
       _buttonCommandSession = true;
@@ -238,6 +239,7 @@ class VoiceNavigationController extends ChangeNotifier {
         _buttonCommandSession = false;
         _continuousRequested = false;
         _mainAssistantFlow.reset();
+        await _endNativeMainTurn('prompt_not_acknowledged');
         return false;
       }
       // Perform one explicit prompt -> mic hand-off and do not report MAIN as
@@ -288,6 +290,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (finishing != null) finishing.catchError((Object _) {}),
       if (shouldStopPrompt && _voicePromptService != null)
         _voicePromptService.stop().catchError((Object _) {}),
+      _endNativeMainTurn('controller_pause'),
     ];
     final Future<void> operation = pendingOperations.isEmpty
         ? Future<void>.value()
@@ -712,6 +715,7 @@ class VoiceNavigationController extends ChangeNotifier {
         _continuousRequested = false;
         _mainNoSpeechRetryCount = 0;
         _mainAssistantFlow.reset();
+        await _endNativeMainTurn('microphone_start_failed');
       }
       if (!_disposed) {
         notifyListeners();
@@ -722,6 +726,26 @@ class VoiceNavigationController extends ChangeNotifier {
         _scheduleRetryAfterFailedStart(generation, _microphoneStartRetryDelay);
       }
     }
+  }
+
+  Future<void> _beginNativeMainTurn() async {
+    final service = _voicePromptService;
+    if (service is! MainTurnVoicePromptService) {
+      return;
+    }
+    try {
+      await (service as MainTurnVoicePromptService).beginMainTurn();
+    } catch (_) {
+      // The visible prompt remains usable on platforms without this bridge.
+    }
+  }
+
+  Future<void> _endNativeMainTurn(String reason) async {
+    final service = _voicePromptService;
+    if (service is! MainTurnVoicePromptService) {
+      return;
+    }
+    await (service as MainTurnVoicePromptService).endMainTurn(reason);
   }
 
   void _scheduleRetryAfterFailedStart(int generation, Duration delay) {

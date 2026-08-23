@@ -75,4 +75,29 @@ void main() {
     expect(receivedCall?.method, 'playSpeechReadyCue');
     expect(receivedCall?.arguments, isNull);
   });
+
+  test('brackets one MAIN turn through the native coordinator', () async {
+    const channel = MethodChannel('test_main_turn_prompt');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          if (call.method == 'beginMainTurn') return 'ios-main-test';
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    const service = MethodChannelVoicePromptService(channel: channel);
+    expect(await service.beginMainTurn(), 'ios-main-test');
+    await service.endMainTurn('test_complete');
+
+    expect(calls.map((call) => call.method), <String>[
+      'beginMainTurn',
+      'endMainTurn',
+    ]);
+    expect(calls.last.arguments, <String, dynamic>{'reason': 'test_complete'});
+  });
 }

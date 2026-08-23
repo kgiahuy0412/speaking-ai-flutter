@@ -166,6 +166,10 @@ class NativeSpeechDiagnostic {
     this.audioRoute,
     this.code,
     this.message,
+    this.turnId,
+    this.sequence,
+    this.elapsedMs,
+    this.caller,
   });
 
   final String stage;
@@ -174,6 +178,10 @@ class NativeSpeechDiagnostic {
   final String? audioRoute;
   final String? code;
   final String? message;
+  final String? turnId;
+  final int? sequence;
+  final int? elapsedMs;
+  final String? caller;
 
   bool get isError => stage == 'error' || code != null;
 }
@@ -189,6 +197,11 @@ abstract interface class NativeSpeechDiagnostics {
     String? audioRoute,
     String? code,
     String? message,
+    String? turnId,
+    int? sequence,
+    int? elapsedMs,
+    String? caller,
+    DateTime? occurredAt,
   });
 }
 
@@ -357,15 +370,24 @@ class AndroidStreamingSpeechInput
     String? audioRoute,
     String? code,
     String? message,
+    String? turnId,
+    int? sequence,
+    int? elapsedMs,
+    String? caller,
+    DateTime? occurredAt,
   }) {
     if (_disposed) return;
     final diagnostic = NativeSpeechDiagnostic(
       stage: stage,
-      occurredAt: DateTime.now(),
+      occurredAt: occurredAt ?? DateTime.now(),
       audioSource: audioSource ?? _activeAudioSource?.channelValue,
       audioRoute: audioRoute,
       code: code,
       message: message,
+      turnId: turnId,
+      sequence: sequence,
+      elapsedMs: elapsedMs,
+      caller: caller,
     );
     _nativeDiagnostic = diagnostic;
     _nativeDiagnosticsController.add(diagnostic);
@@ -805,6 +827,15 @@ class AndroidStreamingSpeechInput
         audioRoute: event['audioRoute'] as String?,
         code: event['code'] as String?,
         message: event['message'] as String?,
+        turnId: event['turnId'] as String?,
+        sequence: (event['sequence'] as num?)?.toInt(),
+        elapsedMs: (event['elapsedMs'] as num?)?.toInt(),
+        caller: event['caller'] as String?,
+        occurredAt: (event['eventEpochMs'] as num?) == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                (event['eventEpochMs'] as num).toInt(),
+              ),
       );
       return;
     }
@@ -1312,6 +1343,11 @@ class NativeFirstStreamingSpeechInput
     String? audioRoute,
     String? code,
     String? message,
+    String? turnId,
+    int? sequence,
+    int? elapsedMs,
+    String? caller,
+    DateTime? occurredAt,
   }) {
     _primaryDiagnostics?.reportNativeSpeechStage(
       stage,
@@ -1319,6 +1355,11 @@ class NativeFirstStreamingSpeechInput
       audioRoute: audioRoute,
       code: code,
       message: message,
+      turnId: turnId,
+      sequence: sequence,
+      elapsedMs: elapsedMs,
+      caller: caller,
+      occurredAt: occurredAt,
     );
   }
 

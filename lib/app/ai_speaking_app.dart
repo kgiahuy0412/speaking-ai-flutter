@@ -757,9 +757,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         const Duration(seconds: 45),
       );
       final controller = _controller;
-      inputLabelOverride = controller?.hasSelectedHfpInput == true
-          ? 'Mic H20 qua HFP'
-          : 'Mic iPhone';
+      final h20State = controller?.h20ConnectionState();
+      // A physical H20 MAIN turn is one strict native path. Never switch to
+      // the phone microphone when its BLE packet arrived but HFP is not ready.
+      if (h20State == null || !h20State.hfpReady) {
+        debugPrint(
+          'H20 MAIN ignored: BLE packet arrived without a confirmed HFP route.',
+        );
+        return MainButtonActionResult.busy;
+      }
+      inputLabelOverride = 'Mic H20 qua HFP';
     }
 
     // Physical BLE MAIN and the on-screen MAIN now share the same assistant and
