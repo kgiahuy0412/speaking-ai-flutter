@@ -49,6 +49,64 @@ struct IOSNativeSpeechAudioRoutePolicy {
   }
 }
 
+/// Reads a conventional dBFS value from the PCM formats commonly delivered by
+/// AVAudioEngine. HFP devices are not guaranteed to use Float32, so limiting
+/// voice activity detection to `floatChannelData` can silently discard a real
+/// H20 microphone stream even while the route and SCO state are correct.
+struct IOSAudioBufferLevel {
+  static func dbfs(_ buffer: AVAudioPCMBuffer) -> Double? {
+    let frameCount = Int(buffer.frameLength)
+    let channelCount = Int(buffer.format.channelCount)
+    guard frameCount > 0, channelCount > 0 else { return nil }
+
+    let samplesPerChannel = buffer.format.isInterleaved
+      ? frameCount * channelCount
+      : frameCount
+    let pointerCount = buffer.format.isInterleaved ? 1 : channelCount
+    var squaredSum = 0.0
+    var sampleCount = 0
+
+    switch buffer.format.commonFormat {
+    case .pcmFormatFloat32:
+      guard let channels = buffer.floatChannelData else { return nil }
+      for channelIndex in 0..<pointerCount {
+        let channel = channels[channelIndex]
+        for sampleIndex in 0..<samplesPerChannel {
+          let value = Double(channel[sampleIndex])
+          squaredSum += value * value
+        }
+        sampleCount += samplesPerChannel
+      }
+    case .pcmFormatInt16:
+      guard let channels = buffer.int16ChannelData else { return nil }
+      for channelIndex in 0..<pointerCount {
+        let channel = channels[channelIndex]
+        for sampleIndex in 0..<samplesPerChannel {
+          let value = Double(channel[sampleIndex]) / 32_768.0
+          squaredSum += value * value
+        }
+        sampleCount += samplesPerChannel
+      }
+    case .pcmFormatInt32:
+      guard let channels = buffer.int32ChannelData else { return nil }
+      for channelIndex in 0..<pointerCount {
+        let channel = channels[channelIndex]
+        for sampleIndex in 0..<samplesPerChannel {
+          let value = Double(channel[sampleIndex]) / 2_147_483_648.0
+          squaredSum += value * value
+        }
+        sampleCount += samplesPerChannel
+      }
+    default:
+      return nil
+    }
+
+    guard sampleCount > 0 else { return nil }
+    let rms = sqrt(squaredSum / Double(sampleCount))
+    return max(-60, min(0, 20 * log10(max(rms, 0.000_001))))
+  }
+}
+
 struct IOSNativeSpeechEngineSelector {
   static func select(
     isIOS26OrNewer: Bool,
@@ -125,6 +183,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var finalAt: Date?
   private var requestedAudioSource = IOSNativeSpeechAudioSource.builtInMic
   private var lastDiagnosticStage = "idle"
+  private var firstAnalyzerInputGeneration: Int?
 
   init(messenger: FlutterBinaryMessenger) {
     methodChannel = FlutterMethodChannel(name: "ailingo_speech", binaryMessenger: messenger)
@@ -379,6 +438,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     readyAt = nil
     firstPartialAt = nil
     finalAt = nil
+    firstAnalyzerInputGeneration = nil
     emitStage("engine_selected", message: recognitionEngine.rawValue)
 
     try await configureAudioSession(audioSource: audioSource)
@@ -430,6 +490,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     try audioEngine.start()
     try await waitForRequestedAudioRoute(audioSource)
     emitStage("engine_started")
+    try await waitForFirstAnalyzerInput(generation: currentGeneration)
     readyAt = Date()
     emitStage("speech.ready")
     emit(type: "speech.ready")
@@ -499,17 +560,23 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     inputNode.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
       guard let self, self.active, self.generation == generation else { return }
       do {
+        let analyzerInputCount: Int
         if #available(iOS 26.0, *),
           self.activeEngine == .speechAnalyzer,
           let analyzer = self.analyzerSession as? IOSSpeechAnalyzerSession
         {
-          // AVAudioConverter may retain its input. AVAudioEngine owns and reuses
-          // tap buffers, so pass a deep copy to avoid later corruption.
-          try analyzer.append(self.copyForSpeechAnalyzer(buffer))
+          // The conversion/analysis pipeline may retain its input. AVAudioEngine
+          // owns and reuses tap buffers, so pass a deep copy to avoid corruption.
+          analyzerInputCount = try analyzer.append(self.copyForSpeechAnalyzer(buffer))
         } else {
           self.recognitionRequest?.append(buffer)
+          analyzerInputCount = 1
         }
-        self.emitRms(buffer)
+        self.processCapturedAudio(
+          buffer,
+          analyzerInputCount: analyzerInputCount,
+          generation: generation
+        )
       } catch {
         DispatchQueue.main.async {
           guard self.active, self.generation == generation else { return }
@@ -518,6 +585,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       }
     }
     inputTapInstalled = true
+    emitStage(
+      "audio_tap_installed",
+      message: "sampleRate=\(Int(format.sampleRate)) channels=\(format.channelCount) format=\(format.commonFormat.rawValue)"
+    )
   }
 
   private func copyForSpeechAnalyzer(_ source: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
@@ -617,22 +688,48 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     emit(type: "speech.error", values: values)
   }
 
-  private func emitRms(_ buffer: AVAudioPCMBuffer) {
-    guard let channel = buffer.floatChannelData?.pointee else { return }
-    let count = Int(buffer.frameLength)
-    guard count > 0 else { return }
-    var sum = 0.0
-    for index in 0..<count {
-      let value = Double(channel[index])
-      sum += value * value
+  private func processCapturedAudio(
+    _ buffer: AVAudioPCMBuffer,
+    analyzerInputCount: Int,
+    generation: Int
+  ) {
+    let frameLength = Int(buffer.frameLength)
+    let db = IOSAudioBufferLevel.dbfs(buffer)
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.active, self.generation == generation else { return }
+      if analyzerInputCount > 0, self.firstAnalyzerInputGeneration != generation {
+        self.firstAnalyzerInputGeneration = generation
+        self.emitStage(
+          "first_audio_buffer",
+          message: "frames=\(frameLength) analyzerInputs=\(analyzerInputCount) rmsDb=\(db.map { String(format: \"%.1f\", $0) } ?? \"unknown\")"
+        )
+      }
+      guard let db else { return }
+      if !self.beganSpeech, db > -42 {
+        self.beganSpeech = true
+        self.emitStage("speech.begin")
+        self.emit(type: "speech.begin")
+      }
+      self.emit(type: "speech.rms", values: ["rmsDb": db])
     }
-    let rms = sqrt(sum / Double(count))
-    let db = max(-60, 20 * log10(max(rms, 0.000_001)))
-    if !beganSpeech, db > -42 {
-      beganSpeech = true
-      emit(type: "speech.begin")
+  }
+
+  private func waitForFirstAnalyzerInput(
+    generation: Int,
+    attempts: Int = 40
+  ) async throws {
+    for attempt in 0..<attempts {
+      guard active, self.generation == generation else {
+        throw IOSSpeechBridgeError.startCancelled
+      }
+      if firstAnalyzerInputGeneration == generation {
+        return
+      }
+      if attempt + 1 < attempts {
+        try await Task<Never, Never>.sleep(nanoseconds: 50_000_000)
+      }
     }
-    emit(type: "speech.rms", values: ["rmsDb": db])
+    throw IOSSpeechBridgeError.audioBufferTimeout
   }
 
   private func configureAudioSession(
@@ -732,6 +829,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       audioEngine.inputNode.removeTap(onBus: 0)
       inputTapInstalled = false
     }
+    audioEngine.reset()
   }
 
   private func cancelCurrent(deleteRecording _: Bool) {
@@ -940,6 +1038,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       return "AUDIO_CONVERSION_UNAVAILABLE"
     case .audioConversionFailed:
       return "AUDIO_CONVERSION_FAILED"
+    case .audioBufferTimeout:
+      return "AUDIO_BUFFER_TIMEOUT"
     case .noSpeech:
       return "NO_SPEECH"
     }
@@ -1085,10 +1185,13 @@ private final class IOSSpeechAnalyzerSession {
     }
   }
 
-  func append(_ buffer: AVAudioPCMBuffer) throws {
+  @discardableResult
+  func append(_ buffer: AVAudioPCMBuffer) throws -> Int {
     if let convertedBuffer = try convert(buffer) {
       inputContinuation.yield(AnalyzerInput(buffer: convertedBuffer))
+      return 1
     }
+    return 0
   }
 
   func stop() async throws -> IOSAnalyzerTranscript {
@@ -1109,6 +1212,12 @@ private final class IOSSpeechAnalyzerSession {
   }
 
   private func convert(_ inputBuffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer? {
+    // Avoid an unnecessary sample-rate conversion when AVAudioEngine already
+    // supplies SpeechAnalyzer's preferred format.
+    if inputBuffer.format.isEqual(analyzerFormat) {
+      return inputBuffer
+    }
+
     let activeConverter = try makeOrReuseConverter(for: inputBuffer.format)
     let sampleRateRatio = analyzerFormat.sampleRate / inputBuffer.format.sampleRate
     let estimatedFrames = ceil(Double(inputBuffer.frameLength) * sampleRateRatio)
@@ -1156,8 +1265,6 @@ private final class IOSSpeechAnalyzerSession {
     let sampleRateRatio = analyzerFormat.sampleRate / audioConverter.inputFormat.sampleRate
     let outputCapacity = max(AVAudioFrameCount(ceil(1_024.0 * sampleRateRatio)) + 64, 1_024)
 
-    // A sample-rate converter may retain a small tail. Signal end-of-stream and
-    // drain it before terminating SpeechAnalyzer's AsyncStream.
     for _ in 0..<8 {
       guard let outputBuffer = AVAudioPCMBuffer(
         pcmFormat: analyzerFormat,
@@ -1203,6 +1310,7 @@ private enum IOSSpeechBridgeError: LocalizedError {
   case audioBufferCopyFailed
   case audioConversionUnavailable
   case audioConversionFailed
+  case audioBufferTimeout
   case noSpeech
   case startCancelled
 
@@ -1224,6 +1332,8 @@ private enum IOSSpeechBridgeError: LocalizedError {
       return "iOS chưa tạo được bộ chuyển đổi âm thanh cho Apple Speech."
     case .audioConversionFailed:
       return "iOS chưa chuyển đổi được âm thanh cho Apple Speech."
+    case .audioBufferTimeout:
+      return "Audio route đã mở nhưng Apple Speech chưa nhận được dữ liệu micro."
     case .noSpeech:
       return "Mình chưa nghe rõ. Con thử nói lại gần micro hơn nhé."
     case .startCancelled:

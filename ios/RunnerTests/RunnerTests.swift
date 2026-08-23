@@ -56,6 +56,15 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(filter.duplicateCount, 1)
   }
 
+  func testAiv0ReconnectPolicyUsesBoundedExponentialBackoff() {
+    XCTAssertEqual(Aiv0ReconnectPolicy.maxAttempts, 3)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 1), 1)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 2), 2)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
+    XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
+  }
+
   func testIOSNativeSpeechPrefersSpeechAnalyzerOnIOS26() {
     XCTAssertEqual(
       IOSNativeSpeechEngineSelector.select(
@@ -109,6 +118,43 @@ class RunnerTests: XCTestCase {
       ),
       .speechAnalyzer
     )
+  }
+
+  func testIOSAudioBufferLevelReadsFloatAndInt16MicrophoneBuffers() throws {
+    let floatFormat = try XCTUnwrap(
+      AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+      )
+    )
+    let floatBuffer = try XCTUnwrap(
+      AVAudioPCMBuffer(pcmFormat: floatFormat, frameCapacity: 4)
+    )
+    floatBuffer.frameLength = 4
+    for index in 0..<4 {
+      floatBuffer.floatChannelData?[0][index] = 0.5
+    }
+
+    let int16Format = try XCTUnwrap(
+      AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 8_000,
+        channels: 1,
+        interleaved: false
+      )
+    )
+    let int16Buffer = try XCTUnwrap(
+      AVAudioPCMBuffer(pcmFormat: int16Format, frameCapacity: 4)
+    )
+    int16Buffer.frameLength = 4
+    for index in 0..<4 {
+      int16Buffer.int16ChannelData?[0][index] = 16_384
+    }
+
+    XCTAssertEqual(try XCTUnwrap(IOSAudioBufferLevel.dbfs(floatBuffer)), -6.02, accuracy: 0.1)
+    XCTAssertEqual(try XCTUnwrap(IOSAudioBufferLevel.dbfs(int16Buffer)), -6.02, accuracy: 0.1)
   }
 
   func testIOSBuiltInMicPolicyExcludesBluetoothOptions() {

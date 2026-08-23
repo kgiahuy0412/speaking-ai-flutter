@@ -822,6 +822,11 @@ class AndroidStreamingSpeechInput
       return;
     }
     if (type == 'speech.begin') {
+      reportNativeSpeechStage(
+        'speech.begin',
+        audioSource: event['audioSource'] as String?,
+        audioRoute: event['audioRoute'] as String?,
+      );
       _speechStartedController.add(null);
       return;
     }
@@ -845,6 +850,7 @@ class AndroidStreamingSpeechInput
       final alternatives = _readTranscriptAlternatives(event);
       final text = event['text'];
       if (text is String && text.trim().isNotEmpty) {
+        final isFirstTranscript = _firstResultAt == null;
         final nextText = type == 'speech.final'
             ? preferCompleteVietnameseTranscript(
                 partialText: _latestText,
@@ -857,6 +863,16 @@ class AndroidStreamingSpeechInput
           _latestTextUpdatedAt = DateTime.now();
         }
         _firstResultAt ??= DateTime.now();
+        if (isFirstTranscript) {
+          reportNativeSpeechStage(
+            type == 'speech.final'
+                ? 'first_final_transcript'
+                : 'first_partial_transcript',
+            audioSource: event['audioSource'] as String?,
+            audioRoute: event['audioRoute'] as String?,
+            message: nextText,
+          );
+        }
         if (changed && type == 'speech.partial') {
           _partialTextController.add(nextText);
         }

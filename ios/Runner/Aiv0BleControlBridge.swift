@@ -46,6 +46,15 @@ struct Aiv0DuplicatePacketFilter {
   }
 }
 
+struct Aiv0ReconnectPolicy {
+  static let maxAttempts = 3
+  static let attemptTimeoutSeconds: TimeInterval = 10
+
+  static func delaySeconds(forAttempt attempt: Int) -> TimeInterval {
+    min(pow(2.0, Double(max(attempt, 1) - 1)), 4.0)
+  }
+}
+
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
 /// Android bridge. Audio remains on HFP; BLE carries MAIN button notifications,
 /// battery/firmware diagnostics, and the optional APP State packet only.
@@ -93,6 +102,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var scanTimeoutWorkItem: DispatchWorkItem?
   private var connectTimeoutWorkItem: DispatchWorkItem?
   private var reconnectWorkItem: DispatchWorkItem?
+  private var reconnectTimeoutWorkItem: DispatchWorkItem?
   private var phase = "idle"
   private var message: String?
   private var writeMode: String?
@@ -252,6 +262,8 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       ))
       return
     }
+    cancelReconnectTasks()
+    reconnectCount = 0
     resetCharacteristics()
     manualDisconnect = false
     connectedPeripheral = peripheral
@@ -266,8 +278,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
 
   private func disconnect(_ result: @escaping FlutterResult) {
     manualDisconnect = true
-    reconnectWorkItem?.cancel()
-    reconnectWorkItem = nil
+    cancelReconnectTasks()
     connectTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem = nil
     failPendingConnect(code: "CONNECT_CANCELLED", message: "Đã hủy kết nối H20.")
@@ -349,8 +360,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private func completeConnection() {
     connectTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem = nil
-    reconnectWorkItem?.cancel()
-    reconnectWorkItem = nil
+    cancelReconnectTasks()
     reconnectCount = 0
     phase = "connected"
     message = "BLE Control H20 đã kết nối."
@@ -367,25 +377,63 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func scheduleReconnect(_ peripheral: CBPeripheral) {
-    guard !manualDisconnect, !disposed, reconnectCount < 3 else {
+    guard reconnectWorkItem == nil, reconnectTimeoutWorkItem == nil else {
+      return
+    }
+    guard !manualDisconnect, !disposed,
+      reconnectCount < Aiv0ReconnectPolicy.maxAttempts
+    else {
       phase = "error"
       message = "Kết nối BLE Control H20 đã mất."
       emitStatus()
       return
     }
     reconnectCount += 1
+    let attempt = reconnectCount
     phase = "reconnecting"
-    message = "Đang kết nối lại H20 (lần \(reconnectCount)/3)…"
+    message = "Đang kết nối lại H20 (lần \(attempt)/\(Aiv0ReconnectPolicy.maxAttempts))…"
     emitStatus()
-    let delay = min(pow(2.0, Double(reconnectCount - 1)), 4.0)
+    let delay = Aiv0ReconnectPolicy.delaySeconds(forAttempt: attempt)
     let item = DispatchWorkItem { [weak self, weak peripheral] in
       guard let self, let peripheral, !self.manualDisconnect, !self.disposed else { return }
+      self.reconnectWorkItem = nil
       self.resetCharacteristics()
       peripheral.delegate = self
       self.central?.connect(peripheral, options: nil)
+      self.scheduleReconnectTimeout(peripheral, attempt: attempt)
     }
     reconnectWorkItem = item
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+  }
+
+  private func scheduleReconnectTimeout(_ peripheral: CBPeripheral, attempt: Int) {
+    reconnectTimeoutWorkItem?.cancel()
+    let item = DispatchWorkItem { [weak self, weak peripheral] in
+      guard let self, let peripheral,
+        !self.manualDisconnect,
+        !self.disposed,
+        self.reconnectCount == attempt,
+        self.stateCharacteristic == nil
+      else { return }
+      self.reconnectTimeoutWorkItem = nil
+      self.phase = "reconnecting"
+      self.message = "H20 chưa phản hồi ở lần \(attempt); đang thử lại…"
+      self.emitStatus()
+      self.central?.cancelPeripheralConnection(peripheral)
+      self.scheduleReconnect(peripheral)
+    }
+    reconnectTimeoutWorkItem = item
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Aiv0ReconnectPolicy.attemptTimeoutSeconds,
+      execute: item
+    )
+  }
+
+  private func cancelReconnectTasks() {
+    reconnectWorkItem?.cancel()
+    reconnectWorkItem = nil
+    reconnectTimeoutWorkItem?.cancel()
+    reconnectTimeoutWorkItem = nil
   }
 
   private func validateControlCharacteristics() {
@@ -466,7 +514,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     disposed = true
     scanTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem?.cancel()
-    reconnectWorkItem?.cancel()
+    cancelReconnectTasks()
     central?.stopScan()
     if let peripheral = connectedPeripheral { central?.cancelPeripheralConnection(peripheral) }
     pendingPermissionResults.forEach { $0(false) }
@@ -562,6 +610,8 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     didFailToConnect peripheral: CBPeripheral,
     error: Error?
   ) {
+    reconnectTimeoutWorkItem?.cancel()
+    reconnectTimeoutWorkItem = nil
     phase = "error"
     message = "Không kết nối được H20: \(error?.localizedDescription ?? "không rõ lỗi")"
     emitStatus()
@@ -575,6 +625,8 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     error: Error?
   ) {
     resetCharacteristics()
+    reconnectTimeoutWorkItem?.cancel()
+    reconnectTimeoutWorkItem = nil
     if manualDisconnect || disposed {
       phase = "idle"
       message = nil

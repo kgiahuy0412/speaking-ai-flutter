@@ -665,9 +665,35 @@ void main() {
   );
 
   test(
-    'Main asks once after silence then exits on the second timeout',
+    'MAIN finalizes buffered iOS transcript when its command window ends',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
+      VoiceNavigationIntent? receivedIntent;
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        commandWindowDuration: const Duration(milliseconds: 8),
+      );
+      controller.setIntentHandler((intent) => receivedIntent = intent);
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => receivedIntent != null);
+
+      expect(
+        receivedIntent?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main asks once after silence then exits on the second timeout',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(stopText: '');
       final voicePrompt = _FakeVoicePromptService();
       final controller = VoiceNavigationController(
         speechInput: speechInput,

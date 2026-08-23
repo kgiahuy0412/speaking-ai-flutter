@@ -394,43 +394,52 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return;
     }
     _lastAiv0AutoConnectAttempt = now;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // H20 exposes Classic Bluetooth HFP and BLE Control as two transports.
+      // Activating HFP after BLE is connected makes iOS renegotiate the audio
+      // profile and some H20 firmware revisions briefly drop their GATT link.
+      // Select the already-paired HFP route first, let it settle, and connect
+      // BLE last so both transports finish in a stable state.
+      var hfpConnected = false;
+      for (var attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+        }
+        final currentVoiceController = _voiceNavigationController;
+        if ((_suppressH20AutoConnectUntil?.isAfter(DateTime.now()) ?? false) ||
+            _isActivatingMainAssistant ||
+            _mainSpeakingSessionController.isActive ||
+            (currentVoiceController?.isMainButtonSessionActive ?? false) ||
+            (currentVoiceController?.isActive ?? false)) {
+          return;
+        }
+        hfpConnected = await controller.autoConnectH20Hfp(
+          bleDeviceName:
+              control.status.deviceName ?? controller.aiv0BleStatus.deviceName,
+        );
+        if (hfpConnected) {
+          debugPrint('H20 HFP microphone selected automatically.');
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          break;
+        }
+      }
+      if (!hfpConnected) {
+        debugPrint(
+          'H20 HFP is not available yet; pair it once in iOS Bluetooth Settings.',
+        );
+      }
+    }
+
     final bleConnected =
         controller.canUseAiv0Ble || await control.autoConnectKnownOrNearby();
     if (!bleConnected) {
       return;
     }
     debugPrint('H20 BLE Control connected automatically.');
-    if (defaultTargetPlatform != TargetPlatform.iOS) {
-      return;
-    }
-
-    // CoreBluetooth and Classic Bluetooth HFP are separate transports on iOS.
-    // Once control is ready, give AVAudioSession a short window to publish the
-    // already-paired H20 input, then select it without opening Settings.
-    for (var attempt = 0; attempt < 3; attempt += 1) {
-      if (attempt > 0) {
-        await Future<void>.delayed(const Duration(milliseconds: 600));
-      }
-      final currentVoiceController = _voiceNavigationController;
-      if ((_suppressH20AutoConnectUntil?.isAfter(DateTime.now()) ?? false) ||
-          _isActivatingMainAssistant ||
-          _mainSpeakingSessionController.isActive ||
-          (currentVoiceController?.isMainButtonSessionActive ?? false) ||
-          (currentVoiceController?.isActive ?? false)) {
-        return;
-      }
-      final hfpConnected = await controller.autoConnectH20Hfp(
-        bleDeviceName:
-            control.status.deviceName ?? controller.aiv0BleStatus.deviceName,
-      );
-      if (hfpConnected) {
-        debugPrint('H20 HFP microphone selected automatically.');
-        return;
-      }
-    }
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        !controller.usesHfpInput) {
       debugPrint(
-        'H20 HFP is not available yet; pair it once in iOS Bluetooth Settings.',
+        'BLE is ready while HFP remains unavailable; phone microphone stays active.',
       );
     }
   }

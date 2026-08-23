@@ -519,18 +519,55 @@ class VoiceNavigationController extends ChangeNotifier {
         !_awaitingCommand) {
       return;
     }
-    _awaitingCommand = false;
     _cancelSessionTimers();
-    final shouldCancelInput = _starting || _listening;
-    _starting = false;
-    _listening = false;
-    _speechDetected = false;
-    if (shouldCancelInput) {
+    if (_listening) {
+      // SpeechAnalyzer can keep the last phrase in its volatile buffer until
+      // the input sequence is finalized. Cancelling here discarded exactly the
+      // command that iOS had just captured. Stop/finalize first, then decide
+      // whether this was truly a no-speech turn.
+      _listening = false;
+      _finishing = true;
+      notifyListeners();
+      try {
+        final capture = await _speechInput.stop();
+        if (_disposed || generation != _generation) {
+          return;
+        }
+        final outcome = await _handleCaptureCandidates(capture, generation);
+        if (outcome.heardTranscript) {
+          _finishing = false;
+          _speechDetected = false;
+          if (!_disposed) {
+            notifyListeners();
+          }
+          if (_continuousRequested && generation == _generation) {
+            _scheduleSession(
+              _awaitingCommand
+                  ? _buttonCommandSession
+                        ? _mainCommandListenRestartDelay
+                        : _commandListenRestartDelay
+                  : _restartDelay,
+            );
+          }
+          return;
+        }
+      } catch (error) {
+        _lastError = error;
+      } finally {
+        _finishing = false;
+        _speechDetected = false;
+        if (!_disposed) {
+          notifyListeners();
+        }
+      }
+    } else if (_starting) {
+      _starting = false;
       await _speechInput.cancel().catchError((Object _) {});
     }
     if (_disposed || generation != _generation || !_buttonCommandSession) {
       return;
     }
+    _awaitingCommand = false;
     if (_mainNoSpeechRetryCount == 0) {
       _mainNoSpeechRetryCount = 1;
       final prompted = await _acknowledgeWakeWord(
@@ -877,25 +914,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed || generation != _generation) {
         return;
       }
-      final candidates = <String>[capture.sourceText, ...capture.alternatives];
-      final orderedCandidates = _buttonCommandSession
-          ? <String>[
-              ...candidates.where(_mainAssistantFlow.canHandle),
-              ...candidates.where(
-                (candidate) => !_mainAssistantFlow.canHandle(candidate),
-              ),
-            ]
-          : candidates;
-      final handledCandidates = <String>{};
-      for (final candidate in orderedCandidates) {
-        final recognizedText = candidate.trim();
-        if (recognizedText.isEmpty || !handledCandidates.add(recognizedText)) {
-          continue;
-        }
-        if (await _handleRecognizedText(recognizedText, generation)) {
-          break;
-        }
-      }
+      await _handleCaptureCandidates(capture, generation);
     } catch (error) {
       sessionFailed = true;
       if (!_disposed && generation == _generation) {
@@ -924,6 +943,34 @@ class VoiceNavigationController extends ChangeNotifier {
         );
       }
     }
+  }
+
+  Future<({bool heardTranscript, bool handled})> _handleCaptureCandidates(
+    StreamingSpeechCapture capture,
+    int generation,
+  ) async {
+    final candidates = <String>[capture.sourceText, ...capture.alternatives];
+    final orderedCandidates = _buttonCommandSession
+        ? <String>[
+            ...candidates.where(_mainAssistantFlow.canHandle),
+            ...candidates.where(
+              (candidate) => !_mainAssistantFlow.canHandle(candidate),
+            ),
+          ]
+        : candidates;
+    final handledCandidates = <String>{};
+    var heardTranscript = false;
+    for (final candidate in orderedCandidates) {
+      final recognizedText = candidate.trim();
+      if (recognizedText.isEmpty || !handledCandidates.add(recognizedText)) {
+        continue;
+      }
+      heardTranscript = true;
+      if (await _handleRecognizedText(recognizedText, generation)) {
+        return (heardTranscript: true, handled: true);
+      }
+    }
+    return (heardTranscript: heardTranscript, handled: false);
   }
 
   void _cancelSessionTimers() {
