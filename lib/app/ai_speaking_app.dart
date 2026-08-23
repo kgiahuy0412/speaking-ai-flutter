@@ -526,32 +526,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
     final StreamingSpeechInput? voiceNavigationSpeechInput;
     final bool voiceNavigationOwnsSpeechInput;
-    if (supportsAppleNativeSpeech && streamingSpeechInput != null) {
-      webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
-        audioInput: phoneMicrophoneInput,
-        repository: repository,
-        childAge: _config.childAge,
-        audioRouteControl: hfpAudioControl,
-      );
-      voiceNavigationSpeechInput = NativeFirstStreamingSpeechInput(
-        primary: streamingSpeechInput,
-        fallback: webBatchStreamingSpeechInput,
-        disposePrimary: false,
-        disposeFallback: true,
-      );
-      voiceNavigationOwnsSpeechInput = true;
-    } else if (streamingSpeechInput != null) {
+    if (streamingSpeechInput != null) {
+      // Android and iOS use the same single native speech pipeline. In
+      // particular, iOS MAIN must not silently switch to recorded-audio Batch
+      // recognition when Apple Speech or the selected route fails: that hid the
+      // original native error and allowed two independent session lifecycles to
+      // cancel each other after the assistant prompt.
       webBatchStreamingSpeechInput = null;
       voiceNavigationSpeechInput = streamingSpeechInput;
       voiceNavigationOwnsSpeechInput = false;
-    } else if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
+    } else if (kIsWeb) {
       webBatchStreamingSpeechInput = WebBatchStreamingSpeechInput(
         audioInput: phoneMicrophoneInput,
         repository: repository,
         childAge: _config.childAge,
-        audioRouteControl: defaultTargetPlatform == TargetPlatform.iOS
-            ? hfpAudioControl
-            : null,
       );
       voiceNavigationSpeechInput = webBatchStreamingSpeechInput;
       voiceNavigationOwnsSpeechInput = true;
@@ -564,8 +552,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         voiceNavigationSpeechInput != null && _config.enableVoiceNavigation
         ? VoiceNavigationController(
             speechInput: voiceNavigationSpeechInput,
-            // Native speech is shared with ConversationController. On iOS the
-            // native-first wrapper owns only its private Cloud/Batch fallback.
+            // Native speech is shared with ConversationController and released
+            // explicitly by either controller before the other starts.
             ownsSpeechInput: voiceNavigationOwnsSpeechInput,
             voicePromptService: createVoicePromptService(),
             ownsVoicePromptService: true,
@@ -755,7 +743,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       // Do not let an app-resume callback start a new BLE scan while the MAIN
       // command owns the microphone. BLE control and the already-selected HFP
       // audio route are independent links on H20, so keep both connections and
-      // let IOSStreamingSpeechInput use HFP (with its own phone-mic fallback).
+      // let IOSStreamingSpeechInput use the already-selected HFP route directly.
       _suppressH20AutoConnectUntil = DateTime.now().add(
         const Duration(seconds: 45),
       );
@@ -1078,28 +1066,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       );
       recordingStarted = controller.isRecording;
 
-      // A stale/unsupported HFP route must not strand continuous translation
-      // at "Đang chuẩn bị". iOS can always retry the same turn with the phone
-      // microphone while BLE remains connected; HFP is restored only after the
-      // whole continuous session ends.
-      if (!recordingStarted &&
-          defaultTargetPlatform == TargetPlatform.iOS &&
-          controller.usesHfpInput &&
-          _mainSpeakingSessionController.isActive) {
-        final shouldRestore = await controller
-            .preparePhoneMicrophoneForPhysicalMain();
-        _restoreHfpAfterPhysicalMain =
-            _restoreHfpAfterPhysicalMain || shouldRestore;
-        _suppressH20AutoConnectUntil = DateTime.now().add(
-          const Duration(seconds: 45),
-        );
-        controller.clearMessage();
-        await controller.startRecording(
-          noSpeechTimeout: const Duration(seconds: 6),
-          speakNoSpeechPrompt: false,
-        );
-        recordingStarted = controller.isRecording;
-      }
       _hasMainSpeakingTurnStarted = recordingStarted;
     } finally {
       _isStartingMainSpeakingTurn = false;

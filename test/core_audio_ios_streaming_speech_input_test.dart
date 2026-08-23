@@ -72,6 +72,7 @@ void main() {
       eventStream: events.stream,
     );
     addTearDown(input.dispose);
+    expect(input, isNot(isA<BatchFallbackCapableNativeSpeechInput>()));
 
     await input.start();
     expect(receivedAudioSource, 'builtInMic');
@@ -119,7 +120,7 @@ void main() {
     );
   });
 
-  test('iOS native runtime error exposes its private WAV for Batch', () async {
+  test('iOS native runtime error never exposes a Batch WAV', () async {
     const methodChannel = MethodChannel('test_ios_native_runtime_error');
     final events = StreamController<dynamic>.broadcast();
     final messenger =
@@ -176,9 +177,7 @@ void main() {
       throwsA(isA<StreamingSpeechInputException>()),
     );
     final fallback = input.takeFallbackAudioCapture();
-    expect(fallback?.filePath, '/tmp/homi-ios-speech.wav');
-    expect(fallback?.isBluetoothInput, isTrue);
-    expect(fallback?.recordingSampleRate, 16000);
+    expect(fallback, isNull);
     expect(input.takeFallbackAudioCapture(), isNull);
   });
 
@@ -248,7 +247,7 @@ void main() {
     expect(route.status.routeActive, isFalse);
   });
 
-  test('iOS MAIN falls back to the phone mic when HFP route fails', () async {
+  test('iOS MAIN reports HFP route failure without changing mic', () async {
     const methodChannel = MethodChannel('test_ios_native_hfp_fallback');
     final events = StreamController<dynamic>.broadcast();
     final route = _FakeHfpAudioControl(
@@ -257,23 +256,12 @@ void main() {
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     var nativeStartCount = 0;
-    String? receivedAudioSource;
     messenger.setMockMethodCallHandler(methodChannel, (call) async {
       switch (call.method) {
         case 'speech.isAvailable':
           return true;
         case 'speech.start':
           nativeStartCount += 1;
-          receivedAudioSource =
-              (call.arguments as Map<Object?, Object?>?)?['audioSource']
-                  as String?;
-          scheduleMicrotask(() {
-            events.add(<String, dynamic>{
-              'type': 'speech.ready',
-              'engine': 'sf_speech_recognizer',
-              'audioRoute': 'in=[BuiltInMic:iPhone]',
-            });
-          });
           return true;
         case 'speech.cancel':
           return true;
@@ -293,12 +281,14 @@ void main() {
     );
     addTearDown(input.dispose);
 
-    await input.startCommandRecognition();
+    await expectLater(
+      input.startCommandRecognition(),
+      throwsA(isA<HfpAudioException>()),
+    );
 
     expect(route.startRouteCount, 1);
     expect(route.disconnectCount, 0);
-    expect(nativeStartCount, 1);
-    expect(receivedAudioSource, 'builtInMic');
+    expect(nativeStartCount, 0);
   });
 
   test('physical MAIN one-shot source bypasses a selected HFP route', () async {
@@ -350,7 +340,7 @@ void main() {
   });
 
   test(
-    'iOS retries Apple Speech with phone mic without forgetting HFP',
+    'iOS reports native HFP start failure without retrying phone mic',
     () async {
       const methodChannel = MethodChannel('test_ios_native_start_failure');
       final events = StreamController<dynamic>.broadcast();
@@ -368,20 +358,10 @@ void main() {
                     as String? ??
                 '';
             receivedSources.add(source);
-            if (source == 'hfp') {
-              throw PlatformException(
-                code: 'IOS_NATIVE_SPEECH_START_FAILED',
-                message: 'AVAudioEngine could not open HFP input',
-              );
-            }
-            scheduleMicrotask(() {
-              events.add(<String, dynamic>{
-                'type': 'speech.ready',
-                'audioSource': 'builtInMic',
-                'audioRoute': 'in=[BuiltInMic:iPhone]',
-              });
-            });
-            return true;
+            throw PlatformException(
+              code: 'IOS_NATIVE_SPEECH_START_FAILED',
+              message: 'AVAudioEngine could not open HFP input',
+            );
           case 'speech.cancel':
             return true;
         }
@@ -400,11 +380,14 @@ void main() {
       );
       addTearDown(input.dispose);
 
-      await input.startCommandRecognition();
+      await expectLater(
+        input.startCommandRecognition(),
+        throwsA(isA<StreamingSpeechInputException>()),
+      );
       expect(route.startRouteCount, 1);
       expect(route.stopRouteCount, 1);
       expect(route.disconnectCount, 0);
-      expect(receivedSources, <String>['hfp', 'builtInMic']);
+      expect(receivedSources, <String>['hfp']);
     },
   );
 

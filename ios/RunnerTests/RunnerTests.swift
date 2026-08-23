@@ -111,30 +111,6 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testIOSSpeechAnalyzerRuntimeFallbackOnlyRunsOnceBeforeTranscript() {
-    XCTAssertTrue(
-      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
-        fallbackAttempted: false,
-        hasTranscript: false,
-        sfOnDeviceSupported: true
-      )
-    )
-    XCTAssertFalse(
-      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
-        fallbackAttempted: true,
-        hasTranscript: false,
-        sfOnDeviceSupported: true
-      )
-    )
-    XCTAssertFalse(
-      IOSNativeSpeechEngineSelector.shouldFallbackToLegacyAfterAnalyzerFailure(
-        fallbackAttempted: false,
-        hasTranscript: true,
-        sfOnDeviceSupported: true
-      )
-    )
-  }
-
   func testIOSBuiltInMicPolicyExcludesBluetoothOptions() {
     let options = IOSNativeSpeechAudioRoutePolicy.categoryOptions(
       for: .builtInMic

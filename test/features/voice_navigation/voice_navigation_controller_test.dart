@@ -135,11 +135,11 @@ void main() {
       final controller = VoiceNavigationController(
         speechInput: speechInput,
         voicePromptService: _FakeVoicePromptService(),
-        commandWindowDuration: const Duration(milliseconds: 15),
+        commandWindowDuration: const Duration(milliseconds: 120),
         microphoneStartTimeout: const Duration(seconds: 2),
       );
 
-      expect(await controller.activateFromMainButton(), isTrue);
+      final activation = controller.activateFromMainButton();
       await Future<void>.delayed(const Duration(milliseconds: 530));
 
       expect(controller.isStarting, isTrue);
@@ -149,6 +149,7 @@ void main() {
 
       speechInput.releaseStart();
       await Future<void>.delayed(const Duration(milliseconds: 3));
+      expect(await activation, isTrue);
       expect(controller.isListening, isTrue);
 
       await controller.pause();
@@ -188,7 +189,7 @@ void main() {
   );
 
   test(
-    'Main retries a failed microphone start after the start future clears',
+    'Main exposes its first microphone start failure without retrying',
     () async {
       final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 1);
       final controller = VoiceNavigationController(
@@ -197,12 +198,11 @@ void main() {
         microphoneStartRetryDelay: const Duration(milliseconds: 2),
       );
 
-      expect(await controller.activateFromMainButton(), isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 550));
+      expect(await controller.activateFromMainButton(), isFalse);
 
-      expect(speechInput.startCount, 2);
-      expect(controller.isListening, isTrue);
-      expect(controller.lastError, isNull);
+      expect(speechInput.startCount, 1);
+      expect(controller.isListening, isFalse);
+      expect(controller.lastErrorMessage, contains('Không mở được micro'));
 
       await controller.pause();
       controller.dispose();
@@ -249,10 +249,9 @@ void main() {
         microphoneStartRetryDelay: const Duration(milliseconds: 2),
       );
 
-      expect(await controller.activateFromMainButton(), isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 570));
+      expect(await controller.activateFromMainButton(), isFalse);
 
-      expect(speechInput.startCount, 3);
+      expect(speechInput.startCount, 1);
       expect(controller.isMainButtonSessionActive, isFalse);
       expect(controller.continuousRequested, isFalse);
       expect(controller.lastErrorMessage, contains('Không mở được micro'));

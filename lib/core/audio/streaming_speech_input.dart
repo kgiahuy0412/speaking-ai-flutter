@@ -1049,10 +1049,7 @@ class AndroidStreamingSpeechInput
   }
 }
 
-class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
-    implements
-        BatchFallbackCapableNativeSpeechInput,
-        NativeSpeechFallbackAudioProvider {
+class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
   IOSStreamingSpeechInput({
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),
@@ -1081,20 +1078,18 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
 
   @override
   // The native bridge still uses the dictation task hint for Vietnamese MAIN
-  // phrases. Passing commandMode lets iOS prefer its stable legacy on-device
-  // recognizer for short navigation turns when that engine is available.
+  // phrases. commandMode only describes the interaction; it never switches
+  // recognizers while a turn is active.
   Future<void> startCommandRecognition() =>
       _startWithAudioRoute(commandMode: true);
 
   Future<void> _startWithAudioRoute({required bool commandMode}) async {
     // Clear a stale native recognition turn before mutating AVAudioSession.
-    // NativeFirstStreamingSpeechInput normally does this already, but keeping
-    // the iOS input self-contained also protects direct conversation starts.
     await super.cancel().catchError((Object _) {});
     await _stopAudioRoute();
 
     final routeControl = _audioRouteControl;
-    var audioSource = takeNativeSpeechAudioSource(
+    final audioSource = takeNativeSpeechAudioSource(
       routeControl != null &&
               (routeControl.status.deviceId != null ||
                   routeControl.status.isConnected)
@@ -1109,56 +1104,30 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
         // Selecting H20 in Settings only remembers the preferred input. The
         // HFP route must be activated immediately before AVAudioEngine opens
         // its input node or Apple Speech can remain on an inactive route.
-        try {
-          await routeControl.startAudioRoute();
-          if (!routeControl.status.routeActive ||
-              routeControl.status.phase !=
-                  BluetoothAudioConnectionPhase.recording) {
-            throw const HfpAudioException(
-              'iOS chưa xác nhận currentRoute là bluetoothHFP.',
-            );
-          }
-          _audioRouteStarted = true;
-        } catch (error) {
-          // HFP is an enhancement, not a prerequisite. If iOS cannot finish
-          // switching the Bluetooth profile, keep the remembered H20
-          // selection and open this turn with the built-in iPhone microphone.
-          debugPrint(
-            'HOMI iOS HFP route failed; falling back to phone mic: $error',
+        await routeControl.startAudioRoute();
+        if (!routeControl.status.routeActive ||
+            routeControl.status.phase !=
+                BluetoothAudioConnectionPhase.recording) {
+          throw const HfpAudioException(
+            'iOS chưa xác nhận currentRoute là bluetoothHFP.',
           );
-          await routeControl.stopAudioRoute().catchError((Object _) {});
-          audioSource = NativeSpeechAudioSource.builtInMic;
         }
+        _audioRouteStarted = true;
       }
-      try {
-        await super.startWithNativeAudioSource(
-          commandMode: commandMode,
-          audioSource: audioSource,
-        );
-      } catch (error) {
-        await _stopAudioRoute();
-        if (audioSource != NativeSpeechAudioSource.hfp) {
-          rethrow;
-        }
-        // The physical BLE command must remain usable even when AVAudioEngine
-        // cannot reopen HFP immediately after the assistant prompt. Retry the
-        // same Apple Speech turn once with the phone mic without forgetting
-        // H20; a later MAIN turn can attempt HFP again.
-        debugPrint(
-          'HOMI iOS Apple Speech could not open HFP; retrying phone mic: '
-          '$error',
-        );
-        await super.cancel().catchError((Object _) {});
-        await super.startWithNativeAudioSource(
-          commandMode: commandMode,
-          audioSource: NativeSpeechAudioSource.builtInMic,
-        );
-      }
+      await super.startWithNativeAudioSource(
+        commandMode: commandMode,
+        audioSource: audioSource,
+      );
     } catch (_) {
       await _stopAudioRoute();
       rethrow;
     }
   }
+
+  /// iOS MAIN is deliberately native-only. Do not expose a private WAV that a
+  /// controller could upload to the Batch endpoint after a native failure.
+  @override
+  AudioCapture? takeFallbackAudioCapture() => null;
 
   @override
   Future<StreamingSpeechCapture> stop() async {

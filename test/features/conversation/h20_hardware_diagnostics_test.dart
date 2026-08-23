@@ -185,31 +185,6 @@ void main() {
   });
 
   test(
-    'physical MAIN suspends HFP so iOS can keep the BLE control link',
-    () async {
-      final hfp = _FakeHfpAudioControl();
-      final nativeSpeech = _FakeNativeSourceSpeechInput();
-      final controller = ConversationController(
-        audioInput: _FakeAudioInput(),
-        streamingSpeechInput: nativeSpeech,
-        hfpAudioControl: hfp,
-        playbackService: _FakePlaybackService(),
-        repository: _NoNetworkRepository(),
-        childAge: 6,
-        initialAsrMode: AsrMode.hfpStreaming,
-      );
-
-      expect(await controller.preparePhoneMicrophoneForPhysicalMain(), isTrue);
-      expect(hfp.stopRouteCount, 1);
-      expect(hfp.disconnectCount, 1);
-      expect(controller.usesHfpInput, isFalse);
-      expect(nativeSpeech.nextSource, NativeSpeechAudioSource.builtInMic);
-      expect(controller.transientMessage, contains('giữ kết nối BLE'));
-      controller.dispose();
-    },
-  );
-
-  test(
     'BLE long press stops once and release does not restart capture',
     () async {
       final aiv0 = _FakeAiv0BleControl(protocolConfirmed: true);
@@ -298,50 +273,6 @@ class _FakeAudioInput implements AudioInput {
 
   @override
   Future<void> dispose() async {}
-}
-
-class _FakeNativeSourceSpeechInput
-    implements StreamingSpeechInput, NativeSpeechAudioSourceControl {
-  NativeSpeechAudioSource? nextSource;
-
-  @override
-  String get label => 'Apple Native Speech';
-
-  @override
-  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
-
-  @override
-  Stream<void> get completed => const Stream<void>.empty();
-
-  @override
-  Stream<String> get partialText => const Stream<String>.empty();
-
-  @override
-  Future<bool> checkAvailability() async => true;
-
-  @override
-  Future<void> start() async {}
-
-  @override
-  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
-    sourceText: 'học từ vựng',
-    duration: Duration(seconds: 1),
-    inputLabel: 'Apple Native Speech',
-    confidence: 1,
-    firstResultMs: 10,
-    finalAfterStopMs: 20,
-  );
-
-  @override
-  Future<void> cancel() async {}
-
-  @override
-  Future<void> dispose() async {}
-
-  @override
-  void useNativeSpeechAudioSourceOnce(NativeSpeechAudioSource source) {
-    nextSource = source;
-  }
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {

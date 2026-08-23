@@ -1088,7 +1088,7 @@ class ConversationController extends ChangeNotifier {
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
           : supportsAndroidStreaming
           ? 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.'
-          : 'Đã chọn mic HFP trên iOS. Apple Speech sẽ nhận âm thanh từ thiết bị Bluetooth; Cloud/Batch chỉ dùng khi cần dự phòng.';
+          : 'Đã chọn mic HFP trên iOS. Apple Speech sẽ nhận âm thanh trực tiếp từ thiết bị Bluetooth.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -1112,48 +1112,6 @@ class ConversationController extends ChangeNotifier {
         ? 'Đã bỏ chọn mic HFP Web; trình duyệt sẽ dùng mic mặc định.'
         : 'Đã bỏ chọn mic HFP; ứng dụng sẽ dùng mic điện thoại.';
     notifyListeners();
-  }
-
-  /// Keeps the physical H20 MAIN control link stable while iOS opens the
-  /// one-shot navigation microphone.
-  ///
-  /// Switching a single-radio accessory from BLE control to Classic Bluetooth
-  /// HFP can make its GATT connection disappear for a few seconds. Android can
-  /// keep SCO and BLE alive for this device, but the iOS route switch observed
-  /// on H20 firmware 1.0.0 causes CoreBluetooth to reconnect. A physical MAIN
-  /// command therefore uses the built-in iPhone microphone; the app can select
-  /// HFP again after the command session finishes.
-  Future<bool> preparePhoneMicrophoneForPhysicalMain() async {
-    final sourceControl =
-        _streamingSpeechInput is NativeSpeechAudioSourceControl
-        ? _streamingSpeechInput as NativeSpeechAudioSourceControl
-        : null;
-    sourceControl?.useNativeSpeechAudioSourceOnce(
-      NativeSpeechAudioSource.builtInMic,
-    );
-    final control = _hfpAudioControl;
-    if (control == null) {
-      return false;
-    }
-    final hadHfpSelection =
-        _hfpInputSelected ||
-        control.status.isConnected ||
-        control.status.deviceId != null;
-    try {
-      await control.stopAudioRoute();
-      await control.disconnect();
-    } catch (error) {
-      // A stale preferred route must never prevent the MAIN assistant itself
-      // from opening. IOSStreamingSpeechInput still performs a final phone-mic
-      // fallback if AVAudioSession reports an error here.
-      debugPrint('Cannot suspend HFP for physical MAIN: $error');
-    } finally {
-      _hfpInputSelected = false;
-      transientMessage =
-          'MAIN vật lý đang dùng mic iPhone để giữ kết nối BLE H20 ổn định.';
-      notifyListeners();
-    }
-    return hadHfpSelection;
   }
 
   Future<void> setH20HardwareTestMode(bool enabled) async {

@@ -84,8 +84,6 @@ class VoiceNavigationController extends ChangeNotifier {
   static const Duration _mainCommandListenRestartDelay = Duration(
     milliseconds: 500,
   );
-  static const int _maximumMicrophoneStartAttempts = 3;
-
   final StreamingSpeechInput _speechInput;
   final VoiceNavigationIntentResolver _resolver;
   final MainVoiceAssistantFlow _mainAssistantFlow;
@@ -127,7 +125,6 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   int _mainNoSpeechRetryCount = 0;
-  int _microphoneStartAttemptCount = 0;
   Object? _lastError;
   String? _activeInputLabelOverride;
 
@@ -231,7 +228,6 @@ class VoiceNavigationController extends ChangeNotifier {
       _lastError = null;
       _buttonCommandSession = true;
       _mainNoSpeechRetryCount = 0;
-      _microphoneStartAttemptCount = 0;
       _continuousRequested = true;
       final generation = _generation;
       final acknowledged = await _acknowledgeWakeWord(
@@ -244,10 +240,16 @@ class VoiceNavigationController extends ChangeNotifier {
         _mainAssistantFlow.reset();
         return false;
       }
-      // Give Android audio focus and the speaker a short time to settle so the
-      // recognizer does not capture the tail of Bi cô's own sentence.
-      _scheduleSession(_mainCommandListenRestartDelay);
-      return true;
+      // Perform one explicit prompt -> mic hand-off and do not report MAIN as
+      // activated until native speech has actually emitted speech.ready. The
+      // ready-cue service already includes its playback tail; adding another
+      // detached/delayed start only created a second lifecycle that could race
+      // pause/cancel and hide a native start failure.
+      if (_disposed || generation != _generation || !_continuousRequested) {
+        return false;
+      }
+      await _runStartSession(generation);
+      return _listening;
     } finally {
       _mainButtonActivationInProgress = false;
       if (!_disposed) {
@@ -264,7 +266,6 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _buttonCommandSession = false;
     _mainNoSpeechRetryCount = 0;
-    _microphoneStartAttemptCount = 0;
     _mainAssistantFlow.reset();
     _generation += 1;
     _cancelTimers();
@@ -573,15 +574,21 @@ class VoiceNavigationController extends ChangeNotifier {
     final generation = _generation;
     _restartTimer = Timer(delay, () {
       _restartTimer = null;
-      final startFuture = _startSession(generation);
-      _startInProgress = startFuture;
-      unawaited(
-        startFuture.whenComplete(() {
-          if (identical(_startInProgress, startFuture)) {
-            _startInProgress = null;
-          }
-        }),
-      );
+      unawaited(_runStartSession(generation));
+    });
+  }
+
+  Future<void> _runStartSession(int generation) {
+    final existing = _startInProgress;
+    if (existing != null) {
+      return existing;
+    }
+    final startFuture = _startSession(generation);
+    _startInProgress = startFuture;
+    return startFuture.whenComplete(() {
+      if (identical(_startInProgress, startFuture)) {
+        _startInProgress = null;
+      }
     });
   }
 
@@ -623,7 +630,6 @@ class VoiceNavigationController extends ChangeNotifier {
       _listening = true;
       _speechDetected = false;
       _speechActivitySamples = 0;
-      _microphoneStartAttemptCount = 0;
       _lastError = null;
       diagnostics?.reportNativeSpeechStage('microphone_listening');
       // The prompt may have finished well before iOS finishes preparing the
@@ -660,10 +666,9 @@ class VoiceNavigationController extends ChangeNotifier {
       _lastError = error;
       _starting = false;
       _listening = false;
-      _microphoneStartAttemptCount += 1;
-      final exhaustedMainAttempts =
-          _buttonCommandSession &&
-          _microphoneStartAttemptCount >= _maximumMicrophoneStartAttempts;
+      // A physical/virtual MAIN turn has exactly one native start. Do not hide
+      // its error behind route, recognizer, or delayed retry loops.
+      final exhaustedMainAttempts = _buttonCommandSession;
       if (exhaustedMainAttempts) {
         _awaitingCommand = false;
         _buttonCommandSession = false;
@@ -866,6 +871,7 @@ class VoiceNavigationController extends ChangeNotifier {
   }
 
   Future<void> _runFinishSession(int generation) async {
+    var sessionFailed = false;
     try {
       final capture = await _speechInput.stop();
       if (_disposed || generation != _generation) {
@@ -891,8 +897,16 @@ class VoiceNavigationController extends ChangeNotifier {
         }
       }
     } catch (error) {
+      sessionFailed = true;
       if (!_disposed && generation == _generation) {
         _lastError = error;
+        if (_buttonCommandSession) {
+          _awaitingCommand = false;
+          _buttonCommandSession = false;
+          _continuousRequested = false;
+          _mainNoSpeechRetryCount = 0;
+          _mainAssistantFlow.reset();
+        }
       }
     } finally {
       _finishing = false;
@@ -900,7 +914,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (!_disposed) {
         notifyListeners();
       }
-      if (_continuousRequested && generation == _generation) {
+      if (!sessionFailed && _continuousRequested && generation == _generation) {
         _scheduleSession(
           _awaitingCommand
               ? _buttonCommandSession
