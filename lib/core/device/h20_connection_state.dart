@@ -14,6 +14,7 @@ enum H20ConnectionPhase {
 class H20ConnectionState {
   const H20ConnectionState({
     required this.phase,
+    required this.hfpSelected,
     required this.hfpReady,
     required this.bleReady,
   });
@@ -23,6 +24,7 @@ class H20ConnectionState {
     required Aiv0BleStatus bleStatus,
     bool mainTurnActive = false,
   }) {
+    final hfpSelected = hfpStatus.deviceId != null;
     final hfpReady = hfpStatus.isConnected && hfpStatus.routeActive;
     final bleReady = bleStatus.isConnected;
     final phase = mainTurnActive && hfpReady
@@ -36,14 +38,27 @@ class H20ConnectionState {
         : H20ConnectionPhase.disconnected;
     return H20ConnectionState(
       phase: phase,
+      hfpSelected: hfpSelected,
       hfpReady: hfpReady,
       bleReady: bleReady,
     );
   }
 
   final H20ConnectionPhase phase;
+  final bool hfpSelected;
   final bool hfpReady;
   final bool bleReady;
 
   bool get isH20Ready => hfpReady && bleReady;
+
+  /// Whether a physical H20 MAIN press may start the strict HFP turn.
+  ///
+  /// An idle iOS audio session normally exposes the paired headset as A2DP,
+  /// so [hfpReady] can be false until recording starts. Requiring an already
+  /// active HFP/SCO route here creates a circular dependency: the MAIN turn is
+  /// what asks iOS to activate that route. A persisted HFP selection plus the
+  /// live BLE control link is sufficient to let the speech input activate and
+  /// authoritatively verify HFP. Failure to activate remains an error; callers
+  /// must not fall back to the phone microphone in the same turn.
+  bool get canStartStrictHfpTurn => hfpSelected && bleReady;
 }

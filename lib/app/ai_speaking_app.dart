@@ -758,11 +758,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       );
       final controller = _controller;
       final h20State = controller?.h20ConnectionState();
-      // A physical H20 MAIN turn is one strict native path. Never switch to
-      // the phone microphone when its BLE packet arrived but HFP is not ready.
-      if (h20State == null || !h20State.hfpReady) {
+      // An idle iOS session commonly reports H20 as A2DP until recording asks
+      // for the two-way HFP/SCO route. Requiring routeActive here prevented the
+      // MAIN turn from ever reaching IOSStreamingSpeechInput.startAudioRoute(),
+      // which is the owner responsible for activating and verifying HFP.
+      // Require a selected HFP input instead. The speech input still fails the
+      // turn if HFP cannot be activated and never falls back to the phone mic.
+      if (h20State == null || !h20State.canStartStrictHfpTurn) {
         debugPrint(
-          'H20 MAIN ignored: BLE packet arrived without a confirmed HFP route.',
+          'H20 MAIN ignored: BLE is connected but no HFP input is selected.',
         );
         return MainButtonActionResult.busy;
       }

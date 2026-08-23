@@ -11,6 +11,11 @@ void main() {
   const hfpMissing = BluetoothAudioStatus(
     phase: BluetoothAudioConnectionPhase.idle,
   );
+  const hfpSelectedButIdle = BluetoothAudioStatus(
+    phase: BluetoothAudioConnectionPhase.idle,
+    deviceId: 'h20-hfp',
+    deviceName: 'H20',
+  );
   const bleReady = Aiv0BleStatus(
     phase: Aiv0BlePhase.connected,
     protocolConfirmed: false,
@@ -45,5 +50,27 @@ void main() {
     expect(state.phase, H20ConnectionPhase.mainTurnActive);
     expect(state.hfpReady, isTrue);
     expect(state.bleReady, isFalse);
+  });
+
+  test('allows MAIN to activate a selected but currently idle HFP route', () {
+    final state = H20ConnectionState.from(
+      hfpStatus: hfpSelectedButIdle,
+      bleStatus: bleReady,
+    );
+
+    expect(state.phase, H20ConnectionPhase.bleReady);
+    expect(state.hfpSelected, isTrue);
+    expect(state.hfpReady, isFalse);
+    expect(state.canStartStrictHfpTurn, isTrue);
+  });
+
+  test('does not start strict HFP turn without a selected HFP input', () {
+    final state = H20ConnectionState.from(
+      hfpStatus: hfpMissing,
+      bleStatus: bleReady,
+    );
+
+    expect(state.hfpSelected, isFalse);
+    expect(state.canStartStrictHfpTurn, isFalse);
   });
 }
