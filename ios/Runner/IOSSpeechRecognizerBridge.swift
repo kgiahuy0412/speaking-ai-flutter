@@ -695,13 +695,14 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   ) {
     let frameLength = Int(buffer.frameLength)
     let db = IOSAudioBufferLevel.dbfs(buffer)
+    let dbText = db.map { String(format: "%.1f", $0) } ?? "unknown"
     DispatchQueue.main.async { [weak self] in
       guard let self, self.active, self.generation == generation else { return }
       if analyzerInputCount > 0, self.firstAnalyzerInputGeneration != generation {
         self.firstAnalyzerInputGeneration = generation
         self.emitStage(
           "first_audio_buffer",
-          message: "frames=\(frameLength) analyzerInputs=\(analyzerInputCount) rmsDb=\(db.map { String(format: \"%.1f\", $0) } ?? \"unknown\")"
+          message: "frames=\(frameLength) analyzerInputs=\(analyzerInputCount) rmsDb=\(dbText)"
         )
       }
       guard let db else { return }
