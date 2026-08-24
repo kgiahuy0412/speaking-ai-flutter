@@ -40,6 +40,7 @@ void main() {
           ),
           home: HomeLearningShell(
             controller: controller,
+            parentAccessGate: (_) async => true,
             config: AppConfig(
               backendBaseUri: Uri.parse('https://api.example.com'),
               useDemoBackend: true,

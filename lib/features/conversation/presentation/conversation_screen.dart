@@ -28,6 +28,8 @@ class ConversationScreen extends StatelessWidget {
     this.onRequestVoiceAccess,
     this.onManagePrivacyConsent,
     this.onRevokePrivacyConsent,
+    this.onOpenHistory,
+    this.onOpenSettings,
     this.speakActionKey,
     this.resultPanelKey,
     this.historyButtonKey,
@@ -47,6 +49,8 @@ class ConversationScreen extends StatelessWidget {
   final VoidCallback? onRequestVoiceAccess;
   final VoidCallback? onManagePrivacyConsent;
   final Future<void> Function()? onRevokePrivacyConsent;
+  final VoidCallback? onOpenHistory;
+  final VoidCallback? onOpenSettings;
   final Key? speakActionKey;
   final Key? resultPanelKey;
   final Key? historyButtonKey;
@@ -69,8 +73,9 @@ class ConversationScreen extends StatelessWidget {
                   children: <Widget>[
                     ScenicAppHeader(
                       isReady: controller.isInputAvailable,
-                      onHistory: () => _showHistory(context),
-                      onSettings: () => _showSettings(context),
+                      onHistory: onOpenHistory ?? () => _showHistory(context),
+                      onSettings:
+                          onOpenSettings ?? () => _showSettings(context),
                       historyButtonKey: historyButtonKey,
                       settingsButtonKey: settingsButtonKey,
                     ),

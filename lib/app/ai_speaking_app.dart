@@ -31,6 +31,7 @@ import '../features/home/presentation/home_learning_shell.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
 import '../features/onboarding/presentation/startup_setup_screen.dart';
+import '../features/onboarding/application/parent_setup_progress_store.dart';
 import '../features/privacy/data/privacy_consent_store.dart';
 import '../features/settings/data/child_age_store.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
@@ -66,6 +67,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   final AppThemeModeStore _themeModeStore = const AppThemeModeStore();
   final ChildAgeStore _childAgeStore = const ChildAgeStore();
   final PrivacyConsentStore _privacyConsentStore = const PrivacyConsentStore();
+  final ParentSetupProgressStore _parentSetupProgressStore =
+      const ParentSetupProgressStore();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
@@ -87,10 +90,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isResumingActiveModule = false;
   bool _startupProfileLoading = true;
   bool _startupPermissionRequestInProgress = false;
+  bool _startupPermissionsRequestedByParent = false;
   bool _microphonePermissionGranted = false;
   bool _bluetoothPermissionGranted = false;
   bool _privacyConsentGranted = false;
   bool _limitedModeSelected = false;
+  bool _parentSetupCompleted = false;
   int? _childAge;
   int? _pendingStartupAge;
   String? _startupPermissionError;
@@ -108,6 +113,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   bool get _startupReady =>
       !_startupProfileLoading &&
+      _parentSetupCompleted &&
       _childAge != null &&
       (_privacyConsentGranted || _limitedModeSelected);
 
@@ -141,7 +147,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     // iOS keeps the system permission grants. Refresh them whenever the app
     // returns to the foreground so MAIN does not stay hidden after the user
     // grants Microphone/Speech/Bluetooth access in Settings.
-    if (_privacyConsentGranted) {
+    if (_privacyConsentGranted &&
+        (_parentSetupCompleted || _startupPermissionsRequestedByParent)) {
       unawaited(_requestStartupPermissions());
     } else if (_bluetoothPermissionGranted) {
       unawaited(_autoConnectH20Ble());
@@ -165,15 +172,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     int? storedAge;
     var storedConsent = false;
     var storedLimitedMode = false;
+    var storedParentSetupComplete = false;
     try {
       final values = await Future.wait<Object?>(<Future<Object?>>[
         _childAgeStore.read(),
         _privacyConsentStore.readGranted(),
         _privacyConsentStore.readLimitedMode(),
+        _parentSetupProgressStore.isComplete(),
       ]);
       storedAge = _validChildAge(values[0] as int?);
       storedConsent = values[1] as bool;
       storedLimitedMode = values[2] as bool;
+      storedParentSetupComplete = values[3] as bool;
     } catch (error) {
       debugPrint('Could not load startup privacy/profile state: $error');
     }
@@ -189,9 +199,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _privacyConsentGranted =
           storedConsent && _config.privacyReleaseConfigurationComplete;
       _limitedModeSelected = storedLimitedMode && !_privacyConsentGranted;
+      _parentSetupCompleted =
+          storedParentSetupComplete &&
+          storedAge != null &&
+          (_privacyConsentGranted || _limitedModeSelected);
       _startupProfileLoading = false;
     });
-    if (_privacyConsentGranted) {
+    if (_privacyConsentGranted && _parentSetupCompleted) {
       _startBackgroundWork();
       // Stored parental consent allows us to query the existing native grants.
       // Without this refresh `_microphonePermissionGranted` remains false on
@@ -242,10 +256,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     unawaited(_warmTopicImagesWhenIdle());
   }
 
-  void _confirmStartupAge() {
+  Future<void> _completeParentSetup() async {
     final age = _pendingStartupAge;
-    if (age != null && _privacyConsentGranted) {
-      _setChildAge(age);
+    if (age == null || (!_privacyConsentGranted && !_limitedModeSelected)) {
+      return;
+    }
+    _setChildAge(age);
+    await _parentSetupProgressStore.markComplete();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _parentSetupCompleted = true);
+    if (_privacyConsentGranted) {
       _startBackgroundWork();
     }
   }
@@ -263,28 +285,29 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _limitedModeSelected = false;
       _startupPermissionError = null;
     });
-    _startBackgroundWork();
   }
 
   Future<void> _continueWithoutVoice() async {
-    final age = _pendingStartupAge;
-    if (age == null) {
-      return;
-    }
     await _privacyConsentStore.chooseLimitedMode();
     if (!mounted) {
       return;
     }
-    _setChildAge(age);
     setState(() {
       _limitedModeSelected = true;
+      _privacyConsentGranted = false;
       _microphonePermissionGranted = false;
       _bluetoothPermissionGranted = false;
       _startupPermissionError = null;
     });
   }
 
-  Future<void> _requestStartupPermissions() async {
+  Future<void> _requestStartupPermissions({
+    bool parentInitiated = false,
+    bool autoConnectH20 = true,
+  }) async {
+    if (parentInitiated) {
+      _startupPermissionsRequestedByParent = true;
+    }
     if (_startupPermissionRequestInProgress || !_privacyConsentGranted) {
       return;
     }
@@ -336,7 +359,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _startupPermissionRequestInProgress = false;
       _startupPermissionError = errors.isEmpty ? null : errors.join('\n');
     });
-    if (bluetoothGranted && _config.enableAiv0BleControl) {
+    if (autoConnectH20 && bluetoothGranted && _config.enableAiv0BleControl) {
       unawaited(_autoConnectH20Ble());
     }
   }
@@ -355,6 +378,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     await _privacyConsentStore.revoke();
     await _childAgeStore.clear();
+    await _parentSetupProgressStore.clear();
     await _clientIdentity.resetClientId();
     await _voiceNavigationController?.pause();
     _backgroundWorkStarted = false;
@@ -365,6 +389,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     setState(() {
       _privacyConsentGranted = false;
       _limitedModeSelected = false;
+      _parentSetupCompleted = false;
       _microphonePermissionGranted = false;
       _bluetoothPermissionGranted = false;
       _childAge = null;
@@ -441,6 +466,46 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       debugPrint(
         'BLE is ready while HFP remains unavailable; phone microphone stays active.',
       );
+    }
+  }
+
+  Future<void> _configureH20ForParentSetup() async {
+    if (!_privacyConsentGranted) {
+      return;
+    }
+    await _requestStartupPermissions(
+      parentInitiated: true,
+      autoConnectH20: false,
+    );
+    if (!_microphonePermissionGranted ||
+        (_bluetoothPermissionRequired && !_bluetoothPermissionGranted)) {
+      return;
+    }
+    _lastAiv0AutoConnectAttempt = null;
+    await _autoConnectH20Ble();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _usePhoneMicrophoneForParentSetup() async {
+    if (!_privacyConsentGranted) {
+      return;
+    }
+    await _requestStartupPermissions(
+      parentInitiated: true,
+      autoConnectH20: false,
+    );
+    if (!_microphonePermissionGranted) {
+      return;
+    }
+    try {
+      await _controller?.disconnectHfpDevice();
+    } catch (error) {
+      debugPrint('Could not switch parent setup to phone microphone: $error');
+    }
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -1386,27 +1451,47 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                 ),
               ),
             )
-          : StartupSetupScreen(
-              profileLoading: _startupProfileLoading,
-              permissionRequestInProgress: _startupPermissionRequestInProgress,
-              privacyConfigurationComplete:
-                  _config.privacyReleaseConfigurationComplete,
-              privacyConsentGranted: _privacyConsentGranted,
-              microphoneGranted: _microphonePermissionGranted,
-              bluetoothRequired: _bluetoothPermissionRequired,
-              bluetoothGranted: _bluetoothPermissionGranted,
-              selectedAge: _pendingStartupAge,
-              aiSubprocessors: _config.disclosedAiSubprocessors,
-              dataRetentionSummary: _config.disclosedDataRetention,
-              privacyPolicyUri: _config.privacyPolicyUri,
-              termsUri: _config.termsUri,
-              supportUri: _config.supportUri,
-              permissionError: _startupPermissionError,
-              onGrantPrivacyConsent: _grantPrivacyConsent,
-              onContinueWithoutVoice: _continueWithoutVoice,
-              onRetryPermissions: () => unawaited(_requestStartupPermissions()),
-              onAgeSelected: (age) => setState(() => _pendingStartupAge = age),
-              onConfirmAge: _confirmStartupAge,
+          : AnimatedBuilder(
+              animation: controller,
+              builder: (context, _) {
+                final hfpStatus = controller.hfpAudioStatus;
+                final bleStatus = controller.aiv0BleStatus;
+                return StartupSetupScreen(
+                  profileLoading: _startupProfileLoading,
+                  permissionRequestInProgress:
+                      _startupPermissionRequestInProgress,
+                  privacyConfigurationComplete:
+                      _config.privacyReleaseConfigurationComplete,
+                  privacyConsentGranted: _privacyConsentGranted,
+                  limitedModeSelected: _limitedModeSelected,
+                  microphoneGranted: _microphonePermissionGranted,
+                  bluetoothRequired: _bluetoothPermissionRequired,
+                  bluetoothGranted: _bluetoothPermissionGranted,
+                  h20BleConnected: bleStatus.isConnected,
+                  h20HfpConfigured: hfpStatus.isConnected,
+                  h20DeviceName: hfpStatus.deviceName ?? bleStatus.deviceName,
+                  selectedAge: _pendingStartupAge,
+                  aiSubprocessors: _config.disclosedAiSubprocessors,
+                  dataRetentionSummary: _config.disclosedDataRetention,
+                  privacyPolicyUri: _config.privacyPolicyUri,
+                  termsUri: _config.termsUri,
+                  supportUri: _config.supportUri,
+                  permissionError: _startupPermissionError,
+                  onGrantPrivacyConsent: _grantPrivacyConsent,
+                  onContinueWithoutVoice: _continueWithoutVoice,
+                  onRetryPermissions: () => unawaited(
+                    _requestStartupPermissions(
+                      parentInitiated: true,
+                      autoConnectH20: false,
+                    ),
+                  ),
+                  onSetupH20: _configureH20ForParentSetup,
+                  onUsePhoneMicrophone: _usePhoneMicrophoneForParentSetup,
+                  onAgeSelected: (age) =>
+                      setState(() => _pendingStartupAge = age),
+                  onCompleteSetup: _completeParentSetup,
+                );
+              },
             ),
     );
   }

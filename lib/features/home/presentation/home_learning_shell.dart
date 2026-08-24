@@ -14,6 +14,7 @@ import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../onboarding/application/onboarding_progress_store.dart';
 import '../../onboarding/presentation/user_onboarding_tour.dart';
+import '../../privacy/presentation/parental_gate.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
@@ -39,6 +40,7 @@ class HomeLearningShell extends StatefulWidget {
     this.onRevokePrivacyConsent,
     this.onboardingStore,
     this.listeningContentFuture,
+    this.parentAccessGate,
     super.key,
   });
 
@@ -57,6 +59,7 @@ class HomeLearningShell extends StatefulWidget {
   final Future<void> Function()? onRevokePrivacyConsent;
   final OnboardingProgressStore? onboardingStore;
   final Future<ListeningContentCatalog>? listeningContentFuture;
+  final Future<bool> Function(BuildContext context)? parentAccessGate;
 
   @override
   State<HomeLearningShell> createState() => _HomeLearningShellState();
@@ -202,6 +205,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                       onRequestVoiceAccess: widget.onRequestVoiceAccess,
                       onManagePrivacyConsent: widget.onManagePrivacyConsent,
                       onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
+                      onOpenHistory: _showHistory,
+                      onOpenSettings: _showSettings,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
@@ -723,8 +728,15 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   void _showSettings() {
-    unawaited(_pauseVoiceNavigation('settings_opened'));
-    unawaited(_openSettingsSheet());
+    unawaited(_openParentSettings());
+  }
+
+  Future<void> _openParentSettings() async {
+    if (!await _requestParentAccess()) {
+      return;
+    }
+    await _pauseVoiceNavigation('settings_opened');
+    await _openSettingsSheet();
   }
 
   Future<void> _openSettingsSheet() async {
@@ -758,8 +770,20 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   void _showHistory() {
-    unawaited(_pauseVoiceNavigation('history_opened'));
-    unawaited(_openHistorySheet());
+    unawaited(_openParentHistory());
+  }
+
+  Future<void> _openParentHistory() async {
+    if (!await _requestParentAccess()) {
+      return;
+    }
+    await _pauseVoiceNavigation('history_opened');
+    await _openHistorySheet();
+  }
+
+  Future<bool> _requestParentAccess() {
+    final gate = widget.parentAccessGate;
+    return gate == null ? showParentalGate(context) : gate(context);
   }
 
   Future<void> _openHistorySheet() async {

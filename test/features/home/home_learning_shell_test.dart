@@ -75,6 +75,33 @@ void main() {
     expect(find.byType(TopicListeningScreen), findsOneWidget);
   });
 
+  testWidgets('protects settings with the parent access gate', (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    var gateRequests = 0;
+
+    await tester.pumpWidget(
+      _app(
+        controller,
+        parentAccessGate: (_) async {
+          gateRequests += 1;
+          return false;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    expect(gateRequests, 1);
+    expect(find.text('Cài đặt lượt nói'), findsNothing);
+  });
+
   testWidgets('reports settings modal visibility until the sheet closes', (
     tester,
   ) async {
@@ -522,6 +549,7 @@ Widget _app(
   MainSpeakingSessionController? speakingSessionController,
   VoidCallback? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
+  Future<bool> Function(BuildContext)? parentAccessGate,
 }) {
   final home = HomeLearningShell(
     controller: controller,
@@ -529,6 +557,7 @@ Widget _app(
     listeningContentFuture: listeningContentFuture,
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
     onModalVisibilityChanged: onModalVisibilityChanged,
+    parentAccessGate: parentAccessGate ?? (_) async => true,
     config: AppConfig(
       backendBaseUri: Uri.parse('https://example.com'),
       useDemoBackend: true,
