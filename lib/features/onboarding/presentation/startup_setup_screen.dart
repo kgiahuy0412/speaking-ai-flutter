@@ -7,7 +7,7 @@ import '../../../app/mascot_assets.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../privacy/presentation/parental_gate.dart';
 
-enum _ParentSetupStep { privacy, profile, permissions, device }
+enum _ParentSetupStep { privacy, profile, permissions }
 
 /// Mandatory parent/teacher setup shown before a child learning session starts.
 class StartupSetupScreen extends StatefulWidget {
@@ -29,7 +29,6 @@ class StartupSetupScreen extends StatefulWidget {
     required this.onContinueWithoutVoice,
     required this.onRetryPermissions,
     required this.onSetupH20,
-    required this.onUsePhoneMicrophone,
     required this.onAgeSelected,
     required this.onCompleteSetup,
     this.h20DeviceName,
@@ -61,7 +60,6 @@ class StartupSetupScreen extends StatefulWidget {
   final Future<void> Function() onContinueWithoutVoice;
   final VoidCallback onRetryPermissions;
   final Future<void> Function() onSetupH20;
-  final Future<void> Function() onUsePhoneMicrophone;
   final ValueChanged<int> onAgeSelected;
   final Future<void> Function() onCompleteSetup;
   final String? permissionError;
@@ -73,7 +71,6 @@ class StartupSetupScreen extends StatefulWidget {
 class _StartupSetupScreenState extends State<StartupSetupScreen> {
   _ParentSetupStep _step = _ParentSetupStep.privacy;
   late bool _adultRoleConfirmed;
-  bool _phoneMicrophoneSelected = false;
   bool _h20SetupRequested = false;
   bool _choiceInProgress = false;
 
@@ -83,9 +80,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   bool get _h20Ready => widget.h20BleConnected && widget.h20HfpConfigured;
 
   bool get _canComplete =>
-      widget.limitedModeSelected ||
-      (_phoneMicrophoneSelected && widget.microphoneGranted) ||
-      (_h20Ready && widget.microphoneGranted);
+      widget.limitedModeSelected || widget.microphoneGranted;
 
   @override
   void initState() {
@@ -136,7 +131,6 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                             ),
                             _ParentSetupStep.permissions =>
                               _buildPermissionsStep(theme),
-                            _ParentSetupStep.device => _buildDeviceStep(theme),
                           },
                         ),
                       ),
@@ -310,12 +304,13 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     final permissionsGranted =
         widget.microphoneGranted &&
         (!widget.bluetoothRequired || widget.bluetoothGranted);
+    final deviceName = widget.h20DeviceName?.trim();
     return _SetupCard(
-      icon: Icons.security_rounded,
-      title: 'Cấp quyền trên thiết bị',
+      icon: Icons.bluetooth_audio_rounded,
+      title: 'Cấp quyền và kết nối thiết bị',
       subtitle: widget.limitedModeSelected
           ? 'Chế độ không giọng nói không cần quyền micro hoặc Bluetooth.'
-          : 'HOMI chỉ mở hộp thoại hệ thống sau khi phụ huynh đã đồng ý ở bước đầu.',
+          : 'HOMI ưu tiên H20 khi thiết bị sẵn sàng và tự dùng micro điện thoại khi chưa có H20.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -373,77 +368,39 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                 ),
               ),
             ],
-          ],
-          const SizedBox(height: 18),
-          _PrimaryNextButton(
-            onPressed: widget.limitedModeSelected || widget.microphoneGranted
-                ? _goNext
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeviceStep(ThemeData theme) {
-    final deviceName = widget.h20DeviceName?.trim();
-    return _SetupCard(
-      icon: Icons.headset_mic_rounded,
-      title: 'Chọn cách trẻ tương tác',
-      subtitle: widget.limitedModeSelected
-          ? 'Hoàn tất thiết lập để dùng các nội dung không cần micro.'
-          : 'Ưu tiên H20 cho trẻ. Mic điện thoại luôn có sẵn để phụ huynh và Apple Review kiểm tra khi không có thiết bị.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          if (!widget.limitedModeSelected) ...<Widget>[
+            const SizedBox(height: 16),
             _DeviceChoiceCard(
               key: const Key('startup-h20-choice'),
               icon: Icons.bluetooth_audio_rounded,
               title: deviceName == null || deviceName.isEmpty
-                  ? 'Thiết bị H20'
-                  : deviceName,
+                  ? 'Thiết bị H20 (tùy chọn)'
+                  : '$deviceName (tùy chọn)',
               description:
-                  'Phụ huynh ghép đôi H20 trong Cài đặt Bluetooth; HOMI kiểm tra HFP (mic/loa) và BLE (nút MAIN).',
+                  'Bật H20 và Bluetooth để HOMI kiểm tra mic/loa HFP cùng nút MAIN qua BLE. Không cần H20 để hoàn tất thiết lập.',
               selected: _h20Ready,
               status: _h20Ready
-                  ? 'HFP và BLE đã sẵn sàng'
+                  ? 'H20 đã sẵn sàng • HOMI sẽ ưu tiên mic và loa H20'
                   : widget.h20HfpConfigured
-                  ? 'HFP đã chọn • đang chờ BLE'
+                  ? 'HFP đã sẵn sàng • đang chờ BLE'
                   : widget.h20BleConnected
-                  ? 'BLE đã kết nối • đang chờ HFP'
+                  ? 'BLE đã kết nối • HOMI sẽ tiếp tục kiểm tra HFP'
                   : _h20SetupRequested
-                  ? 'Chưa thấy đủ hai kết nối; kiểm tra ghép đôi H20'
-                  : 'Chưa thiết lập',
+                  ? 'Chưa thấy đủ kết nối • có thể hoàn tất bằng micro điện thoại'
+                  : 'Chưa kết nối • có thể thiết lập ngay hoặc để sau',
               actionKey: const Key('startup-setup-h20'),
-              actionLabel: _h20Ready ? 'Đã kết nối' : 'Thiết lập H20',
+              actionLabel: _h20Ready ? 'H20 đã kết nối' : 'Kết nối H20',
               busy: _choiceInProgress,
-              onPressed: _choiceInProgress ? null : _setupH20,
+              onPressed: _choiceInProgress || _h20Ready ? null : _setupH20,
             ),
-            const SizedBox(height: 12),
-            _DeviceChoiceCard(
-              key: const Key('startup-phone-choice'),
-              icon: Icons.phone_iphone_rounded,
-              title: 'Mic điện thoại',
-              description:
-                  'Dùng điện thoại để kiểm tra bài học mà không cần có H20.',
-              selected: _phoneMicrophoneSelected && widget.microphoneGranted,
-              status: widget.microphoneGranted
-                  ? 'Micro đã được cấp quyền'
-                  : 'Cần cấp quyền micro',
-              actionKey: const Key('startup-use-phone-mic'),
-              actionLabel: _phoneMicrophoneSelected
-                  ? 'Đang chọn'
-                  : 'Dùng mic điện thoại',
-              busy: _choiceInProgress,
-              onPressed: _choiceInProgress ? null : _selectPhoneMicrophone,
-            ),
-          ] else
-            const _InfoBox(
-              icon: Icons.visibility_outlined,
-              text:
-                  'HOMI sẽ vào chế độ giới hạn. Các nút cần ghi âm sẽ hướng phụ huynh quay lại phần quyền riêng tư.',
-            ),
+            if (widget.microphoneGranted && !_h20Ready) ...<Widget>[
+              const SizedBox(height: 12),
+              const _InfoBox(
+                icon: Icons.phone_iphone_rounded,
+                text:
+                    'HOMI sẽ tạm dùng micro điện thoại và tự chuyển sang H20 khi thiết bị sẵn sàng.',
+              ),
+            ],
+          ],
           const SizedBox(height: 18),
           FilledButton.icon(
             key: const Key('startup-confirm-age'),
@@ -457,10 +414,10 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             icon: const Icon(Icons.play_circle_outline_rounded),
             label: const Text('Hoàn tất và bắt đầu phiên học'),
           ),
-          if (!_canComplete && !widget.limitedModeSelected) ...<Widget>[
+          if (!_canComplete) ...<Widget>[
             const SizedBox(height: 10),
             Text(
-              'Hãy hoàn tất H20 hoặc chọn mic điện thoại để tiếp tục.',
+              'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -490,25 +447,9 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     setState(() {
       _choiceInProgress = true;
       _h20SetupRequested = true;
-      _phoneMicrophoneSelected = false;
     });
     try {
       await widget.onSetupH20();
-    } finally {
-      if (mounted) setState(() => _choiceInProgress = false);
-    }
-  }
-
-  Future<void> _selectPhoneMicrophone() async {
-    setState(() {
-      _choiceInProgress = true;
-      _h20SetupRequested = false;
-    });
-    try {
-      await widget.onUsePhoneMicrophone();
-      if (mounted && widget.microphoneGranted) {
-        setState(() => _phoneMicrophoneSelected = true);
-      }
     } finally {
       if (mounted) setState(() => _choiceInProgress = false);
     }

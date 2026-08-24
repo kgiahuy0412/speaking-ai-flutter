@@ -488,27 +488,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
   }
 
-  Future<void> _usePhoneMicrophoneForParentSetup() async {
-    if (!_privacyConsentGranted) {
-      return;
-    }
-    await _requestStartupPermissions(
-      parentInitiated: true,
-      autoConnectH20: false,
-    );
-    if (!_microphonePermissionGranted) {
-      return;
-    }
-    try {
-      await _controller?.disconnectHfpDevice();
-    } catch (error) {
-      debugPrint('Could not switch parent setup to phone microphone: $error');
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Future<void> _runStartupTask(Future<void> Function() task) async {
     try {
       await task();
@@ -1482,11 +1461,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onRetryPermissions: () => unawaited(
                     _requestStartupPermissions(
                       parentInitiated: true,
-                      autoConnectH20: false,
+                      autoConnectH20: true,
                     ),
                   ),
                   onSetupH20: _configureH20ForParentSetup,
-                  onUsePhoneMicrophone: _usePhoneMicrophoneForParentSetup,
                   onAgeSelected: (age) =>
                       setState(() => _pendingStartupAge = age),
                   onCompleteSetup: _completeParentSetup,

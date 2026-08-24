@@ -5,14 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'requires adult role, consent, profile, permissions and an audio source',
+    'finishes in three steps with phone microphone while H20 is optional',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       var privacyConsentGranted = false;
       var permissionsGranted = false;
       var limitedModeSelected = false;
-      var phoneSelected = false;
       int? selectedAge;
       var completed = false;
 
@@ -47,9 +46,6 @@ void main() {
                 setState(() => permissionsGranted = true);
               },
               onSetupH20: () async {},
-              onUsePhoneMicrophone: () async {
-                setState(() => phoneSelected = true);
-              },
               onAgeSelected: (age) => setState(() => selectedAge = age),
               onCompleteSetup: () async {
                 setState(() => completed = true);
@@ -78,31 +74,27 @@ void main() {
       await tester.tap(find.byKey(const Key('startup-next')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Cấp quyền trên thiết bị'), findsOneWidget);
+      expect(find.text('Cấp quyền và kết nối thiết bị'), findsOneWidget);
+      expect(find.text('Bước 3/3 • Dành cho phụ huynh'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const Key('startup-request-permissions')),
       );
       await tester.tap(find.byKey(const Key('startup-request-permissions')));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(const Key('startup-next')));
-      await tester.tap(find.byKey(const Key('startup-next')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Chọn cách trẻ tương tác'), findsOneWidget);
       final completeButton = find.byKey(const Key('startup-confirm-age'));
       await tester.ensureVisible(completeButton);
-      expect(tester.widget<FilledButton>(completeButton).onPressed, isNull);
-      await tester.ensureVisible(
-        find.byKey(const Key('startup-use-phone-mic')),
-      );
-      await tester.tap(find.byKey(const Key('startup-use-phone-mic')));
-      await tester.pump();
-      await tester.ensureVisible(completeButton);
       expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
+      expect(find.byKey(const Key('startup-use-phone-mic')), findsNothing);
+      expect(
+        find.text(
+          'HOMI sẽ tạm dùng micro điện thoại và tự chuyển sang H20 khi thiết bị sẵn sàng.',
+        ),
+        findsOneWidget,
+      );
       await tester.tap(completeButton);
 
       expect(selectedAge, 8);
-      expect(phoneSelected, isTrue);
       expect(completed, isTrue);
       expect(limitedModeSelected, isFalse);
     },
@@ -141,7 +133,6 @@ void main() {
             },
             onRetryPermissions: () {},
             onSetupH20: () async {},
-            onUsePhoneMicrophone: () async {},
             onAgeSelected: (value) => setState(() => age = value),
             onCompleteSetup: () async {
               setState(() => completed = true);
@@ -163,9 +154,7 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('startup-next')));
     await tester.tap(find.byKey(const Key('startup-next')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('startup-next')));
-    await tester.tap(find.byKey(const Key('startup-next')));
-    await tester.pumpAndSettle();
+    expect(find.text('Bước 3/3 • Dành cho phụ huynh'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('startup-confirm-age')));
     await tester.tap(find.byKey(const Key('startup-confirm-age')));
 
