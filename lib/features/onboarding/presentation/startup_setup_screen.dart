@@ -5,7 +5,6 @@ import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../listening/domain/listening_catalog.dart';
-import '../../privacy/presentation/parental_gate.dart';
 
 enum _ParentSetupStep { privacy, profile, permissions }
 
@@ -71,6 +70,8 @@ class StartupSetupScreen extends StatefulWidget {
 class _StartupSetupScreenState extends State<StartupSetupScreen> {
   _ParentSetupStep _step = _ParentSetupStep.privacy;
   late bool _adultRoleConfirmed;
+  late bool _legalReviewCompleted;
+  late bool _voiceDataAccepted;
   bool _h20SetupRequested = false;
   bool _choiceInProgress = false;
 
@@ -86,6 +87,8 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   void initState() {
     super.initState();
     _adultRoleConfirmed = widget.privacyConsentGranted;
+    _legalReviewCompleted = widget.privacyConsentGranted;
+    _voiceDataAccepted = widget.privacyConsentGranted;
   }
 
   @override
@@ -93,6 +96,8 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     super.didUpdateWidget(oldWidget);
     if (!oldWidget.privacyConsentGranted && widget.privacyConsentGranted) {
       _adultRoleConfirmed = true;
+      _legalReviewCompleted = true;
+      _voiceDataAccepted = true;
     }
   }
 
@@ -149,8 +154,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     return _SetupCard(
       icon: Icons.family_restroom_rounded,
       title: 'Khu vực thiết lập của phụ huynh',
-      subtitle:
-          'Điện thoại dùng để phụ huynh hoặc giáo viên cấu hình phiên học. Trẻ có thể tương tác bằng thiết bị H20 sau khi thiết lập xong.',
+      subtitle: 'Phụ huynh hoặc giáo viên thiết lập phiên học tại đây.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -164,52 +168,47 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                 : (value) =>
                       setState(() => _adultRoleConfirmed = value ?? false),
             title: const Text('Tôi là phụ huynh, người giám hộ hoặc giáo viên'),
-            subtitle: const Text(
-              'Tôi sẽ chọn nhóm tuổi, cấp quyền và quản lý thiết bị cho trẻ.',
+          ),
+          const Divider(height: 24),
+          TextButton.icon(
+            key: const Key('startup-review-legal'),
+            onPressed: _showLegalReview,
+            style: TextButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            ),
+            icon: Icon(
+              _legalReviewCompleted
+                  ? Icons.check_circle_rounded
+                  : Icons.description_outlined,
+              color: _legalReviewCompleted ? AppColors.success : null,
+            ),
+            label: Text(
+              _legalReviewCompleted
+                  ? 'Đã đọc Điều khoản và Chính sách quyền riêng tư'
+                  : 'Đọc Điều khoản và Chính sách quyền riêng tư',
+              style: const TextStyle(decoration: TextDecoration.underline),
             ),
           ),
-          const Divider(height: 28),
-          const _DisclosureItem(
-            icon: Icons.graphic_eq_rounded,
-            text:
-                'HOMI có thể xử lý giọng nói/audio, transcript, nhóm tuổi, lịch sử tương tác, mã cài đặt và chẩn đoán kỹ thuật để cung cấp bài học.',
-          ),
-          const SizedBox(height: 10),
-          _DisclosureItem(
-            icon: Icons.cloud_outlined,
-            text:
-                'Dữ liệu cần thiết có thể được gửi tới ${widget.aiSubprocessors} để nhận dạng, dịch, tạo phản hồi/giọng đọc và vận hành dịch vụ.',
-          ),
-          const SizedBox(height: 10),
-          _DisclosureItem(
-            icon: Icons.schedule_rounded,
-            text: widget.dataRetentionSummary,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _LegalButton(
-                icon: Icons.privacy_tip_outlined,
-                label: 'Privacy Policy',
-                onPressed: () => _openLegalPage(
-                  widget.privacyPolicyUri,
-                  'Chính sách quyền riêng tư',
-                ),
-              ),
-              _LegalButton(
-                icon: Icons.description_outlined,
-                label: 'Terms',
-                onPressed: () =>
-                    _openLegalPage(widget.termsUri, 'Điều khoản sử dụng'),
-              ),
-              _LegalButton(
-                icon: Icons.support_agent_rounded,
-                label: 'Support',
-                onPressed: () => _openLegalPage(widget.supportUri, 'Hỗ trợ'),
-              ),
-            ],
+          CheckboxListTile(
+            key: const Key('startup-accept-legal'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _voiceDataAccepted,
+            onChanged:
+                !_legalReviewCompleted ||
+                    widget.profileLoading ||
+                    widget.privacyConsentGranted
+                ? null
+                : (value) =>
+                      setState(() => _voiceDataAccepted = value ?? false),
+            title: const Text(
+              'Tôi đồng ý cho HOMI xử lý dữ liệu giọng nói cần thiết cho phiên học',
+            ),
+            subtitle: !_legalReviewCompleted
+                ? const Text('Đọc hết nội dung trên để mở lựa chọn này.')
+                : null,
           ),
           if (!widget.privacyConfigurationComplete) ...<Widget>[
             const SizedBox(height: 12),
@@ -230,6 +229,8 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               key: const Key('startup-grant-privacy-consent'),
               onPressed:
                   !_adultRoleConfirmed ||
+                      !_legalReviewCompleted ||
+                      !_voiceDataAccepted ||
                       widget.profileLoading ||
                       !widget.privacyConfigurationComplete
                   ? null
@@ -244,7 +245,10 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             const SizedBox(height: 8),
             TextButton.icon(
               key: const Key('startup-continue-without-voice'),
-              onPressed: !_adultRoleConfirmed || widget.profileLoading
+              onPressed:
+                  !_adultRoleConfirmed ||
+                      !_legalReviewCompleted ||
+                      widget.profileLoading
                   ? null
                   : _chooseLimitedMode,
               icon: const Icon(Icons.mic_off_outlined),
@@ -304,13 +308,12 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     final permissionsGranted =
         widget.microphoneGranted &&
         (!widget.bluetoothRequired || widget.bluetoothGranted);
-    final deviceName = widget.h20DeviceName?.trim();
     return _SetupCard(
       icon: Icons.bluetooth_audio_rounded,
       title: 'Cấp quyền và kết nối thiết bị',
       subtitle: widget.limitedModeSelected
           ? 'Chế độ không giọng nói không cần quyền micro hoặc Bluetooth.'
-          : 'HOMI ưu tiên H20 khi thiết bị sẵn sàng và tự dùng micro điện thoại khi chưa có H20.',
+          : 'HOMI ưu tiên thiết bị đã kết nối và dùng micro điện thoại khi chưa có thiết bị.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -332,7 +335,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               const SizedBox(height: 10),
               _PermissionRow(
                 icon: Icons.bluetooth_rounded,
-                label: 'Bluetooth / thiết bị ở gần',
+                label: 'Bluetooth',
                 granted: widget.bluetoothGranted,
                 waiting:
                     widget.profileLoading || widget.permissionRequestInProgress,
@@ -372,23 +375,19 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             _DeviceChoiceCard(
               key: const Key('startup-h20-choice'),
               icon: Icons.bluetooth_audio_rounded,
-              title: deviceName == null || deviceName.isEmpty
-                  ? 'Thiết bị H20 (tùy chọn)'
-                  : '$deviceName (tùy chọn)',
+              title: 'Kết nối thiết bị (tùy chọn)',
               description:
-                  'Bật H20 và Bluetooth để HOMI kiểm tra mic/loa HFP cùng nút MAIN qua BLE. Không cần H20 để hoàn tất thiết lập.',
+                  'Bật thiết bị và Bluetooth trên điện thoại, sau đó nhấn nút bên dưới. HOMI sẽ tự kiểm tra kết nối.',
               selected: _h20Ready,
               status: _h20Ready
-                  ? 'H20 đã sẵn sàng • HOMI sẽ ưu tiên mic và loa H20'
-                  : widget.h20HfpConfigured
-                  ? 'HFP đã sẵn sàng • đang chờ BLE'
-                  : widget.h20BleConnected
-                  ? 'BLE đã kết nối • HOMI sẽ tiếp tục kiểm tra HFP'
+                  ? 'Đã kết nối và sẵn sàng'
+                  : widget.h20HfpConfigured || widget.h20BleConnected
+                  ? 'Đang hoàn tất kết nối…'
                   : _h20SetupRequested
-                  ? 'Chưa thấy đủ kết nối • có thể hoàn tất bằng micro điện thoại'
-                  : 'Chưa kết nối • có thể thiết lập ngay hoặc để sau',
+                  ? 'Chưa kết nối • kiểm tra thiết bị đã bật và ở gần'
+                  : 'Chưa kết nối • có thể thực hiện ngay hoặc để sau',
               actionKey: const Key('startup-setup-h20'),
-              actionLabel: _h20Ready ? 'H20 đã kết nối' : 'Kết nối H20',
+              actionLabel: _h20Ready ? 'Đã kết nối' : 'Kết nối thiết bị',
               busy: _choiceInProgress,
               onPressed: _choiceInProgress || _h20Ready ? null : _setupH20,
             ),
@@ -397,7 +396,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               const _InfoBox(
                 icon: Icons.phone_iphone_rounded,
                 text:
-                    'HOMI sẽ tạm dùng micro điện thoại và tự chuyển sang H20 khi thiết bị sẵn sàng.',
+                    'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
               ),
             ],
           ],
@@ -467,6 +466,32 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     }
   }
 
+  Future<void> _showLegalReview() async {
+    final reviewed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      enableDrag: false,
+      builder: (context) => _LegalReviewSheet(
+        aiSubprocessors: widget.aiSubprocessors,
+        dataRetentionSummary: widget.dataRetentionSummary,
+        privacyPolicyUri: widget.privacyPolicyUri,
+        termsUri: widget.termsUri,
+        supportUri: widget.supportUri,
+        onOpenPrivacyPolicy: () => _openLegalPage(
+          widget.privacyPolicyUri,
+          'Chính sách quyền riêng tư',
+        ),
+        onOpenTerms: () =>
+            _openLegalPage(widget.termsUri, 'Điều khoản sử dụng'),
+        onOpenSupport: () => _openLegalPage(widget.supportUri, 'Hỗ trợ'),
+      ),
+    );
+    if (reviewed == true && mounted) {
+      setState(() => _legalReviewCompleted = true);
+    }
+  }
+
   Future<void> _openLegalPage(Uri? uri, String label) async {
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -474,13 +499,295 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
       );
       return;
     }
-    if (!await showParentalGate(context) || !mounted) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
         mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Không thể mở $label.')));
     }
+  }
+}
+
+class _LegalReviewSheet extends StatefulWidget {
+  const _LegalReviewSheet({
+    required this.aiSubprocessors,
+    required this.dataRetentionSummary,
+    required this.privacyPolicyUri,
+    required this.termsUri,
+    required this.supportUri,
+    required this.onOpenPrivacyPolicy,
+    required this.onOpenTerms,
+    required this.onOpenSupport,
+  });
+
+  final String aiSubprocessors;
+  final String dataRetentionSummary;
+  final Uri? privacyPolicyUri;
+  final Uri? termsUri;
+  final Uri? supportUri;
+  final VoidCallback onOpenPrivacyPolicy;
+  final VoidCallback onOpenTerms;
+  final VoidCallback onOpenSupport;
+
+  @override
+  State<_LegalReviewSheet> createState() => _LegalReviewSheetState();
+}
+
+class _LegalReviewSheetState extends State<_LegalReviewSheet> {
+  final ScrollController _scrollController = ScrollController();
+  bool _reachedEnd = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateReachedEnd);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateReachedEnd());
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_updateReachedEnd)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _updateReachedEnd() {
+    if (!_scrollController.hasClients || _reachedEnd) return;
+    final position = _scrollController.position;
+    if (position.maxScrollExtent <= 0 || position.extentAfter <= 20) {
+      setState(() => _reachedEnd = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final height = MediaQuery.sizeOf(context).height * 0.9;
+    return SizedBox(
+      height: height,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 8, 8),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    'Điều khoản và quyền riêng tư',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: AppColors.indigoDark,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const Key('startup-close-legal'),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  tooltip: 'Đóng',
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                key: const Key('startup-legal-scroll'),
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Thông tin phụ huynh cần biết',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'HOMI chỉ bắt đầu xử lý dữ liệu giọng nói sau khi phụ huynh chủ động đồng ý và cấp quyền micro.',
+                    ),
+                    const SizedBox(height: 20),
+                    const _LegalSection(
+                      icon: Icons.graphic_eq_rounded,
+                      title: 'Dữ liệu được xử lý',
+                      text:
+                          'Giọng nói/audio khi dùng tính năng nói; nội dung đã nhận dạng; nhóm tuổi đã chọn; lịch sử tương tác; mã cài đặt và chẩn đoán kỹ thuật cần thiết để vận hành bài học.',
+                    ),
+                    const SizedBox(height: 18),
+                    const _LegalSection(
+                      icon: Icons.school_outlined,
+                      title: 'Mục đích sử dụng',
+                      text:
+                          'Nhận dạng lời nói, dịch nội dung, tạo phản hồi và giọng đọc, lưu tiến trình học, khắc phục lỗi và bảo vệ dịch vụ.',
+                    ),
+                    const SizedBox(height: 18),
+                    _LegalSection(
+                      icon: Icons.cloud_outlined,
+                      title: 'Nơi dữ liệu được gửi tới',
+                      text:
+                          'Dữ liệu cần thiết có thể được gửi tới ${widget.aiSubprocessors} để cung cấp và vận hành các tính năng đã mô tả ở trên.',
+                    ),
+                    const SizedBox(height: 18),
+                    _LegalSection(
+                      icon: Icons.schedule_rounded,
+                      title: 'Lưu trữ, xóa và rút lại chấp thuận',
+                      text:
+                          '${widget.dataRetentionSummary} Phụ huynh có thể rút lại chấp thuận hoặc yêu cầu xóa dữ liệu trong phần Cài đặt/Hỗ trợ.',
+                    ),
+                    const SizedBox(height: 18),
+                    const _LegalSection(
+                      icon: Icons.mic_off_outlined,
+                      title: 'Quyền lựa chọn',
+                      text:
+                          'Có thể tiếp tục ở chế độ không dùng giọng nói. Khi đó HOMI không yêu cầu quyền micro và các tính năng cần nói sẽ không hoạt động.',
+                    ),
+                    const SizedBox(height: 22),
+                    Text('Tài liệu đầy đủ', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    _LegalDocumentLink(
+                      key: const Key('startup-open-privacy-policy'),
+                      label: 'Chính sách quyền riêng tư',
+                      available: widget.privacyPolicyUri != null,
+                      onPressed: widget.onOpenPrivacyPolicy,
+                    ),
+                    _LegalDocumentLink(
+                      key: const Key('startup-open-terms'),
+                      label: 'Điều khoản sử dụng',
+                      available: widget.termsUri != null,
+                      onPressed: widget.onOpenTerms,
+                    ),
+                    _LegalDocumentLink(
+                      key: const Key('startup-open-support'),
+                      label: 'Hỗ trợ và yêu cầu xóa dữ liệu',
+                      available: widget.supportUri != null,
+                      onPressed: widget.onOpenSupport,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Bằng việc tiếp tục, phụ huynh xác nhận đã hiểu nội dung trên. Việc đồng ý xử lý dữ liệu giọng nói vẫn được thực hiện bằng một lựa chọn riêng ở màn hình trước.',
+                    ),
+                    const SizedBox(
+                      key: Key('startup-legal-end-marker'),
+                      height: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    if (!_reachedEnd)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Cuộn đến cuối nội dung để xác nhận đã đọc.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    FilledButton.icon(
+                      key: const Key('startup-legal-reviewed'),
+                      onPressed: _reachedEnd
+                          ? () => Navigator.of(context).pop(true)
+                          : null,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                      icon: const Icon(Icons.check_circle_outline_rounded),
+                      label: Text(
+                        _reachedEnd ? 'Tôi đã đọc hết' : 'Đọc hết để tiếp tục',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegalSection extends StatelessWidget {
+  const _LegalSection({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Icon(icon, size: 23, color: AppColors.indigo),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(title, style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
+              Text(text),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LegalDocumentLink extends StatelessWidget {
+  const _LegalDocumentLink({
+    required this.label,
+    required this.available,
+    required this.onPressed,
+    super.key,
+  });
+
+  final String label;
+  final bool available;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        minimumSize: const Size.fromHeight(48),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+      ),
+      child: Text(
+        available ? label : '$label (chưa cấu hình)',
+        style: const TextStyle(decoration: TextDecoration.underline),
+      ),
+    );
   }
 }
 
@@ -722,24 +1029,6 @@ class _DeviceChoiceCard extends StatelessWidget {
   }
 }
 
-class _DisclosureItem extends StatelessWidget {
-  const _DisclosureItem({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Icon(icon, size: 21, color: AppColors.indigo),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text)),
-      ],
-    );
-  }
-}
-
 class _PermissionRow extends StatelessWidget {
   const _PermissionRow({
     required this.icon,
@@ -862,26 +1151,6 @@ class _GrantedBanner extends StatelessWidget {
           Expanded(child: Text(text)),
         ],
       ),
-    );
-  }
-}
-
-class _LegalButton extends StatelessWidget {
-  const _LegalButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
     );
   }
 }

@@ -63,6 +63,17 @@ void main() {
       await tester.tap(find.byKey(const Key('startup-confirm-adult-role')));
       await tester.pump();
       await tester.ensureVisible(consentButton);
+      expect(tester.widget<FilledButton>(consentButton).onPressed, isNull);
+
+      await _completeLegalReview(tester);
+      final legalCheckbox = find.byKey(const Key('startup-accept-legal'));
+      expect(
+        tester.widget<CheckboxListTile>(legalCheckbox).onChanged,
+        isNotNull,
+      );
+      await tester.tap(legalCheckbox);
+      await tester.pump();
+      await tester.ensureVisible(consentButton);
       expect(tester.widget<FilledButton>(consentButton).onPressed, isNotNull);
       await tester.tap(consentButton);
       await tester.pumpAndSettle();
@@ -76,6 +87,10 @@ void main() {
 
       expect(find.text('Cấp quyền và kết nối thiết bị'), findsOneWidget);
       expect(find.text('Bước 3/3 • Dành cho phụ huynh'), findsOneWidget);
+      expect(find.text('Kết nối thiết bị (tùy chọn)'), findsOneWidget);
+      expect(find.textContaining('H20'), findsNothing);
+      expect(find.textContaining('BLE'), findsNothing);
+      expect(find.textContaining('HFP'), findsNothing);
       await tester.ensureVisible(
         find.byKey(const Key('startup-request-permissions')),
       );
@@ -88,7 +103,7 @@ void main() {
       expect(find.byKey(const Key('startup-use-phone-mic')), findsNothing);
       expect(
         find.text(
-          'HOMI sẽ tạm dùng micro điện thoại và tự chuyển sang H20 khi thiết bị sẵn sàng.',
+          'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
         ),
         findsOneWidget,
       );
@@ -144,6 +159,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('startup-confirm-adult-role')));
     await tester.pump();
+    await _completeLegalReview(tester);
     await tester.ensureVisible(
       find.byKey(const Key('startup-continue-without-voice')),
     );
@@ -162,4 +178,90 @@ void main() {
     expect(age, 6);
     expect(completed, isTrue);
   });
+
+  testWidgets('closing legal review early does not unlock voice consent', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: StartupSetupScreen(
+          profileLoading: false,
+          permissionRequestInProgress: false,
+          privacyConfigurationComplete: true,
+          privacyConsentGranted: false,
+          limitedModeSelected: false,
+          microphoneGranted: false,
+          bluetoothRequired: true,
+          bluetoothGranted: false,
+          h20BleConnected: false,
+          h20HfpConfigured: false,
+          selectedAge: null,
+          aiSubprocessors: 'Railway và Cloudflare',
+          dataRetentionSummary: 'Theo chính sách công khai.',
+          privacyPolicyUri: Uri.parse('https://example.com/privacy'),
+          termsUri: Uri.parse('https://example.com/terms'),
+          supportUri: Uri.parse('https://example.com/support'),
+          onGrantPrivacyConsent: () async {},
+          onContinueWithoutVoice: () async {},
+          onRetryPermissions: () {},
+          onSetupH20: () async {},
+          onAgeSelected: (_) {},
+          onCompleteSetup: () async {},
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('startup-review-legal')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('startup-legal-reviewed')))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byKey(const Key('startup-close-legal')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const Key('startup-accept-legal')),
+          )
+          .onChanged,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const Key('startup-grant-privacy-consent')),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+}
+
+Future<void> _completeLegalReview(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('startup-review-legal')));
+  await tester.pumpAndSettle();
+
+  final reviewedButton = find.byKey(const Key('startup-legal-reviewed'));
+  expect(tester.widget<FilledButton>(reviewedButton).onPressed, isNull);
+
+  for (var attempt = 0; attempt < 6; attempt += 1) {
+    if (tester.widget<FilledButton>(reviewedButton).onPressed != null) break;
+    await tester.drag(
+      find.byKey(const Key('startup-legal-scroll')),
+      const Offset(0, -480),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  expect(tester.widget<FilledButton>(reviewedButton).onPressed, isNotNull);
+  await tester.tap(reviewedButton);
+  await tester.pumpAndSettle();
 }
