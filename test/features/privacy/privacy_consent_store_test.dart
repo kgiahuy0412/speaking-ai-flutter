@@ -9,6 +9,17 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
+  test(
+    'requires renewed consent after raw-audio retention disclosure',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'homi.parental-privacy-consent.version': 1,
+      });
+
+      expect(await const PrivacyConsentStore().readGranted(), isFalse);
+    },
+  );
+
   test('persists limited mode without granting voice-data consent', () async {
     const store = PrivacyConsentStore();
 

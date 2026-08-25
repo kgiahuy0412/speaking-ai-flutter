@@ -204,7 +204,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                 : (value) =>
                       setState(() => _voiceDataAccepted = value ?? false),
             title: const Text(
-              'Tôi đồng ý cho HOMI xử lý dữ liệu giọng nói cần thiết cho phiên học',
+              'Tôi đồng ý cho HOMI xử lý, gửi và lưu bản ghi giọng nói cùng transcript cần thiết cho phiên học',
             ),
             subtitle: !_legalReviewCompleted
                 ? const Text('Đọc hết nội dung trên để mở lựa chọn này.')
@@ -220,7 +220,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
           const SizedBox(height: 18),
           if (widget.privacyConsentGranted)
             const _GrantedBanner(
-              text: 'Phụ huynh đã đồng ý cho xử lý dữ liệu giọng nói.',
+              text: 'Phụ huynh đã đồng ý xử lý, gửi và lưu dữ liệu giọng nói.',
             )
           else if (widget.limitedModeSelected)
             const _GrantedBanner(text: 'Đã chọn chế độ không dùng giọng nói.')
@@ -608,7 +608,7 @@ class _LegalReviewSheetState extends State<_LegalReviewSheet> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'HOMI chỉ bắt đầu xử lý dữ liệu giọng nói sau khi phụ huynh chủ động đồng ý và cấp quyền micro.',
+                      'HOMI chỉ bắt đầu thu, xử lý, gửi và lưu dữ liệu giọng nói sau khi phụ huynh chủ động đồng ý và cấp quyền micro.',
                     ),
                     const SizedBox(height: 20),
                     const _LegalSection(
@@ -622,7 +622,7 @@ class _LegalReviewSheetState extends State<_LegalReviewSheet> {
                       icon: Icons.school_outlined,
                       title: 'Mục đích sử dụng',
                       text:
-                          'Nhận dạng lời nói, dịch nội dung, tạo phản hồi và giọng đọc, lưu tiến trình học, khắc phục lỗi và bảo vệ dịch vụ.',
+                          'Nhận dạng lời nói, dịch nội dung, tạo phản hồi và giọng đọc, lưu bản ghi/lịch sử để phụ huynh xem lại, lưu tiến trình học, khắc phục lỗi và bảo vệ dịch vụ.',
                     ),
                     const SizedBox(height: 18),
                     _LegalSection(

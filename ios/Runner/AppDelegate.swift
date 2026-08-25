@@ -6,6 +6,7 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var platformChannel: FlutterMethodChannel?
   private let clientIdentityStore = IOSClientIdentityStore()
+  private let installationCredentialStore = IOSInstallationCredentialStore()
   private var aiv0BleControlBridge: Aiv0BleControlBridge?
   private var hfpAudioBridge: HfpAudioBridge?
   private var voicePromptBridge: VoicePromptBridge?
@@ -51,12 +52,28 @@ import UIKit
       name: "ailingo_platform",
       binaryMessenger: messenger
     )
-    channel.setMethodCallHandler { [clientIdentityStore] call, result in
+    channel.setMethodCallHandler { [clientIdentityStore, installationCredentialStore] call, result in
       switch call.method {
       case "device.clientId":
         result(clientIdentityStore.getOrCreate())
       case "device.resetClientId":
         result(clientIdentityStore.reset())
+      case "auth.credentials.read":
+        result(installationCredentialStore.read())
+      case "auth.credentials.write":
+        guard let encoded = call.arguments as? String, !encoded.isEmpty else {
+          result(
+            FlutterError(
+              code: "invalid_credentials",
+              message: "Installation credential không hợp lệ.",
+              details: nil
+            )
+          )
+          return
+        }
+        result(installationCredentialStore.write(encoded))
+      case "auth.credentials.clear":
+        result(installationCredentialStore.clear())
       case "ble.isSupported":
         result(true)
       case "device.protocolInfo":
@@ -77,6 +94,46 @@ import UIKit
       }
     }
     platformChannel = channel
+  }
+}
+
+private final class IOSInstallationCredentialStore {
+  private let account = "installation.credentials.v1"
+
+  func read() -> String? {
+    let query = key.merging([
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]) { _, new in new }
+    var item: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+      let data = item as? Data
+    else {
+      return nil
+    }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func write(_ value: String) -> Bool {
+    SecItemDelete(key as CFDictionary)
+    var item = key
+    item[kSecValueData as String] = Data(value.utf8)
+    item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+  }
+
+  func clear() -> Bool {
+    let status = SecItemDelete(key as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
+  }
+
+  private var key: [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String:
+        "\(Bundle.main.bundleIdentifier ?? "com.innotrik.aispeaking").installation-auth",
+      kSecAttrAccount as String: account,
+    ]
   }
 }
 

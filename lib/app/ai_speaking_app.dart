@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
+import '../core/auth/installation_auth_session.dart';
 import '../core/audio/audio_playback_service.dart';
 import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
@@ -376,6 +377,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (controller != null) {
       await controller.clearHistory();
     }
+    if (!_config.useDemoBackend) {
+      await InstallationAuthRegistry.revoke(
+        config: _config,
+        clientIdProvider: _clientIdentity.getClientId,
+      );
+    }
     await _privacyConsentStore.revoke();
     await _childAgeStore.clear();
     await _parentSetupProgressStore.clear();
@@ -535,6 +542,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         : NextConversationRepository(
             config: _config,
             clientIdProvider: _clientIdentity.getClientId,
+            clientIdResetter: _clientIdentity.resetClientId,
           );
     final deviceAudioCache = DeviceAudioCache();
     final supportsAndroidNativeSpeech =
@@ -640,6 +648,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       initialAsrMode: supportsNativeSpeech
           ? AsrMode.androidStreaming
           : AsrMode.batchChunks,
+      // Android SpeechRecognizer does not guarantee onBufferReceived(), so a
+      // successful transcript can otherwise have no audio file to archive.
+      // Record the turn once with HOMI's recorder, then feed that same WAV to
+      // Android SpeechRecognizer and archive it after the response succeeds.
+      // This remains Android-only; successful Apple Native Speech turns do not
+      // upload raw audio.
+      recordAndroidAudioForArchive: supportsAndroidNativeSpeech,
       voiceDataProcessingAllowed: () => _voiceAccessEnabled,
       beforeRecordingStart: voiceNavigationController?.pause,
       recognizedSpeechCommandMatcher: _matchesMainSpeakingCommand,

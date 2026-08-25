@@ -7,7 +7,10 @@ const _limitedModeKey = 'homi.parental-privacy-consent.limited-mode';
 class PrivacyConsentStore {
   const PrivacyConsentStore();
 
-  static const int currentVersion = 1;
+  // Version 2 explicitly covers transmitting and retaining the child's raw
+  // voice recording in the parent-visible history. Existing version-1 grants
+  // must be confirmed again because this is a material processing change.
+  static const int currentVersion = 2;
 
   Future<bool> readGranted() async {
     try {

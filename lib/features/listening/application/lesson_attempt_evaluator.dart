@@ -5,15 +5,45 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
+import '../../../core/auth/installation_authenticated_client.dart';
+import '../../../core/device/client_identity.dart';
 import '../../../core/network/multipart_audio_file.dart';
 import '../domain/lesson_guide_flow.dart';
 
 class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
-  BackendLessonAttemptEvaluator({AppConfig? config, http.Client? client})
-    : _config = config ?? AppConfig.fromEnvironment(),
-      _client = client ?? http.Client();
+  factory BackendLessonAttemptEvaluator({
+    AppConfig? config,
+    http.Client? client,
+    Future<String> Function()? clientIdProvider,
+  }) {
+    final resolvedConfig = config ?? AppConfig.fromEnvironment();
+    final resolvedClientIdProvider =
+        clientIdProvider ??
+        (client == null
+            ? ClientIdentity().getClientId
+            : () async => 'android_test-installation');
+    return BackendLessonAttemptEvaluator._(
+      config: resolvedConfig,
+      clientIdProvider: resolvedClientIdProvider,
+      client:
+          client ??
+          InstallationAuthenticatedClient(
+            config: resolvedConfig,
+            clientIdProvider: resolvedClientIdProvider,
+          ),
+    );
+  }
+
+  BackendLessonAttemptEvaluator._({
+    required AppConfig config,
+    required Future<String> Function() clientIdProvider,
+    required http.Client client,
+  }) : _config = config,
+       _clientIdProvider = clientIdProvider,
+       _client = client;
 
   final AppConfig _config;
+  final Future<String> Function() _clientIdProvider;
   final http.Client _client;
 
   @override
@@ -26,6 +56,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required int attemptNumber,
     required int childAge,
   }) async {
+    final clientId = await _clientIdProvider();
     Uint8List? webBytes;
     if (recordingPath.startsWith('blob:')) {
       final blobResponse = await _get(Uri.parse(recordingPath));
@@ -45,6 +76,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
       recordingDuration: recordingDuration,
       attemptNumber: attemptNumber,
       childAge: childAge,
+      clientId: clientId,
       webBytes: webBytes,
     );
 
@@ -55,6 +87,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
       return _evaluateWithAudioTranslationFallback(
         expectedEnglish: expectedEnglish,
         recordingPath: recordingPath,
+        clientId: clientId,
         webBytes: webBytes,
       );
     }
@@ -70,6 +103,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    required String clientId,
     required Uint8List? webBytes,
   }) async {
     final extension = recordingPath.startsWith('blob:') ? 'webm' : 'm4a';
@@ -83,6 +117,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
           ..fields['sentenceId'] = sentenceId
           ..fields['attemptNumber'] = '$attemptNumber'
           ..fields['childAge'] = '$childAge'
+          ..fields['clientId'] = clientId
           ..fields['recordingDurationMs'] =
               '${recordingDuration.inMilliseconds}';
     request.files.add(
@@ -139,13 +174,14 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
   Future<LessonAttemptOutcome> _evaluateWithAudioTranslationFallback({
     required String expectedEnglish,
     required String recordingPath,
+    required String clientId,
     required Uint8List? webBytes,
   }) async {
     final extension = recordingPath.startsWith('blob:') ? 'webm' : 'm4a';
-    final request = http.MultipartRequest(
-      'POST',
-      _config.resolve('/api/audio/translate'),
-    )..fields['sourceLanguage'] = 'en';
+    final request =
+        http.MultipartRequest('POST', _config.resolve('/api/audio/translate'))
+          ..fields['sourceLanguage'] = 'en'
+          ..fields['clientId'] = clientId;
     request.files.add(
       await createAudioMultipartFile(
         field: 'audio',

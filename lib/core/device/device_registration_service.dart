@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../config/app_config.dart';
+import '../auth/installation_authenticated_client.dart';
 import 'android_device_hardware.dart';
 
 typedef ClientIdProvider = Future<String> Function();
@@ -17,7 +18,12 @@ class DeviceRegistrationService {
   }) : _config = config,
        _clientIdProvider = clientIdProvider,
        _hardwareProvider = hardwareProvider,
-       _client = client ?? http.Client(),
+       _client =
+           client ??
+           InstallationAuthenticatedClient(
+             config: config,
+             clientIdProvider: clientIdProvider,
+           ),
        _ownsClient = client == null;
 
   final AppConfig _config;

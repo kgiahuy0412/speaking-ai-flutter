@@ -1528,10 +1528,10 @@ class ConversationController extends ChangeNotifier {
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
           }
-          // Live translation stays on the native platform recognizer so partial
-          // recognition overlaps the child's speech. Android's recorded-audio
-          // compatibility mode remains deliberately off in production because
-          // it adds a full post-recording ASR stage.
+          // Android can optionally record the turn once with HOMI's recorder,
+          // then feed the same WAV to SpeechRecognizer. This avoids competing
+          // microphone consumers and guarantees an archive file, at the cost
+          // of starting recognition after the child finishes speaking.
           final recordedAudioRecognizer =
               _recordAndroidAudioForArchive &&
                   _streamingSpeechInput is RecordedAudioStreamingSpeechInput

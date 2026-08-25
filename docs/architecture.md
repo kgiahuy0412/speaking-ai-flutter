@@ -87,15 +87,24 @@ Controller chỉ biết interface, nên thay nguồn âm thanh không làm thay 
 - Base URL truyền bằng `--dart-define`; đây là cấu hình, không phải secret.
 - Release manifest chặn HTTP cleartext.
 - Keystore, mật khẩu ký và file cấu hình riêng bị loại khỏi Git.
-- Backend production cần auth theo thiết bị/người dùng trước khi public.
+- Mỗi installation có secret ngẫu nhiên và cặp access/refresh token xoay vòng;
+  `clientId` chỉ còn là tham chiếu dữ liệu, không còn là bằng chứng sở hữu.
+- iOS lưu credential trong Keychain, Android mã hóa bằng Android Keystore và
+  web lưu credential riêng theo origin. Scoped audio token luôn gắn với
+  installation đã tạo phiên.
+- Khi deploy phải cấu hình `INSTALLATION_AUTH_SECRET`; chỉ bật
+  `INSTALLATION_AUTH_REQUIRED=true` sau khi bản iOS/Android có token đã được
+  phân phối và kiểm thử.
 
 ## Những việc backend phải harden trước production
 
-Backend hiện đủ cho MVP local, nhưng cần các thay đổi sau khi deploy:
+Backend đã có installation authentication và scope history/audio theo token.
+Các hạng mục production còn lại:
 
-1. Xác thực và giới hạn rate theo thiết bị/người dùng.
-2. History/report phải scope theo account, không dùng dữ liệu global.
-3. Audio session/chunk cần TTL cleanup và finalize idempotent.
+1. Theo dõi rate limit trên storage dùng chung nếu tăng lên nhiều replica.
+2. Report/admin tiếp tục chỉ cho phép admin; history của app đã scope theo
+   installation token.
+3. Duy trì cleanup TTL cho audio session/chunk và giám sát finalize idempotent.
 4. Audio/history/cache cần storage bền vững; không dựa vào local filesystem nếu
    chạy serverless.
 5. Log phải bỏ nội dung nhạy cảm của trẻ và có retention policy.

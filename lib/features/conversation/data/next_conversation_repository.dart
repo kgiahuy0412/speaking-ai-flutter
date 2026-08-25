@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
+import '../../../core/auth/installation_authenticated_client.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/pcm16_speech_trimmer.dart';
@@ -28,9 +29,16 @@ class NextConversationRepository
   NextConversationRepository({
     required AppConfig config,
     required Future<String> Function() clientIdProvider,
+    Future<void> Function()? clientIdResetter,
     http.Client? client,
   }) : _config = config,
-       _client = client ?? http.Client(),
+       _client =
+           client ??
+           InstallationAuthenticatedClient(
+             config: config,
+             clientIdProvider: clientIdProvider,
+             clientIdResetter: clientIdResetter,
+           ),
        _ownsClient = client == null,
        _clientIdProvider = clientIdProvider;
 
@@ -558,11 +566,13 @@ class NextConversationRepository
   Future<_AudioSessionDescriptor> _createAudioSession({
     String encoding = 'pcm_s16le',
   }) async {
+    final clientId = await _clientId;
     final response = await _client
         .post(
           _config.resolve('/api/audio-sessions'),
           headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
             'protocolVersion': 2,
             'audio': <String, dynamic>{
               'encoding': encoding,
