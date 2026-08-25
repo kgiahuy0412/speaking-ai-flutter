@@ -214,6 +214,7 @@ class ConversationHistoryItem {
     this.learningReason,
     this.learningUseCount,
     this.audioUri,
+    this.hasUserAudio = false,
     this.context = PracticeContext.home,
     this.processingMode = 'unknown',
     this.textSource = 'unknown',
@@ -251,6 +252,7 @@ class ConversationHistoryItem {
       audioUri: rawAudioUrl == null
           ? null
           : backendBaseUri?.resolve(rawAudioUrl) ?? Uri.tryParse(rawAudioUrl),
+      hasUserAudio: json['hasUserAudio'] as bool? ?? false,
       context: PracticeContext.values.firstWhere(
         (item) => item.apiValue == json['context'],
         orElse: () => PracticeContext.home,
@@ -276,6 +278,7 @@ class ConversationHistoryItem {
   final String? learningReason;
   final int? learningUseCount;
   final Uri? audioUri;
+  final bool hasUserAudio;
   final PracticeContext context;
   final String processingMode;
   final String textSource;
@@ -310,6 +313,7 @@ class ConversationHistoryItem {
           : 'negative_feedback',
       learningUseCount: learning?.useCount ?? learningUseCount,
       audioUri: audioUri,
+      hasUserAudio: hasUserAudio,
       context: context,
       processingMode: processingMode,
       textSource: textSource,

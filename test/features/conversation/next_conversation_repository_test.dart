@@ -2536,6 +2536,7 @@ void main() {
                 'promotedToRule': false,
                 'learningStatus': 'observing',
                 'learningUseCount': 2,
+                'hasUserAudio': true,
                 'processingMode': 'rule',
                 'textSource': 'phrase_rule',
                 'audioSource': 'cache',
@@ -2567,6 +2568,37 @@ void main() {
     expect(items.single.latency.timeToFirstAudioMs, 1400);
     expect(items.single.learningStatus, 'observing');
     expect(items.single.learningUseCount, 2);
+    expect(items.single.hasUserAudio, true);
+    await repository.dispose();
+  });
+
+  test('requests a short-lived authenticated user-audio URL', () async {
+    final repository = NextConversationRepository(
+      config: config,
+      clientIdProvider: clientIdProvider,
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/api/conversations/conv_audio_1/user-audio');
+        expect(request.url.queryParameters['clientId'], 'android_test_device');
+        return http.Response(
+          jsonEncode(<String, dynamic>{
+            'conversationId': 'conv_audio_1',
+            'audioUrl':
+                'https://api.cloudinary.com/v1_1/demo/video/download?signed=1',
+            'expiresInSeconds': 60,
+          }),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    final audioUri = await repository.fetchUserAudioPlaybackUri('conv_audio_1');
+
+    expect(
+      audioUri,
+      Uri.parse('https://api.cloudinary.com/v1_1/demo/video/download?signed=1'),
+    );
     await repository.dispose();
   });
 

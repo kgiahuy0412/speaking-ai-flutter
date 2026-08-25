@@ -3061,6 +3061,21 @@ class ConversationController extends ChangeNotifier {
     await _playbackService.play(audioUri);
   }
 
+  Future<void> playHistoryUserAudio(ConversationHistoryItem item) async {
+    if (!item.hasUserAudio) {
+      throw StateError('Bản ghi âm này không còn được lưu trên máy chủ.');
+    }
+    final repository = _repository;
+    if (repository is! UserAudioHistoryPlaybackRepository) {
+      throw StateError('Phiên bản này chưa hỗ trợ nghe lại bản ghi âm.');
+    }
+    final playbackRepository = repository as UserAudioHistoryPlaybackRepository;
+    final audioUri = await playbackRepository.fetchUserAudioPlaybackUri(
+      item.conversationId,
+    );
+    await _playbackService.play(audioUri);
+  }
+
   Future<ConversationLearningOutcome> reviewHistoryItem(
     ConversationHistoryItem item,
     bool approved,

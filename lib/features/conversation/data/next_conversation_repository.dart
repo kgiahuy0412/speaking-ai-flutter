@@ -23,6 +23,7 @@ class NextConversationRepository
     implements
         ConversationRepository,
         UserAudioArchiveRepository,
+        UserAudioHistoryPlaybackRepository,
         ChunkedConversationRepository,
         RealtimeConversationRepository,
         OfflineIntentCatalogRepository {
@@ -1081,6 +1082,28 @@ class NextConversationRepository
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<Uri> fetchUserAudioPlaybackUri(String conversationId) async {
+    final clientId = await _clientId;
+    final uri = _config
+        .resolve(
+          '/api/conversations/${Uri.encodeComponent(conversationId)}/user-audio',
+        )
+        .replace(queryParameters: <String, String>{'clientId': clientId});
+    final response = await _client
+        .get(uri)
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeResponse(response);
+    final rawAudioUrl = json['audioUrl'];
+    if (rawAudioUrl is! String || rawAudioUrl.trim().isEmpty) {
+      throw const ConversationApiException(
+        'Backend không trả về đường dẫn bản ghi âm.',
+        errorCode: 'USER_AUDIO_URL_MISSING',
+      );
+    }
+    return _config.backendBaseUri.resolve(rawAudioUrl);
   }
 
   @override

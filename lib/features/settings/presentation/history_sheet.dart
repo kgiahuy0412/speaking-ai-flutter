@@ -101,6 +101,10 @@ class _HistorySheetState extends State<HistorySheet> {
       760.0,
     );
     final visibleItems = _visibleItems;
+    final recentUserAudioItems = _items
+        .where((item) => item.hasUserAudio)
+        .take(3)
+        .toList(growable: false);
 
     return DisplayLanguageScope(
       language: widget.controller.displayLanguage,
@@ -173,6 +177,46 @@ class _HistorySheetState extends State<HistorySheet> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  if (!_loading && recentUserAudioItems.isNotEmpty) ...<Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        context.tr('3 bản ghi âm gần nhất', '最近 3 条录音'),
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: recentUserAudioItems
+                            .map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: OutlinedButton.icon(
+                                  key: ValueKey<String>(
+                                    'user-audio-${item.conversationId}',
+                                  ),
+                                  onPressed:
+                                      _busyItems.contains(item.conversationId)
+                                      ? null
+                                      : () => _playUserAudioItem(item),
+                                  icon: const Icon(
+                                    Icons.graphic_eq_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    '${_formatTime(item.createdAt)} · ${item.vietnameseText}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Expanded(
                     child: _HistoryBody(
                       loading: _loading,
@@ -202,6 +246,22 @@ class _HistorySheetState extends State<HistorySheet> {
     setState(() => _busyItems.add(item.conversationId));
     try {
       await widget.controller.playHistoryItem(item);
+    } catch (error) {
+      _showMessage(_friendlyError(error), isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _busyItems.remove(item.conversationId));
+      }
+    }
+  }
+
+  Future<void> _playUserAudioItem(ConversationHistoryItem item) async {
+    if (_busyItems.contains(item.conversationId)) {
+      return;
+    }
+    setState(() => _busyItems.add(item.conversationId));
+    try {
+      await widget.controller.playHistoryUserAudio(item);
     } catch (error) {
       _showMessage(_friendlyError(error), isError: true);
     } finally {

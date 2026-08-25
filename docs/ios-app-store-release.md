@@ -35,8 +35,8 @@
    - `PRIVACY_POLICY_URL=https://homi-app-privacy.lixiang22.chatgpt.site/privacy`
    - `TERMS_URL=https://homi-app-privacy.lixiang22.chatgpt.site/terms`
    - `SUPPORT_URL=https://homi-app-privacy.lixiang22.chatgpt.site/support`
-   - `AI_SUBPROCESSORS=HOMI backend trên Railway và Cloudflare`
-   - `DATA_RETENTION_SUMMARY=Audio nhận dạng on-device chỉ giữ trong phiên và không tải lên backend. Audio chỉ gửi khi Cloudflare/Batch dự phòng cần thiết. Transcript, lịch sử tương tác và chẩn đoán hiện được lưu đến khi phụ huynh rút chấp thuận/yêu cầu xóa; thời hạn tự động cụ thể đang được hoàn thiện trước phát hành công khai.`
+   - `AI_SUBPROCESSORS=HOMI backend trên Railway, Cloudflare và Cloudinary`
+   - `DATA_RETENTION_SUMMARY=HOMI chỉ hiển thị tối đa 3 audio gần nhất trong Lịch sử gần đây. Audio người dùng được lưu tối đa 30 ngày; transcript và lịch sử tương tác tối đa 180 ngày; chẩn đoán kỹ thuật tối đa 30 ngày. Phụ huynh có thể xóa riêng hoặc rút chấp thuận để xóa ngay toàn bộ dữ liệu liên quan.`
 7. Run the `ios-app-store` workflow manually. It fetches the matching App Store
    signing assets, builds a signed IPA and uploads it to App Store Connect.
 8. Wait for Apple processing, add internal TestFlight testers, and test on real
