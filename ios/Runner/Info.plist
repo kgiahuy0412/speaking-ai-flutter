@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HOMI dùng micro sau khi phụ huynh đồng ý để nhận dạng lời nói trên thiết bị. Chỉ khi Apple Speech không khả dụng hoặc gặp lỗi, bản ghi mới được gửi tới dịch vụ HOMI/Cloudflare để nhận dạng dự phòng.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>HOMI dùng Face ID để bảo vệ khu vực cài đặt dành cho phụ huynh.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>HOMI dùng Apple Speech để chuyển lời nói tiếng Việt thành văn bản ngay trên iPhone/iPad trước khi gửi văn bản tới dịch vụ dịch và tạo giọng đọc.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
