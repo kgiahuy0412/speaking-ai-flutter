@@ -370,7 +370,6 @@ final class IOSAudioSessionCoordinator: NSObject {
     let rawType = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue ?? 0
     let rawReason = (notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? NSNumber)?.uintValue ?? 0
     let type = AVAudioSession.InterruptionType(rawValue: rawType)
-    let reason = AVAudioSession.InterruptionReason(rawValue: rawReason)
     trace(
       stage: type == .began ? "audio_interruption_began" : "audio_interruption_ended",
       caller: "AVAudioSession",
@@ -378,16 +377,10 @@ final class IOSAudioSessionCoordinator: NSObject {
     )
     guard isBackgroundLearningEnabled, type == .began else { return }
 
-    // Backgrounding the scene itself is expected for a lock-screen lesson and
-    // must not be treated as competing audio. Calls, Siri, alarms and another
-    // non-mixable audio app still interrupt the lesson and are forwarded.
-    if reason == .sceneWasBackgrounded {
-      trace(
-        stage: "background_scene_interruption_ignored",
-        caller: "IOSAudioSessionCoordinator"
-      )
-      return
-    }
+    // Locking the screen does not emit an AVAudioSession interruption while
+    // the background audio mode remains active. Every real interruption that
+    // reaches this observer (for example a call, Siri, an alarm, or competing
+    // non-mixable audio) must pause the learning session.
     onBackgroundLearningEvent?([
       "type": "background.interrupted",
       "reason": "audio_session_interruption_\(rawReason)",

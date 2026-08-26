@@ -15,7 +15,7 @@ workflows:
       vars:
         BUNDLE_ID: com.innotrik.aispeaking
         BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
-        REQUIRE_BACKEND_HEALTH: "false"
+        REQUIRE_BACKEND_HEALTH: "true"
         USE_DEMO_BACKEND: "false"
         CHILD_AGE: "6"
         PREFER_BLE_STREAMING: "false"
