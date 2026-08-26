@@ -11,6 +11,7 @@ import UIKit
   private var hfpAudioBridge: HfpAudioBridge?
   private var voicePromptBridge: VoicePromptBridge?
   private var speechRecognizerBridge: IOSSpeechRecognizerBridge?
+  private var backgroundLearningBridge: BackgroundLearningBridge?
   private var audioSessionCoordinator: IOSAudioSessionCoordinator?
 
   override func application(
@@ -28,6 +29,7 @@ import UIKit
     hfpAudioBridge?.dispose()
     voicePromptBridge?.dispose()
     speechRecognizerBridge?.dispose()
+    backgroundLearningBridge?.dispose()
     audioSessionCoordinator?.dispose()
     let coordinator = IOSAudioSessionCoordinator()
     audioSessionCoordinator = coordinator
@@ -44,6 +46,10 @@ import UIKit
       audioSessionCoordinator: coordinator
     )
     speechRecognizerBridge = IOSSpeechRecognizerBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+    backgroundLearningBridge = BackgroundLearningBridge(
       messenger: messenger,
       audioSessionCoordinator: coordinator
     )

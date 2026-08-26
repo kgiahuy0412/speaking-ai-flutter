@@ -16,6 +16,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   let session = AVAudioSession.sharedInstance()
 
   private var routeChangeToken: NSObjectProtocol?
+  private var interruptionToken: NSObjectProtocol?
   private var traceSink: (([String: Any]) -> Void)?
   private var traceBuffer: [[String: Any]] = []
   private var pendingTurnId: String?
@@ -25,7 +26,9 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var sequence = 0
   private var turnTimeout: DispatchWorkItem?
   private(set) var isMainTurnActive = false
+  private(set) var isBackgroundLearningEnabled = false
   var onMainTurnEnded: (() -> Void)?
+  var onBackgroundLearningEvent: (([String: Any]) -> Void)?
 
   override init() {
     super.init()
@@ -35,6 +38,24 @@ final class IOSAudioSessionCoordinator: NSObject {
       queue: .main
     ) { [weak self] notification in
       self?.recordRouteChange(notification)
+    }
+    interruptionToken = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: session,
+      queue: .main
+    ) { [weak self] notification in
+      self?.recordInterruption(notification)
+    }
+  }
+
+  func setBackgroundLearningEnabled(_ enabled: Bool) {
+    isBackgroundLearningEnabled = enabled
+    trace(
+      stage: enabled ? "background_learning_enabled" : "background_learning_disabled",
+      caller: "BackgroundLearningBridge"
+    )
+    if !enabled {
+      releaseAudioSessionIfIdle(caller: "BackgroundLearningBridge.stop")
     }
   }
 
@@ -277,8 +298,13 @@ final class IOSAudioSessionCoordinator: NSObject {
       NotificationCenter.default.removeObserver(routeChangeToken)
     }
     routeChangeToken = nil
+    if let interruptionToken {
+      NotificationCenter.default.removeObserver(interruptionToken)
+    }
+    interruptionToken = nil
     traceSink = nil
     onMainTurnEnded = nil
+    onBackgroundLearningEvent = nil
   }
 
   private func currentOrAvailableInput(portType: AVAudioSession.Port) -> AVAudioSessionPortDescription? {
@@ -338,6 +364,34 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "AVAudioSession",
       message: "reason=\(rawReason) before=\(previous) after=\(routeDescription())"
     )
+  }
+
+  private func recordInterruption(_ notification: Notification) {
+    let rawType = (notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? NSNumber)?.uintValue ?? 0
+    let rawReason = (notification.userInfo?[AVAudioSessionInterruptionReasonKey] as? NSNumber)?.uintValue ?? 0
+    let type = AVAudioSession.InterruptionType(rawValue: rawType)
+    let reason = AVAudioSession.InterruptionReason(rawValue: rawReason)
+    trace(
+      stage: type == .began ? "audio_interruption_began" : "audio_interruption_ended",
+      caller: "AVAudioSession",
+      message: "reason=\(rawReason)"
+    )
+    guard isBackgroundLearningEnabled, type == .began else { return }
+
+    // Backgrounding the scene itself is expected for a lock-screen lesson and
+    // must not be treated as competing audio. Calls, Siri, alarms and another
+    // non-mixable audio app still interrupt the lesson and are forwarded.
+    if reason == .sceneWasBackgrounded {
+      trace(
+        stage: "background_scene_interruption_ignored",
+        caller: "IOSAudioSessionCoordinator"
+      )
+      return
+    }
+    onBackgroundLearningEvent?([
+      "type": "background.interrupted",
+      "reason": "audio_session_interruption_\(rawReason)",
+    ])
   }
 
   private func routeDescription(_ route: AVAudioSessionRouteDescription) -> String {

@@ -5,6 +5,7 @@ import 'package:ai_speaking_flutter_app/config/app_config.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
+import 'package:ai_speaking_flutter_app/core/platform/background_learning_session.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
@@ -320,6 +321,63 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets(
+    'keeps Android listening while locked and pauses on an interruption',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final backgroundSession = _FakeBackgroundLearningSession();
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+      );
+      final controller = _controller();
+      addTearDown(backgroundSession.dispose);
+      addTearDown(voiceNavigationController.dispose);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          autoStartVoiceNavigation: true,
+          voiceNavigationController: voiceNavigationController,
+          backgroundLearningSession: backgroundSession,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 901));
+
+      expect(backgroundSession.startCount, 1);
+      expect(voiceNavigationController.isListening, isTrue);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(voiceNavigationController.isListening, isTrue);
+      expect(speechInput.cancelCount, 0);
+
+      backgroundSession.interrupt('audio_focus_lost');
+      await tester.pump();
+
+      expect(voiceNavigationController.isListening, isFalse);
+      expect(speechInput.cancelCount, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   testWidgets('opens a lesson inside a named topic from voice', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tester.view.physicalSize = const Size(390, 844);
@@ -550,6 +608,7 @@ Widget _app(
   VoidCallback? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
   Future<bool> Function(BuildContext)? parentAccessGate,
+  BackgroundLearningSessionControl? backgroundLearningSession,
 }) {
   final home = HomeLearningShell(
     controller: controller,
@@ -558,6 +617,7 @@ Widget _app(
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
     onModalVisibilityChanged: onModalVisibilityChanged,
     parentAccessGate: parentAccessGate ?? (_) async => true,
+    backgroundLearningSession: backgroundLearningSession,
     config: AppConfig(
       backendBaseUri: Uri.parse('https://example.com'),
       useDemoBackend: true,
@@ -592,6 +652,39 @@ Widget _app(
             ],
           ),
   );
+}
+
+class _FakeBackgroundLearningSession
+    implements BackgroundLearningSessionControl {
+  final StreamController<BackgroundLearningEvent> _events =
+      StreamController<BackgroundLearningEvent>.broadcast();
+  int startCount = 0;
+  int stopCount = 0;
+
+  @override
+  Stream<BackgroundLearningEvent> get events => _events.stream;
+
+  @override
+  Future<bool> start() async {
+    startCount += 1;
+    return true;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCount += 1;
+  }
+
+  void interrupt(String reason) {
+    _events.add(
+      BackgroundLearningEvent(
+        type: BackgroundLearningEventType.interrupted,
+        reason: reason,
+      ),
+    );
+  }
+
+  Future<void> dispose() => _events.close();
 }
 
 ConversationController _controller() {

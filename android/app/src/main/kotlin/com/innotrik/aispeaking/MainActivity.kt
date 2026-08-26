@@ -29,6 +29,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
     private var voicePromptBridge: VoicePromptBridge? = null
+    private var backgroundLearningBridge: BackgroundLearningBridge? = null
     private val clientIdentityStore by lazy { AndroidClientIdentityStore(this) }
     private val installationCredentialStore by lazy {
         AndroidInstallationCredentialStore(this)
@@ -62,6 +63,11 @@ class MainActivity : FlutterFragmentActivity() {
             )
         voicePromptBridge =
             VoicePromptBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        backgroundLearningBridge =
+            BackgroundLearningBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -139,6 +145,8 @@ class MainActivity : FlutterFragmentActivity() {
         hfpAudioBridge = null
         voicePromptBridge?.dispose()
         voicePromptBridge = null
+        backgroundLearningBridge?.dispose()
+        backgroundLearningBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
