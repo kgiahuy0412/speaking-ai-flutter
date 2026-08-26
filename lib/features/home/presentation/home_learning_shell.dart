@@ -753,6 +753,23 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             onVoiceNavigationResume: _resumeVoiceNavigation,
             initialVoiceTarget: initialVoiceTarget,
             onTopicSelected: (index) => _activeVoiceTopicIndex = index,
+            onChildAgeChanged: widget.onChildAgeChanged,
+            onRequestParentAccess: _requestParentAccess,
+            onLessonSelectionRequested:
+                ({
+                  required childAge,
+                  required topicNumber,
+                  required topicContent,
+                  required completedLessonNumbers,
+                }) async {
+                  await widget.voiceNavigationController
+                      ?.activateLessonSelectionForTopic(
+                        childAge: childAge,
+                        topicNumber: topicNumber,
+                        topicContent: topicContent,
+                        completedLessonNumbers: completedLessonNumbers,
+                      );
+                },
             onTopicSelectionAfterCompletion:
                 ({required childAge, required completedTopicNumbers}) async {
                   await widget.voiceNavigationController

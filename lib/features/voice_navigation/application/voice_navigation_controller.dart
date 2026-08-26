@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
+import '../../listening/domain/listening_content.dart';
 import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
 
@@ -206,6 +207,24 @@ class VoiceNavigationController extends ChangeNotifier {
       () => _mainAssistantFlow.beginTopicSelectionAfterCompletion(
         childAge: childAge,
         completedTopicNumbers: completedTopicNumbers,
+      ),
+    );
+  }
+
+  /// Continues a topic selected on screen using the child's real lesson
+  /// progress, so MAIN can offer the next lesson or confirm a replay.
+  Future<bool> activateLessonSelectionForTopic({
+    required int childAge,
+    required int topicNumber,
+    required ListeningTopicContent topicContent,
+    required List<int> completedLessonNumbers,
+  }) async {
+    return _activateMainAssistantFlow(
+      () => _mainAssistantFlow.beginLessonSelectionForTopic(
+        childAge: childAge,
+        topicNumber: topicNumber,
+        topicContent: topicContent,
+        completedLessonNumbers: completedLessonNumbers,
       ),
     );
   }

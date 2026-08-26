@@ -22,6 +22,9 @@ void main() {
     Future<ListeningContentCatalog>? contentFuture,
     ListeningProgressStore progressStore = const ListeningProgressStore(),
     TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion,
+    TopicLessonSelectionPrompt? onLessonSelectionRequested,
+    ValueChanged<int>? onChildAgeChanged,
+    Future<bool> Function()? onRequestParentAccess,
   }) {
     return MaterialApp(
       theme: buildAppTheme(),
@@ -40,6 +43,9 @@ void main() {
           contentFuture: contentFuture,
           progressStore: progressStore,
           onTopicSelectionAfterCompletion: onTopicSelectionAfterCompletion,
+          onLessonSelectionRequested: onLessonSelectionRequested,
+          onChildAgeChanged: onChildAgeChanged,
+          onRequestParentAccess: onRequestParentAccess,
         ),
       ),
     );
@@ -52,14 +58,14 @@ void main() {
     await tester.pumpAndSettle();
 
     final journeyTitle = tester.widget<Text>(find.text('Hành trình của con'));
-    final continueLabel = tester.widget<Text>(find.text('Tiếp tục học'));
+    final groupLabel = tester.widget<Text>(find.text('Nhóm bài học hiện tại'));
     final theme = Theme.of(
       tester.element(find.byKey(const Key('topic-listening-screen'))),
     );
 
     expect(theme.brightness, Brightness.dark);
     expect(journeyTitle.style?.color, theme.colorScheme.onSurface);
-    expect(continueLabel.style?.color, theme.colorScheme.primary);
+    expect(groupLabel.style?.color, theme.colorScheme.primary);
   });
 
   test('all 50 listening topics have a loadable image asset', () async {
@@ -314,25 +320,49 @@ void main() {
   });
 
   testWidgets(
-    'uses the configured age group without exposing a child control',
+    'parent can change the global lesson group from the topic screen',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(buildSubject());
+      var parentGateCalls = 0;
+      int? selectedAge;
+      await tester.pumpWidget(
+        buildSubject(
+          onRequestParentAccess: () async {
+            parentGateCalls += 1;
+            return true;
+          },
+          onChildAgeChanged: (age) => selectedAge = age,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Tên và tuổi của con'), findsOneWidget);
       expect(find.text('10 chủ đề'), findsOneWidget);
 
-      expect(find.byKey(const Key('topic-age-selector')), findsNothing);
-      expect(find.byKey(const ValueKey('age-8-10')), findsNothing);
+      expect(find.byKey(const Key('topic-age-selector')), findsOneWidget);
       expect(find.text('Con và những người bạn'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('topic-age-selector')));
+      await tester.pumpAndSettle();
+      expect(parentGateCalls, 1);
+      expect(find.text('Chọn nhóm bài học'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('age-8-10')));
+      await tester.tap(find.byKey(const Key('apply-topic-age')));
+      await tester.pumpAndSettle();
+
+      expect(selectedAge, 8);
+      expect(find.text('8–10 tuổi'), findsOneWidget);
+      expect(find.text('Con và những người bạn'), findsOneWidget);
     },
   );
 
   testWidgets('opens the selected topic lesson journey', (tester) async {
     var voiceNavigationPauseCount = 0;
     var voiceNavigationResumeCount = 0;
+    final lessonPrompts =
+        <({int childAge, int topicNumber, List<int> completedLessonNumbers})>[];
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -344,6 +374,19 @@ void main() {
         onVoiceNavigationResume: () {
           voiceNavigationResumeCount += 1;
         },
+        onLessonSelectionRequested:
+            ({
+              required childAge,
+              required topicNumber,
+              required topicContent,
+              required completedLessonNumbers,
+            }) async {
+              lessonPrompts.add((
+                childAge: childAge,
+                topicNumber: topicNumber,
+                completedLessonNumbers: completedLessonNumbers,
+              ));
+            },
       ),
     );
     await tester.pumpAndSettle();
@@ -367,6 +410,10 @@ void main() {
     expect(find.text('2 bài nhỏ'), findsOneWidget);
     expect(find.text('10 câu'), findsWidgets);
     expect(voiceNavigationPauseCount, 0);
+    expect(lessonPrompts, hasLength(1));
+    expect(lessonPrompts.single.childAge, 3);
+    expect(lessonPrompts.single.topicNumber, 1);
+    expect(lessonPrompts.single.completedLessonNumbers, isEmpty);
 
     await tester.tap(find.byKey(const ValueKey('start-lesson-a035_t01_l01')));
     await tester.pump();
@@ -704,8 +751,8 @@ void main() {
     await tester.pumpWidget(buildSubject(textScale: 2));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('topic-age-selector')), findsNothing);
-    expect(find.byKey(const Key('continue-listening-card')), findsOneWidget);
+    expect(find.byKey(const Key('topic-age-selector')), findsOneWidget);
+    expect(find.byKey(const Key('continue-listening-card')), findsNothing);
     expect(
       find.byKey(const Key('listening-bottom-navigation')),
       findsOneWidget,

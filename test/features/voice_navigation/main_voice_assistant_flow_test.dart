@@ -507,6 +507,57 @@ void main() {
     expect(topicTurn.navigationBeforePrompt?.topicNumber, 3);
     expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
   });
+
+  test('offers the next unfinished lesson from real topic progress', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    final content = (await _loadContent()).topic(
+      startAge: 6,
+      endAge: 7,
+      topicNumber: 3,
+    );
+
+    final prompt = flow.beginLessonSelectionForTopic(
+      childAge: 6,
+      topicNumber: 3,
+      topicContent: content,
+      completedLessonNumbers: const <int>[1],
+    );
+
+    expect(prompt, contains('đã học xong bài 1'));
+    expect(prompt, contains('tiếp tục bài 2'));
+    expect(flow.canHandle('Con muốn tiếp tục'), isTrue);
+
+    final turn = await flow.handle('Con muốn tiếp tục');
+    expect(turn.continueListening, isFalse);
+    expect(turn.navigationAfterPrompt?.topicNumber, 3);
+    expect(turn.navigationAfterPrompt?.lessonNumber, 2);
+    expect(turn.navigationAfterPrompt?.openLesson, isTrue);
+  });
+
+  test('confirms before replaying a completed lesson', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    final content = (await _loadContent()).topic(
+      startAge: 6,
+      endAge: 7,
+      topicNumber: 3,
+    );
+    flow.beginLessonSelectionForTopic(
+      childAge: 6,
+      topicNumber: 3,
+      topicContent: content,
+      completedLessonNumbers: const <int>[1],
+    );
+
+    final confirmation = await flow.handle('Con chọn bài 1');
+    expect(confirmation.continueListening, isTrue);
+    expect(confirmation.promptText, contains('học lại bài 1'));
+    expect(confirmation.promptText, contains('tiếp tục bài 2'));
+    expect(flow.stage, MainVoiceAssistantStage.confirmReplayLesson);
+
+    final replay = await flow.handle('Con muốn học lại');
+    expect(replay.continueListening, isFalse);
+    expect(replay.navigationAfterPrompt?.lessonNumber, 1);
+  });
 }
 
 Future<ListeningContentCatalog> _loadContent() async {

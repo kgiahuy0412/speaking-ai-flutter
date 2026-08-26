@@ -22,6 +22,14 @@ typedef TopicSelectionAfterCompletionPrompt =
       required List<int> completedTopicNumbers,
     });
 
+typedef TopicLessonSelectionPrompt =
+    Future<void> Function({
+      required int childAge,
+      required int topicNumber,
+      required ListeningTopicContent topicContent,
+      required List<int> completedLessonNumbers,
+    });
+
 class TopicListeningScreen extends StatefulWidget {
   const TopicListeningScreen({
     required this.language,
@@ -32,6 +40,9 @@ class TopicListeningScreen extends StatefulWidget {
     this.initialVoiceTarget,
     this.onTopicSelected,
     this.onTopicSelectionAfterCompletion,
+    this.onLessonSelectionRequested,
+    this.onChildAgeChanged,
+    this.onRequestParentAccess,
     this.contentFuture,
     this.progressStore = const ListeningProgressStore(),
     super.key,
@@ -45,6 +56,9 @@ class TopicListeningScreen extends StatefulWidget {
   final ListeningVoiceNavigationTarget? initialVoiceTarget;
   final ValueChanged<int>? onTopicSelected;
   final TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion;
+  final TopicLessonSelectionPrompt? onLessonSelectionRequested;
+  final ValueChanged<int>? onChildAgeChanged;
+  final Future<bool> Function()? onRequestParentAccess;
   final Future<ListeningContentCatalog>? contentFuture;
   final ListeningProgressStore progressStore;
 
@@ -117,13 +131,12 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                   child: _CenteredSection(
                     maxWidth: _contentMaxWidth,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                    child: _ContinueLearningCard(
-                      topic: _catalog.topics[_catalog.continueTopicIndex],
-                      progress: _topicProgress(_catalog.continueTopicIndex),
-                      onPressed: () => _openTopic(
-                        _catalog.topics[_catalog.continueTopicIndex],
-                        _catalog.continueTopicIndex,
-                      ),
+                    child: _CurrentLessonGroupCard(
+                      catalog: _catalog,
+                      canChange:
+                          widget.onChildAgeChanged != null &&
+                          widget.onRequestParentAccess != null,
+                      onChange: _changeLessonGroup,
                     ),
                   ),
                 ),
@@ -256,6 +269,53 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
 
   void _showHistory() => unawaited(_openHistory());
 
+  Future<void> _changeLessonGroup() async {
+    final requestParentAccess = widget.onRequestParentAccess;
+    final onChildAgeChanged = widget.onChildAgeChanged;
+    if (requestParentAccess == null || onChildAgeChanged == null) {
+      return;
+    }
+
+    await widget.onVoiceNavigationPause?.call();
+    try {
+      if (!await requestParentAccess() || !mounted) {
+        return;
+      }
+      final selectedIndex = await showModalBottomSheet<int>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        builder: (_) => _LessonGroupPickerSheet(
+          catalogs: listeningCatalogs,
+          selectedIndex: _selectedCatalogIndex,
+        ),
+      );
+      if (selectedIndex == null ||
+          selectedIndex == _selectedCatalogIndex ||
+          !mounted) {
+        return;
+      }
+      final selectedCatalog = listeningCatalogs[selectedIndex];
+      setState(() => _selectedCatalogIndex = selectedIndex);
+      onChildAgeChanged(selectedCatalog.startAge);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Đã đổi sang nhóm ${selectedCatalog.startAge}–${selectedCatalog.endAge} tuổi.',
+              '已切换到 ${selectedCatalog.startAge}–${selectedCatalog.endAge} 岁课程组。',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        widget.onVoiceNavigationResume?.call();
+      }
+    }
+  }
+
   Future<void> _openHistory() async {
     await widget.onVoiceNavigationPause?.call();
     try {
@@ -358,6 +418,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       initialLessonNumber: target.openLesson
           ? target.resolvedLessonNumber
           : null,
+      requestVoiceLessonSelection: false,
     );
   }
 
@@ -365,6 +426,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     ListeningTopic topic,
     int topicIndex, {
     int? initialLessonNumber,
+    bool requestVoiceLessonSelection = true,
   }) async {
     try {
       final catalog = await _contentFuture;
@@ -379,7 +441,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         topicNumber: topicIndex + 1,
       );
       var topicCompletedDuringVisit = false;
-      await Navigator.of(context).push<void>(
+      final route = Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => TopicLessonListScreen(
             language: widget.language,
@@ -396,6 +458,24 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           ),
         ),
       );
+      final lessonPrompt = widget.onLessonSelectionRequested;
+      if (requestVoiceLessonSelection &&
+          initialLessonNumber == null &&
+          lessonPrompt != null) {
+        await Future<void>.delayed(Duration.zero);
+        try {
+          await lessonPrompt(
+            childAge: selectedAgeCatalog.startAge,
+            topicNumber: topicIndex + 1,
+            topicContent: content,
+            completedLessonNumbers: _completedLessonNumbers(content),
+          );
+        } catch (error, stackTrace) {
+          debugPrint('Could not start the lesson selection prompt: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+      await route;
       final progressAfter = await _reloadProgress();
       if (topicCompletedDuringVisit) {
         final completedTopicNumbers = _completedTopicNumbers(
@@ -445,6 +525,16 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         );
   }
 
+  List<int> _completedLessonNumbers(ListeningTopicContent content) {
+    return content.lessons
+        .where(
+          (lesson) =>
+              (_lessonProgress[lesson.id] ?? 0) >= lesson.sentences.length,
+        )
+        .map((lesson) => lesson.number)
+        .toList(growable: false);
+  }
+
   List<int> _completedTopicNumbers(
     ListeningContentCatalog catalog,
     ListeningAgeCatalog ageCatalog,
@@ -491,16 +581,16 @@ class _CenteredSection extends StatelessWidget {
   }
 }
 
-class _ContinueLearningCard extends StatelessWidget {
-  const _ContinueLearningCard({
-    required this.topic,
-    required this.progress,
-    required this.onPressed,
+class _CurrentLessonGroupCard extends StatelessWidget {
+  const _CurrentLessonGroupCard({
+    required this.catalog,
+    required this.canChange,
+    required this.onChange,
   });
 
-  final ListeningTopic topic;
-  final _TopicProgress progress;
-  final VoidCallback onPressed;
+  final ListeningAgeCatalog catalog;
+  final bool canChange;
+  final VoidCallback onChange;
 
   @override
   Widget build(BuildContext context) {
@@ -519,64 +609,192 @@ class _ContinueLearningCard extends StatelessWidget {
           width: 1.2,
         ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: const Key('continue-listening-card'),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(13, 12, 15, 12),
-          child: Row(
-            children: <Widget>[
-              SizedBox(
-                width: 74,
-                height: 74,
-                child: Image.asset(
-                  MascotAssets.listen,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.indigo.withValues(alpha: 0.11),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      context.tr('Tiếp tục học', '继续学习'),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark ? colorScheme.primary : AppColors.indigo,
-                        fontWeight: FontWeight.w700,
+              child: const Icon(Icons.school_rounded, color: AppColors.indigo),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    context.tr('Nhóm bài học hiện tại', '当前课程组'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark ? colorScheme.primary : AppColors.indigo,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    context.tr(
+                      '${catalog.startAge}–${catalog.endAge} tuổi',
+                      '${catalog.startAge}–${catalog.endAge} 岁',
+                    ),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+            ),
+            Semantics(
+              button: true,
+              enabled: canChange,
+              label: context.tr('Phụ huynh thay đổi nhóm bài học', '家长更改课程组'),
+              child: TextButton.icon(
+                key: const Key('topic-age-selector'),
+                onPressed: canChange ? onChange : null,
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                icon: const Icon(Icons.lock_outline_rounded, size: 20),
+                label: Text(context.tr('Đổi', '更改')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LessonGroupPickerSheet extends StatefulWidget {
+  const _LessonGroupPickerSheet({
+    required this.catalogs,
+    required this.selectedIndex,
+  });
+
+  final List<ListeningAgeCatalog> catalogs;
+  final int selectedIndex;
+
+  @override
+  State<_LessonGroupPickerSheet> createState() =>
+      _LessonGroupPickerSheetState();
+}
+
+class _LessonGroupPickerSheetState extends State<_LessonGroupPickerSheet> {
+  late int _selectedIndex = widget.selectedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 680),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          4,
+          20,
+          20 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              context.tr('Chọn nhóm bài học', '选择课程组'),
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              context.tr(
+                'Phụ huynh chọn nội dung phù hợp với khả năng hiện tại của trẻ. Lựa chọn này sẽ áp dụng cho Chủ đề và trợ lý MAIN.',
+                '家长请选择适合孩子当前能力的内容。此选择将同时应用于主题课程和 MAIN 助手。',
+              ),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: widget.catalogs.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final catalog = widget.catalogs[index];
+                  final selected = index == _selectedIndex;
+                  return Material(
+                    color: selected
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: 0.7)
+                        : Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      key: ValueKey(
+                        'age-${catalog.startAge}-${catalog.endAge}',
+                      ),
+                      onTap: () => setState(() => _selectedIndex = index),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(
+                              selected
+                                  ? Icons.radio_button_checked_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: selected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                context.tr(
+                                  '${catalog.startAge}–${catalog.endAge} tuổi',
+                                  '${catalog.startAge}–${catalog.endAge} 岁',
+                                ),
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            Text(
+                              context.tr(
+                                '${catalog.topics.length} chủ đề',
+                                '${catalog.topics.length} 个主题',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${context.tr(topic.titleVi, topic.titleZh)} · '
-                      '${context.tr('Bài', '第')} ${progress.nextLesson}/${progress.total}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 9),
-                    _ProgressBar(value: progress.fraction),
-                  ],
-                ),
+                  );
+                },
               ),
-              const SizedBox(width: 12),
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.indigo,
-                  shape: BoxShape.circle,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                const Icon(Icons.verified_user_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    context.tr('Đã xác thực khu vực phụ huynh', '已验证家长区域'),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              key: const Key('apply-topic-age'),
+              onPressed: () => Navigator.of(context).pop(_selectedIndex),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
               ),
-            ],
-          ),
+              child: Text(context.tr('Áp dụng', '应用')),
+            ),
+          ],
         ),
       ),
     );
@@ -605,7 +823,7 @@ class _TopicJourney extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1, 2);
-        final rowHeight = 150.0 + ((textScale - 1) * 150);
+        final rowHeight = 168.0 + ((textScale - 1) * 150);
         final sideWidth = (width * 0.34).clamp(110.0, 190.0).toDouble();
         final imageSize = (sideWidth - 16).clamp(88.0, 124.0).toDouble();
         const checkpointWidth = 40.0;
@@ -634,13 +852,13 @@ class _TopicJourney extends StatelessWidget {
                     height: rowHeight,
                     child: _JourneyTopicStop(
                       topicKey: ValueKey('topic-$catalogId-$index'),
+                      actionKey: ValueKey('topic-action-$catalogId-$index'),
                       topic: topic,
                       progress: progress,
                       imageSize: imageSize,
                       sideWidth: sideWidth,
                       checkpointWidth: checkpointWidth,
                       imageOnLeft: index.isEven,
-                      showStartButton: index == 0,
                       onPressed: () => onTopicPressed(topic, index),
                     ),
                   );
@@ -657,24 +875,24 @@ class _TopicJourney extends StatelessWidget {
 class _JourneyTopicStop extends StatelessWidget {
   const _JourneyTopicStop({
     required this.topicKey,
+    required this.actionKey,
     required this.topic,
     required this.progress,
     required this.imageSize,
     required this.sideWidth,
     required this.checkpointWidth,
     required this.imageOnLeft,
-    required this.showStartButton,
     required this.onPressed,
   });
 
   final Key topicKey;
+  final Key actionKey;
   final ListeningTopic topic;
   final _TopicProgress progress;
   final double imageSize;
   final double sideWidth;
   final double checkpointWidth;
   final bool imageOnLeft;
-  final bool showStartButton;
   final VoidCallback onPressed;
 
   @override
@@ -696,7 +914,7 @@ class _JourneyTopicStop extends StatelessWidget {
         title: title,
         progress: progress,
         alignRight: !imageOnLeft,
-        showStartButton: showStartButton,
+        actionKey: actionKey,
         onPressed: onPressed,
       ),
     );
@@ -808,14 +1026,14 @@ class _TopicDetails extends StatelessWidget {
     required this.title,
     required this.progress,
     required this.alignRight,
-    required this.showStartButton,
+    required this.actionKey,
     required this.onPressed,
   });
 
   final String title;
   final _TopicProgress progress;
   final bool alignRight;
-  final bool showStartButton;
+  final Key actionKey;
   final VoidCallback onPressed;
 
   @override
@@ -862,23 +1080,32 @@ class _TopicDetails extends StatelessWidget {
               shadows: _journeyTextShadowsFor(context),
             ),
           ),
-          if (showStartButton) ...<Widget>[
-            const SizedBox(height: 8),
-            FilledButton(
-              key: const Key('start-first-topic'),
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(86, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
-                ),
+          const SizedBox(height: 8),
+          FilledButton(
+            key: actionKey,
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(92, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
               ),
-              child: Text(context.tr('Bắt đầu', '开始')),
             ),
-          ],
+            child: Text(
+              context.tr(
+                progress.completed == 0
+                    ? 'Bắt đầu'
+                    : progress.fraction >= 1
+                    ? 'Học lại'
+                    : 'Tiếp tục',
+                progress.completed == 0
+                    ? '开始'
+                    : progress.fraction >= 1
+                    ? '重学'
+                    : '继续',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -968,24 +1195,4 @@ class _TopicProgress {
   final int total;
 
   double get fraction => total == 0 ? 0 : completed / total;
-  int get nextLesson => total == 0 ? 0 : (completed + 1).clamp(1, total);
-}
-
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.value});
-
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(99),
-      child: LinearProgressIndicator(
-        value: value.clamp(0, 1),
-        minHeight: 6,
-        backgroundColor: AppColors.lavenderBorder,
-        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.indigo),
-      ),
-    );
-  }
 }
