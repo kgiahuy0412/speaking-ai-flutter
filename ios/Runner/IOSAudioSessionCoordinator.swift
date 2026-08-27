@@ -60,35 +60,61 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func notePhysicalMain(rawHex: String) {
-    if pendingTurnId == nil && !isMainTurnActive {
-      pendingTurnId = makeTurnId()
-      pendingTurnStartedAt = Date()
-      sequence = 0
-    }
-    trace(stage: "main_raw_received", caller: "Aiv0BleControlBridge", message: rawHex)
+    // Every accepted physical MAIN packet starts a new logical turn. The BLE
+    // bridge has already collapsed the firmware notification burst before this
+    // method is called, so retaining an older active turn here can only make a
+    // second real press inherit stale cleanup from the previous one.
+    pendingTurnId = makeTurnId()
+    pendingTurnStartedAt = Date()
+    sequence = 0
+    trace(
+      stage: "main_raw_received",
+      caller: "Aiv0BleControlBridge",
+      message: rawHex,
+      values: [
+        "turnId": pendingTurnId ?? "",
+        "supersedesTurnId": activeTurnId ?? "",
+      ]
+    )
   }
 
   @discardableResult
   func beginMainTurn(source: String) -> String {
-    if isMainTurnActive, let activeTurnId {
-      trace(stage: "main_turn_reused", caller: source)
-      return activeTurnId
-    }
-
     let now = Date()
     let pendingIsRecent = pendingTurnStartedAt.map {
       now.timeIntervalSince($0) <= 5
     } ?? false
     if pendingIsRecent, let pendingTurnId {
+      let previousTurnId = activeTurnId
+      turnTimeout?.cancel()
+      turnTimeout = nil
       activeTurnId = pendingTurnId
       activeTurnStartedAt = pendingTurnStartedAt
-    } else {
-      activeTurnId = makeTurnId()
-      activeTurnStartedAt = now
-      sequence = 0
+      self.pendingTurnId = nil
+      pendingTurnStartedAt = nil
+      isMainTurnActive = true
+      trace(
+        stage: previousTurnId == nil ? "main_turn_started" : "main_turn_superseded",
+        caller: source,
+        values: ["previousTurnId": previousTurnId ?? ""]
+      )
+      scheduleSafetyTimeout()
+      return pendingTurnId
     }
-    pendingTurnId = nil
-    pendingTurnStartedAt = nil
+
+    if isMainTurnActive, let activeTurnId {
+      trace(stage: "main_turn_reused", caller: source)
+      return activeTurnId
+    }
+
+    if pendingTurnId != nil {
+      // Do not let an expired physical packet leak into a later virtual turn.
+      pendingTurnId = nil
+      pendingTurnStartedAt = nil
+    }
+    activeTurnId = makeTurnId()
+    activeTurnStartedAt = now
+    sequence = 0
     isMainTurnActive = true
     trace(stage: "main_turn_started", caller: source)
     scheduleSafetyTimeout()

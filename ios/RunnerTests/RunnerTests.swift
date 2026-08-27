@@ -134,6 +134,49 @@ class RunnerTests: XCTestCase {
     coordinator.dispose()
   }
 
+  func testIOSAudioCoordinatorGivesASecondPhysicalPressAFreshTurn() {
+    let coordinator = IOSAudioSessionCoordinator()
+    var timeline: [[String: Any]] = []
+    coordinator.attachTraceSink { timeline.append($0) }
+
+    coordinator.notePhysicalMain(rawHex: "01 01 01 01")
+    let firstTurnId = coordinator.beginMainTurn(source: "RunnerTests.first")
+
+    coordinator.notePhysicalMain(rawHex: "01 01 02 01")
+    let secondRawEvent = timeline.last {
+      ($0["stage"] as? String) == "main_raw_received"
+    }
+    let secondTurnId = coordinator.beginMainTurn(source: "RunnerTests.second")
+
+    XCTAssertNotEqual(secondTurnId, firstTurnId)
+    XCTAssertEqual(secondRawEvent?["turnId"] as? String, secondTurnId)
+    XCTAssertTrue(
+      timeline.contains {
+        ($0["stage"] as? String) == "main_turn_superseded"
+          && ($0["previousTurnId"] as? String) == firstTurnId
+      }
+    )
+
+    coordinator.endMainTurn(
+      reason: "late_first_turn_cleanup",
+      caller: "RunnerTests",
+      expectedTurnId: firstTurnId
+    )
+    XCTAssertTrue(coordinator.isMainTurnActive)
+    XCTAssertEqual(
+      timeline.last { ($0["stage"] as? String)?.hasPrefix("main_turn_") == true }?["stage"] as? String,
+      "main_turn_end_stale_ignored"
+    )
+
+    coordinator.endMainTurn(
+      reason: "test_complete",
+      caller: "RunnerTests",
+      expectedTurnId: secondTurnId
+    )
+    XCTAssertFalse(coordinator.isMainTurnActive)
+    coordinator.dispose()
+  }
+
   func testIOSNativeSpeechPrefersSpeechAnalyzerOnIOS26() {
     XCTAssertEqual(
       IOSNativeSpeechEngineSelector.select(
