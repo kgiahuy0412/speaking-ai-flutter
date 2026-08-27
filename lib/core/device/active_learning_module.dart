@@ -112,12 +112,23 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
   }
 
   Future<bool> pauseForMainAssistant() async {
-    final active = controller;
-    if (active == null) {
-      return false;
+    // A lesson can replace its intro/practice/review route while MAIN is being
+    // pressed. Pausing only the controller captured before that transition
+    // leaves the newly visible route playing, and the app then rejects MAIN as
+    // busy. Follow the top registration until the visible owner is stable.
+    var remainingAttempts = _registrations.length + 1;
+    while (remainingAttempts > 0) {
+      remainingAttempts -= 1;
+      final active = controller;
+      if (active == null) {
+        return false;
+      }
+      await active.pauseForMainAssistant();
+      if (identical(active, controller)) {
+        return true;
+      }
     }
-    await active.pauseForMainAssistant();
-    return identical(active, controller);
+    return controller?.isPausedForMain ?? false;
   }
 
   Future<ActiveLearningCommandResult> execute(

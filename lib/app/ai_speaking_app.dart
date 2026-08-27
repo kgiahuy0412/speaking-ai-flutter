@@ -754,28 +754,40 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return false;
     }
 
-    if (conversationController.isBusy ||
-        conversationController.isPlaybackPlaying) {
+    final hadActiveModule = _activeLearningModules.hasActiveModule;
+    // Outside a learning route, conversation audio still owns the microphone
+    // and must finish first. Inside a lesson/vocabulary route, however, MAIN is
+    // the interrupt: pause that module before judging the shared audio state.
+    if (!hadActiveModule &&
+        (conversationController.isBusy ||
+            conversationController.isPlaybackPlaying)) {
       return false;
     }
 
     setState(() => _isActivatingMainAssistant = true);
 
     try {
-      final hasActiveModule = _activeLearningModules.hasActiveModule;
+      var hasActiveModule = hadActiveModule;
+      var activeLearningKind = _activeLearningModules.activeKind;
       if (hasActiveModule) {
         _activeModulePausedForMain = await _activeLearningModules
             .pauseForMainAssistant();
-        if (!_activeModulePausedForMain) {
-          return false;
-        }
+        // A route may have completed/unmounted while its stop operation was in
+        // flight. That is not a failed MAIN press; open the normal assistant if
+        // there is no longer a stable module to control.
+        hasActiveModule =
+            _activeModulePausedForMain &&
+            _activeLearningModules.hasActiveModule;
+        activeLearningKind = hasActiveModule
+            ? _activeLearningModules.activeKind
+            : null;
       }
       if (!mounted) {
         return false;
       }
       final activated = await voiceController.activateFromMainButton(
         activeLearning: hasActiveModule,
-        activeLearningKind: _activeLearningModules.activeKind,
+        activeLearningKind: activeLearningKind,
         inputLabelOverride: inputLabelOverride,
       );
       if (!activated && _activeModulePausedForMain) {
@@ -827,6 +839,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         debugPrint(
           'H20 MAIN ignored: BLE is connected but no HFP input is selected.',
         );
+        _releasePhysicalMainBleSuppression(reconnect: false);
         return MainButtonActionResult.busy;
       }
       inputLabelOverride = 'Mic H20 qua HFP';
@@ -840,6 +853,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     if (!activated && _restoreHfpAfterPhysicalMain) {
       unawaited(_restoreHfpSelectionAfterPhysicalMain());
+    }
+    if (!activated && event.source == MainButtonSource.ble) {
+      _releasePhysicalMainBleSuppression();
     }
     return activated
         ? MainButtonActionResult.accepted
@@ -874,6 +890,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     if (!voiceController.isMainButtonSessionActive &&
         !voiceController.isActive) {
+      if (!_isActivatingMainAssistant) {
+        _releasePhysicalMainBleSuppression();
+      }
       if (_restoreHfpAfterPhysicalMain &&
           !_mainSpeakingSessionController.isActive) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
@@ -882,6 +901,28 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         unawaited(_resumeActiveModuleAfterMain());
       }
     }
+  }
+
+  void _releasePhysicalMainBleSuppression({bool reconnect = true}) {
+    if (_suppressH20AutoConnectUntil == null) {
+      return;
+    }
+    _suppressH20AutoConnectUntil = null;
+    _lastAiv0AutoConnectAttempt = null;
+    if (!reconnect ||
+        !mounted ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    Future<void>.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted ||
+          (_voiceNavigationController?.isActive ?? false) ||
+          (_voiceNavigationController?.isMainButtonSessionActive ?? false)) {
+        return;
+      }
+      unawaited(_autoConnectH20Ble());
+    });
   }
 
   Future<void> _restoreHfpSelectionAfterPhysicalMain() async {

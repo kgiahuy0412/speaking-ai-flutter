@@ -514,7 +514,7 @@ void main() {
     'active lesson Main next answer advances through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       ActiveLearningCommand? receivedCommand;
       final controller = VoiceNavigationController(
         speechInput: speechInput,
@@ -536,6 +536,15 @@ void main() {
       expect(voicePrompt.spokenTexts.last, 'Mình học câu tiếp theo nhé');
       expect(receivedCommand, ActiveLearningCommand.nextItem);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(voicePrompt.endedReasons.last, 'main_assistant_completed');
+
+      // The completed command must release the first MAIN turn so the same
+      // BLE/screen button can immediately start another one in the lesson.
+      expect(
+        await controller.activateFromMainButton(activeLearning: true),
+        isTrue,
+      );
+      expect(voicePrompt.beginCount, 2);
 
       controller.dispose();
       await speechInput.dispose();
@@ -546,7 +555,7 @@ void main() {
     'active lesson Main previous answer moves back through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       ActiveLearningCommand? receivedCommand;
       final controller = VoiceNavigationController(
         speechInput: speechInput,
@@ -565,6 +574,7 @@ void main() {
       expect(voicePrompt.spokenTexts.last, 'Mình nghe lại câu trước nhé');
       expect(receivedCommand, ActiveLearningCommand.previousItem);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(voicePrompt.endedReasons.last, 'main_assistant_completed');
 
       controller.dispose();
       await speechInput.dispose();
@@ -694,7 +704,7 @@ void main() {
     'Main asks once after silence then exits on the second timeout',
     () async {
       final speechInput = _FakeNavigationSpeechInput(stopText: '');
-      final voicePrompt = _FakeVoicePromptService();
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       final controller = VoiceNavigationController(
         speechInput: speechInput,
         voicePromptService: voicePrompt,
@@ -718,6 +728,10 @@ void main() {
       ]);
       expect(voicePrompt.readyCueCount, 2);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(
+        voicePrompt.endedReasons,
+        contains('main_assistant_no_speech_exit'),
+      );
 
       controller.dispose();
       await speechInput.dispose();
@@ -1153,6 +1167,23 @@ class _FakeVoicePromptService
 
   @override
   Future<void> dispose() async {}
+}
+
+class _FakeMainTurnVoicePromptService extends _FakeVoicePromptService
+    implements MainTurnVoicePromptService {
+  int beginCount = 0;
+  final List<String> endedReasons = <String>[];
+
+  @override
+  Future<String?> beginMainTurn() async {
+    beginCount += 1;
+    return 'test-main-$beginCount';
+  }
+
+  @override
+  Future<void> endMainTurn(String reason) async {
+    endedReasons.add(reason);
+  }
 }
 
 class _BlockingVoicePromptService extends _FakeVoicePromptService {

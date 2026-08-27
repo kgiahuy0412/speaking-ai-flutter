@@ -423,6 +423,11 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    // Native speech normally ends the coordinator turn when it emits/cancels
+    // a final result. Directly dispatched text (tests, fast partial matches,
+    // and a few Android/iOS completion paths) can bypass that callback. Close
+    // the bracket explicitly so a deferred H20 BLE reconnect is always freed.
+    await _endNativeMainTurn('main_assistant_completed');
     final activeLearningCommand = turn.activeLearningCommand;
     if (activeLearningCommand != null) {
       final handler = _activeLearningCommandHandler;
@@ -613,6 +618,7 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    await _endNativeMainTurn('main_assistant_no_speech_exit');
     notifyListeners();
   }
 

@@ -54,9 +54,36 @@ void main() {
       registry.dispose();
     },
   );
+
+  test(
+    'registry pauses the replacement route during a MAIN transition',
+    () async {
+      final registry = ActiveLearningModuleRegistry();
+      final replacement = _FakeActiveModule();
+      late final Object transitioningToken;
+      final transitioning = _FakeActiveModule(
+        onPause: () {
+          registry.unregister(transitioningToken);
+          registry.register(replacement);
+        },
+      );
+      transitioningToken = registry.register(transitioning);
+
+      expect(await registry.pauseForMainAssistant(), isTrue);
+      expect(transitioning.pauses, 1);
+      expect(replacement.pauses, 1);
+      expect(registry.controller, same(replacement));
+      expect(registry.isActiveModulePaused, isTrue);
+
+      registry.dispose();
+    },
+  );
 }
 
 class _FakeActiveModule implements ActiveLearningModuleController {
+  _FakeActiveModule({this.onPause});
+
+  final void Function()? onPause;
   int pauses = 0;
   bool paused = false;
   final List<ActiveLearningCommand> commands = <ActiveLearningCommand>[];
@@ -85,5 +112,6 @@ class _FakeActiveModule implements ActiveLearningModuleController {
   Future<void> pauseForMainAssistant() async {
     pauses += 1;
     paused = true;
+    onPause?.call();
   }
 }
