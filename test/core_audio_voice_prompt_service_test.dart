@@ -26,6 +26,7 @@ void main() {
       'text': 'Con đưa micro lại gần và nói rõ hơn nhé.',
       'locale': 'vi-VN',
       'gainDb': 8.0,
+      'forcePhoneSpeaker': false,
     });
   });
 
@@ -52,9 +53,35 @@ void main() {
         'text': 'Pipo nghe đây',
         'locale': 'vi-VN',
         'gainDb': 8.0,
+        'forcePhoneSpeaker': false,
       });
     },
   );
+
+  test('marks listening coach speech for the phone speaker', () async {
+    const channel = MethodChannel('test_phone_speaker_prompt');
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    const service = MethodChannelVoicePromptService(channel: channel);
+    await service.speakAndWaitOnPhoneSpeaker('Nói theo cô nhé.');
+
+    expect(receivedCall?.method, 'speakAndWait');
+    expect(receivedCall?.arguments, <String, dynamic>{
+      'text': 'Nói theo cô nhé.',
+      'locale': 'vi-VN',
+      'gainDb': 8.0,
+      'forcePhoneSpeaker': true,
+    });
+  });
 
   test('waits for the speech-ready cue through the native bridge', () async {
     const channel = MethodChannel('test_speech_ready_cue');

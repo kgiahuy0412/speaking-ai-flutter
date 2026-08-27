@@ -148,6 +148,85 @@ void main() {
     await mediaService.dispose();
   });
 
+  test('coach prompt leaves H20 and plays on the phone speaker', () async {
+    final events = <String>[];
+    final playback = _RouteAwareControlledPlaybackService(events);
+    final hfp = _FakeHfpAudioControl(
+      events,
+      status: const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.ready,
+        deviceId: 'h20-uid',
+        deviceName: 'H20',
+        sampleRate: 16000,
+      ),
+    );
+    final mediaService = LessonMediaService(
+      playbackService: playback,
+      hfpAudioControl: hfp,
+    );
+
+    final sample = mediaService.playToCompletion(
+      Uri.parse('https://example.test/sample.mp3'),
+    );
+    await Future<void>.delayed(Duration.zero);
+    playback.finish();
+    await sample;
+
+    final prompt = mediaService.playToCompletion(
+      Uri.parse('https://example.test/coach.mp3'),
+      route: LessonPlaybackRoute.phoneSpeaker,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, <String>[
+      'communication:true',
+      'prepare',
+      'hfp:start',
+      'play',
+      'communication:false',
+      'hfp:stop',
+      'prepare',
+      'play',
+    ]);
+
+    playback.finish();
+    await prompt;
+    await mediaService.dispose();
+  });
+
+  test('consecutive H20 clips keep one owned SCO route', () async {
+    final events = <String>[];
+    final playback = _RouteAwareControlledPlaybackService(events);
+    final hfp = _FakeHfpAudioControl(
+      events,
+      status: const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.ready,
+        deviceId: 'h20-uid',
+        deviceName: 'H20',
+        sampleRate: 16000,
+      ),
+    );
+    final mediaService = LessonMediaService(
+      playbackService: playback,
+      hfpAudioControl: hfp,
+    );
+
+    for (final uri in <Uri>[
+      Uri.parse('https://example.test/english.mp3'),
+      Uri.parse('https://example.test/vietnamese.mp3'),
+    ]) {
+      final playing = mediaService.playToCompletion(uri);
+      await Future<void>.delayed(Duration.zero);
+      playback.finish();
+      await playing;
+    }
+
+    expect(hfp.startCalls, 1);
+    await mediaService.stopPlayback();
+    expect(hfp.stopCalls, 1);
+    await mediaService.dispose();
+  });
+
   test('iOS lesson recording configuration is input-capable', () {
     final hfpSession = lessonRecordingAudioSessionConfiguration(
       useSelectedHfp: true,
@@ -181,6 +260,21 @@ void main() {
     expect(phoneRecord.iosConfig.categoryOptions, <IosAudioCategoryOption>[
       IosAudioCategoryOption.defaultToSpeaker,
     ]);
+    expect(hfpRecord.androidConfig.manageBluetooth, isFalse);
+    expect(
+      hfpRecord.androidConfig.audioSource,
+      AndroidAudioSource.voiceCommunication,
+    );
+    expect(
+      hfpRecord.androidConfig.audioManagerMode,
+      AudioManagerMode.modeInCommunication,
+    );
+    expect(phoneRecord.androidConfig.manageBluetooth, isFalse);
+    expect(phoneRecord.androidConfig.audioSource, AndroidAudioSource.mic);
+    expect(
+      phoneRecord.androidConfig.audioManagerMode,
+      AudioManagerMode.modeNormal,
+    );
   });
 
   test('iOS recording input selects exact H20 UID and built-in phone mic', () {

@@ -51,6 +51,7 @@ void main() {
       );
       expect(mediaService.recording, isTrue);
       expect(voicePrompts.readyCueCount, 1);
+      expect(mediaService.selectedOutputPreparationCount, 2);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
@@ -58,6 +59,7 @@ void main() {
       expect(find.text('Sentence 2'), findsOneWidget);
       expect(mediaService.recording, isTrue);
       expect(voicePrompts.readyCueCount, 2);
+      expect(mediaService.selectedOutputPreparationCount, 4);
       expect(vocabularyStore.entries, hasLength(1));
       expect(vocabularyStore.entries.single.word, 'Sentence 1');
       expect(
@@ -1338,6 +1340,7 @@ void main() {
     expect(find.byType(LessonIntroScreen), findsOneWidget);
     expect(find.byType(LessonPracticeScreen), findsNothing);
     expect(mediaService.playedUri, introUri);
+    expect(mediaService.playbackRoute, LessonPlaybackRoute.phoneSpeaker);
 
     mediaService.finishIntro();
     await tester.pump();
@@ -1345,6 +1348,39 @@ void main() {
     expect(find.byType(LessonReviewScreen), findsNothing);
     expect(find.text('Nghe tổng quan'), findsNothing);
     expect(find.byType(LessonPracticeScreen), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('V2 lesson intro uses phone TTS when its audio clip is missing', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final voicePrompt = _FakeVoicePromptService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 6,
+          endAge: 7,
+          topic: listeningCatalogs[1].topics.first,
+          lesson: _lesson(code: 'A067_T05_L02'),
+          progressStore: _MemoryProgressStore(),
+          mediaService: mediaService,
+          voicePromptService: voicePrompt,
+          autoAdvance: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(voicePrompt.spoken, hasLength(1));
+    expect(voicePrompt.spoken.single, contains('Hôm nay mình'));
+    expect(find.textContaining('Không thể phát lời mở đầu'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -1720,6 +1756,15 @@ class _GuidedMediaService extends LessonMediaService {
   final List<Uri> playedUris = <Uri>[];
   final List<String> startedSentenceIds = <String>[];
   final List<String> deletedLessonIds = <String>[];
+  int selectedOutputPreparationCount = 0;
+
+  @override
+  Future<void> preparePhoneSpeakerOutput() async {}
+
+  @override
+  Future<void> prepareSelectedLessonOutput() async {
+    selectedOutputPreparationCount += 1;
+  }
 
   @override
   Future<String?> existingRecording({
@@ -1765,7 +1810,10 @@ class _GuidedMediaService extends LessonMediaService {
   }
 
   @override
-  Future<void> play(Uri uri) async {
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {
     playedUris.add(uri);
   }
 
@@ -1773,6 +1821,7 @@ class _GuidedMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 15),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     playedUris.add(uri);
   }
@@ -1792,6 +1841,7 @@ class _ControlledLessonAudioMediaService extends _GuidedMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 15),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     playedUris.add(uri);
     if (uri.scheme == 'asset') {
@@ -1858,6 +1908,7 @@ class _BlockingRecordingStartMediaService extends _GuidedMediaService {
 class _ControlledIntroMediaService extends LessonMediaService {
   final Completer<void> _completion = Completer<void>();
   Uri? playedUri;
+  LessonPlaybackRoute? playbackRoute;
   int stopCalls = 0;
 
   void finishIntro() => _completion.complete();
@@ -1866,8 +1917,10 @@ class _ControlledIntroMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) {
     playedUri = uri;
+    playbackRoute = route;
     return _completion.future;
   }
 
@@ -1888,6 +1941,7 @@ class _FailingIntroMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     throw StateError('Playback failed.');
   }
@@ -1910,6 +1964,7 @@ class _ControlledNextIntroMediaService extends _GuidedMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     playedUris.add(uri);
     if (uri != nextIntroUri) {

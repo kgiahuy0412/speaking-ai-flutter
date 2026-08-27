@@ -17,6 +17,13 @@ class LessonRecording {
   final Duration duration;
 }
 
+/// Selects the physical output used for one lesson clip.
+///
+/// Lesson samples stay on the selected H20 two-way route, while short coach
+/// prompts intentionally come from the phone so children can distinguish the
+/// instruction from the phrase they need to repeat.
+enum LessonPlaybackRoute { selectedLessonDevice, phoneSpeaker }
+
 class LessonMediaService {
   LessonMediaService({
     AudioRecorder? recorder,
@@ -75,8 +82,11 @@ class LessonMediaService {
     }
   }
 
-  Future<void> play(Uri uri) async {
-    await _preparePlaybackRoute();
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {
+    await _preparePlaybackRoute(route);
     await _activePlayback.play(uri);
   }
 
@@ -123,9 +133,10 @@ class LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     final playback = _activePlayback;
-    await _preparePlaybackRoute();
+    await _preparePlaybackRoute(route);
     final completed = Completer<void>();
     final previousCompletion = _activePlaybackCompletion;
     if (previousCompletion != null && !previousCompletion.isCompleted) {
@@ -188,6 +199,17 @@ class LessonMediaService {
   Future<void> stopPlayback() async {
     await _stopPlayback(releaseAudioRoute: true);
   }
+
+  /// Releases a lesson-owned HFP route and prepares native fallback speech for
+  /// the phone speaker. This is used when a generated guide asset is absent and
+  /// the platform TTS bridge must speak the same coach prompt instead.
+  Future<void> preparePhoneSpeakerOutput() =>
+      _preparePlaybackRoute(LessonPlaybackRoute.phoneSpeaker);
+
+  /// Prepares the selected H20 output before native TTS supplies a lesson
+  /// sample whose generated Cloudinary clip is not available yet.
+  Future<void> prepareSelectedLessonOutput() =>
+      _preparePlaybackRoute(LessonPlaybackRoute.selectedLessonDevice);
 
   Future<void> _stopPlayback({required bool releaseAudioRoute}) async {
     final completion = _activePlaybackCompletion;
@@ -295,25 +317,33 @@ class LessonMediaService {
     );
   }
 
-  Future<void> _preparePlaybackRoute() async {
+  Future<void> _preparePlaybackRoute(LessonPlaybackRoute route) async {
     final playback = _activePlayback;
-    final useSelectedHfp = _shouldUseSelectedHfp;
+    final useSelectedHfp =
+        route == LessonPlaybackRoute.selectedLessonDevice &&
+        _shouldUseSelectedHfp;
     if (playback is CommunicationRouteAwareAudioPlaybackService) {
       (playback as CommunicationRouteAwareAudioPlaybackService)
           .setCommunicationRouteActive(useSelectedHfp);
+    }
+    if (!useSelectedHfp) {
+      // Clear SCO before configuring ordinary playback. This prevents a coach
+      // prompt from inheriting the preceding H20 communication route.
+      await _releaseHfpRoute();
+      await playback.prepare();
+      return;
     }
     // Configure playAndRecord/voiceChat first, then re-assert the selected HFP
     // input. This order prevents just_audio's playback preparation from
     // replacing the route selected by the native H20 bridge.
     await playback.prepare();
-    if (useSelectedHfp) {
-      await _activateSelectedHfpRoute();
-    } else {
-      await _releaseHfpRoute();
-    }
+    await _activateSelectedHfpRoute();
   }
 
   Future<void> _activateSelectedHfpRoute() async {
+    if (_ownsActiveHfpRoute) {
+      return;
+    }
     final control = _hfpAudioControl;
     if (control == null) {
       return;
@@ -343,6 +373,18 @@ class LessonMediaService {
     echoCancel: true,
     noiseSuppress: true,
     device: inputDevice,
+    // HfpAudioControl already owns the exact selected H20 route. Letting the
+    // record plugin manage Bluetooth too makes it select the first SCO device
+    // and clear that route on stop.
+    androidConfig: AndroidRecordConfig(
+      manageBluetooth: false,
+      audioSource: useSelectedHfp
+          ? AndroidAudioSource.voiceCommunication
+          : AndroidAudioSource.mic,
+      audioManagerMode: useSelectedHfp
+          ? AudioManagerMode.modeInCommunication
+          : AudioManagerMode.modeNormal,
+    ),
     iosConfig: IosRecordConfig(
       categoryOptions: useSelectedHfp
           ? const <IosAudioCategoryOption>[

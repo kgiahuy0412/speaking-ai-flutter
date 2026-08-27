@@ -16,6 +16,15 @@ abstract interface class SpeechReadyCuePlayer {
   Future<void> playSpeechReadyCue();
 }
 
+/// Optional capability for prompts that must be distinguishable from lesson
+/// audio routed through a selected two-way H20 device.
+abstract interface class PhoneSpeakerVoicePromptService {
+  Future<void> speakAndWaitOnPhoneSpeaker(
+    String text, {
+    String locale = 'vi-VN',
+  });
+}
+
 /// Optional native capability that brackets one physical/virtual MAIN turn.
 /// The iOS implementation uses this boundary to keep one AVAudioSession owner
 /// from the first prompt through the final speech result.

@@ -190,6 +190,14 @@ class ListeningLessonContent {
   final Uri? dialogueTransitionAudioUri;
   final String? fullAudioId;
   final Uri? fullAudioUri;
+
+  /// Published catalog lessons use the same listen -> repeat -> evaluate state
+  /// machine. Keeping the check in the content model removes two duplicated UI
+  /// gates; the catalog integrity test ensures no released lesson misses it.
+  bool get usesGuidedPractice =>
+      type != ListeningLessonType.song &&
+      sentences.isNotEmpty &&
+      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(code);
 }
 
 @immutable

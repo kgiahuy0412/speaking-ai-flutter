@@ -49,7 +49,14 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       let text = (arguments?["text"] as? String)?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       let locale = arguments?["locale"] as? String ?? "vi-VN"
-      speak(text, locale: locale, waitForCompletion: call.method == "speakAndWait", result: result)
+      let forcePhoneSpeaker = arguments?["forcePhoneSpeaker"] as? Bool ?? false
+      speak(
+        text,
+        locale: locale,
+        forcePhoneSpeaker: forcePhoneSpeaker,
+        waitForCompletion: call.method == "speakAndWait",
+        result: result
+      )
     case "playSpeechReadyCue":
       playSpeechReadyCue(result)
     case "stop":
@@ -63,6 +70,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private func speak(
     _ text: String,
     locale: String,
+    forcePhoneSpeaker: Bool,
     waitForCompletion: Bool,
     result: @escaping FlutterResult
   ) {
@@ -71,7 +79,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       return
     }
     stop()
-    configurePromptAudioSession()
+    configurePromptAudioSession(forcePhoneSpeaker: forcePhoneSpeaker)
     audioSessionCoordinator.trace(stage: "prompt_started", caller: "VoicePromptBridge.speak")
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: locale)
@@ -86,8 +94,24 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     synthesizer.speak(utterance)
   }
 
-  private func configurePromptAudioSession() {
+  private func configurePromptAudioSession(forcePhoneSpeaker: Bool = false) {
     let session = audioSessionCoordinator.session
+    if forcePhoneSpeaker {
+      do {
+        try audioSessionCoordinator.preparePhoneSpeaker(
+          caller: "VoicePromptBridge.configurePromptAudioSession"
+        )
+        promptUsesHfpRoute = false
+      } catch {
+        audioSessionCoordinator.trace(
+          stage: "prompt_audio_error",
+          caller: "VoicePromptBridge.configurePromptAudioSession",
+          code: "PHONE_PROMPT_AUDIO_SESSION_FAILED",
+          message: error.localizedDescription
+        )
+      }
+      return
+    }
     // Capture the HFP port before changing the shared session. HfpAudioBridge
     // activates and selects it; the prompt bridge must preserve that choice
     // instead of forcing every assistant utterance back to the iPhone speaker.

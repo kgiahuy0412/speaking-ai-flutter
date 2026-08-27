@@ -21,7 +21,10 @@ external void _stopPrompt();
 external void _playSpeechReadyCue();
 
 class WebVoicePromptService
-    implements VoicePromptService, SpeechReadyCuePlayer {
+    implements
+        VoicePromptService,
+        SpeechReadyCuePlayer,
+        PhoneSpeakerVoicePromptService {
   const WebVoicePromptService();
 
   @override
@@ -49,6 +52,12 @@ class WebVoicePromptService
       _stopPrompt();
     }
   }
+
+  @override
+  Future<void> speakAndWaitOnPhoneSpeaker(
+    String text, {
+    String locale = 'vi-VN',
+  }) => speakAndWait(text, locale: locale);
 
   @override
   Future<void> playSpeechReadyCue() async {

@@ -2,10 +2,12 @@ package com.innotrik.aispeaking
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.media.audiofx.LoudnessEnhancer
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,10 +29,12 @@ class VoicePromptBridge(
         val text: String,
         val locale: String,
         val gainDb: Double,
+        val forcePhoneSpeaker: Boolean,
         val completion: MethodChannel.Result?,
     )
 
     private val appContext = context.applicationContext
+    private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val methodChannel = MethodChannel(messenger, "ailingo_voice_prompt")
     private val mainHandler = Handler(Looper.getMainLooper())
     private var textToSpeech: TextToSpeech? = null
@@ -48,6 +52,10 @@ class VoicePromptBridge(
     private var promptPlaybackFile: File? = null
     private var promptPlayer: MediaPlayer? = null
     private var promptLoudnessEnhancer: LoudnessEnhancer? = null
+    private var phoneSpeakerRouteActive = false
+    private var previousAudioMode = AudioManager.MODE_NORMAL
+    private var previousSpeakerphone = false
+    private var previousCommunicationDevice: AudioDeviceInfo? = null
     private var utteranceSequence = 0L
 
     init {
@@ -91,7 +99,13 @@ class VoicePromptBridge(
             )
         }
         pendingPrompt?.let {
-            speak(it.text, it.locale, it.gainDb, completion = it.completion)
+            speak(
+                it.text,
+                it.locale,
+                it.gainDb,
+                forcePhoneSpeaker = it.forcePhoneSpeaker,
+                completion = it.completion,
+            )
         }
         pendingPrompt = null
     }
@@ -105,8 +119,14 @@ class VoicePromptBridge(
                 val text = call.argument<String>("text")?.trim().orEmpty()
                 val locale = call.argument<String>("locale")?.trim().orEmpty()
                 val gainDb = requestedGainDb(call)
+                val forcePhoneSpeaker = call.argument<Boolean>("forcePhoneSpeaker") == true
                 if (text.isNotEmpty()) {
-                    speak(text, locale.ifEmpty { "vi-VN" }, gainDb)
+                    speak(
+                        text,
+                        locale.ifEmpty { "vi-VN" },
+                        gainDb,
+                        forcePhoneSpeaker = forcePhoneSpeaker,
+                    )
                 }
                 result.success(null)
             }
@@ -114,6 +134,7 @@ class VoicePromptBridge(
                 val text = call.argument<String>("text")?.trim().orEmpty()
                 val locale = call.argument<String>("locale")?.trim().orEmpty()
                 val gainDb = requestedGainDb(call)
+                val forcePhoneSpeaker = call.argument<Boolean>("forcePhoneSpeaker") == true
                 if (text.isEmpty()) {
                     result.success(null)
                 } else {
@@ -121,6 +142,7 @@ class VoicePromptBridge(
                         text,
                         locale.ifEmpty { "vi-VN" },
                         gainDb,
+                        forcePhoneSpeaker = forcePhoneSpeaker,
                         completion = result,
                     )
                 }
@@ -133,6 +155,7 @@ class VoicePromptBridge(
                 textToSpeech?.stop()
                 clearSynthesizedPrompt()
                 releasePromptPlayback()
+                releasePhoneSpeakerRoute()
                 result.success(null)
             }
             else -> result.notImplemented()
@@ -143,11 +166,18 @@ class VoicePromptBridge(
         text: String,
         localeTag: String,
         gainDb: Double,
+        forcePhoneSpeaker: Boolean = false,
         completion: MethodChannel.Result? = null,
     ) {
         if (!initialized) {
             completePendingPrompt()
-            pendingPrompt = PendingPrompt(text, localeTag, gainDb, completion)
+            pendingPrompt = PendingPrompt(
+                text,
+                localeTag,
+                gainDb,
+                forcePhoneSpeaker,
+                completion,
+            )
             return
         }
         val engine = textToSpeech
@@ -160,6 +190,10 @@ class VoicePromptBridge(
         engine.stop()
         clearSynthesizedPrompt()
         releasePromptPlayback()
+        releasePhoneSpeakerRoute()
+        if (forcePhoneSpeaker) {
+            preparePhoneSpeakerRoute()
+        }
         val requestedLocale = Locale.forLanguageTag(localeTag)
         val languageResult = engine.setLanguage(requestedLocale)
         if (
@@ -204,6 +238,7 @@ class VoicePromptBridge(
             if (utteranceId != null && utteranceId == synthesizedPromptId) {
                 playSynthesizedPrompt(utteranceId)
             } else {
+                releasePhoneSpeakerRoute()
                 completeAwaited(utteranceId)
             }
         }
@@ -217,6 +252,7 @@ class VoicePromptBridge(
             if (utteranceId != null && utteranceId == synthesizedPromptId) {
                 clearSynthesizedPrompt()
             }
+            releasePhoneSpeakerRoute()
             completeAwaited(utteranceId, error)
         }
     }
@@ -226,6 +262,7 @@ class VoicePromptBridge(
             if (utteranceId != null && utteranceId == synthesizedPromptId) {
                 clearSynthesizedPrompt()
             }
+            releasePhoneSpeakerRoute()
             completeAwaited(utteranceId)
         }
     }
@@ -299,7 +336,50 @@ class VoicePromptBridge(
             return
         }
         releasePromptPlayback()
+        releasePhoneSpeakerRoute()
         completeAwaited(utteranceId, error)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun preparePhoneSpeakerRoute() {
+        if (phoneSpeakerRouteActive) return
+        previousAudioMode = audioManager.mode
+        previousSpeakerphone = audioManager.isSpeakerphoneOn
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            previousCommunicationDevice = audioManager.communicationDevice
+        }
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val phoneSpeaker = audioManager.availableCommunicationDevices.firstOrNull {
+                it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            }
+            if (phoneSpeaker != null) {
+                audioManager.setCommunicationDevice(phoneSpeaker)
+            }
+        } else {
+            audioManager.stopBluetoothSco()
+            audioManager.isBluetoothScoOn = false
+            audioManager.isSpeakerphoneOn = true
+        }
+        phoneSpeakerRouteActive = true
+    }
+
+    @Suppress("DEPRECATION")
+    private fun releasePhoneSpeakerRoute() {
+        if (!phoneSpeakerRouteActive) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val previousDevice = previousCommunicationDevice
+            if (previousDevice != null) {
+                audioManager.setCommunicationDevice(previousDevice)
+            } else {
+                audioManager.clearCommunicationDevice()
+            }
+            previousCommunicationDevice = null
+        } else {
+            audioManager.isSpeakerphoneOn = previousSpeakerphone
+        }
+        audioManager.mode = previousAudioMode
+        phoneSpeakerRouteActive = false
     }
 
     private fun clearSynthesizedPrompt() {
@@ -387,6 +467,7 @@ class VoicePromptBridge(
         textToSpeech?.stop()
         clearSynthesizedPrompt()
         releasePromptPlayback()
+        releasePhoneSpeakerRoute()
         initialized = false
         methodChannel.setMethodCallHandler(null)
         textToSpeech?.shutdown()

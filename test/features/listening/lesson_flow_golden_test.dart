@@ -419,6 +419,12 @@ class _GoldenMediaService extends LessonMediaService {
   Set<int> recordedSentenceNumbers = const <int>{};
 
   @override
+  Future<void> preparePhoneSpeakerOutput() async {}
+
+  @override
+  Future<void> prepareSelectedLessonOutput() async {}
+
+  @override
   Future<String?> existingRecording({
     required String lessonId,
     required int sentenceNumber,
@@ -453,12 +459,16 @@ class _GoldenMediaService extends LessonMediaService {
   }
 
   @override
-  Future<void> play(Uri uri) async {}
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {}
 
   @override
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {}
 
   @override

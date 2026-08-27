@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_guide_audio_library.dart';
@@ -29,6 +30,7 @@ class LessonIntroScreen extends StatefulWidget {
     this.controller,
     this.topicContent,
     this.guideAudioLibrary,
+    this.voicePromptService,
     this.autoAdvance = true,
     this.onTopicCompleted,
     super.key,
@@ -44,6 +46,7 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
+  final VoicePromptService? voicePromptService;
   final bool autoAdvance;
   final VoidCallback? onTopicCompleted;
 
@@ -60,6 +63,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   bool _pausedForMainAssistant = false;
   int _introPlaybackRequest = 0;
   late final LessonGuideAudioLibrary _guideAudioLibrary;
+  VoicePromptService? _voicePromptService;
+  bool _ownsVoicePromptService = false;
   String? _guideText;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
@@ -75,6 +80,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   void initState() {
     super.initState();
     _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
+    _voicePromptService = widget.voicePromptService;
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -112,43 +118,64 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     }
     final uri = widget.lesson.introAudioUri;
     if (uri == null) {
-      _showIntroPlaybackFailure();
+      try {
+        await widget.mediaService.preparePhoneSpeakerOutput();
+        final prompt = _activeVoicePromptService;
+        final text = _guideText ?? widget.lesson.intro;
+        if (prompt is PhoneSpeakerVoicePromptService) {
+          await (prompt as PhoneSpeakerVoicePromptService)
+              .speakAndWaitOnPhoneSpeaker(text);
+        } else {
+          await prompt.speakAndWait(text);
+        }
+      } catch (error, stackTrace) {
+        debugPrint(
+          'Lesson intro fallback failed for ${widget.lesson.id}: $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+        _showIntroPlaybackFailure();
+        return;
+      }
+    } else {
+      try {
+        await widget.mediaService.playToCompletion(
+          uri,
+          route: LessonPlaybackRoute.phoneSpeaker,
+        );
+      } catch (error, stackTrace) {
+        if (_pausedForMainAssistant || request != _introPlaybackRequest) {
+          return;
+        }
+        debugPrint(
+          'Lesson intro playback failed for ${widget.lesson.id} ($uri): $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+        _showIntroPlaybackFailure();
+        return;
+      }
+    }
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        request != _introPlaybackRequest) {
       return;
     }
-    try {
-      await widget.mediaService.playToCompletion(uri);
-      if (!mounted ||
-          _pausedForMainAssistant ||
-          request != _introPlaybackRequest) {
-        return;
+    if (_usesGuideV2) {
+      try {
+        await widget.progressStore.markLearningGuideOpened();
+      } catch (error, stackTrace) {
+        debugPrint(
+          'Could not save lesson guide state for ${widget.lesson.id}: $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
       }
-      if (_usesGuideV2) {
-        try {
-          await widget.progressStore.markLearningGuideOpened();
-        } catch (error, stackTrace) {
-          debugPrint(
-            'Could not save lesson guide state for ${widget.lesson.id}: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-        }
-      }
-      if (!mounted ||
-          _pausedForMainAssistant ||
-          request != _introPlaybackRequest) {
-        return;
-      }
-      if (widget.autoAdvance && !_movingForward) {
-        await _openOverview();
-      }
-    } catch (error, stackTrace) {
-      if (_pausedForMainAssistant || request != _introPlaybackRequest) {
-        return;
-      }
-      debugPrint(
-        'Lesson intro playback failed for ${widget.lesson.id} ($uri): $error',
-      );
-      debugPrintStack(stackTrace: stackTrace);
-      _showIntroPlaybackFailure();
+    }
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        request != _introPlaybackRequest) {
+      return;
+    }
+    if (widget.autoAdvance && !_movingForward) {
+      await _openOverview();
     }
   }
 
@@ -191,6 +218,14 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     _animationController.dispose();
     if (!_movingForward) {
       widget.mediaService.stopPlayback();
+    }
+    final voicePrompt = _voicePromptService;
+    if (voicePrompt != null) {
+      if (_ownsVoicePromptService) {
+        unawaited(voicePrompt.dispose());
+      } else {
+        unawaited(voicePrompt.stop());
+      }
     }
     super.dispose();
   }
@@ -378,6 +413,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       setState(() {});
     }
     await widget.mediaService.stopPlayback().catchError((Object _) {});
+    await _voicePromptService?.stop().catchError((Object _) {});
   }
 
   void _resumeIntro() {
@@ -498,8 +534,16 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   bool get _usesSongKaraoke =>
       shouldUseSongKaraoke(startAge: widget.startAge, lesson: widget.lesson);
 
-  bool get _usesGuideV2 =>
-      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(widget.lesson.code);
+  bool get _usesGuideV2 => widget.lesson.usesGuidedPractice;
+
+  VoicePromptService get _activeVoicePromptService {
+    final existing = _voicePromptService;
+    if (existing != null) {
+      return existing;
+    }
+    _ownsVoicePromptService = true;
+    return _voicePromptService = createVoicePromptService();
+  }
 
   Widget _buildPracticeScreen(BuildContext context) => LessonPracticeScreen(
     language: widget.language,

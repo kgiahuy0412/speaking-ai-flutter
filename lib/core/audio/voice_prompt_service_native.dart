@@ -10,6 +10,7 @@ class MethodChannelVoicePromptService
     implements
         VoicePromptService,
         SpeechReadyCuePlayer,
+        PhoneSpeakerVoicePromptService,
         MainTurnVoicePromptService {
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
@@ -49,10 +50,24 @@ class MethodChannelVoicePromptService
     await _invokeSpeak('speakAndWait', text, locale: locale);
   }
 
+  @override
+  Future<void> speakAndWaitOnPhoneSpeaker(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    await _invokeSpeak(
+      'speakAndWait',
+      text,
+      locale: locale,
+      forcePhoneSpeaker: true,
+    );
+  }
+
   Future<void> _invokeSpeak(
     String method,
     String text, {
     required String locale,
+    bool forcePhoneSpeaker = false,
   }) async {
     if (text.trim().isEmpty) {
       return;
@@ -62,6 +77,7 @@ class MethodChannelVoicePromptService
         'text': text.trim(),
         'locale': locale,
         'gainDb': androidSpeechBoostDb,
+        'forcePhoneSpeaker': forcePhoneSpeaker,
       });
     } on MissingPluginException {
       // The prompt is supplementary. The visible message remains available on

@@ -478,7 +478,10 @@ class _KaraokeMediaService extends LessonMediaService {
   Future<void> unlockPlaybackForUserGesture() async {}
 
   @override
-  Future<void> play(Uri uri) async {
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {
     playCalls += 1;
     playing = true;
     if (!_disposed) {
@@ -490,6 +493,7 @@ class _KaraokeMediaService extends LessonMediaService {
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     playToCompletionCalls += 1;
   }

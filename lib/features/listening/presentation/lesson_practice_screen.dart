@@ -110,8 +110,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   ListeningSentenceContent get _sentence =>
       widget.lesson.sentences[_sentenceIndex];
 
-  bool get _usesGuideV2 =>
-      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(widget.lesson.code);
+  bool get _usesGuideV2 => widget.lesson.usesGuidedPractice;
 
   @override
   ActiveLearningModuleKind get moduleKind =>
@@ -1664,6 +1663,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(
         uri,
         timeout: const Duration(seconds: 10),
+        route: LessonPlaybackRoute.phoneSpeaker,
       );
       return true;
     } catch (_) {
@@ -1740,10 +1740,18 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(
         uri,
         timeout: const Duration(seconds: 16),
+        route: LessonPlaybackRoute.phoneSpeaker,
       );
       return;
     }
-    await _voicePromptService.speakAndWait(prompt.text);
+    await widget.mediaService.preparePhoneSpeakerOutput();
+    final voicePrompt = _voicePromptService;
+    if (voicePrompt is PhoneSpeakerVoicePromptService) {
+      await (voicePrompt as PhoneSpeakerVoicePromptService)
+          .speakAndWaitOnPhoneSpeaker(prompt.text);
+    } else {
+      await voicePrompt.speakAndWait(prompt.text);
+    }
   }
 
   Future<void> _playBilingualSentenceSample() async {
@@ -1751,6 +1759,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (englishUri != null) {
       await widget.mediaService.playToCompletion(englishUri);
     } else {
+      await widget.mediaService.prepareSelectedLessonOutput();
       await _voicePromptService.speakAndWait(
         _sentence.english,
         locale: 'en-US',
@@ -1767,6 +1776,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (vietnameseUri != null) {
       await widget.mediaService.playToCompletion(vietnameseUri);
     } else {
+      await widget.mediaService.prepareSelectedLessonOutput();
       await _voicePromptService.speakAndWait(
         _sentence.vietnamese,
         locale: 'vi-VN',

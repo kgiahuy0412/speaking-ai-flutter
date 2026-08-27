@@ -201,6 +201,25 @@ final class IOSAudioSessionCoordinator: NSObject {
     return false
   }
 
+  /// Forces a short coach prompt to the iPhone speaker even when an H20 HFP
+  /// input is paired. The selected H20 UID remains owned by HfpAudioBridge and
+  /// can be reactivated for the following sample/capture turn.
+  func preparePhoneSpeaker(caller: String) throws {
+    trace(stage: "phone_prompt_audio_prepare", caller: caller)
+    try ensureCategory(
+      mode: .default,
+      options: [.defaultToSpeaker, .duckOthers],
+      caller: caller
+    )
+    try ensureActive(caller: caller)
+    if let builtInInput = currentOrAvailableInput(portType: .builtInMic) {
+      try ensurePreferredInput(builtInInput, caller: caller)
+    } else {
+      try ensurePreferredInput(nil, caller: caller)
+    }
+    try ensureOutputOverride(.speaker, caller: caller)
+  }
+
   func releasePrompt(usedHfp _: Bool, caller: String) {
     trace(stage: "prompt_audio_release", caller: caller)
     guard !isMainTurnActive else {
