@@ -829,20 +829,31 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       );
       final controller = _controller;
       final h20State = controller?.h20ConnectionState();
-      // An idle iOS session commonly reports H20 as A2DP until recording asks
-      // for the two-way HFP/SCO route. Requiring routeActive here prevented the
-      // MAIN turn from ever reaching IOSStreamingSpeechInput.startAudioRoute(),
-      // which is the owner responsible for activating and verifying HFP.
-      // Require a selected HFP input instead. The speech input still fails the
-      // turn if HFP cannot be activated and never falls back to the phone mic.
-      if (h20State == null || !h20State.canStartStrictHfpTurn) {
-        debugPrint(
-          'H20 MAIN ignored: BLE is connected but no HFP input is selected.',
-        );
-        _releasePhysicalMainBleSuppression(reconnect: false);
-        return MainButtonActionResult.busy;
-      }
-      inputLabelOverride = 'Mic H20 qua HFP';
+      final useHfp = controller?.usesHfpInput ?? false;
+
+      // Do not discard a valid physical MAIN press because the diagnostic HFP
+      // snapshot is temporarily idle or has not yet published its device id.
+      // The UI selection and the native route snapshot are updated by separate
+      // asynchronous streams, so using canStartStrictHfpTurn here created a
+      // split-brain state: the UI displayed "Mic HFP dang dung" while this
+      // handler silently returned busy before the assistant prompt started.
+      //
+      // Pin the requested source for this one turn, then let the native speech
+      // bridge activate and verify the real route. A route failure is therefore
+      // reported by the actual owner instead of losing the MAIN event here.
+      _nativeStreamingSpeechInput?.useNativeSpeechAudioSourceOnce(
+        useHfp
+            ? NativeSpeechAudioSource.hfp
+            : NativeSpeechAudioSource.builtInMic,
+      );
+      inputLabelOverride = useHfp ? 'Mic H20 qua HFP' : 'Mic iPhone';
+      debugPrint(
+        'H20 MAIN dispatching assistant: '
+        'source=${useHfp ? 'hfp' : 'builtInMic'}, '
+        'bleReady=${h20State?.bleReady ?? false}, '
+        'hfpSelected=${h20State?.hfpSelected ?? false}, '
+        'hfpReady=${h20State?.hfpReady ?? false}.',
+      );
     }
 
     // Physical BLE MAIN and the on-screen MAIN now share the same assistant and
