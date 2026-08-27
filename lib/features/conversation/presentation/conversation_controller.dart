@@ -541,6 +541,10 @@ class ConversationController extends ChangeNotifier {
         phase: BluetoothAudioConnectionPhase.unsupported,
         sampleRate: 16000,
       );
+
+  /// Shared native route owner used by listening lessons so their prompt audio
+  /// and recorder select the same H20 input as the conversation flow.
+  HfpAudioControl? get learningAudioRouteControl => _hfpAudioControl;
   bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
   bool get canUseHfp =>
       hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;

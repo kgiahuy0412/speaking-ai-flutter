@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:record/record.dart';
 
 void main() {
   test(
@@ -76,6 +80,137 @@ void main() {
       await mediaService.dispose();
     },
   );
+
+  test(
+    'selected H20 route is prepared before lesson playback starts',
+    () async {
+      final events = <String>[];
+      final playback = _RouteAwareControlledPlaybackService(events);
+      final hfp = _FakeHfpAudioControl(
+        events,
+        status: const BluetoothAudioStatus(
+          phase: BluetoothAudioConnectionPhase.ready,
+          deviceId: 'h20-uid',
+          deviceName: 'H20',
+          sampleRate: 16000,
+        ),
+      );
+      final mediaService = LessonMediaService(
+        playbackService: playback,
+        hfpAudioControl: hfp,
+      );
+
+      final future = mediaService.playToCompletion(
+        Uri.parse('https://example.test/guide.mp3'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, <String>[
+        'communication:true',
+        'prepare',
+        'hfp:start',
+        'play',
+      ]);
+
+      playback.finish();
+      await future;
+      await mediaService.stopPlayback();
+      expect(hfp.stopCalls, 1);
+      await mediaService.dispose();
+    },
+  );
+
+  test('phone playback does not activate an unselected HFP route', () async {
+    final events = <String>[];
+    final playback = _RouteAwareControlledPlaybackService(events);
+    final hfp = _FakeHfpAudioControl(
+      events,
+      status: const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.idle,
+        sampleRate: 16000,
+      ),
+    );
+    final mediaService = LessonMediaService(
+      playbackService: playback,
+      hfpAudioControl: hfp,
+    );
+
+    final future = mediaService.playToCompletion(
+      Uri.parse('https://example.test/guide.mp3'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, <String>['communication:false', 'prepare', 'play']);
+    expect(hfp.startCalls, 0);
+
+    playback.finish();
+    await future;
+    await mediaService.dispose();
+  });
+
+  test('iOS lesson recording configuration is input-capable', () {
+    final hfpSession = lessonRecordingAudioSessionConfiguration(
+      useSelectedHfp: true,
+    );
+    final phoneSession = lessonRecordingAudioSessionConfiguration(
+      useSelectedHfp: false,
+    );
+    final hfpRecord = LessonMediaService.lessonRecordConfig(
+      useSelectedHfp: true,
+    );
+    final phoneRecord = LessonMediaService.lessonRecordConfig(
+      useSelectedHfp: false,
+    );
+
+    expect(
+      hfpSession.avAudioSessionCategory,
+      AVAudioSessionCategory.playAndRecord,
+    );
+    expect(hfpSession.avAudioSessionMode, AVAudioSessionMode.voiceChat);
+    expect(
+      hfpSession.avAudioSessionCategoryOptions,
+      AVAudioSessionCategoryOptions.allowBluetooth,
+    );
+    expect(
+      phoneSession.avAudioSessionCategoryOptions,
+      AVAudioSessionCategoryOptions.defaultToSpeaker,
+    );
+    expect(hfpRecord.iosConfig.categoryOptions, <IosAudioCategoryOption>[
+      IosAudioCategoryOption.allowBluetooth,
+    ]);
+    expect(phoneRecord.iosConfig.categoryOptions, <IosAudioCategoryOption>[
+      IosAudioCategoryOption.defaultToSpeaker,
+    ]);
+  });
+
+  test('iOS recording input selects exact H20 UID and built-in phone mic', () {
+    const builtIn = InputDevice(
+      id: 'iphone-mic',
+      label: 'iPhone Microphone',
+      type: InputDeviceType.builtIn,
+    );
+    const otherHeadset = InputDevice(
+      id: 'other-hfp',
+      label: 'Other Headset',
+      type: InputDeviceType.bluetoothSco,
+    );
+    const h20 = InputDevice(
+      id: 'h20-uid',
+      label: 'H20',
+      type: InputDeviceType.bluetoothSco,
+    );
+    const devices = <InputDevice>[builtIn, otherHeadset, h20];
+
+    expect(
+      selectLessonRecordingInput(
+        devices,
+        useSelectedHfp: true,
+        selectedHfpDeviceId: 'h20-uid',
+      ),
+      h20,
+    );
+    expect(selectLessonRecordingInput(devices, useSelectedHfp: false), builtIn);
+  });
 }
 
 class _ControlledPlaybackService implements AudioPlaybackService {
@@ -215,4 +350,73 @@ class _StaleCompletionPlaybackService
       _completed.close(),
     ]);
   }
+}
+
+class _RouteAwareControlledPlaybackService extends _ControlledPlaybackService
+    implements CommunicationRouteAwareAudioPlaybackService {
+  _RouteAwareControlledPlaybackService(this.events);
+
+  final List<String> events;
+
+  @override
+  void setCommunicationRouteActive(bool active) {
+    events.add('communication:$active');
+  }
+
+  @override
+  Future<void> prepare() async {
+    events.add('prepare');
+  }
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) {
+    events.add('play');
+    return super.play(uri);
+  }
+}
+
+class _FakeHfpAudioControl implements HfpAudioControl {
+  _FakeHfpAudioControl(this.events, {required this.status});
+
+  final List<String> events;
+
+  @override
+  BluetoothAudioStatus status;
+
+  int startCalls = 0;
+  int stopCalls = 0;
+
+  @override
+  bool get usesBrowserAudioInput => false;
+
+  @override
+  Stream<BluetoothAudioStatus> get statusChanges =>
+      const Stream<BluetoothAudioStatus>.empty();
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<HfpAudioDevice>> findDevices() async => const <HfpAudioDevice>[];
+
+  @override
+  Future<void> connect(HfpAudioDevice device) async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> startAudioRoute() async {
+    startCalls += 1;
+    events.add('hfp:start');
+  }
+
+  @override
+  Future<void> stopAudioRoute() async {
+    stopCalls += 1;
+    events.add('hfp:stop');
+  }
+
+  @override
+  Future<void> dispose() async {}
 }

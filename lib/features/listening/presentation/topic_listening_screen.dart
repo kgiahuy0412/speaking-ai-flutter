@@ -96,7 +96,9 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
     _contentFuture =
         widget.contentFuture ?? AssetListeningContentRepository().load();
-    _historyMediaService = LessonMediaService();
+    _historyMediaService = LessonMediaService(
+      hfpAudioControl: widget.controller?.learningAudioRouteControl,
+    );
     unawaited(_loadContentAndProgress());
   }
 
