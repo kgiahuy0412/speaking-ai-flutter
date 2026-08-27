@@ -908,7 +908,33 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await _advanceToNext(autoPlaySentence: true);
         return;
       case LessonAttemptOutcome.unclear:
+        if (attemptNumber >= 2) {
+          await _markSentenceNeedsPractice(sentenceIndex, sentence);
+          if (!_isCurrentEvaluation(
+            evaluationRequest,
+            sentenceIndex,
+            sentence.id,
+          )) {
+            return;
+          }
+          setState(() {
+            _recordingPath = null;
+            _recordingDuration = null;
+            _message = LessonGuideFlowV2.moveToNext.text;
+          });
+          await _playPrompt(LessonGuideFlowV2.moveToNext);
+          if (!_isCurrentEvaluation(
+            evaluationRequest,
+            sentenceIndex,
+            sentence.id,
+          )) {
+            return;
+          }
+          await _advanceToNext(autoPlaySentence: true);
+          return;
+        }
         setState(() {
+          _attemptNumber += 1;
           _recordingPath = null;
           _recordingDuration = null;
           _message = LessonGuideFlowV2.unclear.text;

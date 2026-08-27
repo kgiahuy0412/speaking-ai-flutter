@@ -265,6 +265,15 @@ class LessonMediaService {
         useSelectedHfp: useSelectedHfp,
       );
 
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        // AudioSession/HfpAudioControl already selected and verified the input.
+        // Letting record_ios configure AVAudioSession again at recorder.start()
+        // can replace the confirmed H20 route and produce a silent M4A even
+        // though the UI still reports HFP as active. Restore plugin ownership
+        // for phone-mic recordings, where there is no HFP route owner.
+        await recorder.ios?.manageAudioSession(!useSelectedHfp);
+      }
+
       final path = await recordingPath(
         lessonId: lessonId,
         sentenceNumber: sentenceNumber,

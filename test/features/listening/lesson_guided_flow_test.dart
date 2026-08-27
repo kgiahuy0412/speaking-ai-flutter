@@ -371,6 +371,54 @@ void main() {
     },
   );
 
+  testWidgets('V2 moves to the next sentence after two unclear recordings', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final progressStore = _MemoryProgressStore();
+    final vocabularyStore = _MemoryVocabularyStore();
+    final voicePrompts = _FakeVoicePromptService();
+    final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+      LessonAttemptOutcome.unclear,
+      LessonAttemptOutcome.unclear,
+    ]);
+    await tester.pumpWidget(
+      _subject(
+        _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        progressStore: progressStore,
+        attemptEvaluator: evaluator,
+        voicePromptService: voicePrompts,
+        vocabularyStore: vocabularyStore,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pumpAndSettle();
+    expect(mediaService.recording, isTrue);
+    expect(find.text('Sentence 1'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sentence 2'), findsOneWidget);
+    expect(mediaService.recording, isTrue);
+    expect(progressStore.needsPractice, contains(0));
+    expect(
+      voicePrompts.spoken.where(
+        (message) => message == 'vi-VN|Cô chưa nghe rõ. Con nói lại nhé.',
+      ),
+      hasLength(1),
+    );
+    expect(voicePrompts.spoken, contains('vi-VN|Mình cùng học câu khác nhé!'));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets(
     'V2 promotes a retry sentence from Review to Stars when correct',
     (tester) async {
