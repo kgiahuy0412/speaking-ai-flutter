@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -228,7 +229,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     if (transcript is! String || transcript.trim().isEmpty) {
       return LessonAttemptOutcome.unclear;
     }
-    return _matchesLessonEnglish(expectedEnglish, transcript)
+    return matchesRecognizedLessonEnglish(expectedEnglish, transcript)
         ? LessonAttemptOutcome.good
         : LessonAttemptOutcome.retry;
   }
@@ -301,9 +302,63 @@ String _normalizeLessonEnglish(String value) {
       .join(' ');
 }
 
-bool _matchesLessonEnglish(String expectedEnglish, String transcript) {
+/// Performs the intentionally basic local pass/fail check used after Apple
+/// Speech produces an English transcript for a listening lesson.
+bool matchesRecognizedLessonEnglish(String expectedEnglish, String transcript) {
   final expected = _normalizeLessonEnglish(expectedEnglish);
-  return expected.isNotEmpty && expected == _normalizeLessonEnglish(transcript);
+  final actual = _normalizeLessonEnglish(transcript);
+  if (expected.isEmpty || actual.isEmpty) {
+    return false;
+  }
+  if (expected == actual) {
+    return true;
+  }
+
+  final expectedWords = expected.split(' ');
+  final actualWords = actual.split(' ');
+  if (actualWords.length <= expectedWords.length + 2 &&
+      _containsContiguousWords(actualWords, expectedWords)) {
+    return true;
+  }
+
+  final longest = math.max(expected.length, actual.length);
+  final similarity = 1 - (_levenshteinDistance(expected, actual) / longest);
+  return similarity >= 0.82;
+}
+
+bool _containsContiguousWords(List<String> source, List<String> expected) {
+  if (expected.length > source.length) return false;
+  for (var start = 0; start <= source.length - expected.length; start += 1) {
+    var matches = true;
+    for (var index = 0; index < expected.length; index += 1) {
+      if (source[start + index] != expected[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
+int _levenshteinDistance(String left, String right) {
+  var previous = List<int>.generate(right.length + 1, (index) => index);
+  for (var leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    final current = List<int>.filled(right.length + 1, 0);
+    current[0] = leftIndex;
+    for (var rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      final substitution =
+          left.codeUnitAt(leftIndex - 1) == right.codeUnitAt(rightIndex - 1)
+          ? 0
+          : 1;
+      current[rightIndex] = math.min(
+        math.min(current[rightIndex - 1] + 1, previous[rightIndex] + 1),
+        previous[rightIndex - 1] + substitution,
+      );
+    }
+    previous = current;
+  }
+  return previous.last;
 }
 
 extension on String {

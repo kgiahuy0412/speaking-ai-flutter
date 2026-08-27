@@ -569,6 +569,7 @@ class AndroidStreamingSpeechInput
   Future<void> startWithNativeAudioSource({
     required bool commandMode,
     required NativeSpeechAudioSource audioSource,
+    String? localeIdentifier,
   }) async {
     if (_active) {
       await cancel();
@@ -609,6 +610,7 @@ class AndroidStreamingSpeechInput
         'commandMode': commandMode,
         'preferOnDevice': _preferOnDevice,
         'audioSource': audioSource.channelValue,
+        'locale': ?localeIdentifier,
       });
       await readyCompleter.future.timeout(_readyTimeout);
       _startedAt = DateTime.now();
@@ -1130,7 +1132,14 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
   Future<void> startCommandRecognition() =>
       _startWithAudioRoute(commandMode: true);
 
-  Future<void> _startWithAudioRoute({required bool commandMode}) async {
+  /// Reuses the verified iOS/H20 native pipeline for an English lesson turn.
+  Future<void> startLessonEnglishRecognition() =>
+      _startWithAudioRoute(commandMode: false, localeIdentifier: 'en-US');
+
+  Future<void> _startWithAudioRoute({
+    required bool commandMode,
+    String? localeIdentifier,
+  }) async {
     // Clear a stale native recognition turn before mutating AVAudioSession.
     await super.cancel().catchError((Object _) {});
     await _stopAudioRoute();
@@ -1164,6 +1173,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
       await super.startWithNativeAudioSource(
         commandMode: commandMode,
         audioSource: audioSource,
+        localeIdentifier: localeIdentifier,
       );
     } catch (_) {
       await _stopAudioRoute();

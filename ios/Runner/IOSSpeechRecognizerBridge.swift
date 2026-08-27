@@ -151,7 +151,7 @@ struct IOSNativeSpeechTaskHintSelector {
 /// support. A turn stays on the engine selected before it starts and errors are
 /// returned directly; speech is never uploaded to a Batch fallback.
 final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
-  private static let locale = Locale(identifier: "vi-VN")
+  private static let defaultLocale = Locale(identifier: "vi-VN")
 
   private let methodChannel: FlutterMethodChannel
   private let eventChannel: FlutterEventChannel
@@ -174,7 +174,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var generation = 0
   private var startRequestGeneration = 0
   private var preparedEngine: IOSNativeSpeechEngineKind?
+  private var preparedLocaleIdentifier: String?
   private var enginePreparationTask: Task<IOSNativeSpeechEngineKind?, Never>?
+  private var enginePreparationLocaleIdentifier: String?
   private var latestText = ""
   private var latestAlternatives: [String] = []
   private var latestConfidence = -1.0
@@ -183,6 +185,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var firstPartialAt: Date?
   private var finalAt: Date?
   private var requestedAudioSource = IOSNativeSpeechAudioSource.builtInMic
+  private var requestedLocale = Locale(identifier: "vi-VN")
   private var lastDiagnosticStage = "idle"
   private var firstAnalyzerInputGeneration: Int?
 
@@ -209,7 +212,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     case "speech.isAvailable":
       Task { @MainActor [weak self] in
         guard let self else { return }
-        result(await self.selectedEngineWithoutInstallingAssets() != nil)
+        result(
+          await self.selectedEngineWithoutInstallingAssets(
+            locale: Self.defaultLocale
+          ) != nil
+        )
       }
     case "speech.supportsAudioSource":
       // Live native recognition owns one AVAudioEngine pipeline and does not
@@ -223,9 +230,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       let audioSource = IOSNativeSpeechAudioSource.fromChannelValue(
         arguments?["audioSource"]
       )
+      let locale = Self.locale(from: arguments?["locale"])
       start(
         commandMode: commandMode,
         audioSource: audioSource,
+        locale: locale,
         result: result
       )
     case "speech.stop":
@@ -265,7 +274,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       }
       Task { @MainActor [weak self] in
         guard let self else { return }
-        result(await self.prepareBestEngine() != nil)
+        result(await self.prepareBestEngine(locale: Self.defaultLocale) != nil)
       }
     }
   }
@@ -273,11 +282,13 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func start(
     commandMode: Bool,
     audioSource: IOSNativeSpeechAudioSource,
+    locale: Locale,
     result: @escaping FlutterResult
   ) {
     startRequestGeneration += 1
     let requestGeneration = startRequestGeneration
     requestedAudioSource = audioSource
+    requestedLocale = locale
     startRequestedAt = Date()
     if active {
       cancelCurrent(
@@ -347,7 +358,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         Task { @MainActor [weak self] in
           guard let self else { return }
           do {
-            guard let engine = await self.prepareBestEngine() else {
+            guard let engine = await self.prepareBestEngine(locale: locale) else {
               throw IOSSpeechBridgeError.onDeviceUnavailable
             }
             guard self.isCurrentStartRequest(requestGeneration) else {
@@ -357,6 +368,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
               engine: engine,
               commandMode: commandMode,
               audioSource: audioSource,
+              locale: locale,
               startRequestGeneration: requestGeneration
             )
             guard self.isCurrentStartRequest(requestGeneration) else {
@@ -457,6 +469,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     engine: IOSNativeSpeechEngineKind,
     commandMode: Bool,
     audioSource: IOSNativeSpeechAudioSource,
+    locale: Locale,
     startRequestGeneration: Int
   ) async throws {
     guard isCurrentStartRequest(startRequestGeneration) else {
@@ -474,7 +487,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     let recognitionEngine = IOSNativeSpeechEngineSelector.selectForRecognition(
       preparedEngine: engine,
       commandMode: commandMode,
-      sfOnDeviceSupported: onDeviceLegacyRecognizer() != nil
+      sfOnDeviceSupported: onDeviceLegacyRecognizer(locale: locale) != nil
     )
     activeEngine = recognitionEngine
     active = true
@@ -497,7 +510,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       guard #available(iOS 26.0, *) else {
         throw IOSSpeechBridgeError.onDeviceUnavailable
       }
-      let session = try await IOSSpeechAnalyzerSession(locale: Self.locale)
+      let session = try await IOSSpeechAnalyzerSession(locale: locale)
       guard isCurrentStartRequest(startRequestGeneration) else {
         await session.cancel()
         throw IOSSpeechBridgeError.startCancelled
@@ -526,7 +539,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       analyzerSession = session
       session.start()
     } else {
-      try startLegacyRecognizer(commandMode: commandMode, generation: currentGeneration)
+      try startLegacyRecognizer(
+        commandMode: commandMode,
+        locale: locale,
+        generation: currentGeneration
+      )
     }
 
     guard isCurrentStartRequest(startRequestGeneration) else {
@@ -546,8 +563,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     emit(type: "speech.ready")
   }
 
-  private func startLegacyRecognizer(commandMode: Bool, generation: Int) throws {
-    guard let recognizer = onDeviceLegacyRecognizer() else {
+  private func startLegacyRecognizer(
+    commandMode: Bool,
+    locale: Locale,
+    generation: Int
+  ) throws {
+    guard let recognizer = onDeviceLegacyRecognizer(locale: locale) else {
       throw IOSSpeechBridgeError.onDeviceUnavailable
     }
     self.recognizer = recognizer
@@ -905,12 +926,14 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   }
 
   @MainActor
-  private func selectedEngineWithoutInstallingAssets() async -> IOSNativeSpeechEngineKind? {
-    let legacyAvailable = onDeviceLegacyRecognizer() != nil
+  private func selectedEngineWithoutInstallingAssets(
+    locale: Locale
+  ) async -> IOSNativeSpeechEngineKind? {
+    let legacyAvailable = onDeviceLegacyRecognizer(locale: locale) != nil
     if #available(iOS 26.0, *) {
       return IOSNativeSpeechEngineSelector.select(
         isIOS26OrNewer: true,
-        speechAnalyzerSupported: await IOSSpeechAnalyzerSession.supports(locale: Self.locale),
+        speechAnalyzerSupported: await IOSSpeechAnalyzerSession.supports(locale: locale),
         sfOnDeviceSupported: legacyAvailable
       )
     }
@@ -922,33 +945,43 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   }
 
   @MainActor
-  private func prepareBestEngine() async -> IOSNativeSpeechEngineKind? {
-    if let preparedEngine {
+  private func prepareBestEngine(locale: Locale) async -> IOSNativeSpeechEngineKind? {
+    let localeIdentifier = Self.normalizedLocaleIdentifier(locale)
+    if preparedLocaleIdentifier == localeIdentifier, let preparedEngine {
       return preparedEngine
     }
-    if let enginePreparationTask {
+    if enginePreparationLocaleIdentifier == localeIdentifier,
+      let enginePreparationTask
+    {
       return await enginePreparationTask.value
     }
+    enginePreparationTask?.cancel()
     let preparationTask = Task<IOSNativeSpeechEngineKind?, Never> { @MainActor [weak self] in
       guard let self else { return nil }
-      return await self.loadBestEngine()
+      return await self.loadBestEngine(locale: locale)
     }
     enginePreparationTask = preparationTask
+    enginePreparationLocaleIdentifier = localeIdentifier
     let engine = await preparationTask.value
-    enginePreparationTask = nil
-    if let engine {
+    let isCurrentPreparation = enginePreparationLocaleIdentifier == localeIdentifier
+    if isCurrentPreparation {
+      enginePreparationTask = nil
+      enginePreparationLocaleIdentifier = nil
+    }
+    if isCurrentPreparation, let engine {
       preparedEngine = engine
+      preparedLocaleIdentifier = localeIdentifier
     }
     return engine
   }
 
   @MainActor
-  private func loadBestEngine() async -> IOSNativeSpeechEngineKind? {
+  private func loadBestEngine(locale: Locale) async -> IOSNativeSpeechEngineKind? {
     if #available(iOS 26.0, *) {
-      let analyzerSupported = await IOSSpeechAnalyzerSession.supports(locale: Self.locale)
+      let analyzerSupported = await IOSSpeechAnalyzerSession.supports(locale: locale)
       if analyzerSupported {
         do {
-          try await IOSSpeechAnalyzerSession.installAssets(locale: Self.locale)
+          try await IOSSpeechAnalyzerSession.installAssets(locale: locale)
           return .speechAnalyzer
         } catch {
           // Continue to the strictly on-device legacy recognizer. This choice
@@ -956,21 +989,31 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         }
       }
     }
-    return onDeviceLegacyRecognizer() == nil ? nil : .sfSpeechRecognizer
+    return onDeviceLegacyRecognizer(locale: locale) == nil ? nil : .sfSpeechRecognizer
   }
 
-  private func onDeviceLegacyRecognizer() -> SFSpeechRecognizer? {
-    let requested = Self.locale.identifier.replacingOccurrences(of: "_", with: "-").lowercased()
+  private func onDeviceLegacyRecognizer(locale: Locale) -> SFSpeechRecognizer? {
+    let requested = Self.normalizedLocaleIdentifier(locale)
     let supported = SFSpeechRecognizer.supportedLocales().contains { locale in
-      locale.identifier.replacingOccurrences(of: "_", with: "-").lowercased() == requested
+      Self.normalizedLocaleIdentifier(locale) == requested
     }
     guard supported,
-      let recognizer = SFSpeechRecognizer(locale: Self.locale),
+      let recognizer = SFSpeechRecognizer(locale: locale),
       recognizer.supportsOnDeviceRecognition
     else {
       return nil
     }
     return recognizer
+  }
+
+  private static func locale(from value: Any?) -> Locale {
+    guard let identifier = value as? String else { return defaultLocale }
+    let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? defaultLocale : Locale(identifier: trimmed)
+  }
+
+  private static func normalizedLocaleIdentifier(_ locale: Locale) -> String {
+    locale.identifier.replacingOccurrences(of: "_", with: "-").lowercased()
   }
 
   private func ensureSpeechAuthorization(
@@ -1005,7 +1048,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     let now = Date()
     var values: [String: Any] = [
       "engine": activeEngine?.rawValue ?? "unknown",
-      "locale": Self.locale.identifier,
+      "locale": requestedLocale.identifier,
       "onDevice": true,
       "audioRoute": routeDescription(),
       "isBluetoothInput": isBluetoothInput(),

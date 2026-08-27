@@ -545,6 +545,13 @@ class ConversationController extends ChangeNotifier {
   /// Shared native route owner used by listening lessons so their prompt audio
   /// and recorder select the same H20 input as the conversation flow.
   HfpAudioControl? get learningAudioRouteControl => _hfpAudioControl;
+
+  /// Reuses the app's single Apple Speech event stream for listening lessons.
+  /// A second bridge listener would race MAIN for the same native events.
+  IOSStreamingSpeechInput? get iosLessonSpeechInput =>
+      _streamingSpeechInput is IOSStreamingSpeechInput
+      ? _streamingSpeechInput
+      : null;
   bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
   bool get canUseHfp =>
       hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;

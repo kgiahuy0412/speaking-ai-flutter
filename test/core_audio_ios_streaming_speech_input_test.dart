@@ -247,6 +247,72 @@ void main() {
     expect(route.status.routeActive, isFalse);
   });
 
+  test('iOS lesson requests English Apple Speech on the H20 route', () async {
+    const methodChannel = MethodChannel('test_ios_lesson_english_hfp');
+    final events = StreamController<dynamic>.broadcast();
+    final route = _FakeHfpAudioControl();
+    bool? receivedCommandMode;
+    String? receivedAudioSource;
+    String? receivedLocale;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          final arguments = call.arguments as Map<Object?, Object?>?;
+          receivedCommandMode = arguments?['commandMode'] as bool?;
+          receivedAudioSource = arguments?['audioSource'] as String?;
+          receivedLocale = arguments?['locale'] as String?;
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{
+              'type': 'speech.ready',
+              'engine': 'sf_speech_recognizer',
+              'locale': 'en-US',
+              'audioRoute': 'in=[BluetoothHFP:H20]',
+            });
+          });
+          return true;
+        case 'speech.stop':
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+      await route.dispose();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      audioRouteControl: route,
+    );
+    addTearDown(input.dispose);
+
+    await input.startLessonEnglishRecognition();
+    expect(receivedCommandMode, isFalse);
+    expect(receivedAudioSource, 'hfp');
+    expect(receivedLocale, 'en-US');
+    expect(route.startRouteCount, 1);
+
+    events.add(<String, dynamic>{
+      'type': 'speech.final',
+      'text': 'I am hungry',
+      'alternatives': <String>['I am hungry'],
+      'engine': 'sf_speech_recognizer',
+      'locale': 'en-US',
+    });
+    await Future<void>.delayed(Duration.zero);
+    final capture = await input.stop();
+
+    expect(capture.sourceText, 'I am hungry');
+    expect(route.stopRouteCount, 1);
+  });
+
   test('iOS MAIN reports HFP route failure without changing mic', () async {
     const methodChannel = MethodChannel('test_ios_native_hfp_fallback');
     final events = StreamController<dynamic>.broadcast();
