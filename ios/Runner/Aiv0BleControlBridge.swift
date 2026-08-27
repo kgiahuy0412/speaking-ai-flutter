@@ -59,6 +59,34 @@ struct Aiv0ReconnectPolicy {
   }
 }
 
+enum Aiv0MainNotificationRefreshStep: Equatable {
+  case reconnect
+  case rediscover
+  case disableBeforeReenable
+  case enable
+  case complete
+}
+
+/// H20 can keep its GATT connection alive while silently dropping the MAIN
+/// notification subscription when iOS enters and leaves the HFP/SCO voice
+/// profile. CoreBluetooth does not emit `didDisconnectPeripheral` in that
+/// state, so a normal reconnect policy cannot recover later physical presses.
+struct Aiv0MainNotificationRefreshPolicy {
+  static func nextStep(
+    peripheralConnected: Bool,
+    hasButtonCharacteristic: Bool,
+    refreshInProgress: Bool,
+    isNotifying: Bool
+  ) -> Aiv0MainNotificationRefreshStep {
+    guard peripheralConnected else { return .reconnect }
+    guard hasButtonCharacteristic else { return .rediscover }
+    if refreshInProgress {
+      return isNotifying ? .complete : .enable
+    }
+    return isNotifying ? .disableBeforeReenable : .enable
+  }
+}
+
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
 /// Android bridge. Audio remains on HFP; BLE carries MAIN button notifications,
 /// battery/firmware diagnostics, and the optional APP State packet only.
@@ -108,7 +136,10 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var connectTimeoutWorkItem: DispatchWorkItem?
   private var reconnectWorkItem: DispatchWorkItem?
   private var reconnectTimeoutWorkItem: DispatchWorkItem?
+  private var notificationRefreshWorkItem: DispatchWorkItem?
+  private var notificationRefreshTimeoutWorkItem: DispatchWorkItem?
   private weak var deferredReconnectPeripheral: CBPeripheral?
+  private var notificationRefreshInProgress = false
   private var phase = "idle"
   private var message: String?
   private var writeMode: String?
@@ -141,13 +172,20 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     }
     eventChannel.setStreamHandler(self)
     audioSessionCoordinator.onMainTurnEnded = { [weak self] in
-      guard let self, let peripheral = self.deferredReconnectPeripheral else { return }
-      self.deferredReconnectPeripheral = nil
-      self.audioSessionCoordinator.trace(
-        stage: "ble_reconnect_resumed",
-        caller: "Aiv0BleControlBridge"
-      )
-      self.scheduleReconnect(peripheral)
+      guard let self else { return }
+      if let peripheral = self.deferredReconnectPeripheral {
+        self.deferredReconnectPeripheral = nil
+        self.audioSessionCoordinator.trace(
+          stage: "ble_reconnect_resumed",
+          caller: "Aiv0BleControlBridge"
+        )
+        self.scheduleReconnect(peripheral)
+        return
+      }
+      // A connected CoreBluetooth peripheral does not prove that H20 still
+      // publishes MAIN notifications after the HFP voice profile is released.
+      // Re-arm only the button characteristic after every completed MAIN turn.
+      self.scheduleMainNotificationRefresh()
     }
   }
 
@@ -484,6 +522,94 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     reconnectTimeoutWorkItem = nil
   }
 
+  private func scheduleMainNotificationRefresh() {
+    notificationRefreshWorkItem?.cancel()
+    let item = DispatchWorkItem { [weak self] in
+      guard let self, !self.disposed else { return }
+      self.notificationRefreshWorkItem = nil
+      if self.audioSessionCoordinator.isMainTurnActive {
+        return
+      }
+      self.refreshMainNotificationSubscription()
+    }
+    notificationRefreshWorkItem = item
+    // Let iOS finish leaving HFP/SCO before touching the BLE subscription. This
+    // avoids recreating the very HFP/BLE race the coordinator was introduced to
+    // remove while still re-arming MAIN before the next child interaction.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
+  }
+
+  private func scheduleMainNotificationRefreshTimeout(_ peripheral: CBPeripheral) {
+    notificationRefreshTimeoutWorkItem?.cancel()
+    let item = DispatchWorkItem { [weak self, weak peripheral] in
+      guard let self, let peripheral,
+        self.notificationRefreshInProgress,
+        !self.disposed
+      else { return }
+      self.notificationRefreshTimeoutWorkItem = nil
+      self.notificationRefreshInProgress = false
+      self.audioSessionCoordinator.trace(
+        stage: "ble_main_notification_refresh_timeout",
+        caller: "Aiv0BleControlBridge"
+      )
+      if peripheral.state == .connected || peripheral.state == .connecting {
+        self.central?.cancelPeripheralConnection(peripheral)
+      } else {
+        self.scheduleReconnect(peripheral)
+      }
+    }
+    notificationRefreshTimeoutWorkItem = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: item)
+  }
+
+  private func refreshMainNotificationSubscription() {
+    guard let peripheral = connectedPeripheral else { return }
+    let step = Aiv0MainNotificationRefreshPolicy.nextStep(
+      peripheralConnected: peripheral.state == .connected,
+      hasButtonCharacteristic: buttonCharacteristic != nil,
+      refreshInProgress: notificationRefreshInProgress,
+      isNotifying: buttonCharacteristic?.isNotifying ?? false
+    )
+    audioSessionCoordinator.trace(
+      stage: "ble_main_notification_refresh",
+      caller: "Aiv0BleControlBridge",
+      message: String(describing: step)
+    )
+    switch step {
+    case .reconnect:
+      notificationRefreshInProgress = false
+      scheduleReconnect(peripheral)
+    case .rediscover:
+      notificationRefreshInProgress = false
+      phase = "connecting"
+      message = "Đang khôi phục nút MAIN H20…"
+      emitStatus()
+      peripheral.discoverServices([
+        ProtocolUUID.controlService,
+        ProtocolUUID.batteryService,
+        ProtocolUUID.deviceInformationService,
+      ])
+    case .disableBeforeReenable:
+      guard let buttonCharacteristic else { return }
+      notificationRefreshInProgress = true
+      peripheral.setNotifyValue(false, for: buttonCharacteristic)
+      scheduleMainNotificationRefreshTimeout(peripheral)
+    case .enable:
+      guard let buttonCharacteristic else { return }
+      notificationRefreshInProgress = true
+      peripheral.setNotifyValue(true, for: buttonCharacteristic)
+      scheduleMainNotificationRefreshTimeout(peripheral)
+    case .complete:
+      notificationRefreshTimeoutWorkItem?.cancel()
+      notificationRefreshTimeoutWorkItem = nil
+      notificationRefreshInProgress = false
+      duplicatePacketFilter.resetWindow()
+      phase = "connected"
+      message = "BLE Control H20 đã kết nối; nút MAIN sẵn sàng."
+      emitStatus()
+    }
+  }
+
   private func validateControlCharacteristics() {
     guard let button = buttonCharacteristic, let state = stateCharacteristic else {
       phase = "error"
@@ -507,6 +633,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func resetCharacteristics() {
+    notificationRefreshWorkItem?.cancel()
+    notificationRefreshWorkItem = nil
+    notificationRefreshTimeoutWorkItem?.cancel()
+    notificationRefreshTimeoutWorkItem = nil
+    notificationRefreshInProgress = false
     buttonCharacteristic = nil
     stateCharacteristic = nil
     writeMode = nil
@@ -562,6 +693,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     disposed = true
     audioSessionCoordinator.onMainTurnEnded = nil
     deferredReconnectPeripheral = nil
+    notificationRefreshWorkItem?.cancel()
+    notificationRefreshWorkItem = nil
+    notificationRefreshTimeoutWorkItem?.cancel()
+    notificationRefreshTimeoutWorkItem = nil
+    notificationRefreshInProgress = false
     scanTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem?.cancel()
     cancelReconnectTasks()
@@ -763,6 +899,24 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
     error: Error?
   ) {
     guard characteristic.uuid == ProtocolUUID.buttonEvent else { return }
+    if notificationRefreshInProgress {
+      notificationRefreshTimeoutWorkItem?.cancel()
+      notificationRefreshTimeoutWorkItem = nil
+      if let error {
+        let nsError = error as NSError
+        notificationRefreshInProgress = false
+        audioSessionCoordinator.trace(
+          stage: "ble_main_notification_refresh_failed",
+          caller: "Aiv0BleControlBridge",
+          code: "\(nsError.domain):\(nsError.code)",
+          message: error.localizedDescription
+        )
+        central?.cancelPeripheralConnection(peripheral)
+        return
+      }
+      refreshMainNotificationSubscription()
+      return
+    }
     guard error == nil, characteristic.isNotifying else {
       failDiscovery("Không bật được thông báo MAIN của H20.")
       return

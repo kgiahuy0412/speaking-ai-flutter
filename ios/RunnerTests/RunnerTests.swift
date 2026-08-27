@@ -67,6 +67,57 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(Aiv0ReconnectPolicy.shouldDefer(mainTurnActive: false))
   }
 
+  func testAiv0MainNotificationRefreshRearmsAStaleConnectedSubscription() {
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        refreshInProgress: false,
+        isNotifying: true
+      ),
+      .disableBeforeReenable
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        refreshInProgress: true,
+        isNotifying: false
+      ),
+      .enable
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        refreshInProgress: true,
+        isNotifying: true
+      ),
+      .complete
+    )
+  }
+
+  func testAiv0MainNotificationRefreshSkipsAnUnavailableGattLink() {
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: false,
+        hasButtonCharacteristic: true,
+        refreshInProgress: false,
+        isNotifying: true
+      ),
+      .reconnect
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: false,
+        refreshInProgress: false,
+        isNotifying: false
+      ),
+      .rediscover
+    )
+  }
+
   func testIOSAudioCoordinatorPromotesPhysicalMainIntoOneTurnTimeline() {
     let coordinator = IOSAudioSessionCoordinator()
     var timeline: [[String: Any]] = []
