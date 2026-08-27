@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 enum MainButtonSource { screen, ble }
 
@@ -56,7 +57,16 @@ class MainButtonCoordinator {
             onTimeout: () => MainButtonActionResult.busy,
           ),
         );
-      } catch (_) {
+      } catch (error, stackTrace) {
+        // Do not hide a failed physical MAIN dispatch. This log is mirrored by
+        // the controller's in-app dispatch status so TestFlight diagnostics can
+        // distinguish an ignored BLE packet from a failed assistant action.
+        developer.log(
+          'MAIN action failed.',
+          name: 'homi.main_button',
+          error: error,
+          stackTrace: stackTrace,
+        );
         completer.complete(MainButtonActionResult.busy);
       }
     });

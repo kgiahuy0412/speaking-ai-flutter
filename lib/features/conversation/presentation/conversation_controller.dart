@@ -319,6 +319,8 @@ class ConversationController extends ChangeNotifier {
   Uri? _preferredPlaybackUri;
   Uri? _speculativePreloadUri;
   final List<Aiv0ButtonEvent> _aiv0ButtonEventLog = <Aiv0ButtonEvent>[];
+  String _aiv0MainDispatchStatus = 'Chưa nhận lệnh MAIN vật lý.';
+  DateTime? _aiv0MainDispatchAt;
   final List<NativeSpeechDiagnostic> _nativeSpeechDiagnosticLog =
       <NativeSpeechDiagnostic>[];
 
@@ -568,6 +570,8 @@ class ConversationController extends ChangeNotifier {
       );
   List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
       List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
+  String get aiv0MainDispatchStatus => _aiv0MainDispatchStatus;
+  DateTime? get aiv0MainDispatchAt => _aiv0MainDispatchAt;
   List<NativeSpeechDiagnostic> get nativeSpeechDiagnosticLog =>
       List<NativeSpeechDiagnostic>.unmodifiable(_nativeSpeechDiagnosticLog);
   bool get supportsBrowserHfp =>
@@ -761,12 +765,20 @@ class ConversationController extends ChangeNotifier {
       _aiv0ButtonEventLog.removeRange(12, _aiv0ButtonEventLog.length);
     }
     if (!event.isActionable) {
+      _recordAiv0MainDispatch(
+        'raw nhận được nhưng chưa hỗ trợ • ${event.rawHex}',
+      );
       transientMessage = 'Đã nhận raw hex chưa hỗ trợ từ H20: ${event.rawHex}.';
       notifyListeners();
       return;
     }
+    _recordAiv0MainDispatch(
+      'received • seq=${event.sequence ?? 0} • '
+      '${event.isDuplicate ? 'duplicate' : 'actionable'}',
+    );
     unawaited(
       _handleAiv0ButtonEvent(event).catchError((Object error) async {
+        _recordAiv0MainDispatch('error • ${_friendlyError(error)}');
         transientMessage = _friendlyError(error);
         if (!_disposed) notifyListeners();
         await _syncAiv0AppState(
@@ -780,6 +792,7 @@ class ConversationController extends ChangeNotifier {
   Future<void> _handleAiv0ButtonEvent(Aiv0ButtonEvent event) async {
     final sequence = event.sequence ?? 0;
     if (event.isDuplicate) {
+      _recordAiv0MainDispatch('duplicate ignored • seq=$sequence');
       await _syncAiv0AppState(
         resultCode: Aiv0AppResult.duplicate,
         sequence: sequence,
@@ -806,12 +819,14 @@ class ConversationController extends ChangeNotifier {
       gesture: gesture,
       sequence: event.sequence,
     );
+    _recordAiv0MainDispatch('dispatching • ${gesture.name} • seq=$sequence');
     final dispatcher = _mainButtonDispatcher;
     final result = dispatcher == null
         ? gesture == MainButtonGesture.shortPress
               ? await handleBleMainShortPress(inputEvent)
               : MainButtonActionResult.ignored
         : await dispatcher(inputEvent);
+    _recordAiv0MainDispatch('${result.name} • seq=$sequence');
     await _syncAiv0AppState(
       resultCode: switch (result) {
         MainButtonActionResult.accepted => Aiv0AppResult.accepted,
@@ -820,6 +835,15 @@ class ConversationController extends ChangeNotifier {
       },
       sequence: sequence,
     );
+  }
+
+  void _recordAiv0MainDispatch(String status) {
+    _aiv0MainDispatchStatus = status;
+    _aiv0MainDispatchAt = DateTime.now();
+    debugPrint('H20 MAIN: $status');
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   /// Preserves the V1 physical MAIN short-press behavior. The coordinator uses

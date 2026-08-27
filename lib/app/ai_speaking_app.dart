@@ -807,61 +807,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_startupReady || !_voiceAccessEnabled) {
       return MainButtonActionResult.busy;
     }
-    String? inputLabelOverride;
-    if (!kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.iOS &&
-        event.source == MainButtonSource.ble) {
-      // A physical MAIN press may arrive while the H20 diagnostics sheet is
-      // open. Dismiss it first so the child can see the microphone state on the
-      // global MAIN button instead of listening behind an opaque modal.
-      if (_isGlobalModalOpen) {
-        await (_navigatorKey.currentState?.maybePop() ??
-            Future<bool>.value(false));
-        await Future<void>.delayed(const Duration(milliseconds: 80));
-      }
-
-      // Do not let an app-resume callback start a new BLE scan while the MAIN
-      // command owns the microphone. BLE control and the already-selected HFP
-      // audio route are independent links on H20, so keep both connections and
-      // let IOSStreamingSpeechInput use the already-selected HFP route directly.
-      _suppressH20AutoConnectUntil = DateTime.now().add(
-        const Duration(seconds: 45),
-      );
-      final controller = _controller;
-      final h20State = controller?.h20ConnectionState();
-      final useHfp = controller?.usesHfpInput ?? false;
-
-      // Do not discard a valid physical MAIN press because the diagnostic HFP
-      // snapshot is temporarily idle or has not yet published its device id.
-      // The UI selection and the native route snapshot are updated by separate
-      // asynchronous streams, so using canStartStrictHfpTurn here created a
-      // split-brain state: the UI displayed "Mic HFP dang dung" while this
-      // handler silently returned busy before the assistant prompt started.
-      //
-      // Pin the requested source for this one turn, then let the native speech
-      // bridge activate and verify the real route. A route failure is therefore
-      // reported by the actual owner instead of losing the MAIN event here.
-      _nativeStreamingSpeechInput?.useNativeSpeechAudioSourceOnce(
-        useHfp
-            ? NativeSpeechAudioSource.hfp
-            : NativeSpeechAudioSource.builtInMic,
-      );
-      inputLabelOverride = useHfp ? 'Mic H20 qua HFP' : 'Mic iPhone';
-      debugPrint(
-        'H20 MAIN dispatching assistant: '
-        'source=${useHfp ? 'hfp' : 'builtInMic'}, '
-        'bleReady=${h20State?.bleReady ?? false}, '
-        'hfpSelected=${h20State?.hfpSelected ?? false}, '
-        'hfpReady=${h20State?.hfpReady ?? false}.',
-      );
-    }
-
-    // Physical BLE MAIN and the on-screen MAIN now share the same assistant and
-    // microphone route. The iOS-only block above only closes diagnostics and
-    // suppresses redundant BLE scans; it no longer forces a different mic.
-    final activated = await _activateMainAssistant(
-      inputLabelOverride: inputLabelOverride,
-    );
+    // The physical H20 MAIN and the on-screen MAIN must be indistinguishable
+    // after gesture decoding. In particular, do not close routes, rescan BLE,
+    // or override the one-shot iOS speech source here. The working screen MAIN
+    // already proves that the selected HFP/phone route and assistant lifecycle
+    // are valid; source-specific preparation used to create a second, racy path
+    // that could return busy before the assistant prompt was started.
+    final activated = await _activateMainAssistant();
     if (!activated && _restoreHfpAfterPhysicalMain) {
       unawaited(_restoreHfpSelectionAfterPhysicalMain());
     }

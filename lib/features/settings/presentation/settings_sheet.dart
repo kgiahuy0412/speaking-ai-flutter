@@ -239,6 +239,8 @@ class SettingsSheet extends StatelessWidget {
                       _Aiv0BleControlCard(
                         status: controller.aiv0BleStatus,
                         events: controller.aiv0ButtonEventLog,
+                        mainDispatchStatus: controller.aiv0MainDispatchStatus,
+                        mainDispatchAt: controller.aiv0MainDispatchAt,
                         disabled: controller.isBusy,
                         onScan: () => _scanAndConnectAiv0(context),
                         onDisconnect: controller.disconnectAiv0Device,
@@ -1408,6 +1410,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
   const _Aiv0BleControlCard({
     required this.status,
     required this.events,
+    required this.mainDispatchStatus,
+    required this.mainDispatchAt,
     required this.disabled,
     required this.onScan,
     required this.onDisconnect,
@@ -1415,6 +1419,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
 
   final Aiv0BleStatus status;
   final List<Aiv0ButtonEvent> events;
+  final String mainDispatchStatus;
+  final DateTime? mainDispatchAt;
   final bool disabled;
   final VoidCallback onScan;
   final Future<void> Function() onDisconnect;
@@ -1533,6 +1539,13 @@ class _Aiv0BleControlCard extends StatelessWidget {
                       'MAIN Raw Hex đã điều khiển APP • chưa gửi APP State',
                       'MAIN Raw Hex 已控制 APP • 尚未发送 APP State',
                     ),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('MAIN → trợ lý', 'MAIN → 助手'),
+              value: mainDispatchAt == null
+                  ? mainDispatchStatus
+                  : '${_formatEventTime(mainDispatchAt!)} • '
+                        '$mainDispatchStatus',
             ),
             if (events.isNotEmpty) ...<Widget>[
               const SizedBox(height: 8),
