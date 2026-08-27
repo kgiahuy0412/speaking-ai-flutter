@@ -119,12 +119,15 @@ void main() {
 
     const service = MethodChannelVoicePromptService(channel: channel);
     expect(await service.beginMainTurn(), 'ios-main-test');
-    await service.endMainTurn('test_complete');
+    await service.endMainTurn('test_complete', turnId: 'ios-main-test');
 
     expect(calls.map((call) => call.method), <String>[
       'beginMainTurn',
       'endMainTurn',
     ]);
-    expect(calls.last.arguments, <String, dynamic>{'reason': 'test_complete'});
+    expect(calls.last.arguments, <String, dynamic>{
+      'reason': 'test_complete',
+      'turnId': 'ios-main-test',
+    });
   });
 }

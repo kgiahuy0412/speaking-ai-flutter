@@ -28,10 +28,11 @@ class MethodChannelVoicePromptService
   }
 
   @override
-  Future<void> endMainTurn(String reason) async {
+  Future<void> endMainTurn(String reason, {String? turnId}) async {
     try {
       await _channel.invokeMethod<void>('endMainTurn', <String, dynamic>{
         'reason': reason,
+        'turnId': ?turnId,
       });
     } on MissingPluginException {
       // Optional native capability.

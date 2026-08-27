@@ -95,11 +95,27 @@ final class IOSAudioSessionCoordinator: NSObject {
     return activeTurnId!
   }
 
-  func endMainTurn(reason: String, caller: String) {
+  func endMainTurn(
+    reason: String,
+    caller: String,
+    expectedTurnId: String? = nil
+  ) {
     guard isMainTurnActive else {
       // An initial Dart pause happens after a physical packet and before the
       // actual turn begins. Do not erase that pending packet timeline.
       trace(stage: "main_turn_end_ignored", caller: caller, message: reason)
+      return
+    }
+    if let expectedTurnId, expectedTurnId != activeTurnId {
+      trace(
+        stage: "main_turn_end_stale_ignored",
+        caller: caller,
+        message: reason,
+        values: [
+          "expectedTurnId": expectedTurnId,
+          "activeTurnId": activeTurnId ?? "",
+        ]
+      )
       return
     }
     trace(stage: "main_turn_ended", caller: caller, message: reason)
@@ -418,8 +434,13 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   private func scheduleSafetyTimeout() {
     turnTimeout?.cancel()
+    let expectedTurnId = activeTurnId
     let item = DispatchWorkItem { [weak self] in
-      self?.endMainTurn(reason: "native_safety_timeout", caller: "IOSAudioSessionCoordinator")
+      self?.endMainTurn(
+        reason: "native_safety_timeout",
+        caller: "IOSAudioSessionCoordinator",
+        expectedTurnId: expectedTurnId
+      )
     }
     turnTimeout = item
     DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: item)

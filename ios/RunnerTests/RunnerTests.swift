@@ -86,6 +86,31 @@ class RunnerTests: XCTestCase {
     coordinator.dispose()
   }
 
+  func testIOSAudioCoordinatorIgnoresStaleMainTurnEnd() {
+    let coordinator = IOSAudioSessionCoordinator()
+    var timeline: [[String: Any]] = []
+    coordinator.attachTraceSink { timeline.append($0) }
+
+    let turnId = coordinator.beginMainTurn(source: "RunnerTests")
+    coordinator.endMainTurn(
+      reason: "late_controller_pause",
+      caller: "RunnerTests",
+      expectedTurnId: "obsolete-turn"
+    )
+
+    XCTAssertTrue(coordinator.isMainTurnActive)
+    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_end_stale_ignored")
+
+    coordinator.endMainTurn(
+      reason: "test_complete",
+      caller: "RunnerTests",
+      expectedTurnId: turnId
+    )
+    XCTAssertFalse(coordinator.isMainTurnActive)
+    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_ended")
+    coordinator.dispose()
+  }
+
   func testIOSNativeSpeechPrefersSpeechAnalyzerOnIOS26() {
     XCTAssertEqual(
       IOSNativeSpeechEngineSelector.select(

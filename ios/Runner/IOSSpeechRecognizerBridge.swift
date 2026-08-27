@@ -253,10 +253,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         deleteRecording: true,
         caller: "IOSSpeechRecognizerBridge.channel"
       )
-      audioSessionCoordinator.endMainTurn(
-        reason: "speech_cancelled",
-        caller: "IOSSpeechRecognizerBridge.channel"
-      )
       result(true)
     default:
       result(FlutterMethodNotImplemented)
@@ -297,15 +293,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       cancelCurrent(
         deleteRecording: true,
         caller: "IOSSpeechRecognizerBridge.start.replaceActive"
-      )
-      audioSessionCoordinator.endMainTurn(
-        reason: "speech_replaced",
-        caller: "IOSSpeechRecognizerBridge.start"
-      )
-    }
-    if commandMode {
-      _ = audioSessionCoordinator.beginMainTurn(
-        source: "IOSSpeechRecognizerBridge.speech.start"
       )
     }
     ensureSpeechAuthorization { [weak self] authorization in
@@ -708,10 +695,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         "confidence": confidence,
       ]
     )
-    audioSessionCoordinator.endMainTurn(
-      reason: "speech_final",
-      caller: "IOSSpeechRecognizerBridge.finishSuccessfully"
-    )
   }
 
   private func finishWithError(code: String, error: Error) {
@@ -734,10 +717,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     ]
     emitStage("error", code: code, message: error.localizedDescription)
     emit(type: "speech.error", values: values)
-    audioSessionCoordinator.endMainTurn(
-      reason: code,
-      caller: "IOSSpeechRecognizerBridge.finishWithError"
-    )
   }
 
   private func processCapturedAudio(
@@ -888,10 +867,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     cancelCurrent(
       deleteRecording: true,
       caller: "IOSSpeechRecognizerBridge.start.failed"
-    )
-    audioSessionCoordinator.endMainTurn(
-      reason: reason,
-      caller: "IOSSpeechRecognizerBridge.start"
     )
   }
 
@@ -1125,10 +1100,6 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     startRequestGeneration += 1
     cancelCurrent(
       deleteRecording: true,
-      caller: "IOSSpeechRecognizerBridge.dispose"
-    )
-    audioSessionCoordinator.endMainTurn(
-      reason: "speech_bridge_disposed",
       caller: "IOSSpeechRecognizerBridge.dispose"
     )
     disposed = true

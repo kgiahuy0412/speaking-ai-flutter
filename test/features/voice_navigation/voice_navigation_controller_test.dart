@@ -537,6 +537,7 @@ void main() {
       expect(receivedCommand, ActiveLearningCommand.nextItem);
       expect(controller.isMainButtonSessionActive, isFalse);
       expect(voicePrompt.endedReasons.last, 'main_assistant_completed');
+      expect(voicePrompt.endedTurnIds.last, 'test-main-1');
 
       // The completed command must release the first MAIN turn so the same
       // BLE/screen button can immediately start another one in the lesson.
@@ -1173,6 +1174,7 @@ class _FakeMainTurnVoicePromptService extends _FakeVoicePromptService
     implements MainTurnVoicePromptService {
   int beginCount = 0;
   final List<String> endedReasons = <String>[];
+  final List<String?> endedTurnIds = <String?>[];
 
   @override
   Future<String?> beginMainTurn() async {
@@ -1181,8 +1183,9 @@ class _FakeMainTurnVoicePromptService extends _FakeVoicePromptService
   }
 
   @override
-  Future<void> endMainTurn(String reason) async {
+  Future<void> endMainTurn(String reason, {String? turnId}) async {
     endedReasons.add(reason);
+    endedTurnIds.add(turnId);
   }
 }
 

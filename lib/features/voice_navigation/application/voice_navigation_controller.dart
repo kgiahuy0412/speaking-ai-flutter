@@ -131,6 +131,8 @@ class VoiceNavigationController extends ChangeNotifier {
   int _mainNoSpeechRetryCount = 0;
   Object? _lastError;
   String? _activeInputLabelOverride;
+  String? _nativeMainTurnId;
+  int? _nativeMainTurnGeneration;
 
   bool get isListening => _listening;
   bool get isStarting => _starting;
@@ -246,7 +248,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed) {
         return false;
       }
-      await _beginNativeMainTurn();
+      await _beginNativeMainTurn(_generation);
       _activeInputLabelOverride = inputLabelOverride;
       _lastError = null;
       _buttonCommandSession = true;
@@ -261,7 +263,10 @@ class VoiceNavigationController extends ChangeNotifier {
         _buttonCommandSession = false;
         _continuousRequested = false;
         _mainAssistantFlow.reset();
-        await _endNativeMainTurn('prompt_not_acknowledged');
+        await _endNativeMainTurn(
+          'prompt_not_acknowledged',
+          generation: generation,
+        );
         return false;
       }
       // Perform one explicit prompt -> mic hand-off and do not report MAIN as
@@ -291,6 +296,7 @@ class VoiceNavigationController extends ChangeNotifier {
     _buttonCommandSession = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    final endingGeneration = _generation;
     _generation += 1;
     _cancelTimers();
     final shouldStopPrompt = _acknowledgingWakeWord;
@@ -318,7 +324,9 @@ class VoiceNavigationController extends ChangeNotifier {
       if (finishing != null) _boundedCleanup(finishing),
       if (shouldStopPrompt && _voicePromptService != null)
         _boundedCleanup(_voicePromptService.stop()),
-      _boundedCleanup(_endNativeMainTurn('controller_pause')),
+      _boundedCleanup(
+        _endNativeMainTurn('controller_pause', generation: endingGeneration),
+      ),
     ];
     final Future<void> operation = pendingOperations.isEmpty
         ? Future<void>.value()
@@ -432,11 +440,13 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
-    // Native speech normally ends the coordinator turn when it emits/cancels
-    // a final result. Directly dispatched text (tests, fast partial matches,
-    // and a few Android/iOS completion paths) can bypass that callback. Close
-    // the bracket explicitly so a deferred H20 BLE reconnect is always freed.
-    await _endNativeMainTurn('main_assistant_completed');
+    // The MAIN controller is the sole owner of the native turn. Apple Speech
+    // may start, stop, or be replaced several times while the assistant asks
+    // follow-up questions, so recognition callbacks must not release HFP/BLE.
+    await _endNativeMainTurn(
+      'main_assistant_completed',
+      generation: generation,
+    );
     final activeLearningCommand = turn.activeLearningCommand;
     if (activeLearningCommand != null) {
       final handler = _activeLearningCommandHandler;
@@ -627,7 +637,10 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
-    await _endNativeMainTurn('main_assistant_no_speech_exit');
+    await _endNativeMainTurn(
+      'main_assistant_no_speech_exit',
+      generation: generation,
+    );
     notifyListeners();
   }
 
@@ -749,7 +762,10 @@ class VoiceNavigationController extends ChangeNotifier {
         _continuousRequested = false;
         _mainNoSpeechRetryCount = 0;
         _mainAssistantFlow.reset();
-        await _endNativeMainTurn('microphone_start_failed');
+        await _endNativeMainTurn(
+          'microphone_start_failed',
+          generation: generation,
+        );
       }
       if (!_disposed) {
         notifyListeners();
@@ -762,26 +778,44 @@ class VoiceNavigationController extends ChangeNotifier {
     }
   }
 
-  Future<void> _beginNativeMainTurn() async {
+  Future<void> _beginNativeMainTurn(int generation) async {
     final service = _voicePromptService;
     if (service is! MainTurnVoicePromptService) {
       return;
     }
     try {
-      await (service as MainTurnVoicePromptService).beginMainTurn();
+      final turnId = await (service as MainTurnVoicePromptService)
+          .beginMainTurn();
+      if (_disposed || generation != _generation) {
+        return;
+      }
+      _nativeMainTurnId = turnId;
+      _nativeMainTurnGeneration = generation;
     } catch (_) {
       // The visible prompt remains usable on platforms without this bridge.
     }
   }
 
-  Future<void> _endNativeMainTurn(String reason) async {
+  Future<void> _endNativeMainTurn(
+    String reason, {
+    required int generation,
+  }) async {
     final service = _voicePromptService;
     if (service is! MainTurnVoicePromptService) {
       return;
     }
+    if (_nativeMainTurnGeneration != generation) {
+      return;
+    }
+    // Claim this exact native turn before awaiting the platform channel. A
+    // delayed cleanup from an obsolete lesson/MAIN generation must never end a
+    // newer turn which has already taken ownership of AVAudioSession.
+    final turnId = _nativeMainTurnId;
+    _nativeMainTurnId = null;
+    _nativeMainTurnGeneration = null;
     try {
       await (service as MainTurnVoicePromptService)
-          .endMainTurn(reason)
+          .endMainTurn(reason, turnId: turnId)
           .timeout(_pauseDrainTimeout);
     } catch (_) {
       // Ending a stale native turn is best-effort. It must never keep the

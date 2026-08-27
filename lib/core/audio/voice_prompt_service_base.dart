@@ -31,5 +31,5 @@ abstract interface class PhoneSpeakerVoicePromptService {
 abstract interface class MainTurnVoicePromptService {
   Future<String?> beginMainTurn();
 
-  Future<void> endMainTurn(String reason);
+  Future<void> endMainTurn(String reason, {String? turnId});
 }

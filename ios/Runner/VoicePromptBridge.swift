@@ -39,9 +39,19 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       result(audioSessionCoordinator.beginMainTurn(source: "VoicePromptBridge.beginMainTurn"))
     case "endMainTurn":
       let arguments = call.arguments as? [String: Any]
+      guard let turnId = arguments?["turnId"] as? String, !turnId.isEmpty else {
+        audioSessionCoordinator.trace(
+          stage: "main_turn_end_missing_id_ignored",
+          caller: "VoicePromptBridge.endMainTurn",
+          message: arguments?["reason"] as? String ?? "dart_requested"
+        )
+        result(nil)
+        return
+      }
       audioSessionCoordinator.endMainTurn(
         reason: arguments?["reason"] as? String ?? "dart_requested",
-        caller: "VoicePromptBridge.endMainTurn"
+        caller: "VoicePromptBridge.endMainTurn",
+        expectedTurnId: turnId
       )
       result(nil)
     case "speak", "speakAndWait":
