@@ -75,14 +75,26 @@ class RunnerTests: XCTestCase {
     coordinator.notePhysicalMain(rawHex: "01 01 01 01")
     let turnId = coordinator.beginMainTurn(source: "RunnerTests")
 
-    XCTAssertEqual(timeline.first?["turnId"] as? String, turnId)
-    XCTAssertEqual(timeline.first?["stage"] as? String, "main_raw_received")
-    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_started")
+    let rawEvent = timeline.first {
+      ($0["stage"] as? String) == "main_raw_received"
+    }
+    XCTAssertEqual(rawEvent?["turnId"] as? String, turnId)
+    XCTAssertTrue(
+      timeline.contains { ($0["stage"] as? String) == "main_turn_started" }
+    )
     XCTAssertTrue(coordinator.isMainTurnActive)
 
     coordinator.endMainTurn(reason: "test_complete", caller: "RunnerTests")
     XCTAssertFalse(coordinator.isMainTurnActive)
-    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_ended")
+    let lastMainTurnStage = timeline.reversed().compactMap {
+      $0["stage"] as? String
+    }.first { $0.hasPrefix("main_turn_") }
+    XCTAssertEqual(lastMainTurnStage, "main_turn_ended")
+    XCTAssertTrue(
+      timeline.contains {
+        ($0["stage"] as? String) == "audio_session_release_requested"
+      }
+    )
     coordinator.dispose()
   }
 
@@ -99,7 +111,10 @@ class RunnerTests: XCTestCase {
     )
 
     XCTAssertTrue(coordinator.isMainTurnActive)
-    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_end_stale_ignored")
+    let stageAfterStaleEnd = timeline.reversed().compactMap {
+      $0["stage"] as? String
+    }.first { $0.hasPrefix("main_turn_") }
+    XCTAssertEqual(stageAfterStaleEnd, "main_turn_end_stale_ignored")
 
     coordinator.endMainTurn(
       reason: "test_complete",
@@ -107,7 +122,15 @@ class RunnerTests: XCTestCase {
       expectedTurnId: turnId
     )
     XCTAssertFalse(coordinator.isMainTurnActive)
-    XCTAssertEqual(timeline.last?["stage"] as? String, "main_turn_ended")
+    let stageAfterValidEnd = timeline.reversed().compactMap {
+      $0["stage"] as? String
+    }.first { $0.hasPrefix("main_turn_") }
+    XCTAssertEqual(stageAfterValidEnd, "main_turn_ended")
+    XCTAssertTrue(
+      timeline.contains {
+        ($0["stage"] as? String) == "audio_session_release_requested"
+      }
+    )
     coordinator.dispose()
   }
 
@@ -209,7 +232,7 @@ class RunnerTests: XCTestCase {
     )
 
     XCTAssertTrue(options.contains(.defaultToSpeaker))
-    XCTAssertFalse(options.contains(.allowBluetooth))
+    XCTAssertFalse(options.contains(.allowBluetoothHFP))
     XCTAssertFalse(options.contains(.allowBluetoothA2DP))
     XCTAssertTrue(
       IOSNativeSpeechAudioRoutePolicy.accepts(
@@ -228,7 +251,7 @@ class RunnerTests: XCTestCase {
   func testIOSHfpPolicyRequiresARealBluetoothInputRoute() {
     let options = IOSNativeSpeechAudioRoutePolicy.categoryOptions(for: .hfp)
 
-    XCTAssertTrue(options.contains(.allowBluetooth))
+    XCTAssertTrue(options.contains(.allowBluetoothHFP))
     XCTAssertFalse(options.contains(.defaultToSpeaker))
     XCTAssertFalse(options.contains(.allowBluetoothA2DP))
     XCTAssertTrue(
