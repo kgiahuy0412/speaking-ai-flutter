@@ -19,9 +19,9 @@ class LessonRecording {
 
 /// Selects the physical output used for one lesson clip.
 ///
-/// Lesson samples stay on the selected H20 two-way route, while short coach
-/// prompts intentionally come from the phone so children can distinguish the
-/// instruction from the phrase they need to repeat.
+/// Guided lesson playback normally stays on [selectedLessonDevice] for the
+/// whole prompt/sample/capture turn. [phoneSpeaker] remains available only for
+/// callers that explicitly need to leave the selected lesson route.
 enum LessonPlaybackRoute { selectedLessonDevice, phoneSpeaker }
 
 class LessonMediaService {
@@ -200,9 +200,7 @@ class LessonMediaService {
     await _stopPlayback(releaseAudioRoute: true);
   }
 
-  /// Releases a lesson-owned HFP route and prepares native fallback speech for
-  /// the phone speaker. This is used when a generated guide asset is absent and
-  /// the platform TTS bridge must speak the same coach prompt instead.
+  /// Explicitly leaves a lesson-owned HFP route and prepares phone output.
   Future<void> preparePhoneSpeakerOutput() =>
       _preparePlaybackRoute(LessonPlaybackRoute.phoneSpeaker);
 
@@ -252,7 +250,12 @@ class LessonMediaService {
       );
 
       if (useSelectedHfp) {
-        await _activateSelectedHfpRoute();
+        // On iOS, the Dart ownership flag is not proof that AVAudioSession still
+        // exposes the selected HFP input. Revalidate the native route at the
+        // exact playback-to-capture boundary before resolving recorder inputs.
+        await _activateSelectedHfpRoute(
+          force: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+        );
       } else {
         await _releaseHfpRoute();
       }
@@ -340,8 +343,8 @@ class LessonMediaService {
     await _activateSelectedHfpRoute();
   }
 
-  Future<void> _activateSelectedHfpRoute() async {
-    if (_ownsActiveHfpRoute) {
+  Future<void> _activateSelectedHfpRoute({bool force = false}) async {
+    if (_ownsActiveHfpRoute && !force) {
       return;
     }
     final control = _hfpAudioControl;

@@ -32,6 +32,7 @@ Thumbs.db
 .env.*
 !.env.example
 dart_defines.local.json
+dart_defines.production.local.json
 
 # Local AI/ASR artifacts
 /.codex-spreadsheet/aiv0-ai-precheck/

@@ -119,15 +119,10 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     final uri = widget.lesson.introAudioUri;
     if (uri == null) {
       try {
-        await widget.mediaService.preparePhoneSpeakerOutput();
+        await widget.mediaService.prepareSelectedLessonOutput();
         final prompt = _activeVoicePromptService;
         final text = _guideText ?? widget.lesson.intro;
-        if (prompt is PhoneSpeakerVoicePromptService) {
-          await (prompt as PhoneSpeakerVoicePromptService)
-              .speakAndWaitOnPhoneSpeaker(text);
-        } else {
-          await prompt.speakAndWait(text);
-        }
+        await prompt.speakAndWait(text);
       } catch (error, stackTrace) {
         debugPrint(
           'Lesson intro fallback failed for ${widget.lesson.id}: $error',
@@ -138,10 +133,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       }
     } else {
       try {
-        await widget.mediaService.playToCompletion(
-          uri,
-          route: LessonPlaybackRoute.phoneSpeaker,
-        );
+        await widget.mediaService.playToCompletion(uri);
       } catch (error, stackTrace) {
         if (_pausedForMainAssistant || request != _introPlaybackRequest) {
           return;

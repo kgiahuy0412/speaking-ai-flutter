@@ -51,7 +51,8 @@ void main() {
       );
       expect(mediaService.recording, isTrue);
       expect(voicePrompts.readyCueCount, 1);
-      expect(mediaService.selectedOutputPreparationCount, 2);
+      expect(mediaService.selectedOutputPreparationCount, 4);
+      expect(mediaService.phoneOutputPreparationCount, 0);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
@@ -59,7 +60,10 @@ void main() {
       expect(find.text('Sentence 2'), findsOneWidget);
       expect(mediaService.recording, isTrue);
       expect(voicePrompts.readyCueCount, 2);
-      expect(mediaService.selectedOutputPreparationCount, 4);
+      // Four selected-route preparations per guided sentence, plus the praise
+      // prompt between sentence one and sentence two.
+      expect(mediaService.selectedOutputPreparationCount, 9);
+      expect(mediaService.phoneOutputPreparationCount, 0);
       expect(vocabularyStore.entries, hasLength(1));
       expect(vocabularyStore.entries.single.word, 'Sentence 1');
       expect(
@@ -1340,7 +1344,10 @@ void main() {
     expect(find.byType(LessonIntroScreen), findsOneWidget);
     expect(find.byType(LessonPracticeScreen), findsNothing);
     expect(mediaService.playedUri, introUri);
-    expect(mediaService.playbackRoute, LessonPlaybackRoute.phoneSpeaker);
+    expect(
+      mediaService.playbackRoute,
+      LessonPlaybackRoute.selectedLessonDevice,
+    );
 
     mediaService.finishIntro();
     await tester.pump();
@@ -1353,38 +1360,40 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('V2 lesson intro uses phone TTS when its audio clip is missing', (
-    tester,
-  ) async {
-    await _usePhoneSurface(tester);
-    final mediaService = _GuidedMediaService();
-    final voicePrompt = _FakeVoicePromptService();
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildAppTheme(),
-        home: LessonIntroScreen(
-          language: DisplayLanguage.vietnamese,
-          startAge: 6,
-          endAge: 7,
-          topic: listeningCatalogs[1].topics.first,
-          lesson: _lesson(code: 'A067_T05_L02'),
-          progressStore: _MemoryProgressStore(),
-          mediaService: mediaService,
-          voicePromptService: voicePrompt,
-          autoAdvance: false,
+  testWidgets(
+    'V2 lesson intro keeps selected output when its clip is missing',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService();
+      final voicePrompt = _FakeVoicePromptService();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: LessonIntroScreen(
+            language: DisplayLanguage.vietnamese,
+            startAge: 6,
+            endAge: 7,
+            topic: listeningCatalogs[1].topics.first,
+            lesson: _lesson(code: 'A067_T05_L02'),
+            progressStore: _MemoryProgressStore(),
+            mediaService: mediaService,
+            voicePromptService: voicePrompt,
+            autoAdvance: false,
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
+      );
+      await tester.pump();
+      await tester.pump();
 
-    expect(voicePrompt.spoken, hasLength(1));
-    expect(voicePrompt.spoken.single, contains('Hôm nay mình'));
-    expect(find.textContaining('Không thể phát lời mở đầu'), findsNothing);
+      expect(voicePrompt.spoken, hasLength(1));
+      expect(voicePrompt.spoken.single, contains('Hôm nay mình'));
+      expect(mediaService.selectedOutputPreparationCount, 1);
+      expect(find.textContaining('Không thể phát lời mở đầu'), findsNothing);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
 
   testWidgets('MAIN pauses review audio and its completion countdown', (
     tester,
@@ -1757,9 +1766,12 @@ class _GuidedMediaService extends LessonMediaService {
   final List<String> startedSentenceIds = <String>[];
   final List<String> deletedLessonIds = <String>[];
   int selectedOutputPreparationCount = 0;
+  int phoneOutputPreparationCount = 0;
 
   @override
-  Future<void> preparePhoneSpeakerOutput() async {}
+  Future<void> preparePhoneSpeakerOutput() async {
+    phoneOutputPreparationCount += 1;
+  }
 
   @override
   Future<void> prepareSelectedLessonOutput() async {

@@ -1663,7 +1663,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(
         uri,
         timeout: const Duration(seconds: 10),
-        route: LessonPlaybackRoute.phoneSpeaker,
       );
       return true;
     } catch (_) {
@@ -1740,18 +1739,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(
         uri,
         timeout: const Duration(seconds: 16),
-        route: LessonPlaybackRoute.phoneSpeaker,
       );
       return;
     }
-    await widget.mediaService.preparePhoneSpeakerOutput();
-    final voicePrompt = _voicePromptService;
-    if (voicePrompt is PhoneSpeakerVoicePromptService) {
-      await (voicePrompt as PhoneSpeakerVoicePromptService)
-          .speakAndWaitOnPhoneSpeaker(prompt.text);
-    } else {
-      await voicePrompt.speakAndWait(prompt.text);
-    }
+    await widget.mediaService.prepareSelectedLessonOutput();
+    await _voicePromptService.speakAndWait(prompt.text);
   }
 
   Future<void> _playBilingualSentenceSample() async {
