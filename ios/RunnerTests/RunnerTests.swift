@@ -63,11 +63,27 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
-    XCTAssertTrue(Aiv0ReconnectPolicy.shouldDefer(mainTurnActive: true))
-    XCTAssertFalse(Aiv0ReconnectPolicy.shouldDefer(mainTurnActive: false))
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDefer(
+        mainTurnActive: true,
+        hfpRouteActive: false
+      )
+    )
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDefer(
+        mainTurnActive: false,
+        hfpRouteActive: true
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDefer(
+        mainTurnActive: false,
+        hfpRouteActive: false
+      )
+    )
   }
 
-  func testAiv0MainNotificationRefreshRearmsAStaleConnectedSubscription() {
+  func testAiv0MainNotificationRefreshPreservesAConnectedSubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
         peripheralConnected: true,
@@ -75,7 +91,7 @@ class RunnerTests: XCTestCase {
         refreshInProgress: false,
         isNotifying: true
       ),
-      .disableBeforeReenable
+      .complete
     )
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(

@@ -28,6 +28,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
   var onMainTurnEnded: (() -> Void)?
+  var onAudioSessionReleased: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
 
   override init() {
@@ -286,6 +287,10 @@ final class IOSAudioSessionCoordinator: NSObject {
       try ensureOutputOverride(.none, caller: caller)
       try setActive(false, notifyOthers: true, caller: caller)
       trace(stage: "audio_session_release_completed", caller: caller)
+      // Resume deferred CoreBluetooth recovery only after HFP/SCO has actually
+      // released its live voice route. This covers lesson/translation capture,
+      // not only the short MAIN assistant turn.
+      onAudioSessionReleased?()
     } catch {
       let nsError = error as NSError
       trace(
@@ -365,6 +370,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     interruptionToken = nil
     traceSink = nil
     onMainTurnEnded = nil
+    onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
   }
 
@@ -425,6 +431,12 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "AVAudioSession",
       message: "reason=\(rawReason) before=\(previous) after=\(routeDescription())"
     )
+    // `setActive(false)` may return before `currentRoute` has finished leaving
+    // BluetoothHFP. Notify BLE again on the authoritative route-change event so
+    // a reconnect deferred by the immediate callback cannot remain stranded.
+    if !hasTwoWayHfpRoute() {
+      onAudioSessionReleased?()
+    }
   }
 
   private func recordInterruption(_ notification: Notification) {
