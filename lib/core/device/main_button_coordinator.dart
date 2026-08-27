@@ -32,13 +32,16 @@ class MainButtonCoordinator {
     required MainButtonAction onScreenShortPress,
     required MainButtonAction onBleShortPress,
     required MainButtonAction onLongPress,
+    Duration actionTimeout = const Duration(seconds: 30),
   }) : _onScreenShortPress = onScreenShortPress,
        _onBleShortPress = onBleShortPress,
-       _onLongPress = onLongPress;
+       _onLongPress = onLongPress,
+       _actionTimeout = actionTimeout;
 
   final MainButtonAction _onScreenShortPress;
   final MainButtonAction _onBleShortPress;
   final MainButtonAction _onLongPress;
+  final Duration _actionTimeout;
   final Map<MainButtonSource, int?> _activeLongPressSequences =
       <MainButtonSource, int?>{};
   Future<void> _operationTail = Future<void>.value();
@@ -47,7 +50,12 @@ class MainButtonCoordinator {
     final completer = Completer<MainButtonActionResult>();
     _operationTail = _operationTail.then<void>((_) async {
       try {
-        completer.complete(await _handleSerially(event));
+        completer.complete(
+          await _handleSerially(event).timeout(
+            _actionTimeout,
+            onTimeout: () => MainButtonActionResult.busy,
+          ),
+        );
       } catch (_) {
         completer.complete(MainButtonActionResult.busy);
       }

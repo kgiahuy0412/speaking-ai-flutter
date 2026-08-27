@@ -457,6 +457,53 @@ void main() {
     },
   );
 
+  test('iOS bounds a native speech.start channel that never replies', () async {
+    const methodChannel = MethodChannel('test_ios_native_start_never_replies');
+    final events = StreamController<dynamic>.broadcast();
+    final startGate = Completer<Object?>();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var cancelCount = 0;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          return startGate.future;
+        case 'speech.cancel':
+          cancelCount += 1;
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      if (!startGate.isCompleted) {
+        startGate.complete(true);
+      }
+      await events.close();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      nativeCommandTimeout: const Duration(milliseconds: 5),
+    );
+    addTearDown(input.dispose);
+
+    await expectLater(
+      input.startCommandRecognition(),
+      throwsA(
+        isA<StreamingSpeechInputException>().having(
+          (error) => error.code,
+          'code',
+          'SPEECH_READY_TIMEOUT',
+        ),
+      ),
+    );
+    expect(cancelCount, 1);
+  });
+
   test('MAIN uses Batch only when Apple native cannot start', () async {
     final primary = _FakeSpeechInput(
       failOnStart: const StreamingSpeechInputException(

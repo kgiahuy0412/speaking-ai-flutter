@@ -234,9 +234,13 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       start(
         commandMode: commandMode,
         audioSource: audioSource,
-        locale: locale,
-        result: result
+        locale: locale
       )
+      // A MethodChannel reply acknowledges that the start request was accepted;
+      // readiness and failures are delivered exclusively through speech.ready /
+      // speech.error. Holding FlutterResult until AVAudioEngine is ready allows
+      // an Apple async operation to poison every later MAIN press when cancelled.
+      result(true)
     case "speech.stop":
       stop(result)
     case "speech.cancel":
@@ -282,8 +286,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func start(
     commandMode: Bool,
     audioSource: IOSNativeSpeechAudioSource,
-    locale: Locale,
-    result: @escaping FlutterResult
+    locale: Locale
   ) {
     startRequestGeneration += 1
     let requestGeneration = startRequestGeneration
@@ -308,50 +311,26 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     ensureSpeechAuthorization { [weak self] authorization in
       guard let self else { return }
       guard self.isCurrentStartRequest(requestGeneration) else {
-        self.completeCancelledStart(result)
         return
       }
       guard authorization == .authorized else {
-        self.emitStage(
-          "error",
+        self.failStart(
           code: "SPEECH_PERMISSION_DENIED",
-          message: "Quyền Nhận dạng giọng nói đã bị từ chối."
-        )
-        result(
-          FlutterError(
-            code: "SPEECH_PERMISSION_DENIED",
-            message: "Quyền Nhận dạng giọng nói đã bị từ chối.",
-            details: nil
-          )
-        )
-        self.audioSessionCoordinator.endMainTurn(
-          reason: "speech_permission_denied",
-          caller: "IOSSpeechRecognizerBridge.start"
+          message: "Quyền Nhận dạng giọng nói đã bị từ chối.",
+          reason: "speech_permission_denied"
         )
         return
       }
       self.ensureMicrophonePermission { [weak self] granted in
         guard let self else { return }
         guard self.isCurrentStartRequest(requestGeneration) else {
-          self.completeCancelledStart(result)
           return
         }
         guard granted else {
-          self.emitStage(
-            "error",
+          self.failStart(
             code: "MICROPHONE_PERMISSION_DENIED",
-            message: "Ứng dụng cần quyền micro để nghe con nói."
-          )
-          result(
-            FlutterError(
-              code: "MICROPHONE_PERMISSION_DENIED",
-              message: "Ứng dụng cần quyền micro để nghe con nói.",
-              details: nil
-            )
-          )
-          self.audioSessionCoordinator.endMainTurn(
-            reason: "microphone_permission_denied",
-            caller: "IOSSpeechRecognizerBridge.start"
+            message: "Ứng dụng cần quyền micro để nghe con nói.",
+            reason: "microphone_permission_denied"
           )
           return
         }
@@ -374,37 +353,15 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
             guard self.isCurrentStartRequest(requestGeneration) else {
               throw IOSSpeechBridgeError.startCancelled
             }
-            result(true)
           } catch {
             guard self.isCurrentStartRequest(requestGeneration) else {
-              self.completeCancelledStart(result)
               return
             }
             let errorCode = self.diagnosticCode(for: error)
-            let failedStage = self.lastDiagnosticStage
-            self.emitStage(
-              "error",
+            self.failStart(
               code: errorCode,
-              message: error.localizedDescription
-            )
-            self.cancelCurrent(
-              deleteRecording: true,
-              caller: "IOSSpeechRecognizerBridge.start.failed"
-            )
-            self.audioSessionCoordinator.endMainTurn(
-              reason: errorCode,
-              caller: "IOSSpeechRecognizerBridge.start"
-            )
-            result(
-              FlutterError(
-                code: errorCode,
-                message: error.localizedDescription,
-                details: [
-                  "stage": failedStage,
-                  "audioSource": audioSource.rawValue,
-                  "audioRoute": self.routeDescription(),
-                ]
-              )
+              message: error.localizedDescription,
+              reason: errorCode
             )
           }
         }
@@ -915,13 +872,26 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     !disposed && requestGeneration == startRequestGeneration
   }
 
-  private func completeCancelledStart(_ result: @escaping FlutterResult) {
-    result(
-      FlutterError(
-        code: "SPEECH_START_CANCELLED",
-        message: IOSSpeechBridgeError.startCancelled.localizedDescription,
-        details: nil
-      )
+  private func failStart(code: String, message: String, reason: String) {
+    let failedStage = lastDiagnosticStage
+    emitStage("error", code: code, message: message)
+    emit(
+      type: "speech.error",
+      values: [
+        "code": code,
+        "message": message,
+        "stage": failedStage,
+        "audioSource": requestedAudioSource.rawValue,
+        "audioRoute": routeDescription(),
+      ]
+    )
+    cancelCurrent(
+      deleteRecording: true,
+      caller: "IOSSpeechRecognizerBridge.start.failed"
+    )
+    audioSessionCoordinator.endMainTurn(
+      reason: reason,
+      caller: "IOSSpeechRecognizerBridge.start"
     )
   }
 

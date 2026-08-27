@@ -37,6 +37,7 @@ class VoiceNavigationController extends ChangeNotifier {
     Duration speechReadyCueTimeout = const Duration(milliseconds: 900),
     Duration microphoneStartTimeout = const Duration(seconds: 15),
     Duration microphoneStartRetryDelay = const Duration(seconds: 2),
+    Duration pauseDrainTimeout = const Duration(seconds: 2),
     ActiveLearningCommandHandler? activeLearningCommandHandler,
   }) : _speechInput = speechInput,
        _resolver = resolver,
@@ -50,6 +51,7 @@ class VoiceNavigationController extends ChangeNotifier {
        _speechReadyCueTimeout = speechReadyCueTimeout,
        _microphoneStartTimeout = microphoneStartTimeout,
        _microphoneStartRetryDelay = microphoneStartRetryDelay,
+       _pauseDrainTimeout = pauseDrainTimeout,
        _activeLearningCommandHandler = activeLearningCommandHandler {
     _completedSubscription = _speechInput.completed.listen((_) {
       if (_listening && !_finishing) {
@@ -97,6 +99,7 @@ class VoiceNavigationController extends ChangeNotifier {
   final Duration _speechReadyCueTimeout;
   final Duration _microphoneStartTimeout;
   final Duration _microphoneStartRetryDelay;
+  final Duration _pauseDrainTimeout;
   final ActiveLearningCommandHandler? _activeLearningCommandHandler;
 
   StreamSubscription<void>? _completedSubscription;
@@ -300,16 +303,22 @@ class VoiceNavigationController extends ChangeNotifier {
     final shouldCancelInput = _starting || _listening;
     final starting = _startInProgress;
     final finishing = _finishInProgress;
+    // Detach stale native operations immediately. Their generation is no
+    // longer current, so any late completion must not block or replace the
+    // next physical MAIN turn.
+    _startInProgress = null;
+    _finishInProgress = null;
     _starting = false;
     _listening = false;
     _speechDetected = false;
     final pendingOperations = <Future<void>>[
-      if (shouldCancelInput) _speechInput.cancel().catchError((Object _) {}),
-      if (starting != null) starting.catchError((Object _) {}),
-      if (finishing != null) finishing.catchError((Object _) {}),
+      if (shouldCancelInput || starting != null || finishing != null)
+        _boundedCleanup(_speechInput.cancel()),
+      if (starting != null) _boundedCleanup(starting),
+      if (finishing != null) _boundedCleanup(finishing),
       if (shouldStopPrompt && _voicePromptService != null)
-        _voicePromptService.stop().catchError((Object _) {}),
-      _endNativeMainTurn('controller_pause'),
+        _boundedCleanup(_voicePromptService.stop()),
+      _boundedCleanup(_endNativeMainTurn('controller_pause')),
     ];
     final Future<void> operation = pendingOperations.isEmpty
         ? Future<void>.value()
@@ -679,8 +688,8 @@ class VoiceNavigationController extends ChangeNotifier {
           : _speechInput.start();
       await startOperation.timeout(
         _microphoneStartTimeout,
-        onTimeout: () async {
-          await _speechInput.cancel().catchError((Object _) {});
+        onTimeout: () {
+          unawaited(_boundedCleanup(_speechInput.cancel()));
           throw const StreamingSpeechInputException(
             'Micro mất quá nhiều thời gian để sẵn sàng. HOMI sẽ thử lại.',
             code: 'NAVIGATION_MICROPHONE_START_TIMEOUT',
@@ -688,7 +697,7 @@ class VoiceNavigationController extends ChangeNotifier {
         },
       );
       if (_disposed || !_continuousRequested || generation != _generation) {
-        await _speechInput.cancel().catchError((Object _) {});
+        await _boundedCleanup(_speechInput.cancel());
         return;
       }
       _starting = false;
@@ -770,7 +779,23 @@ class VoiceNavigationController extends ChangeNotifier {
     if (service is! MainTurnVoicePromptService) {
       return;
     }
-    await (service as MainTurnVoicePromptService).endMainTurn(reason);
+    try {
+      await (service as MainTurnVoicePromptService)
+          .endMainTurn(reason)
+          .timeout(_pauseDrainTimeout);
+    } catch (_) {
+      // Ending a stale native turn is best-effort. It must never keep the
+      // controller active or prevent the next MAIN gesture.
+    }
+  }
+
+  Future<void> _boundedCleanup(Future<void> operation) async {
+    try {
+      await operation.timeout(_pauseDrainTimeout);
+    } catch (_) {
+      // Cleanup belongs to the obsolete generation. MAIN must be re-armed even
+      // when an AVAudioSession or MethodChannel callback never returns.
+    }
   }
 
   void _scheduleRetryAfterFailedStart(int generation, Duration delay) {

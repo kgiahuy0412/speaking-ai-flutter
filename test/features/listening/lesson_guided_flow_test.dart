@@ -219,53 +219,56 @@ void main() {
     expect(voicePrompts.spoken, isNot(contains('vi-VN|Con làm tốt lắm')));
   });
 
-  testWidgets('MAIN waits for a pending lesson microphone start to be closed', (
-    tester,
-  ) async {
-    await _usePhoneSurface(tester);
-    final registry = ActiveLearningModuleRegistry();
-    addTearDown(registry.dispose);
-    final mediaService = _BlockingRecordingStartMediaService();
+  testWidgets(
+    'MAIN detaches a pending lesson microphone start before takeover',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final registry = ActiveLearningModuleRegistry();
+      addTearDown(registry.dispose);
+      final mediaService = _BlockingRecordingStartMediaService();
 
-    await tester.pumpWidget(
-      ActiveLearningModuleScope(
-        registry: registry,
-        child: _subject(
-          _lesson(code: 'A035_T01_L01', sentenceCount: 2),
-          mediaService,
-          guideAudioLibrary: _silentGuideAudioLibrary(),
-          voicePromptService: _FakeVoicePromptService(),
+      await tester.pumpWidget(
+        ActiveLearningModuleScope(
+          registry: registry,
+          child: _subject(
+            _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+            mediaService,
+            guideAudioLibrary: _silentGuideAudioLibrary(),
+            voicePromptService: _FakeVoicePromptService(),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(LessonGuideFlowV2.guideToSamplePause);
-    await tester.pump();
-    await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
-    await tester.pump();
-    await mediaService.startRequested.future;
+      );
+      await tester.pump();
+      await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+      await tester.pump();
+      await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
+      await tester.pump();
+      await mediaService.startRequested.future;
 
-    var pauseCompleted = false;
-    final pauseFuture = registry.pauseForMainAssistant().then((value) {
-      pauseCompleted = true;
-      return value;
-    });
-    await tester.pump();
-    expect(pauseCompleted, isFalse);
+      var pauseCompleted = false;
+      final pauseFuture = registry.pauseForMainAssistant().then((value) {
+        pauseCompleted = true;
+        return value;
+      });
+      await tester.pump();
+      expect(pauseCompleted, isTrue);
+      expect(await pauseFuture, isTrue);
 
-    mediaService.releaseStart();
-    await tester.pump();
-    expect(await pauseFuture, isTrue);
-    await tester.pump();
+      // A late Android recording callback is still cleaned up, but it no longer
+      // owns or delays the MAIN handoff.
+      mediaService.releaseStart();
+      await tester.pump();
+      await tester.pump();
 
-    expect(registry.isActiveModulePaused, isTrue);
-    expect(mediaService.recording, isFalse);
-    expect(mediaService.cancelCalls, greaterThanOrEqualTo(2));
-    expect(find.text('Bài học đang tạm dừng.'), findsOneWidget);
+      expect(registry.isActiveModulePaused, isTrue);
+      expect(mediaService.recording, isFalse);
+      expect(mediaService.cancelCalls, greaterThanOrEqualTo(2));
+      expect(find.text('Bài học đang tạm dừng.'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
 
   testWidgets(
     'V2 rejects wrong content and automatically records the same sentence again',

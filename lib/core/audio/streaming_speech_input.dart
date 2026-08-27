@@ -264,13 +264,15 @@ class AndroidStreamingSpeechInput
     bool preferOnDevice = false,
     bool failOnRuntimeError = false,
     Duration readyTimeout = const Duration(seconds: 2),
+    Duration nativeCommandTimeout = const Duration(seconds: 2),
   }) : _methodChannel = methodChannel,
        _platformName = platformName,
        _inputLabel = inputLabel,
        _asrMode = asrMode,
        _preferOnDevice = preferOnDevice,
        _failOnRuntimeError = failOnRuntimeError,
-       _readyTimeout = readyTimeout {
+       _readyTimeout = readyTimeout,
+       _nativeCommandTimeout = nativeCommandTimeout {
     _eventSubscription = (eventStream ?? eventChannel.receiveBroadcastStream())
         .listen(_handleEvent, onError: _handleChannelError);
   }
@@ -282,6 +284,7 @@ class AndroidStreamingSpeechInput
   final bool _preferOnDevice;
   final bool _failOnRuntimeError;
   final Duration _readyTimeout;
+  final Duration _nativeCommandTimeout;
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
   final StreamController<void> _speechStartedController =
@@ -606,19 +609,19 @@ class AndroidStreamingSpeechInput
     _active = true;
     _activeAudioSource = audioSource;
     try {
-      await _methodChannel.invokeMethod<void>('speech.start', {
-        'commandMode': commandMode,
-        'preferOnDevice': _preferOnDevice,
-        'audioSource': audioSource.channelValue,
-        'locale': ?localeIdentifier,
-      });
+      await _methodChannel
+          .invokeMethod<void>('speech.start', {
+            'commandMode': commandMode,
+            'preferOnDevice': _preferOnDevice,
+            'audioSource': audioSource.channelValue,
+            'locale': ?localeIdentifier,
+          })
+          .timeout(_nativeCommandTimeout);
       await readyCompleter.future.timeout(_readyTimeout);
       _startedAt = DateTime.now();
     } on TimeoutException {
       _active = false;
-      await _methodChannel
-          .invokeMethod<void>('speech.cancel')
-          .catchError((Object _) {});
+      await _cancelNativeRecognitionBounded();
       reportNativeSpeechStage(
         'error',
         code: 'SPEECH_READY_TIMEOUT',
@@ -792,6 +795,7 @@ class AndroidStreamingSpeechInput
   @override
   Future<void> cancel() async {
     final readyCompleter = _readyCompleter;
+    final shouldCancelNative = _active || readyCompleter != null;
     if (readyCompleter != null && !readyCompleter.isCompleted) {
       readyCompleter.completeError(
         const StreamingSpeechInputException(
@@ -801,10 +805,10 @@ class AndroidStreamingSpeechInput
       );
     }
     _readyCompleter = null;
-    if (_active) {
-      await _methodChannel.invokeMethod<void>('speech.cancel');
-    }
     _active = false;
+    if (shouldCancelNative) {
+      await _cancelNativeRecognitionBounded();
+    }
     _startedAt = null;
     _latestText = '';
     _latestAlternatives = const <String>[];
@@ -814,6 +818,17 @@ class AndroidStreamingSpeechInput
       completer.complete('');
     }
     _resultCompleter = null;
+  }
+
+  Future<void> _cancelNativeRecognitionBounded() async {
+    try {
+      await _methodChannel
+          .invokeMethod<void>('speech.cancel')
+          .timeout(_nativeCommandTimeout);
+    } catch (_) {
+      // Cancellation is lifecycle cleanup. A native channel that is already
+      // stuck must not keep MAIN, a lesson route, or app disposal waiting.
+    }
   }
 
   void _handleEvent(dynamic event) {
@@ -1085,8 +1100,10 @@ class AndroidStreamingSpeechInput
       );
     }
     _readyCompleter = null;
-    if (_active) {
-      await _methodChannel.invokeMethod<void>('speech.cancel');
+    final shouldCancelNative = _active;
+    _active = false;
+    if (shouldCancelNative) {
+      await _cancelNativeRecognitionBounded();
     }
     await _eventSubscription.cancel();
     await _amplitudeController.close();
@@ -1103,6 +1120,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),
     super.eventStream,
+    super.nativeCommandTimeout,
     HfpAudioControl? audioRouteControl,
   }) : _audioRouteControl = audioRouteControl,
        super(

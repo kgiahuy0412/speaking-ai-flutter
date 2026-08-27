@@ -65,6 +65,11 @@ abstract interface class ActiveLearningModuleController {
 /// above the practice route). The last registered route receives MAIN commands;
 /// removing it restores the route immediately below it.
 class ActiveLearningModuleRegistry extends ChangeNotifier {
+  ActiveLearningModuleRegistry({
+    Duration operationTimeout = const Duration(seconds: 3),
+  }) : _operationTimeout = operationTimeout;
+
+  final Duration _operationTimeout;
   final List<_ActiveLearningModuleRegistration> _registrations =
       <_ActiveLearningModuleRegistration>[];
   bool _notificationScheduled = false;
@@ -123,7 +128,16 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
       if (active == null) {
         return false;
       }
-      await active.pauseForMainAssistant();
+      try {
+        await active.pauseForMainAssistant().timeout(_operationTimeout);
+      } on TimeoutException {
+        // Module state is changed synchronously before native media cleanup.
+        // Accept that paused state and let obsolete native callbacks drain in
+        // the background instead of permanently disabling physical MAIN.
+        return identical(active, controller) && active.isPausedForMain;
+      } catch (_) {
+        return false;
+      }
       if (identical(active, controller)) {
         return true;
       }
@@ -138,7 +152,15 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
     if (active == null) {
       return const ActiveLearningCommandResult.unavailable();
     }
-    return active.handleMainCommand(command);
+    try {
+      return await active.handleMainCommand(command).timeout(_operationTimeout);
+    } on TimeoutException {
+      return const ActiveLearningCommandResult.busy(
+        spokenReply: 'Bài học đang xử lý. Con thử lại sau một chút nhé.',
+      );
+    } catch (_) {
+      return const ActiveLearningCommandResult.busy();
+    }
   }
 }
 

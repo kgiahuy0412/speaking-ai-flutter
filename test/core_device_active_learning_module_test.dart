@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -78,12 +80,32 @@ void main() {
       registry.dispose();
     },
   );
+
+  test(
+    'registry accepts paused state when native cleanup never returns',
+    () async {
+      final pauseGate = Completer<void>();
+      final registry = ActiveLearningModuleRegistry(
+        operationTimeout: const Duration(milliseconds: 5),
+      );
+      final module = _FakeActiveModule(pauseGate: pauseGate);
+      registry.register(module);
+
+      expect(await registry.pauseForMainAssistant(), isTrue);
+      expect(module.paused, isTrue);
+      expect(module.pauses, 1);
+
+      pauseGate.complete();
+      registry.dispose();
+    },
+  );
 }
 
 class _FakeActiveModule implements ActiveLearningModuleController {
-  _FakeActiveModule({this.onPause});
+  _FakeActiveModule({this.onPause, this.pauseGate});
 
   final void Function()? onPause;
+  final Completer<void>? pauseGate;
   int pauses = 0;
   bool paused = false;
   final List<ActiveLearningCommand> commands = <ActiveLearningCommand>[];
@@ -113,5 +135,6 @@ class _FakeActiveModule implements ActiveLearningModuleController {
     pauses += 1;
     paused = true;
     onPause?.call();
+    await pauseGate?.future;
   }
 }

@@ -69,6 +69,7 @@ class LessonPracticeScreen extends StatefulWidget {
 
 class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     implements ActiveLearningModuleController {
+  static const Duration _mainPauseCleanupTimeout = Duration(seconds: 2);
   int _sentenceIndex = 0;
   bool _recording = false;
   bool _mediaBusy = false;
@@ -295,6 +296,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _recordingStartPending ||
         _recordingDeviceStartInProgress != null;
     final wasCompletionChoiceRecording = _completionChoiceRecording;
+    final pendingDeviceStart = _recordingDeviceStartInProgress;
+    // The request/generation guards already make a late completion stale.
+    // Detach it now so a native start that never returns cannot own the module
+    // lifecycle or poison the next MAIN gesture.
+    _recordingDeviceStartInProgress = null;
     if (mounted) {
       setState(() {
         _recording = false;
@@ -307,26 +313,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       });
     }
 
-    if (shouldCancelRecording) {
-      if (wasCompletionChoiceRecording) {
-        await widget.mediaService.cancelRecording().catchError((Object _) {});
-      } else {
-        await _cancelLessonAttemptCapture();
-      }
-    }
-    final pendingDeviceStart = _recordingDeviceStartInProgress;
+    // Issue every ownership release now and bound the group as one operation.
+    // Never await a stale start here: its request/generation is invalid and a
+    // late callback must not cancel the new recognizer owned by MAIN.
+    final cleanup = <Future<void>>[
+      if (shouldCancelRecording)
+        wasCompletionChoiceRecording
+            ? widget.mediaService.cancelRecording()
+            : _cancelLessonAttemptCapture(),
+      widget.mediaService.stopPlayback(),
+      _voicePromptService.stop(),
+    ];
     if (pendingDeviceStart != null) {
-      await pendingDeviceStart.catchError((Object _) {});
-      // A native start can finish after the first cancellation request. Cancel
-      // once more before MAIN is allowed to play its question.
-      if (wasCompletionChoiceRecording) {
-        await widget.mediaService.cancelRecording().catchError((Object _) {});
-      } else {
-        await _cancelLessonAttemptCapture();
-      }
+      unawaited(pendingDeviceStart.catchError((Object _) {}));
     }
-    await widget.mediaService.stopPlayback().catchError((Object _) {});
-    await _voicePromptService.stop().catchError((Object _) {});
+    await _boundedMainPauseCleanup(
+      Future.wait<void>(cleanup).then<void>((_) {}),
+    );
+  }
+
+  Future<void> _boundedMainPauseCleanup(Future<void> operation) async {
+    try {
+      await operation.timeout(_mainPauseCleanupTimeout);
+    } catch (_) {
+      // The request and lifecycle generations above invalidate this operation.
+      // Cleanup must remain finite so MAIN can take microphone ownership.
+    }
   }
 
   @override
@@ -769,9 +781,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         }
       }
       if (!mounted || request != _recordingStartRequest) {
-        if (iosSpeechInput != null) {
-          await iosSpeechInput.cancel();
-        } else {
+        // The owner that invalidated this request already cancelled its native
+        // turn. Cancelling here can arrive late and kill a newer MAIN turn.
+        if (iosSpeechInput == null) {
           await widget.mediaService.cancelRecording();
         }
         return;
@@ -794,9 +806,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingAutoStopTimer?.cancel();
       _recordingAutoStopTimer = null;
       if (request != _recordingStartRequest) {
-        if (iosSpeechInput != null) {
-          await iosSpeechInput.cancel();
-        } else {
+        // Stale starts have no authority over the current microphone owner.
+        if (iosSpeechInput == null) {
           await widget.mediaService.cancelRecording();
         }
         return;
@@ -821,6 +832,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_recordingStartPending && !_recording) {
       _recordingStartRequest += 1;
       _recordingStartPending = false;
+      await _boundedMainPauseCleanup(_cancelLessonAttemptCapture());
       await widget.mediaService.stopPlayback();
       if (mounted) {
         setState(() => _mediaBusy = false);
