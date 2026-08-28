@@ -192,6 +192,35 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(ownership.release(.speechCapture))
   }
 
+  func testIOSAudioOwnershipRequiresEverySameOwnerLeaseToRelease() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    ownership.acquire(.prompt)
+    ownership.acquire(.prompt)
+
+    XCTAssertTrue(ownership.release(.prompt))
+    XCTAssertFalse(ownership.canDeactivate)
+    XCTAssertEqual(ownership.activeOwners, [.prompt])
+
+    XCTAssertTrue(ownership.release(.prompt))
+    XCTAssertTrue(ownership.canDeactivate)
+  }
+
+  func testVoicePromptLeaseIgnoresAStaleCompletionFromThePreviousPrompt() {
+    var lease = IOSPromptOperationLeaseState()
+    let firstPrompt = UUID()
+    let secondPrompt = UUID()
+
+    lease.activate(firstPrompt)
+    XCTAssertTrue(lease.release(firstPrompt))
+
+    lease.activate(secondPrompt)
+    XCTAssertFalse(lease.release(firstPrompt))
+    XCTAssertEqual(lease.activeToken, secondPrompt)
+    XCTAssertTrue(lease.release(secondPrompt))
+    XCTAssertNil(lease.activeToken)
+  }
+
   func testIOSHfpRouteLeaseReleasesAtUtteranceBoundary() {
     var lease = IOSHfpRouteLeaseState()
 

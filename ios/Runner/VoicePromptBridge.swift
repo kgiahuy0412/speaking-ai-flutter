@@ -2,6 +2,21 @@ import AVFoundation
 import Flutter
 import Foundation
 
+struct IOSPromptOperationLeaseState {
+  private var activeTokens: Set<UUID> = []
+
+  var activeToken: UUID? { activeTokens.count == 1 ? activeTokens.first : nil }
+
+  mutating func activate(_ token: UUID) {
+    activeTokens.insert(token)
+  }
+
+  @discardableResult
+  mutating func release(_ token: UUID) -> Bool {
+    activeTokens.remove(token) != nil
+  }
+}
+
 /// Native iOS prompt output for the fixed MAIN assistant. Keeping prompts in
 /// AVSpeechSynthesizer avoids a network round trip before command recognition.
 final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
@@ -11,9 +26,12 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private var waitingResult: FlutterResult?
   private var readyCueResult: FlutterResult?
   private var readyCueToken: UUID?
+  private var readyCueAudioToken: UUID?
   private var readyCueFallback: DispatchWorkItem?
   private var readyCuePlayer: AVAudioPlayer?
-  private var promptUsesHfpRoute = false
+  private var activeUtterance: AVSpeechUtterance?
+  private var activeUtteranceAudioToken: UUID?
+  private var promptOperationLeases = IOSPromptOperationLeaseState()
   private var disposed = false
 
   init(
@@ -89,13 +107,15 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       return
     }
     stop()
-    configurePromptAudioSession(forcePhoneSpeaker: forcePhoneSpeaker)
+    let audioToken = configurePromptAudioSession(forcePhoneSpeaker: forcePhoneSpeaker)
     audioSessionCoordinator.trace(stage: "prompt_started", caller: "VoicePromptBridge.speak")
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: locale)
       ?? AVSpeechSynthesisVoice(language: "vi-VN")
     utterance.rate = AVSpeechUtteranceDefaultSpeechRate
     utterance.volume = 1.0
+    activeUtterance = utterance
+    activeUtteranceAudioToken = audioToken
     if waitForCompletion {
       waitingResult = result
     } else {
@@ -104,14 +124,17 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     synthesizer.speak(utterance)
   }
 
-  private func configurePromptAudioSession(forcePhoneSpeaker: Bool = false) {
+  @discardableResult
+  private func configurePromptAudioSession(forcePhoneSpeaker: Bool = false) -> UUID? {
     let session = audioSessionCoordinator.session
+    let audioToken = UUID()
     if forcePhoneSpeaker {
       do {
         try audioSessionCoordinator.preparePhoneSpeaker(
           caller: "VoicePromptBridge.configurePromptAudioSession"
         )
-        promptUsesHfpRoute = false
+        promptOperationLeases.activate(audioToken)
+        return audioToken
       } catch {
         audioSessionCoordinator.trace(
           stage: "prompt_audio_error",
@@ -119,8 +142,8 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
           code: "PHONE_PROMPT_AUDIO_SESSION_FAILED",
           message: error.localizedDescription
         )
+        return nil
       }
-      return
     }
     // Capture the HFP port before changing the shared session. HfpAudioBridge
     // activates and selects it; the prompt bridge must preserve that choice
@@ -131,10 +154,12 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       IOSHfpRoutePolicy.isHfpInput($0.portType)
     }
     do {
-      promptUsesHfpRoute = try audioSessionCoordinator.preparePrompt(
+      _ = try audioSessionCoordinator.preparePrompt(
         preferredHfpInput: preferredHfpInput,
         caller: "VoicePromptBridge.configurePromptAudioSession"
       )
+      promptOperationLeases.activate(audioToken)
+      return audioToken
     } catch {
       audioSessionCoordinator.trace(
         stage: "prompt_audio_error",
@@ -142,16 +167,20 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         code: "PROMPT_AUDIO_SESSION_FAILED",
         message: error.localizedDescription
       )
+      return nil
     }
   }
 
   private func stop() {
+    let utteranceAudioToken = activeUtteranceAudioToken
+    activeUtterance = nil
+    activeUtteranceAudioToken = nil
     if synthesizer.isSpeaking || synthesizer.isPaused {
       synthesizer.stopSpeaking(at: .immediate)
     }
     completeWaitingResult()
     completeReadyCue()
-    releasePromptAudioSession()
+    releasePromptAudioSession(token: utteranceAudioToken)
   }
 
   private func completeWaitingResult() {
@@ -161,32 +190,61 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    guard activeUtterance === utterance else {
+      audioSessionCoordinator.trace(
+        stage: "prompt_stale_finish_ignored",
+        caller: "VoicePromptBridge.didFinish"
+      )
+      return
+    }
+    let audioToken = activeUtteranceAudioToken
+    activeUtterance = nil
+    activeUtteranceAudioToken = nil
     audioSessionCoordinator.trace(stage: "prompt_finished", caller: "VoicePromptBridge.didFinish")
     audioSessionCoordinator.trace(stage: "prompt_done", caller: "VoicePromptBridge.didFinish")
-    releasePromptAudioSession()
+    releasePromptAudioSession(token: audioToken)
     completeWaitingResult()
   }
 
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    guard activeUtterance === utterance else {
+      audioSessionCoordinator.trace(
+        stage: "prompt_stale_cancel_ignored",
+        caller: "VoicePromptBridge.didCancel"
+      )
+      return
+    }
+    let audioToken = activeUtteranceAudioToken
+    activeUtterance = nil
+    activeUtteranceAudioToken = nil
     audioSessionCoordinator.trace(stage: "prompt_cancelled", caller: "VoicePromptBridge.didCancel")
-    releasePromptAudioSession()
+    releasePromptAudioSession(token: audioToken)
     completeWaitingResult()
   }
 
-  private func releasePromptAudioSession() {
+  private func releasePromptAudioSession(token: UUID?) {
+    guard let token else { return }
+    guard promptOperationLeases.release(token) else {
+      audioSessionCoordinator.trace(
+        stage: "prompt_stale_audio_release_ignored",
+        caller: "VoicePromptBridge.releasePromptAudioSession"
+      )
+      return
+    }
     audioSessionCoordinator.releasePrompt(
-      usedHfp: promptUsesHfpRoute,
+      usedHfp: false,
       caller: "VoicePromptBridge.releasePromptAudioSession"
     )
   }
 
   private func playSpeechReadyCue(_ result: @escaping FlutterResult) {
     completeReadyCue()
-    configurePromptAudioSession()
+    let audioToken = configurePromptAudioSession()
     audioSessionCoordinator.trace(stage: "ready_cue_started", caller: "VoicePromptBridge.playSpeechReadyCue")
 
     let token = UUID()
     readyCueToken = token
+    readyCueAudioToken = audioToken
     readyCueResult = result
     let fallback = DispatchWorkItem { [weak self] in
       self?.completeReadyCue(token: token)
@@ -217,7 +275,8 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-    completeReadyCue()
+    guard player === readyCuePlayer else { return }
+    completeReadyCue(token: readyCueToken)
   }
 
   private static func makeReadyCueWavData() -> Data {
@@ -264,6 +323,8 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     readyCuePlayer?.stop()
     readyCuePlayer = nil
     readyCueToken = nil
+    let audioToken = readyCueAudioToken
+    readyCueAudioToken = nil
     let result = readyCueResult
     readyCueResult = nil
     if hadActiveCue {
@@ -276,7 +337,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     // explicit release, the MAIN prompt can leave the speaker session active
     // and the following recognition start fails even though manual recording
     // works moments later.
-    releasePromptAudioSession()
+    releasePromptAudioSession(token: audioToken)
     result?(nil)
   }
 

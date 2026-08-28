@@ -14,23 +14,31 @@ enum IOSAudioSessionOwner: String, Hashable {
 }
 
 struct IOSAudioSessionOwnershipState {
-  private var owners: Set<IOSAudioSessionOwner> = []
+  private var leaseCounts: [IOSAudioSessionOwner: Int] = [:]
 
   mutating func acquire(_ owner: IOSAudioSessionOwner) {
-    owners.insert(owner)
+    leaseCounts[owner, default: 0] += 1
   }
 
   @discardableResult
   mutating func release(_ owner: IOSAudioSessionOwner) -> Bool {
-    owners.remove(owner) != nil
+    guard let count = leaseCounts[owner], count > 0 else { return false }
+    if count == 1 {
+      leaseCounts.removeValue(forKey: owner)
+    } else {
+      leaseCounts[owner] = count - 1
+    }
+    return true
   }
 
-  func contains(_ owner: IOSAudioSessionOwner) -> Bool { owners.contains(owner) }
+  func contains(_ owner: IOSAudioSessionOwner) -> Bool {
+    (leaseCounts[owner] ?? 0) > 0
+  }
 
-  var canDeactivate: Bool { owners.isEmpty }
+  var canDeactivate: Bool { leaseCounts.isEmpty }
 
   var activeOwners: [IOSAudioSessionOwner] {
-    owners.sorted { $0.rawValue < $1.rawValue }
+    leaseCounts.keys.sorted { $0.rawValue < $1.rawValue }
   }
 }
 
@@ -147,7 +155,9 @@ final class IOSAudioSessionCoordinator: NSObject {
       self.pendingTurnId = nil
       pendingTurnStartedAt = nil
       isMainTurnActive = true
-      acquireSessionOwner(.mainTurn, caller: source)
+      if !ownership.contains(.mainTurn) {
+        acquireSessionOwner(.mainTurn, caller: source)
+      }
       trace(
         stage: previousTurnId == nil ? "main_turn_started" : "main_turn_superseded",
         caller: source,
@@ -171,7 +181,9 @@ final class IOSAudioSessionCoordinator: NSObject {
     activeTurnStartedAt = now
     sequence = 0
     isMainTurnActive = true
-    acquireSessionOwner(.mainTurn, caller: source)
+    if !ownership.contains(.mainTurn) {
+      acquireSessionOwner(.mainTurn, caller: source)
+    }
     trace(stage: "main_turn_started", caller: source)
     scheduleSafetyTimeout()
     return activeTurnId!
