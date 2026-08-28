@@ -75,15 +75,13 @@ struct Aiv0ReconnectPolicy {
 enum Aiv0MainNotificationRefreshStep: Equatable {
   case reconnect
   case rediscover
-  case disable
   case enable
   case complete
 }
 
-/// H20 can keep its GATT connection alive while silently dropping the MAIN
-/// notification subscription when iOS enters and leaves the HFP/SCO voice
-/// profile. CoreBluetooth does not emit `didDisconnectPeripheral` in that
-/// state, so a normal reconnect policy cannot recover later physical presses.
+/// Keeps the MAIN notification subscription stable across HFP/SCO speech
+/// cycles. A healthy subscription is never toggled off; recovery is attempted
+/// only when CoreBluetooth reports that notification delivery is unavailable.
 struct Aiv0MainNotificationRefreshPolicy {
   static func nextStep(
     peripheralConnected: Bool,
@@ -96,10 +94,7 @@ struct Aiv0MainNotificationRefreshPolicy {
     if refreshInProgress {
       return isNotifying ? .complete : .enable
     }
-    // CoreBluetooth can keep reporting `isNotifying == true` after H20 silently
-    // drops the notification while its radio switches to HFP/SCO. A controlled
-    // disable -> enable cycle is therefore required to re-arm physical MAIN.
-    return isNotifying ? .disable : .enable
+    return isNotifying ? .complete : .enable
   }
 }
 
@@ -199,16 +194,18 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         self.scheduleReconnect(peripheral)
         return
       }
-      // Re-arm MAIN once more when the assistant turn fully ends. H20 can
-      // silently lose notifications across an SCO transition while
-      // CoreBluetooth continues to report `isNotifying == true`.
+      // Validate MAIN when the assistant turn ends. A healthy subscription is
+      // preserved; only a missing subscription or disconnected GATT link is
+      // recovered below.
       self.scheduleMainNotificationRefresh()
+    }
+    audioSessionCoordinator.onSpeechCaptureEnded = { [weak self] in
+      // A capture ending is not evidence that CoreBluetooth lost MAIN notify.
+      // Resume only work that an actual BLE failure deferred during capture.
+      self?.resumeDeferredBluetoothRecovery()
     }
     audioSessionCoordinator.onAudioSessionReleased = { [weak self] in
       self?.resumeDeferredBluetoothRecovery()
-    }
-    audioSessionCoordinator.onSpeechCaptureEnded = { [weak self] in
-      self?.scheduleMainNotificationRefresh()
     }
   }
 
@@ -671,11 +668,6 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         ProtocolUUID.batteryService,
         ProtocolUUID.deviceInformationService,
       ])
-    case .disable:
-      guard let buttonCharacteristic else { return }
-      notificationRefreshInProgress = true
-      peripheral.setNotifyValue(false, for: buttonCharacteristic)
-      scheduleMainNotificationRefreshTimeout(peripheral)
     case .enable:
       guard let buttonCharacteristic else { return }
       notificationRefreshInProgress = true
@@ -780,8 +772,8 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     guard !disposed else { return }
     disposed = true
     audioSessionCoordinator.onMainTurnEnded = nil
-    audioSessionCoordinator.onAudioSessionReleased = nil
     audioSessionCoordinator.onSpeechCaptureEnded = nil
+    audioSessionCoordinator.onAudioSessionReleased = nil
     deferredReconnectPeripheral = nil
     notificationRefreshWorkItem?.cancel()
     notificationRefreshWorkItem = nil

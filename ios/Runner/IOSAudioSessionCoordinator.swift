@@ -58,8 +58,8 @@ final class IOSAudioSessionCoordinator: NSObject {
   private(set) var isBackgroundLearningEnabled = false
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
   var onMainTurnEnded: (() -> Void)?
-  var onAudioSessionReleased: (() -> Void)?
   var onSpeechCaptureEnded: (() -> Void)?
+  var onAudioSessionReleased: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
 
   override init() {
@@ -124,6 +124,8 @@ final class IOSAudioSessionCoordinator: NSObject {
     releaseAudioSessionIfIdle(caller: caller)
     if captureWasActive {
       trace(stage: "speech_capture_ended", caller: caller)
+      // This callback only releases BLE recovery work that was already pending.
+      // It must never create a notification refresh for a healthy subscription.
       onSpeechCaptureEnded?()
     }
   }
@@ -445,8 +447,8 @@ final class IOSAudioSessionCoordinator: NSObject {
     interruptionToken = nil
     traceSink = nil
     onMainTurnEnded = nil
-    onAudioSessionReleased = nil
     onSpeechCaptureEnded = nil
+    onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
   }
 

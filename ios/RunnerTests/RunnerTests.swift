@@ -150,7 +150,7 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(lease.isHeld)
   }
 
-  func testAiv0MainNotificationRefreshRearmsAConnectedSubscription() {
+  func testAiv0MainNotificationRefreshPreservesAHealthySubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
         peripheralConnected: true,
@@ -158,7 +158,19 @@ class RunnerTests: XCTestCase {
         refreshInProgress: false,
         isNotifying: true
       ),
-      .disable
+      .complete
+    )
+  }
+
+  func testAiv0MainNotificationRefreshEnablesOnlyAMissingSubscription() {
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        refreshInProgress: false,
+        isNotifying: false
+      ),
+      .enable
     )
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
