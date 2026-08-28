@@ -62,15 +62,20 @@ struct Aiv0ReconnectPolicy {
 
   static func shouldDeferNotificationMaintenance(
     mainTurnActive: Bool,
+    speechCaptureActive: Bool,
     hfpRouteActive: Bool
   ) -> Bool {
-    mainTurnActive || hfpRouteActive
+    // HFP is the selected mic/loa route, not a reason to starve BLE forever.
+    // Only a live MAIN turn or PCM capture owns the short critical section.
+    _ = hfpRouteActive
+    return mainTurnActive || speechCaptureActive
   }
 }
 
 enum Aiv0MainNotificationRefreshStep: Equatable {
   case reconnect
   case rediscover
+  case disable
   case enable
   case complete
 }
@@ -91,9 +96,10 @@ struct Aiv0MainNotificationRefreshPolicy {
     if refreshInProgress {
       return isNotifying ? .complete : .enable
     }
-    // Never create a blind interval by toggling a healthy subscription off.
-    // H20 may already be changing its radio profile as HFP/SCO is released.
-    return isNotifying ? .complete : .enable
+    // CoreBluetooth can keep reporting `isNotifying == true` after H20 silently
+    // drops the notification while its radio switches to HFP/SCO. A controlled
+    // disable -> enable cycle is therefore required to re-arm physical MAIN.
+    return isNotifying ? .disable : .enable
   }
 }
 
@@ -193,13 +199,16 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         self.scheduleReconnect(peripheral)
         return
       }
-      // Validate the MAIN characteristic after the voice profile is released.
-      // A healthy subscription is preserved; only a missing subscription is
-      // enabled, so the next physical press never crosses a forced blind gap.
+      // Re-arm MAIN once more when the assistant turn fully ends. H20 can
+      // silently lose notifications across an SCO transition while
+      // CoreBluetooth continues to report `isNotifying == true`.
       self.scheduleMainNotificationRefresh()
     }
     audioSessionCoordinator.onAudioSessionReleased = { [weak self] in
       self?.resumeDeferredBluetoothRecovery()
+    }
+    audioSessionCoordinator.onSpeechCaptureEnded = { [weak self] in
+      self?.scheduleMainNotificationRefresh()
     }
   }
 
@@ -543,6 +552,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private func shouldDeferNotificationMaintenance() -> Bool {
     Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
       mainTurnActive: audioSessionCoordinator.isMainTurnActive,
+      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive,
       hfpRouteActive: audioSessionCoordinator.hasTwoWayHfpRoute()
     )
   }
@@ -573,6 +583,15 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       )
       return
     }
+    if notificationRefreshInProgress {
+      notificationValidationPending = true
+      audioSessionCoordinator.trace(
+        stage: "ble_main_notification_refresh_coalesced",
+        caller: "Aiv0BleControlBridge"
+      )
+      return
+    }
+    notificationValidationPending = false
     notificationRefreshWorkItem?.cancel()
     let item = DispatchWorkItem { [weak self] in
       guard let self, !self.disposed else { return }
@@ -581,12 +600,16 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         self.notificationValidationPending = true
         return
       }
+      if self.notificationRefreshInProgress {
+        self.notificationValidationPending = true
+        return
+      }
+      self.notificationValidationPending = false
       self.refreshMainNotificationSubscription()
     }
     notificationRefreshWorkItem = item
-    // Let iOS finish leaving HFP/SCO before touching the BLE subscription. This
-    // avoids recreating the very HFP/BLE race the coordinator was introduced to
-    // remove while still re-arming MAIN before the next child interaction.
+    // Give AVAudioEngine time to remove its input tap. HFP may stay selected;
+    // BLE notification maintenance is independent once capture has ended.
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
   }
 
@@ -598,6 +621,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         !self.disposed
       else { return }
       self.notificationRefreshTimeoutWorkItem = nil
+      self.notificationRefreshInProgress = false
       if self.shouldDeferNotificationMaintenance() {
         self.notificationValidationPending = true
         self.audioSessionCoordinator.trace(
@@ -606,7 +630,6 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         )
         return
       }
-      self.notificationRefreshInProgress = false
       self.audioSessionCoordinator.trace(
         stage: "ble_main_notification_refresh_timeout",
         caller: "Aiv0BleControlBridge"
@@ -648,6 +671,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         ProtocolUUID.batteryService,
         ProtocolUUID.deviceInformationService,
       ])
+    case .disable:
+      guard let buttonCharacteristic else { return }
+      notificationRefreshInProgress = true
+      peripheral.setNotifyValue(false, for: buttonCharacteristic)
+      scheduleMainNotificationRefreshTimeout(peripheral)
     case .enable:
       guard let buttonCharacteristic else { return }
       notificationRefreshInProgress = true
@@ -657,10 +685,15 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       notificationRefreshTimeoutWorkItem?.cancel()
       notificationRefreshTimeoutWorkItem = nil
       notificationRefreshInProgress = false
+      let shouldRefreshAgain = notificationValidationPending
+      notificationValidationPending = false
       duplicatePacketFilter.resetWindow()
       phase = "connected"
       message = "BLE Control H20 đã kết nối; nút MAIN sẵn sàng."
       emitStatus()
+      if shouldRefreshAgain {
+        scheduleMainNotificationRefresh()
+      }
     }
   }
 
@@ -748,6 +781,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     disposed = true
     audioSessionCoordinator.onMainTurnEnded = nil
     audioSessionCoordinator.onAudioSessionReleased = nil
+    audioSessionCoordinator.onSpeechCaptureEnded = nil
     deferredReconnectPeripheral = nil
     notificationRefreshWorkItem?.cancel()
     notificationRefreshWorkItem = nil

@@ -73,16 +73,25 @@ class RunnerTests: XCTestCase {
         mainTurnActive: false
       )
     )
-    XCTAssertTrue(
+    XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
         mainTurnActive: false,
+        speechCaptureActive: false,
         hfpRouteActive: true
       )
     )
     XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
         mainTurnActive: false,
+        speechCaptureActive: false,
         hfpRouteActive: false
+      )
+    )
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
+        mainTurnActive: false,
+        speechCaptureActive: true,
+        hfpRouteActive: true
       )
     )
   }
@@ -115,6 +124,17 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(ownership.canDeactivate)
   }
 
+  func testIOSAudioOwnershipOnlyReportsARealCaptureReleaseOnce() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    XCTAssertFalse(ownership.contains(.speechCapture))
+    XCTAssertFalse(ownership.release(.speechCapture))
+    ownership.acquire(.speechCapture)
+    XCTAssertTrue(ownership.contains(.speechCapture))
+    XCTAssertTrue(ownership.release(.speechCapture))
+    XCTAssertFalse(ownership.release(.speechCapture))
+  }
+
   func testIOSHfpRouteLeaseIsIdempotentAcrossUtterances() {
     var lease = IOSHfpRouteLeaseState()
 
@@ -130,7 +150,7 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(lease.isHeld)
   }
 
-  func testAiv0MainNotificationRefreshPreservesAConnectedSubscription() {
+  func testAiv0MainNotificationRefreshRearmsAConnectedSubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
         peripheralConnected: true,
@@ -138,7 +158,7 @@ class RunnerTests: XCTestCase {
         refreshInProgress: false,
         isNotifying: true
       ),
-      .complete
+      .disable
     )
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(

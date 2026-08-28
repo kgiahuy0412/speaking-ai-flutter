@@ -20,9 +20,12 @@ struct IOSAudioSessionOwnershipState {
     owners.insert(owner)
   }
 
-  mutating func release(_ owner: IOSAudioSessionOwner) {
-    owners.remove(owner)
+  @discardableResult
+  mutating func release(_ owner: IOSAudioSessionOwner) -> Bool {
+    owners.remove(owner) != nil
   }
+
+  func contains(_ owner: IOSAudioSessionOwner) -> Bool { owners.contains(owner) }
 
   var canDeactivate: Bool { owners.isEmpty }
 
@@ -53,8 +56,10 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var ownership = IOSAudioSessionOwnershipState()
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
+  var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
   var onMainTurnEnded: (() -> Void)?
   var onAudioSessionReleased: (() -> Void)?
+  var onSpeechCaptureEnded: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
 
   override init() {
@@ -115,8 +120,12 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func releaseCapture(caller: String) {
-    releaseSessionOwner(.speechCapture, caller: caller)
+    let captureWasActive = releaseSessionOwner(.speechCapture, caller: caller)
     releaseAudioSessionIfIdle(caller: caller)
+    if captureWasActive {
+      trace(stage: "speech_capture_ended", caller: caller)
+      onSpeechCaptureEnded?()
+    }
   }
 
   @discardableResult
@@ -402,8 +411,10 @@ final class IOSAudioSessionCoordinator: NSObject {
       }
       trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
     } catch {
-      releaseSessionOwner(.speechCapture, caller: "\(caller).failed")
-      releaseAudioSessionIfIdle(caller: "\(caller).failed")
+      // A failed route/capture preparation can still switch the H20 radio
+      // profile and invalidate its BLE notification subscription. Treat it as
+      // a real capture end so BLE gets the same deterministic re-arm path.
+      releaseCapture(caller: "\(caller).failed")
       throw error
     }
   }
@@ -435,6 +446,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     traceSink = nil
     onMainTurnEnded = nil
     onAudioSessionReleased = nil
+    onSpeechCaptureEnded = nil
     onBackgroundLearningEvent = nil
   }
 
@@ -448,14 +460,16 @@ final class IOSAudioSessionCoordinator: NSObject {
     )
   }
 
-  private func releaseSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) {
-    ownership.release(owner)
+  @discardableResult
+  private func releaseSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) -> Bool {
+    let released = ownership.release(owner)
     trace(
       stage: "audio_session_owner_released",
       caller: caller,
       message: owner.rawValue,
       values: ["owners": ownership.activeOwners.map(\.rawValue)]
     )
+    return released
   }
 
   private func currentOrAvailableInput(portType: AVAudioSession.Port) -> AVAudioSessionPortDescription? {
