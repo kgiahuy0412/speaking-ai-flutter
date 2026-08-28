@@ -216,6 +216,71 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testAiv0MainNotificationRecoveryRearmsAStaleSubscriptionAfterHfpTurn() {
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        recoveryMode: .forceDisable,
+        isNotifying: true
+      ),
+      .disable
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        recoveryMode: .forceEnable,
+        isNotifying: false
+      ),
+      .enable
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationRefreshPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        recoveryMode: .forceEnable,
+        isNotifying: true
+      ),
+      .complete
+    )
+  }
+
+  func testAiv0DeferredRecoveryNeverReconnectsAnAttachedPeripheral() {
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: true,
+        peripheralConnected: true,
+        hasButtonCharacteristic: true
+      ),
+      .wait
+    )
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: false,
+        peripheralConnected: true,
+        hasButtonCharacteristic: true
+      ),
+      .rearmNotification
+    )
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: false,
+        peripheralConnected: true,
+        hasButtonCharacteristic: false
+      ),
+      .rediscover
+    )
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: false,
+        peripheralConnected: false,
+        hasButtonCharacteristic: false
+      ),
+      .reconnect
+    )
+  }
+
   func testAiv0MainNotificationRefreshEnablesOnlyAMissingSubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
