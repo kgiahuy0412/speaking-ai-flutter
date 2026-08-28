@@ -57,9 +57,10 @@ struct Aiv0ReconnectPolicy {
   static func shouldDeferReconnect(
     mainTurnActive: Bool,
     promptActive: Bool,
-    speechCaptureActive: Bool
+    speechCaptureActive: Bool,
+    hfpRouteActive: Bool
   ) -> Bool {
-    mainTurnActive || promptActive || speechCaptureActive
+    mainTurnActive || promptActive || speechCaptureActive || hfpRouteActive
   }
 
   static func shouldDeferNotificationMaintenance(
@@ -652,7 +653,8 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     Aiv0ReconnectPolicy.shouldDeferReconnect(
       mainTurnActive: audioSessionCoordinator.isMainTurnActive,
       promptActive: audioSessionCoordinator.isPromptActive,
-      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive
+      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive,
+      hfpRouteActive: audioSessionCoordinator.hasTwoWayHfpRoute()
     )
   }
 

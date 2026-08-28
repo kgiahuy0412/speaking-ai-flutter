@@ -22,10 +22,12 @@ struct IOSHfpRoutePolicy {
   }
 }
 
-/// Owns one app-session HFP lease independently from individual utterances.
-/// `startAudioRoute` may be requested by conversation, lessons, and MAIN, but
-/// they all share the same native H20 route and must not repeatedly acquire or
-/// release AVAudioSession while the device remains selected.
+/// Owns the live HFP/SCO lease for one utterance.
+///
+/// The selected H20 input UID survives between utterances, but the live voice
+/// route must not. Keeping this lease after capture ends prevents
+/// `AVAudioSession` from deactivating and makes the H20 firmware drop/reconnect
+/// its independent BLE control link, so later physical MAIN presses disappear.
 struct IOSHfpRouteLeaseState {
   private(set) var isHeld = false
 
@@ -39,6 +41,10 @@ struct IOSHfpRouteLeaseState {
     guard isHeld else { return false }
     isHeld = false
     return true
+  }
+
+  mutating func finishUtterance() -> Bool {
+    releaseIfHeld()
   }
 }
 
@@ -424,26 +430,32 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func stopAudioRoute() {
     routeActivationGeneration += 1
-    // This is an utterance boundary, not a device disconnect. Keeping the
-    // verified HFP route prevents iOS from renegotiating the Classic Bluetooth
-    // voice profile after every sentence, which was dropping the independent
-    // BLE GATT channel that carries physical MAIN presses.
+    // Preserve only the selected H20 identity. The live HFP/SCO session is an
+    // utterance-scoped resource and must be released so BLE GATT can remain
+    // connected and keep receiving physical MAIN notifications while idle.
     if let activeInput = activeTwoWayHfpInput(),
       selectedInputId == nil || selectedInputId == activeInput.uid
     {
       selectedInputId = activeInput.uid
       selectedInputName = activeInput.portName
-      routeActive = true
-      phase = "ready"
-      message = "Mic và loa H20 được giữ ổn định giữa các lượt nói."
-    } else {
-      routeActive = false
-      phase = "idle"
-      message = selectedInputId == nil
-        ? nil
-        : "Đã chọn mic HFP; route sẽ được xác nhận ở lượt nói tiếp theo."
     }
+    routeActive = false
+    phase = "idle"
+    message = selectedInputId == nil
+      ? nil
+      : "Đã chọn mic HFP; SCO đang nhả để giữ BLE MAIN sẵn sàng."
     emitStatus()
+    if hfpRouteLease.finishUtterance() {
+      audioSessionCoordinator.releaseHfpRoute(
+        caller: "HfpAudioBridge.stopAudioRoute"
+      )
+    } else {
+      // `connect` verifies HFP without taking an utterance lease. This still
+      // closes an otherwise ownerless session if stop races that verification.
+      audioSessionCoordinator.releaseAudioSessionIfIdle(
+        caller: "HfpAudioBridge.stopAudioRoute.noLease"
+      )
+    }
   }
 
   private func waitForIdleBluetoothRoute(

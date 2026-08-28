@@ -67,14 +67,24 @@ class RunnerTests: XCTestCase {
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: true,
         promptActive: false,
-        speechCaptureActive: false
+        speechCaptureActive: false,
+        hfpRouteActive: false
       )
     )
     XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: false,
         promptActive: false,
-        speechCaptureActive: false
+        speechCaptureActive: false,
+        hfpRouteActive: false
+      )
+    )
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: false,
+        promptActive: false,
+        speechCaptureActive: false,
+        hfpRouteActive: true
       )
     )
     XCTAssertFalse(
@@ -105,14 +115,16 @@ class RunnerTests: XCTestCase {
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: false,
         promptActive: true,
-        speechCaptureActive: false
+        speechCaptureActive: false,
+        hfpRouteActive: false
       )
     )
     XCTAssertTrue(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: false,
         promptActive: false,
-        speechCaptureActive: true
+        speechCaptureActive: true,
+        hfpRouteActive: false
       )
     )
   }
@@ -180,18 +192,15 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(ownership.release(.speechCapture))
   }
 
-  func testIOSHfpRouteLeaseIsIdempotentAcrossUtterances() {
+  func testIOSHfpRouteLeaseReleasesAtUtteranceBoundary() {
     var lease = IOSHfpRouteLeaseState()
 
     XCTAssertTrue(lease.acquireIfNeeded())
     XCTAssertFalse(lease.acquireIfNeeded())
     XCTAssertTrue(lease.isHeld)
 
-    // An ordinary end-of-utterance does not release the app-session lease.
-    XCTAssertTrue(lease.isHeld)
-
-    XCTAssertTrue(lease.releaseIfHeld())
-    XCTAssertFalse(lease.releaseIfHeld())
+    XCTAssertTrue(lease.finishUtterance())
+    XCTAssertFalse(lease.finishUtterance())
     XCTAssertFalse(lease.isHeld)
   }
 
