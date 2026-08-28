@@ -64,23 +64,70 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
     XCTAssertTrue(
-      Aiv0ReconnectPolicy.shouldDefer(
-        mainTurnActive: true,
-        hfpRouteActive: false
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: true
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: false
       )
     )
     XCTAssertTrue(
-      Aiv0ReconnectPolicy.shouldDefer(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
         mainTurnActive: false,
         hfpRouteActive: true
       )
     )
     XCTAssertFalse(
-      Aiv0ReconnectPolicy.shouldDefer(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
         mainTurnActive: false,
         hfpRouteActive: false
       )
     )
+  }
+
+  func testIOSAudioOwnershipKeepsPromptAliveWhenMainTurnEnds() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    ownership.acquire(.mainTurn)
+    ownership.acquire(.prompt)
+    ownership.release(.mainTurn)
+
+    XCTAssertFalse(ownership.canDeactivate)
+    XCTAssertEqual(ownership.activeOwners, [.prompt])
+
+    ownership.release(.prompt)
+    XCTAssertTrue(ownership.canDeactivate)
+  }
+
+  func testIOSAudioOwnershipKeepsHfpRouteAcrossSpeechHandoffs() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    ownership.acquire(.hfpRoute)
+    ownership.acquire(.speechCapture)
+    ownership.release(.speechCapture)
+
+    XCTAssertFalse(ownership.canDeactivate)
+    XCTAssertEqual(ownership.activeOwners, [.hfpRoute])
+
+    ownership.release(.hfpRoute)
+    XCTAssertTrue(ownership.canDeactivate)
+  }
+
+  func testIOSHfpRouteLeaseIsIdempotentAcrossUtterances() {
+    var lease = IOSHfpRouteLeaseState()
+
+    XCTAssertTrue(lease.acquireIfNeeded())
+    XCTAssertFalse(lease.acquireIfNeeded())
+    XCTAssertTrue(lease.isHeld)
+
+    // An ordinary end-of-utterance does not release the app-session lease.
+    XCTAssertTrue(lease.isHeld)
+
+    XCTAssertTrue(lease.releaseIfHeld())
+    XCTAssertFalse(lease.releaseIfHeld())
+    XCTAssertFalse(lease.isHeld)
   }
 
   func testAiv0MainNotificationRefreshPreservesAConnectedSubscription() {

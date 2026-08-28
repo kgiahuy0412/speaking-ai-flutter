@@ -682,6 +682,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     analyzerSession = nil
     active = false
     stopping = false
+    audioSessionCoordinator.releaseCapture(
+      caller: "IOSSpeechRecognizerBridge.finishSuccessfully"
+    )
     audioSessionCoordinator.trace(
       stage: "speech.final",
       caller: "IOSSpeechRecognizerBridge.finishSuccessfully",
@@ -711,6 +714,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     analyzerSession = nil
     active = false
     stopping = false
+    audioSessionCoordinator.releaseCapture(
+      caller: "IOSSpeechRecognizerBridge.finishWithError"
+    )
     let values: [String: Any] = [
       "code": code,
       "message": error.localizedDescription,
@@ -845,6 +851,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     analyzerSession = nil
     active = false
     stopping = false
+    audioSessionCoordinator.releaseCapture(caller: caller)
   }
 
   private func isCurrentStartRequest(_ requestGeneration: Int) -> Bool {

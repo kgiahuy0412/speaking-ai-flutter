@@ -1158,9 +1158,11 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
     required bool commandMode,
     String? localeIdentifier,
   }) async {
-    // Clear a stale native recognition turn before mutating AVAudioSession.
+    // Clear only the speech engine. The verified HFP route is an app-session
+    // resource and must survive the listen -> backend -> prompt handoff; stopping
+    // it here makes iOS renegotiate Classic Bluetooth for every utterance and
+    // the combined H20 firmware drops its independent BLE MAIN subscription.
     await super.cancel().catchError((Object _) {});
-    await _stopAudioRoute();
 
     final routeControl = _audioRouteControl;
     final audioSource = takeNativeSpeechAudioSource(
@@ -1171,6 +1173,9 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
           : NativeSpeechAudioSource.builtInMic,
     );
     try {
+      if (audioSource == NativeSpeechAudioSource.builtInMic) {
+        await _stopAudioRoute();
+      }
       if (audioSource == NativeSpeechAudioSource.hfp &&
           routeControl != null &&
           (routeControl.status.deviceId != null ||
@@ -1178,7 +1183,12 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
         // Selecting H20 in Settings only remembers the preferred input. The
         // HFP route must be activated immediately before AVAudioEngine opens
         // its input node or Apple Speech can remain on an inactive route.
-        await routeControl.startAudioRoute();
+        if (!_audioRouteStarted ||
+            !routeControl.status.routeActive ||
+            routeControl.status.phase !=
+                BluetoothAudioConnectionPhase.recording) {
+          await routeControl.startAudioRoute();
+        }
         if (!routeControl.status.routeActive ||
             routeControl.status.phase !=
                 BluetoothAudioConnectionPhase.recording) {
@@ -1203,24 +1213,6 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
   /// controller could upload to the Batch endpoint after a native failure.
   @override
   AudioCapture? takeFallbackAudioCapture() => null;
-
-  @override
-  Future<StreamingSpeechCapture> stop() async {
-    try {
-      return await super.stop();
-    } finally {
-      await _stopAudioRoute();
-    }
-  }
-
-  @override
-  Future<void> cancel() async {
-    try {
-      await super.cancel();
-    } finally {
-      await _stopAudioRoute();
-    }
-  }
 
   Future<void> _stopAudioRoute() async {
     if (!_audioRouteStarted) return;

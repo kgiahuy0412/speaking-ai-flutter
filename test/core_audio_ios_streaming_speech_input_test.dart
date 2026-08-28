@@ -181,7 +181,7 @@ void main() {
     expect(input.takeFallbackAudioCapture(), isNull);
   });
 
-  test('iOS MAIN opens and releases the selected H20 HFP route', () async {
+  test('iOS MAIN keeps the selected H20 HFP route between turns', () async {
     const methodChannel = MethodChannel('test_ios_native_hfp_route');
     final events = StreamController<dynamic>.broadcast();
     final route = _FakeHfpAudioControl();
@@ -243,8 +243,8 @@ void main() {
     final capture = await input.stop();
 
     expect(capture.sourceText, 'học từ vựng');
-    expect(route.stopRouteCount, 1);
-    expect(route.status.routeActive, isFalse);
+    expect(route.stopRouteCount, 0);
+    expect(route.status.routeActive, isTrue);
   });
 
   test('iOS lesson requests English Apple Speech on the H20 route', () async {
@@ -310,7 +310,104 @@ void main() {
     final capture = await input.stop();
 
     expect(capture.sourceText, 'I am hungry');
-    expect(route.stopRouteCount, 1);
+    expect(route.stopRouteCount, 0);
+  });
+
+  test(
+    'iOS reuses one H20 HFP activation for consecutive utterances',
+    () async {
+      const methodChannel = MethodChannel('test_ios_hfp_route_reuse');
+      final events = StreamController<dynamic>.broadcast();
+      final route = _FakeHfpAudioControl();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(methodChannel, (call) async {
+        switch (call.method) {
+          case 'speech.isAvailable':
+            return true;
+          case 'speech.start':
+            scheduleMicrotask(() {
+              events.add(<String, dynamic>{
+                'type': 'speech.ready',
+                'engine': 'sf_speech_recognizer',
+                'audioRoute': 'in=[BluetoothHFP:H20]',
+              });
+            });
+            return true;
+          case 'speech.stop':
+          case 'speech.cancel':
+            return true;
+        }
+        return null;
+      });
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(methodChannel, null);
+        await events.close();
+        await route.dispose();
+      });
+
+      final input = IOSStreamingSpeechInput(
+        methodChannel: methodChannel,
+        eventStream: events.stream,
+        audioRouteControl: route,
+      );
+      addTearDown(input.dispose);
+
+      await input.startCommandRecognition();
+      await input.cancel();
+      await input.startLessonEnglishRecognition();
+      await input.cancel();
+
+      expect(route.startRouteCount, 1);
+      expect(route.stopRouteCount, 0);
+      expect(route.status.routeActive, isTrue);
+    },
+  );
+
+  test('iOS re-arms an active H20 route left ready by another flow', () async {
+    const methodChannel = MethodChannel('test_ios_hfp_route_rearm');
+    final events = StreamController<dynamic>.broadcast();
+    final route = _FakeHfpAudioControl();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{
+              'type': 'speech.ready',
+              'engine': 'sf_speech_recognizer',
+              'audioRoute': 'in=[BluetoothHFP:H20]',
+            });
+          });
+          return true;
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+      await route.dispose();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+      audioRouteControl: route,
+    );
+    addTearDown(input.dispose);
+
+    await input.startCommandRecognition();
+    await input.cancel();
+    route.markActiveRouteReady();
+    await input.startLessonEnglishRecognition();
+
+    expect(route.startRouteCount, 2);
+    expect(route.status.phase, BluetoothAudioConnectionPhase.recording);
   });
 
   test('iOS MAIN reports HFP route failure without changing mic', () async {
@@ -813,6 +910,17 @@ class _FakeHfpAudioControl implements HfpAudioControl {
       deviceId: 'h20-hfp',
       deviceName: 'H20',
       sampleRate: 16000,
+    );
+    _statuses.add(_status);
+  }
+
+  void markActiveRouteReady() {
+    _status = const BluetoothAudioStatus(
+      phase: BluetoothAudioConnectionPhase.ready,
+      deviceId: 'h20-hfp',
+      deviceName: 'H20',
+      sampleRate: 16000,
+      routeActive: true,
     );
     _statuses.add(_status);
   }

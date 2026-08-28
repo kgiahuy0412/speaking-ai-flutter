@@ -6,6 +6,31 @@ enum IOSAudioInputTarget: String {
   case hfp
 }
 
+enum IOSAudioSessionOwner: String, Hashable {
+  case mainTurn
+  case prompt
+  case hfpRoute
+  case speechCapture
+}
+
+struct IOSAudioSessionOwnershipState {
+  private var owners: Set<IOSAudioSessionOwner> = []
+
+  mutating func acquire(_ owner: IOSAudioSessionOwner) {
+    owners.insert(owner)
+  }
+
+  mutating func release(_ owner: IOSAudioSessionOwner) {
+    owners.remove(owner)
+  }
+
+  var canDeactivate: Bool { owners.isEmpty }
+
+  var activeOwners: [IOSAudioSessionOwner] {
+    owners.sorted { $0.rawValue < $1.rawValue }
+  }
+}
+
 /// The single writer for AVAudioSession during an iOS MAIN turn.
 ///
 /// HFP, prompt playback and speech capture may inspect the shared session, but
@@ -25,6 +50,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var activeTurnStartedAt: Date?
   private var sequence = 0
   private var turnTimeout: DispatchWorkItem?
+  private var ownership = IOSAudioSessionOwnershipState()
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
   var onMainTurnEnded: (() -> Void)?
@@ -79,6 +105,20 @@ final class IOSAudioSessionCoordinator: NSObject {
     )
   }
 
+  func acquireHfpRoute(caller: String) {
+    acquireSessionOwner(.hfpRoute, caller: caller)
+  }
+
+  func releaseHfpRoute(caller: String) {
+    releaseSessionOwner(.hfpRoute, caller: caller)
+    releaseAudioSessionIfIdle(caller: caller)
+  }
+
+  func releaseCapture(caller: String) {
+    releaseSessionOwner(.speechCapture, caller: caller)
+    releaseAudioSessionIfIdle(caller: caller)
+  }
+
   @discardableResult
   func beginMainTurn(source: String) -> String {
     let now = Date()
@@ -94,6 +134,7 @@ final class IOSAudioSessionCoordinator: NSObject {
       self.pendingTurnId = nil
       pendingTurnStartedAt = nil
       isMainTurnActive = true
+      acquireSessionOwner(.mainTurn, caller: source)
       trace(
         stage: previousTurnId == nil ? "main_turn_started" : "main_turn_superseded",
         caller: source,
@@ -117,6 +158,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     activeTurnStartedAt = now
     sequence = 0
     isMainTurnActive = true
+    acquireSessionOwner(.mainTurn, caller: source)
     trace(stage: "main_turn_started", caller: source)
     scheduleSafetyTimeout()
     return activeTurnId!
@@ -149,13 +191,13 @@ final class IOSAudioSessionCoordinator: NSObject {
     turnTimeout?.cancel()
     turnTimeout = nil
     isMainTurnActive = false
+    releaseSessionOwner(.mainTurn, caller: caller)
     activeTurnId = nil
     activeTurnStartedAt = nil
     sequence = 0
-    // A two-way HFP/SCO route is only owned for the duration of a MAIN turn.
-    // Keeping AVAudioSession active after the turn leaves H20 in its voice
-    // profile and the combined firmware repeatedly drops its BLE GATT link.
-    // Release the voice profile before resuming the deferred BLE reconnect.
+    // A prompt, live capture, or persistent HFP route may still own the same
+    // AVAudioSession after the logical MAIN turn ends. Deactivation is safe only
+    // when the final owner releases it; otherwise iOS renegotiates HFP mid-flow.
     releaseAudioSessionIfIdle(caller: "IOSAudioSessionCoordinator.endMainTurn")
     onMainTurnEnded?()
   }
@@ -217,58 +259,69 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func preparePrompt(preferredHfpInput: AVAudioSessionPortDescription?, caller: String) throws -> Bool {
+    acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "prompt_audio_prepare", caller: caller)
-    if hasTwoWayHfpRoute() {
-      trace(stage: "prompt_audio_route_reused", caller: caller)
-      return true
-    }
-    if let preferredHfpInput {
+    do {
+      if hasTwoWayHfpRoute() {
+        trace(stage: "prompt_audio_route_reused", caller: caller)
+        return true
+      }
+      if let preferredHfpInput {
+        try ensureCategory(
+          mode: .voiceChat,
+          options: IOSHfpRoutePolicy.categoryOptions,
+          caller: caller
+        )
+        try ensureActive(caller: caller)
+        try ensurePreferredInput(preferredHfpInput, caller: caller)
+        try ensureOutputOverride(.none, caller: caller)
+        return true
+      }
       try ensureCategory(
-        mode: .voiceChat,
-        options: IOSHfpRoutePolicy.categoryOptions,
+        mode: .default,
+        options: [.defaultToSpeaker, .duckOthers],
         caller: caller
       )
+      try ensurePreferredInput(nil, caller: caller)
       try ensureActive(caller: caller)
-      try ensurePreferredInput(preferredHfpInput, caller: caller)
-      try ensureOutputOverride(.none, caller: caller)
-      return true
+      try ensureOutputOverride(.speaker, caller: caller)
+      return false
+    } catch {
+      releaseSessionOwner(.prompt, caller: "\(caller).failed")
+      releaseAudioSessionIfIdle(caller: "\(caller).failed")
+      throw error
     }
-    try ensureCategory(
-      mode: .default,
-      options: [.defaultToSpeaker, .duckOthers],
-      caller: caller
-    )
-    try ensurePreferredInput(nil, caller: caller)
-    try ensureActive(caller: caller)
-    try ensureOutputOverride(.speaker, caller: caller)
-    return false
   }
 
   /// Forces a short coach prompt to the iPhone speaker even when an H20 HFP
   /// input is paired. The selected H20 UID remains owned by HfpAudioBridge and
   /// can be reactivated for the following sample/capture turn.
   func preparePhoneSpeaker(caller: String) throws {
+    acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "phone_prompt_audio_prepare", caller: caller)
-    try ensureCategory(
-      mode: .default,
-      options: [.defaultToSpeaker, .duckOthers],
-      caller: caller
-    )
-    try ensureActive(caller: caller)
-    if let builtInInput = currentOrAvailableInput(portType: .builtInMic) {
-      try ensurePreferredInput(builtInInput, caller: caller)
-    } else {
-      try ensurePreferredInput(nil, caller: caller)
+    do {
+      try ensureCategory(
+        mode: .default,
+        options: [.defaultToSpeaker, .duckOthers],
+        caller: caller
+      )
+      try ensureActive(caller: caller)
+      if let builtInInput = currentOrAvailableInput(portType: .builtInMic) {
+        try ensurePreferredInput(builtInInput, caller: caller)
+      } else {
+        try ensurePreferredInput(nil, caller: caller)
+      }
+      try ensureOutputOverride(.speaker, caller: caller)
+    } catch {
+      releaseSessionOwner(.prompt, caller: "\(caller).failed")
+      releaseAudioSessionIfIdle(caller: "\(caller).failed")
+      throw error
     }
-    try ensureOutputOverride(.speaker, caller: caller)
   }
 
   func releasePrompt(usedHfp _: Bool, caller: String) {
     trace(stage: "prompt_audio_release", caller: caller)
-    guard !isMainTurnActive else {
-      trace(stage: "prompt_audio_release_preserved_for_main", caller: caller)
-      return
-    }
+    releaseSessionOwner(.prompt, caller: caller)
     releaseAudioSessionIfIdle(caller: caller)
   }
 
@@ -278,8 +331,12 @@ final class IOSAudioSessionCoordinator: NSObject {
   /// session is released. A later MAIN turn can therefore reactivate and
   /// verify the same H20 input without keeping BLE-hostile SCO open at idle.
   func releaseAudioSessionIfIdle(caller: String) {
-    guard !isMainTurnActive else {
-      trace(stage: "audio_session_release_preserved_for_main", caller: caller)
+    guard ownership.canDeactivate else {
+      trace(
+        stage: "audio_session_release_preserved",
+        caller: caller,
+        values: ["owners": ownership.activeOwners.map(\.rawValue)]
+      )
       return
     }
     trace(stage: "audio_session_release_requested", caller: caller)
@@ -321,27 +378,34 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func prepareCapture(target: IOSAudioInputTarget, caller: String) throws {
+    acquireSessionOwner(.speechCapture, caller: caller)
     trace(stage: "audio_session_prepare", caller: caller, values: ["audioSource": target.rawValue])
-    switch target {
-    case .hfp:
-      if hasTwoWayHfpRoute() {
-        trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
-        trace(stage: "route_confirmed", caller: caller, values: ["audioSource": target.rawValue])
-        return
+    do {
+      switch target {
+      case .hfp:
+        if hasTwoWayHfpRoute() {
+          trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
+          trace(stage: "route_confirmed", caller: caller, values: ["audioSource": target.rawValue])
+          return
+        }
+        guard let input = currentOrAvailableInput(portType: .bluetoothHFP) else {
+          throw IOSAudioSessionCoordinatorError.hfpInputUnavailable
+        }
+        try configureHfp(activate: true, preferredInput: input, caller: caller)
+      case .builtInMic:
+        guard let input = currentOrAvailableInput(portType: .builtInMic) else {
+          throw IOSAudioSessionCoordinatorError.builtInMicUnavailable
+        }
+        try ensureCategory(mode: .voiceChat, options: [.defaultToSpeaker], caller: caller)
+        try ensureActive(caller: caller)
+        try ensurePreferredInput(input, caller: caller)
       }
-      guard let input = currentOrAvailableInput(portType: .bluetoothHFP) else {
-        throw IOSAudioSessionCoordinatorError.hfpInputUnavailable
-      }
-      try configureHfp(activate: true, preferredInput: input, caller: caller)
-    case .builtInMic:
-      guard let input = currentOrAvailableInput(portType: .builtInMic) else {
-        throw IOSAudioSessionCoordinatorError.builtInMicUnavailable
-      }
-      try ensureCategory(mode: .voiceChat, options: [.defaultToSpeaker], caller: caller)
-      try ensureActive(caller: caller)
-      try ensurePreferredInput(input, caller: caller)
+      trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
+    } catch {
+      releaseSessionOwner(.speechCapture, caller: "\(caller).failed")
+      releaseAudioSessionIfIdle(caller: "\(caller).failed")
+      throw error
     }
-    trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
   }
 
   func routeDescription() -> String {
@@ -372,6 +436,26 @@ final class IOSAudioSessionCoordinator: NSObject {
     onMainTurnEnded = nil
     onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
+  }
+
+  private func acquireSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) {
+    ownership.acquire(owner)
+    trace(
+      stage: "audio_session_owner_acquired",
+      caller: caller,
+      message: owner.rawValue,
+      values: ["owners": ownership.activeOwners.map(\.rawValue)]
+    )
+  }
+
+  private func releaseSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) {
+    ownership.release(owner)
+    trace(
+      stage: "audio_session_owner_released",
+      caller: caller,
+      message: owner.rawValue,
+      values: ["owners": ownership.activeOwners.map(\.rawValue)]
+    )
   }
 
   private func currentOrAvailableInput(portType: AVAudioSession.Port) -> AVAudioSessionPortDescription? {

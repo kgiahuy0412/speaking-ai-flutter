@@ -54,7 +54,13 @@ struct Aiv0ReconnectPolicy {
     min(pow(2.0, Double(max(attempt, 1) - 1)), 4.0)
   }
 
-  static func shouldDefer(
+  static func shouldDeferReconnect(
+    mainTurnActive: Bool
+  ) -> Bool {
+    mainTurnActive
+  }
+
+  static func shouldDeferNotificationMaintenance(
     mainTurnActive: Bool,
     hfpRouteActive: Bool
   ) -> Bool {
@@ -442,10 +448,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func scheduleReconnect(_ peripheral: CBPeripheral) {
-    if Aiv0ReconnectPolicy.shouldDefer(
-      mainTurnActive: audioSessionCoordinator.isMainTurnActive,
-      hfpRouteActive: audioSessionCoordinator.hasTwoWayHfpRoute()
-    ) {
+    if shouldDeferBluetoothReconnect() {
       deferredReconnectPeripheral = peripheral
       phase = "reconnecting"
       message = "BLE H20 tạm chờ đến khi lượt MAIN kết thúc; HFP không bị thay đổi."
@@ -476,7 +479,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let item = DispatchWorkItem { [weak self, weak peripheral] in
       guard let self, let peripheral, !self.manualDisconnect, !self.disposed else { return }
       self.reconnectWorkItem = nil
-      if self.shouldDeferBluetoothRecovery() {
+      if self.shouldDeferBluetoothReconnect() {
         self.deferredReconnectPeripheral = peripheral
         self.audioSessionCoordinator.trace(
           stage: "ble_reconnect_deferred",
@@ -503,7 +506,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         self.stateCharacteristic == nil
       else { return }
       self.reconnectTimeoutWorkItem = nil
-      if self.shouldDeferBluetoothRecovery() {
+      if self.shouldDeferBluetoothReconnect() {
         self.deferredReconnectPeripheral = peripheral
         self.audioSessionCoordinator.trace(
           stage: "ble_reconnect_deferred",
@@ -531,8 +534,14 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     reconnectTimeoutWorkItem = nil
   }
 
-  private func shouldDeferBluetoothRecovery() -> Bool {
-    Aiv0ReconnectPolicy.shouldDefer(
+  private func shouldDeferBluetoothReconnect() -> Bool {
+    Aiv0ReconnectPolicy.shouldDeferReconnect(
+      mainTurnActive: audioSessionCoordinator.isMainTurnActive
+    )
+  }
+
+  private func shouldDeferNotificationMaintenance() -> Bool {
+    Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
       mainTurnActive: audioSessionCoordinator.isMainTurnActive,
       hfpRouteActive: audioSessionCoordinator.hasTwoWayHfpRoute()
     )
@@ -556,7 +565,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func scheduleMainNotificationRefresh() {
-    if shouldDeferBluetoothRecovery() {
+    if shouldDeferNotificationMaintenance() {
       notificationValidationPending = true
       audioSessionCoordinator.trace(
         stage: "ble_main_notification_validation_deferred",
@@ -568,7 +577,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let item = DispatchWorkItem { [weak self] in
       guard let self, !self.disposed else { return }
       self.notificationRefreshWorkItem = nil
-      if self.shouldDeferBluetoothRecovery() {
+      if self.shouldDeferNotificationMaintenance() {
         self.notificationValidationPending = true
         return
       }
@@ -589,7 +598,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         !self.disposed
       else { return }
       self.notificationRefreshTimeoutWorkItem = nil
-      if self.shouldDeferBluetoothRecovery() {
+      if self.shouldDeferNotificationMaintenance() {
         self.notificationValidationPending = true
         self.audioSessionCoordinator.trace(
           stage: "ble_main_notification_timeout_deferred",
@@ -959,7 +968,7 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
           code: "\(nsError.domain):\(nsError.code)",
           message: error.localizedDescription
         )
-        if shouldDeferBluetoothRecovery() {
+        if shouldDeferNotificationMaintenance() {
           notificationValidationPending = true
           return
         }

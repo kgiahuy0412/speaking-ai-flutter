@@ -22,6 +22,26 @@ struct IOSHfpRoutePolicy {
   }
 }
 
+/// Owns one app-session HFP lease independently from individual utterances.
+/// `startAudioRoute` may be requested by conversation, lessons, and MAIN, but
+/// they all share the same native H20 route and must not repeatedly acquire or
+/// release AVAudioSession while the device remains selected.
+struct IOSHfpRouteLeaseState {
+  private(set) var isHeld = false
+
+  mutating func acquireIfNeeded() -> Bool {
+    guard !isHeld else { return false }
+    isHeld = true
+    return true
+  }
+
+  mutating func releaseIfHeld() -> Bool {
+    guard isHeld else { return false }
+    isHeld = false
+    return true
+  }
+}
+
 /// Selects an HFP microphone already connected in iOS Settings. iOS does not
 /// expose public APIs for pairing or forcing a Classic Bluetooth profile link,
 /// so `connect` means selecting an available AVAudioSession input.
@@ -37,6 +57,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private var message: String?
   private var routeActive = false
   private var routeActivationGeneration = 0
+  private var hfpRouteLease = IOSHfpRouteLeaseState()
   private var notificationTokens: [NSObjectProtocol] = []
   private var disposed = false
 
@@ -220,6 +241,9 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     do {
       routeActivationGeneration += 1
       routeActive = false
+      releaseHfpSessionLease(
+        caller: "HfpAudioBridge.disconnect"
+      )
       try audioSessionCoordinator.clearPreferredInput(
         caller: "HfpAudioBridge.disconnect"
       )
@@ -237,6 +261,9 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private func startAudioRoute(_ result: @escaping FlutterResult) {
     routeActivationGeneration += 1
     let activationGeneration = routeActivationGeneration
+    let acquiredLeaseForThisAttempt = acquireHfpSessionLease(
+      caller: "HfpAudioBridge.startAudioRoute"
+    )
     // H20 can already own a confirmed two-way HFP route after Settings or a
     // previous MAIN turn. Re-applying the category, active flag and preferred
     // input here makes iOS renegotiate the Classic Bluetooth profile. On the
@@ -275,9 +302,13 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
         generation: activationGeneration,
         attemptsRemaining: 15,
         recording: true,
+        releaseLeaseOnFailure: acquiredLeaseForThisAttempt,
         result: result
       )
     } catch {
+      if acquiredLeaseForThisAttempt {
+        releaseHfpSessionLease(caller: "HfpAudioBridge.startAudioRoute.failed")
+      }
       fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: error)
     }
   }
@@ -286,6 +317,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     generation: Int,
     attemptsRemaining: Int,
     recording: Bool,
+    releaseLeaseOnFailure: Bool = false,
     result: @escaping FlutterResult
   ) {
     guard !disposed, generation == routeActivationGeneration else {
@@ -340,6 +372,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       return
     }
     guard attemptsRemaining > 0 else {
+      if recording && releaseLeaseOnFailure {
+        releaseHfpSessionLease(
+          caller: "HfpAudioBridge.waitForActiveBluetoothInput.timeout"
+        )
+      }
       fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: HfpBridgeError.routeUnavailable)
       return
     }
@@ -358,6 +395,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
         generation: generation,
         attemptsRemaining: attemptsRemaining - 1,
         recording: recording,
+        releaseLeaseOnFailure: releaseLeaseOnFailure,
         result: result
       )
     }
@@ -365,25 +403,38 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
 
   private func stopAudioRoute() {
     routeActivationGeneration += 1
-    if audioSessionCoordinator.isMainTurnActive,
-      let selectedInputId,
-      let activeInput = activeTwoWayHfpInput(),
-      activeInput.uid == selectedInputId
+    // This is an utterance boundary, not a device disconnect. Keeping the
+    // verified HFP route prevents iOS from renegotiating the Classic Bluetooth
+    // voice profile after every sentence, which was dropping the independent
+    // BLE GATT channel that carries physical MAIN presses.
+    if let activeInput = activeTwoWayHfpInput(),
+      selectedInputId == nil || selectedInputId == activeInput.uid
     {
+      selectedInputId = activeInput.uid
+      selectedInputName = activeInput.portName
       routeActive = true
       phase = "ready"
-      message = "Mic và loa H20 vẫn ở trên currentRoute bluetoothHFP."
+      message = "Mic và loa H20 được giữ ổn định giữa các lượt nói."
     } else {
-      audioSessionCoordinator.releaseAudioSessionIfIdle(
-        caller: "HfpAudioBridge.stopAudioRoute"
-      )
       routeActive = false
       phase = "idle"
       message = selectedInputId == nil
         ? nil
-        : "Đã chọn mic HFP; route hiện chưa hoạt động."
+        : "Đã chọn mic HFP; route sẽ được xác nhận ở lượt nói tiếp theo."
     }
     emitStatus()
+  }
+
+  @discardableResult
+  private func acquireHfpSessionLease(caller: String) -> Bool {
+    guard hfpRouteLease.acquireIfNeeded() else { return false }
+    audioSessionCoordinator.acquireHfpRoute(caller: caller)
+    return true
+  }
+
+  private func releaseHfpSessionLease(caller: String) {
+    guard hfpRouteLease.releaseIfHeld() else { return }
+    audioSessionCoordinator.releaseHfpRoute(caller: caller)
   }
 
   private func activeHfpInput() -> AVAudioSessionPortDescription? {
@@ -517,6 +568,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   func dispose() {
     guard !disposed else { return }
     stopAudioRoute()
+    releaseHfpSessionLease(caller: "HfpAudioBridge.dispose")
     disposed = true
     notificationTokens.forEach { NotificationCenter.default.removeObserver($0) }
     notificationTokens.removeAll()
