@@ -42,6 +42,25 @@ struct IOSHfpRouteLeaseState {
   }
 }
 
+enum IOSHfpIdleRouteReleaseStep: Equatable {
+  case complete
+  case wait
+  case timedOut
+}
+
+/// `setActive(false)` completes before `currentRoute` necessarily leaves HFP.
+/// BLE must use the authoritative route state rather than a fixed delay, or a
+/// slow H20/iPhone handoff starts GATT while SCO still owns the radio.
+struct IOSHfpIdleRouteReleasePolicy {
+  static func nextStep(
+    hasTwoWayHfpRoute: Bool,
+    attemptsRemaining: Int
+  ) -> IOSHfpIdleRouteReleaseStep {
+    guard hasTwoWayHfpRoute else { return .complete }
+    return attemptsRemaining > 0 ? .wait : .timedOut
+  }
+}
+
 /// Selects an HFP microphone already connected in iOS Settings. iOS does not
 /// expose public APIs for pairing or forcing a Classic Bluetooth profile link,
 /// so `connect` means selecting an available AVAudioSession input.
@@ -362,10 +381,12 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
           self.audioSessionCoordinator.releaseAudioSessionIfIdle(
             caller: "HfpAudioBridge.connectVerified"
           )
-          self.routeActive = false
-          self.phase = "idle"
-          self.message = "Đã chọn mic HFP; route sẽ mở khi bắt đầu nghe."
-          self.emitStatus()
+          self.waitForIdleBluetoothRoute(
+            generation: generation,
+            attemptsRemaining: 30,
+            result: result
+          )
+          return
         }
         result(self.snapshot())
       }
@@ -423,6 +444,74 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
         : "Đã chọn mic HFP; route sẽ được xác nhận ở lượt nói tiếp theo."
     }
     emitStatus()
+  }
+
+  private func waitForIdleBluetoothRoute(
+    generation: Int,
+    attemptsRemaining: Int,
+    result: @escaping FlutterResult
+  ) {
+    guard !disposed, generation == routeActivationGeneration else {
+      result(
+        FlutterError(
+          code: "HFP_ROUTE_CANCELLED",
+          message: HfpBridgeError.routeCancelled.localizedDescription,
+          details: nil
+        )
+      )
+      return
+    }
+    let step = IOSHfpIdleRouteReleasePolicy.nextStep(
+      hasTwoWayHfpRoute: activeTwoWayHfpInput() != nil,
+      attemptsRemaining: attemptsRemaining
+    )
+    switch step {
+    case .complete:
+      routeActive = false
+      phase = "idle"
+      message = "Đã chọn mic HFP; SCO đã nhả và BLE có thể kết nối an toàn."
+      audioSessionCoordinator.trace(
+        stage: "hfp_idle_route_confirmed",
+        caller: "HfpAudioBridge.connectVerified"
+      )
+      emitStatus()
+      result(snapshot())
+    case .wait:
+      DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+        guard let self else {
+          result(
+            FlutterError(
+              code: "HFP_ROUTE_CANCELLED",
+              message: HfpBridgeError.routeCancelled.localizedDescription,
+              details: nil
+            )
+          )
+          return
+        }
+        self.waitForIdleBluetoothRoute(
+          generation: generation,
+          attemptsRemaining: attemptsRemaining - 1,
+          result: result
+        )
+      }
+    case .timedOut:
+      routeActive = true
+      phase = "error"
+      message = HfpBridgeError.routeReleaseTimedOut.localizedDescription
+      audioSessionCoordinator.trace(
+        stage: "hfp_idle_route_release_timeout",
+        caller: "HfpAudioBridge.connectVerified",
+        code: "HFP_ROUTE_RELEASE_TIMEOUT"
+      )
+      emitStatus()
+      result(
+        FlutterError(
+          code: "HFP_ROUTE_RELEASE_TIMEOUT",
+          message: message,
+          details: nil
+        )
+      )
+    }
   }
 
   @discardableResult
@@ -582,6 +671,7 @@ private enum HfpBridgeError: LocalizedError {
   case inputUnavailable
   case routeUnavailable
   case routeCancelled
+  case routeReleaseTimedOut
 
   var errorDescription: String? {
     switch self {
@@ -591,6 +681,8 @@ private enum HfpBridgeError: LocalizedError {
       return "iOS chưa định tuyến đồng thời mic và loa qua bluetoothHFP."
     case .routeCancelled:
       return "Yêu cầu mở mic HFP đã được thay thế hoặc hủy."
+    case .routeReleaseTimedOut:
+      return "HFP/SCO vẫn đang hoạt động; HOMI chưa mở BLE để tránh làm gián đoạn mic H20."
     }
   }
 }

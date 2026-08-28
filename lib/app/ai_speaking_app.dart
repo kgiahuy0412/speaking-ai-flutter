@@ -451,7 +451,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         );
         if (hfpConnected) {
           debugPrint('H20 HFP microphone selected automatically.');
-          await Future<void>.delayed(const Duration(milliseconds: 250));
           break;
         }
       }
@@ -459,6 +458,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         debugPrint(
           'H20 HFP is not available yet; pair it once in iOS Bluetooth Settings.',
         );
+        // Native connect now returns only after currentRoute has actually left
+        // bluetoothHFP. If SCO is still active, do not race a GATT connect
+        // against it; the native deferred-recovery callback will resume BLE at
+        // the next safe audio boundary.
+        if (controller.hfpAudioStatus.routeActive) {
+          debugPrint(
+            'H20 BLE connect deferred because the HFP/SCO route is still active.',
+          );
+          return;
+        }
       }
     }
 

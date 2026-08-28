@@ -57,8 +57,10 @@ final class IOSAudioSessionCoordinator: NSObject {
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
+  var isPromptActive: Bool { ownership.contains(.prompt) }
   var onMainTurnEnded: (() -> Void)?
   var onSpeechCaptureEnded: (() -> Void)?
+  var onPromptEnded: (() -> Void)?
   var onAudioSessionReleased: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
 
@@ -332,8 +334,11 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func releasePrompt(usedHfp _: Bool, caller: String) {
     trace(stage: "prompt_audio_release", caller: caller)
-    releaseSessionOwner(.prompt, caller: caller)
+    let promptWasActive = releaseSessionOwner(.prompt, caller: caller)
     releaseAudioSessionIfIdle(caller: caller)
+    if promptWasActive {
+      onPromptEnded?()
+    }
   }
 
   /// Releases a record-capable route when no MAIN turn owns it.

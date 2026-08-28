@@ -65,12 +65,16 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
     XCTAssertTrue(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
-        mainTurnActive: true
+        mainTurnActive: true,
+        promptActive: false,
+        speechCaptureActive: false
       )
     )
     XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
-        mainTurnActive: false
+        mainTurnActive: false,
+        promptActive: false,
+        speechCaptureActive: false
       )
     )
     XCTAssertFalse(
@@ -93,6 +97,47 @@ class RunnerTests: XCTestCase {
         speechCaptureActive: true,
         hfpRouteActive: true
       )
+    )
+  }
+
+  func testAiv0ReconnectPolicyDefersEveryLiveAudioCriticalSection() {
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: false,
+        promptActive: true,
+        speechCaptureActive: false
+      )
+    )
+    XCTAssertTrue(
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: false,
+        promptActive: false,
+        speechCaptureActive: true
+      )
+    )
+  }
+
+  func testIOSHfpIdleRouteReleaseWaitsForTheAuthoritativeRouteChange() {
+    XCTAssertEqual(
+      IOSHfpIdleRouteReleasePolicy.nextStep(
+        hasTwoWayHfpRoute: true,
+        attemptsRemaining: 20
+      ),
+      .wait
+    )
+    XCTAssertEqual(
+      IOSHfpIdleRouteReleasePolicy.nextStep(
+        hasTwoWayHfpRoute: false,
+        attemptsRemaining: 20
+      ),
+      .complete
+    )
+    XCTAssertEqual(
+      IOSHfpIdleRouteReleasePolicy.nextStep(
+        hasTwoWayHfpRoute: true,
+        attemptsRemaining: 0
+      ),
+      .timedOut
     )
   }
 

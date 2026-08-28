@@ -55,9 +55,11 @@ struct Aiv0ReconnectPolicy {
   }
 
   static func shouldDeferReconnect(
-    mainTurnActive: Bool
+    mainTurnActive: Bool,
+    promptActive: Bool,
+    speechCaptureActive: Bool
   ) -> Bool {
-    mainTurnActive
+    mainTurnActive || promptActive || speechCaptureActive
   }
 
   static func shouldDeferNotificationMaintenance(
@@ -242,6 +244,12 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       // Resume only work that an actual BLE failure deferred during capture.
       self?.resumeDeferredBluetoothRecovery()
     }
+    audioSessionCoordinator.onPromptEnded = { [weak self] in
+      // Prompt playback and speech capture are equally unsafe windows for a
+      // CoreBluetooth reconnect on H20. Resume the exact deferred operation
+      // only after the prompt owner has released the shared audio session.
+      self?.resumeDeferredBluetoothRecovery()
+    }
     audioSessionCoordinator.onAudioSessionReleased = { [weak self] in
       self?.resumeDeferredBluetoothRecovery()
     }
@@ -400,6 +408,17 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       caller: "Aiv0BleControlBridge.connect",
       message: String(describing: startStep)
     )
+    if startStep == .connect, shouldDeferBluetoothReconnect() {
+      deferredReconnectPeripheral = peripheral
+      phase = "reconnecting"
+      message = "BLE H20 đang chờ câu dẫn/ghi âm kết thúc; HFP không bị thay đổi."
+      audioSessionCoordinator.trace(
+        stage: "ble_connect_deferred_for_audio",
+        caller: "Aiv0BleControlBridge.connect"
+      )
+      emitStatus()
+      return
+    }
     switch startStep {
     case .complete:
       completeConnection()
@@ -557,6 +576,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       phase = "error"
       message = "Kết nối BLE Control H20 đã mất."
       emitStatus()
+      failPendingConnect(code: "RECONNECT_EXHAUSTED", message: message!)
       return
     }
     reconnectCount += 1
@@ -630,7 +650,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
 
   private func shouldDeferBluetoothReconnect() -> Bool {
     Aiv0ReconnectPolicy.shouldDeferReconnect(
-      mainTurnActive: audioSessionCoordinator.isMainTurnActive
+      mainTurnActive: audioSessionCoordinator.isMainTurnActive,
+      promptActive: audioSessionCoordinator.isPromptActive,
+      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive
     )
   }
 
@@ -875,6 +897,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     disposed = true
     audioSessionCoordinator.onMainTurnEnded = nil
     audioSessionCoordinator.onSpeechCaptureEnded = nil
+    audioSessionCoordinator.onPromptEnded = nil
     audioSessionCoordinator.onAudioSessionReleased = nil
     deferredReconnectPeripheral = nil
     notificationRefreshWorkItem?.cancel()
