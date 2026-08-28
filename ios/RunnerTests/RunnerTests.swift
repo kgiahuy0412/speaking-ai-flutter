@@ -213,6 +213,65 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testAiv0ConnectStartPreservesAnAlreadyReadyGattSession() {
+    XCTAssertEqual(
+      Aiv0ConnectStartPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        hasStateCharacteristic: true,
+        isNotifying: true
+      ),
+      .complete
+    )
+  }
+
+  func testAiv0ConnectStartRediscoversWithoutReconnectingAnAttachedPeripheral() {
+    XCTAssertEqual(
+      Aiv0ConnectStartPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: false,
+        hasStateCharacteristic: false,
+        isNotifying: false
+      ),
+      .rediscover
+    )
+  }
+
+  func testAiv0ConnectStartRestoresOnlyAMissingNotification() {
+    XCTAssertEqual(
+      Aiv0ConnectStartPolicy.nextStep(
+        peripheralConnected: true,
+        hasButtonCharacteristic: true,
+        hasStateCharacteristic: true,
+        isNotifying: false
+      ),
+      .enable
+    )
+  }
+
+  func testAiv0ConnectStartConnectsOnlyADisconnectedPeripheral() {
+    XCTAssertEqual(
+      Aiv0ConnectStartPolicy.nextStep(
+        peripheralConnected: false,
+        hasButtonCharacteristic: false,
+        hasStateCharacteristic: false,
+        isNotifying: false
+      ),
+      .connect
+    )
+  }
+
+  func testAiv0InitialNotificationSetupCompletesAnExistingSubscription() {
+    XCTAssertEqual(
+      Aiv0InitialNotificationSetupPolicy.nextStep(isNotifying: true),
+      .complete
+    )
+    XCTAssertEqual(
+      Aiv0InitialNotificationSetupPolicy.nextStep(isNotifying: false),
+      .enable
+    )
+  }
+
   func testIOSAudioCoordinatorPromotesPhysicalMainIntoOneTurnTimeline() {
     let coordinator = IOSAudioSessionCoordinator()
     var timeline: [[String: Any]] = []

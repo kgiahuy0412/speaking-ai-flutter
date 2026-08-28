@@ -98,6 +98,44 @@ struct Aiv0MainNotificationRefreshPolicy {
   }
 }
 
+enum Aiv0ConnectStartStep: Equatable {
+  case connect
+  case rediscover
+  case enable
+  case complete
+}
+
+/// CoreBluetooth may return an H20 peripheral whose GATT link is already
+/// attached to this process. Calling `connect` again in that state is not an
+/// idempotent operation: iOS is not required to emit another `didConnect`, so
+/// the app's connect timeout can end up cancelling a healthy link.
+struct Aiv0ConnectStartPolicy {
+  static func nextStep(
+    peripheralConnected: Bool,
+    hasButtonCharacteristic: Bool,
+    hasStateCharacteristic: Bool,
+    isNotifying: Bool
+  ) -> Aiv0ConnectStartStep {
+    guard peripheralConnected else { return .connect }
+    guard hasButtonCharacteristic, hasStateCharacteristic else { return .rediscover }
+    return isNotifying ? .complete : .enable
+  }
+}
+
+enum Aiv0InitialNotificationSetupStep: Equatable {
+  case enable
+  case complete
+}
+
+/// Rediscovery can return the existing characteristic with notification still
+/// enabled. In that case `setNotifyValue(true)` may not produce a new delegate
+/// callback, so connection verification must complete immediately.
+struct Aiv0InitialNotificationSetupPolicy {
+  static func nextStep(isNotifying: Bool) -> Aiv0InitialNotificationSetupStep {
+    isNotifying ? .complete : .enable
+  }
+}
+
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
 /// Android bridge. Audio remains on HFP; BLE carries MAIN button notifications,
 /// battery/firmware diagnostics, and the optional APP State packet only.
@@ -339,18 +377,58 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       ))
       return
     }
+    let reusesCurrentPeripheral = connectedPeripheral?.identifier == peripheral.identifier
+    let startStep = Aiv0ConnectStartPolicy.nextStep(
+      peripheralConnected: peripheral.state == .connected,
+      hasButtonCharacteristic: reusesCurrentPeripheral && buttonCharacteristic != nil,
+      hasStateCharacteristic: reusesCurrentPeripheral && stateCharacteristic != nil,
+      isNotifying: reusesCurrentPeripheral && (buttonCharacteristic?.isNotifying ?? false)
+    )
     cancelReconnectTasks()
     reconnectCount = 0
-    resetCharacteristics()
     manualDisconnect = false
     connectedPeripheral = peripheral
     peripheral.delegate = self
     pendingConnectResult = result
     phase = "connecting"
-    message = "Đang kết nối BLE Control H20…"
+    message = startStep == .complete
+      ? "BLE Control H20 đã kết nối; nút MAIN sẵn sàng."
+      : "Đang kết nối BLE Control H20…"
     emitStatus()
-    manager.connect(peripheral, options: nil)
-    scheduleConnectTimeout()
+    audioSessionCoordinator.trace(
+      stage: "ble_connect_start",
+      caller: "Aiv0BleControlBridge.connect",
+      message: String(describing: startStep)
+    )
+    switch startStep {
+    case .complete:
+      completeConnection()
+    case .enable:
+      guard let buttonCharacteristic else {
+        resetCharacteristics()
+        peripheral.discoverServices([
+          ProtocolUUID.controlService,
+          ProtocolUUID.batteryService,
+          ProtocolUUID.deviceInformationService,
+        ])
+        scheduleConnectTimeout()
+        return
+      }
+      peripheral.setNotifyValue(true, for: buttonCharacteristic)
+      scheduleConnectTimeout()
+    case .rediscover:
+      resetCharacteristics()
+      peripheral.discoverServices([
+        ProtocolUUID.controlService,
+        ProtocolUUID.batteryService,
+        ProtocolUUID.deviceInformationService,
+      ])
+      scheduleConnectTimeout()
+    case .connect:
+      resetCharacteristics()
+      manager.connect(peripheral, options: nil)
+      scheduleConnectTimeout()
+    }
   }
 
   private func disconnect(_ result: @escaping FlutterResult) {
@@ -423,6 +501,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let item = DispatchWorkItem { [weak self] in
       guard let self, self.pendingConnectResult != nil else { return }
       if let peripheral = self.connectedPeripheral {
+        self.audioSessionCoordinator.trace(
+          stage: "ble_disconnect_requested",
+          caller: "Aiv0BleControlBridge.connectTimeout",
+          code: "connect_timeout"
+        )
         self.central?.cancelPeripheralConnection(peripheral)
       }
       self.phase = "error"
@@ -523,6 +606,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self.phase = "reconnecting"
       self.message = "H20 chưa phản hồi ở lần \(attempt); đang thử lại…"
       self.emitStatus()
+      self.audioSessionCoordinator.trace(
+        stage: "ble_disconnect_requested",
+        caller: "Aiv0BleControlBridge.reconnectTimeout",
+        code: "reconnect_timeout"
+      )
       self.central?.cancelPeripheralConnection(peripheral)
       self.scheduleReconnect(peripheral)
     }
@@ -632,6 +720,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         caller: "Aiv0BleControlBridge"
       )
       if peripheral.state == .connected || peripheral.state == .connecting {
+        self.audioSessionCoordinator.trace(
+          stage: "ble_disconnect_requested",
+          caller: "Aiv0BleControlBridge.notificationRefreshTimeout",
+          code: "notification_refresh_timeout"
+        )
         self.central?.cancelPeripheralConnection(peripheral)
       } else {
         self.scheduleReconnect(peripheral)
@@ -708,7 +801,16 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       return
     }
     writeMode = state.properties.contains(.write) ? "WRITE" : "WRITE_NO_RESPONSE"
-    connectedPeripheral?.setNotifyValue(true, for: button)
+    switch Aiv0InitialNotificationSetupPolicy.nextStep(isNotifying: button.isNotifying) {
+    case .complete:
+      audioSessionCoordinator.trace(
+        stage: "ble_notification_already_active",
+        caller: "Aiv0BleControlBridge.validateControlCharacteristics"
+      )
+      completeConnection()
+    case .enable:
+      connectedPeripheral?.setNotifyValue(true, for: button)
+    }
   }
 
   private func resetCharacteristics() {
