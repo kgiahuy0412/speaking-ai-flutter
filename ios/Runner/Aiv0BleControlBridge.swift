@@ -48,7 +48,6 @@ struct Aiv0DuplicatePacketFilter {
 
 struct Aiv0ReconnectPolicy {
   static let maxAttempts = 3
-  static let attemptTimeoutSeconds: TimeInterval = 10
 
   static func delaySeconds(forAttempt attempt: Int) -> TimeInterval {
     min(pow(2.0, Double(max(attempt, 1) - 1)), 4.0)
@@ -74,6 +73,23 @@ struct Aiv0ReconnectPolicy {
     // Re-arming the MAIN characteristic does not reconfigure AVAudioSession.
     // Deferring it for HFP/speech leaves the physical button unreachable.
     false
+  }
+}
+
+enum Aiv0DisconnectRecoveryStep: Equatable {
+  case ignore
+  case waitForSystem
+  case scheduleManualReconnect
+}
+
+struct Aiv0DisconnectRecoveryPolicy {
+  static func nextStep(
+    manualDisconnect: Bool,
+    disposed: Bool,
+    systemIsReconnecting: Bool
+  ) -> Aiv0DisconnectRecoveryStep {
+    if manualDisconnect || disposed { return .ignore }
+    return systemIsReconnecting ? .waitForSystem : .scheduleManualReconnect
   }
 }
 
@@ -240,7 +256,6 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var scanTimeoutWorkItem: DispatchWorkItem?
   private var connectTimeoutWorkItem: DispatchWorkItem?
   private var reconnectWorkItem: DispatchWorkItem?
-  private var reconnectTimeoutWorkItem: DispatchWorkItem?
   private var deferredRecoveryWorkItem: DispatchWorkItem?
   private var notificationRefreshWorkItem: DispatchWorkItem?
   private var notificationRefreshTimeoutWorkItem: DispatchWorkItem?
@@ -257,6 +272,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var duplicatePacketFilter = Aiv0DuplicatePacketFilter()
   private var packetCount = 0
   private var invalidPacketCount = 0
+  private var reconnectAttempt = 0
   private var reconnectCount = 0
   private var lastDisconnectEpochMs: Int?
   private var lastDisconnectCode: String?
@@ -443,7 +459,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       isNotifying: reusesCurrentPeripheral && (buttonCharacteristic?.isNotifying ?? false)
     )
     cancelReconnectTasks()
-    reconnectCount = 0
+    reconnectAttempt = 0
     manualDisconnect = false
     connectedPeripheral = peripheral
     peripheral.delegate = self
@@ -495,7 +511,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       scheduleConnectTimeout()
     case .connect:
       resetCharacteristics()
-      manager.connect(peripheral, options: nil)
+      connectPeripheral(peripheral, using: manager)
       scheduleConnectTimeout()
     }
   }
@@ -590,7 +606,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     connectTimeoutWorkItem?.cancel()
     connectTimeoutWorkItem = nil
     cancelReconnectTasks()
-    reconnectCount = 0
+    reconnectAttempt = 0
     phase = "connected"
     message = "BLE Control H20 đã kết nối."
     emitStatus()
@@ -603,6 +619,19 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let result = pendingConnectResult
     pendingConnectResult = nil
     result?(FlutterError(code: code, message: message, details: nil))
+  }
+
+  private func connectPeripheral(_ peripheral: CBPeripheral, using manager: CBCentralManager) {
+    if #available(iOS 17.0, *) {
+      // H20 can drop BLE GATT while Classic Bluetooth HFP renegotiates. Keep
+      // recovery owned by CoreBluetooth instead of a Flutter screen lifecycle.
+      manager.connect(
+        peripheral,
+        options: [CBConnectPeripheralOptionEnableAutoReconnect: true]
+      )
+      return
+    }
+    manager.connect(peripheral, options: nil)
   }
 
   private func scheduleReconnect(_ peripheral: CBPeripheral) {
@@ -625,11 +654,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       resumeDeferredBluetoothRecovery()
       return
     }
-    guard reconnectWorkItem == nil, reconnectTimeoutWorkItem == nil else {
+    guard reconnectWorkItem == nil else {
       return
     }
     guard !manualDisconnect, !disposed,
-      reconnectCount < Aiv0ReconnectPolicy.maxAttempts
+      reconnectAttempt < Aiv0ReconnectPolicy.maxAttempts
     else {
       phase = "error"
       message = "Kết nối BLE Control H20 đã mất."
@@ -637,8 +666,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       failPendingConnect(code: "RECONNECT_EXHAUSTED", message: message!)
       return
     }
+    reconnectAttempt += 1
     reconnectCount += 1
-    let attempt = reconnectCount
+    let attempt = reconnectAttempt
     phase = "reconnecting"
     message = "Đang kết nối lại H20 (lần \(attempt)/\(Aiv0ReconnectPolicy.maxAttempts))…"
     emitStatus()
@@ -661,54 +691,20 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       }
       self.resetCharacteristics()
       peripheral.delegate = self
-      self.central?.connect(peripheral, options: nil)
-      self.scheduleReconnectTimeout(peripheral, attempt: attempt)
+      if let manager = self.central {
+        self.connectPeripheral(peripheral, using: manager)
+      }
+      // CoreBluetooth connection requests intentionally have no application
+      // timeout. On iOS 15–16 this pending request is the fallback that keeps
+      // waiting for H20 instead of giving up until Parent settings is opened.
     }
     reconnectWorkItem = item
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
   }
 
-  private func scheduleReconnectTimeout(_ peripheral: CBPeripheral, attempt: Int) {
-    reconnectTimeoutWorkItem?.cancel()
-    let item = DispatchWorkItem { [weak self, weak peripheral] in
-      guard let self, let peripheral,
-        !self.manualDisconnect,
-        !self.disposed,
-        self.reconnectCount == attempt,
-        self.stateCharacteristic == nil
-      else { return }
-      self.reconnectTimeoutWorkItem = nil
-      if self.shouldDeferBluetoothReconnect() {
-        self.deferredReconnectPeripheral = peripheral
-        self.audioSessionCoordinator.trace(
-          stage: "ble_reconnect_deferred",
-          caller: "Aiv0BleControlBridge.reconnectTimeout"
-        )
-        return
-      }
-      self.phase = "reconnecting"
-      self.message = "H20 chưa phản hồi ở lần \(attempt); đang thử lại…"
-      self.emitStatus()
-      self.audioSessionCoordinator.trace(
-        stage: "ble_disconnect_requested",
-        caller: "Aiv0BleControlBridge.reconnectTimeout",
-        code: "reconnect_timeout"
-      )
-      self.central?.cancelPeripheralConnection(peripheral)
-      self.scheduleReconnect(peripheral)
-    }
-    reconnectTimeoutWorkItem = item
-    DispatchQueue.main.asyncAfter(
-      deadline: .now() + Aiv0ReconnectPolicy.attemptTimeoutSeconds,
-      execute: item
-    )
-  }
-
   private func cancelReconnectTasks() {
     reconnectWorkItem?.cancel()
     reconnectWorkItem = nil
-    reconnectTimeoutWorkItem?.cancel()
-    reconnectTimeoutWorkItem = nil
     deferredRecoveryWorkItem?.cancel()
     deferredRecoveryWorkItem = nil
     deferredReconnectPeripheral = nil
@@ -1148,8 +1144,6 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     didFailToConnect peripheral: CBPeripheral,
     error: Error?
   ) {
-    reconnectTimeoutWorkItem?.cancel()
-    reconnectTimeoutWorkItem = nil
     phase = "error"
     message = "Không kết nối được H20: \(error?.localizedDescription ?? "không rõ lỗi")"
     emitStatus()
@@ -1169,6 +1163,33 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     didDisconnectPeripheral peripheral: CBPeripheral,
     error: Error?
   ) {
+    handleDisconnect(
+      peripheral,
+      error: error,
+      systemIsReconnecting: false
+    )
+  }
+
+  @available(iOS 17.0, *)
+  func centralManager(
+    _ central: CBCentralManager,
+    didDisconnectPeripheral peripheral: CBPeripheral,
+    timestamp: CFAbsoluteTime,
+    isReconnecting: Bool,
+    error: Error?
+  ) {
+    handleDisconnect(
+      peripheral,
+      error: error,
+      systemIsReconnecting: isReconnecting
+    )
+  }
+
+  private func handleDisconnect(
+    _ peripheral: CBPeripheral,
+    error: Error?,
+    systemIsReconnecting: Bool
+  ) {
     let nsError = error as NSError?
     let peripheralState = String(describing: peripheral.state)
     let disconnectCode = nsError.map { "\($0.domain):\($0.code)" } ?? "none"
@@ -1177,10 +1198,12 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     lastDisconnectCode = disconnectCode
     lastDisconnectMessage = disconnectMessage
     lastDisconnectPeripheralState = peripheralState
-    lastNotificationRecovery = "disconnect • peripheral=\(peripheralState) • notify=unavailable"
+    lastNotificationRecovery = "disconnect • peripheral=\(peripheralState) • systemReconnect=\(systemIsReconnecting) • notify=unavailable"
     if !manualDisconnect && !disposed {
       phase = "reconnecting"
-      message = "BLE GATT H20 vừa ngắt; đang chờ khôi phục MAIN."
+      message = systemIsReconnecting
+        ? "BLE GATT H20 vừa ngắt; iOS đang tự khôi phục MAIN."
+        : "BLE GATT H20 vừa ngắt; đang chờ khôi phục MAIN."
     }
     emitStatus()
     audioSessionCoordinator.trace(
@@ -1188,18 +1211,36 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
       caller: "Aiv0BleControlBridge",
       code: disconnectCode,
       message: disconnectMessage,
-      values: ["peripheralState": peripheralState]
+      values: [
+        "peripheralState": peripheralState,
+        "systemIsReconnecting": systemIsReconnecting ? "true" : "false",
+      ]
     )
     resetCharacteristics()
-    reconnectTimeoutWorkItem?.cancel()
-    reconnectTimeoutWorkItem = nil
-    if manualDisconnect || disposed {
+    let recoveryStep = Aiv0DisconnectRecoveryPolicy.nextStep(
+      manualDisconnect: manualDisconnect,
+      disposed: disposed,
+      systemIsReconnecting: systemIsReconnecting
+    )
+    switch recoveryStep {
+    case .ignore:
       phase = "idle"
       message = nil
       emitStatus()
-      return
+    case .waitForSystem:
+      // Do not race a second central.connect call against CoreBluetooth's
+      // system-owned reconnect. didConnect will rediscover services and MAIN.
+      cancelReconnectTasks()
+      reconnectAttempt = 0
+      reconnectCount += 1
+      audioSessionCoordinator.trace(
+        stage: "ble_system_auto_reconnect_waiting",
+        caller: "Aiv0BleControlBridge"
+      )
+      emitStatus()
+    case .scheduleManualReconnect:
+      scheduleReconnect(peripheral)
     }
-    scheduleReconnect(peripheral)
   }
 }
 

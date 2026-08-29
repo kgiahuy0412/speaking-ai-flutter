@@ -62,7 +62,33 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 2), 2)
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
-    XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
+  }
+
+  func testAiv0DisconnectRecoveryDoesNotFightCoreBluetoothAutoReconnect() {
+    XCTAssertEqual(
+      Aiv0DisconnectRecoveryPolicy.nextStep(
+        manualDisconnect: false,
+        disposed: false,
+        systemIsReconnecting: true
+      ),
+      .waitForSystem
+    )
+    XCTAssertEqual(
+      Aiv0DisconnectRecoveryPolicy.nextStep(
+        manualDisconnect: false,
+        disposed: false,
+        systemIsReconnecting: false
+      ),
+      .scheduleManualReconnect
+    )
+    XCTAssertEqual(
+      Aiv0DisconnectRecoveryPolicy.nextStep(
+        manualDisconnect: true,
+        disposed: false,
+        systemIsReconnecting: true
+      ),
+      .ignore
+    )
   }
 
   func testAiv0ReconnectPolicyKeepsBleControlRecoveryIndependentOfHfpAudio() {
