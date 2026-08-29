@@ -5,6 +5,7 @@ import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
 
@@ -82,8 +83,10 @@ void main() {
   );
 
   test(
-    'selected H20 route is prepared before lesson playback starts',
+    'Android selected H20 route is prepared before lesson playback starts',
     () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final events = <String>[];
       final playback = _RouteAwareControlledPlaybackService(events);
       final hfp = _FakeHfpAudioControl(
@@ -116,6 +119,41 @@ void main() {
       await future;
       await mediaService.stopPlayback();
       expect(hfp.stopCalls, 1);
+      await mediaService.dispose();
+    },
+  );
+
+  test(
+    'iOS selected H20 lesson playback uses A2DP without opening HFP',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final events = <String>[];
+      final playback = _RouteAwareControlledPlaybackService(events);
+      final hfp = _FakeHfpAudioControl(
+        events,
+        status: const BluetoothAudioStatus(
+          phase: BluetoothAudioConnectionPhase.ready,
+          deviceId: 'h20-uid',
+          deviceName: 'H20',
+          sampleRate: 16000,
+        ),
+      );
+      final mediaService = LessonMediaService(
+        playbackService: playback,
+        hfpAudioControl: hfp,
+      );
+
+      final playing = mediaService.playToCompletion(
+        Uri.parse('https://example.test/guide.mp3'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, <String>['communication:false', 'prepare', 'play']);
+      expect(hfp.startCalls, 0);
+
+      playback.finish();
+      await playing;
       await mediaService.dispose();
     },
   );

@@ -1932,7 +1932,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     await widget.mediaService.prepareSelectedLessonOutput();
-    await _voicePromptService.speakAndWait(prompt.text);
+    await _speakLessonPrompt(prompt.text);
+  }
+
+  Future<void> _speakLessonPrompt(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    final promptService = _voicePromptService;
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        promptService is SelectedMediaOutputVoicePromptService) {
+      await (promptService as SelectedMediaOutputVoicePromptService)
+          .speakAndWaitOnSelectedMediaOutput(text, locale: locale);
+      return;
+    }
+    await promptService.speakAndWait(text, locale: locale);
   }
 
   Future<void> _playBilingualSentenceSample() async {
@@ -1941,10 +1956,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(englishUri);
     } else {
       await widget.mediaService.prepareSelectedLessonOutput();
-      await _voicePromptService.speakAndWait(
-        _sentence.english,
-        locale: 'en-US',
-      );
+      await _speakLessonPrompt(_sentence.english, locale: 'en-US');
     }
     if (!mounted || _pausedForMainAssistant) {
       return;
@@ -1958,10 +1970,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await widget.mediaService.playToCompletion(vietnameseUri);
     } else {
       await widget.mediaService.prepareSelectedLessonOutput();
-      await _voicePromptService.speakAndWait(
-        _sentence.vietnamese,
-        locale: 'vi-VN',
-      );
+      await _speakLessonPrompt(_sentence.vietnamese, locale: 'vi-VN');
     }
   }
 

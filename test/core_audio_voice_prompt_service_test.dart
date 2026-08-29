@@ -27,6 +27,7 @@ void main() {
       'locale': 'vi-VN',
       'gainDb': 8.0,
       'forcePhoneSpeaker': false,
+      'forceMediaPlayback': false,
     });
   });
 
@@ -54,6 +55,7 @@ void main() {
         'locale': 'vi-VN',
         'gainDb': 8.0,
         'forcePhoneSpeaker': false,
+        'forceMediaPlayback': false,
       });
     },
   );
@@ -80,6 +82,33 @@ void main() {
       'locale': 'vi-VN',
       'gainDb': 8.0,
       'forcePhoneSpeaker': true,
+      'forceMediaPlayback': false,
+    });
+  });
+
+  test('marks lesson speech for selected A2DP media output', () async {
+    const channel = MethodChannel('test_media_output_prompt');
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    const service = MethodChannelVoicePromptService(channel: channel);
+    await service.speakAndWaitOnSelectedMediaOutput('Con nói lại nhé.');
+
+    expect(receivedCall?.method, 'speakAndWait');
+    expect(receivedCall?.arguments, <String, dynamic>{
+      'text': 'Con nói lại nhé.',
+      'locale': 'vi-VN',
+      'gainDb': 8.0,
+      'forcePhoneSpeaker': false,
+      'forceMediaPlayback': true,
     });
   });
 

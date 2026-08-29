@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
@@ -122,7 +123,14 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         await widget.mediaService.prepareSelectedLessonOutput();
         final prompt = _activeVoicePromptService;
         final text = _guideText ?? widget.lesson.intro;
-        await prompt.speakAndWait(text);
+        if (!kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.iOS &&
+            prompt is SelectedMediaOutputVoicePromptService) {
+          await (prompt as SelectedMediaOutputVoicePromptService)
+              .speakAndWaitOnSelectedMediaOutput(text);
+        } else {
+          await prompt.speakAndWait(text);
+        }
       } catch (error, stackTrace) {
         debugPrint(
           'Lesson intro fallback failed for ${widget.lesson.id}: $error',

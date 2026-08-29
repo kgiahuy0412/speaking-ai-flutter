@@ -78,10 +78,12 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       let locale = arguments?["locale"] as? String ?? "vi-VN"
       let forcePhoneSpeaker = arguments?["forcePhoneSpeaker"] as? Bool ?? false
+      let forceMediaPlayback = arguments?["forceMediaPlayback"] as? Bool ?? false
       speak(
         text,
         locale: locale,
         forcePhoneSpeaker: forcePhoneSpeaker,
+        forceMediaPlayback: forceMediaPlayback,
         waitForCompletion: call.method == "speakAndWait",
         result: result
       )
@@ -99,6 +101,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     _ text: String,
     locale: String,
     forcePhoneSpeaker: Bool,
+    forceMediaPlayback: Bool,
     waitForCompletion: Bool,
     result: @escaping FlutterResult
   ) {
@@ -107,7 +110,10 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       return
     }
     stop()
-    let audioToken = configurePromptAudioSession(forcePhoneSpeaker: forcePhoneSpeaker)
+    let audioToken = configurePromptAudioSession(
+      forcePhoneSpeaker: forcePhoneSpeaker,
+      forceMediaPlayback: forceMediaPlayback
+    )
     audioSessionCoordinator.trace(stage: "prompt_started", caller: "VoicePromptBridge.speak")
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = AVSpeechSynthesisVoice(language: locale)
@@ -125,7 +131,10 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   @discardableResult
-  private func configurePromptAudioSession(forcePhoneSpeaker: Bool = false) -> UUID? {
+  private func configurePromptAudioSession(
+    forcePhoneSpeaker: Bool = false,
+    forceMediaPlayback: Bool = false
+  ) -> UUID? {
     let session = audioSessionCoordinator.session
     let audioToken = UUID()
     if forcePhoneSpeaker {
@@ -140,6 +149,23 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
           stage: "prompt_audio_error",
           caller: "VoicePromptBridge.configurePromptAudioSession",
           code: "PHONE_PROMPT_AUDIO_SESSION_FAILED",
+          message: error.localizedDescription
+        )
+        return nil
+      }
+    }
+    if forceMediaPlayback {
+      do {
+        try audioSessionCoordinator.prepareMediaPlayback(
+          caller: "VoicePromptBridge.configurePromptAudioSession"
+        )
+        promptOperationLeases.activate(audioToken)
+        return audioToken
+      } catch {
+        audioSessionCoordinator.trace(
+          stage: "prompt_audio_error",
+          caller: "VoicePromptBridge.configurePromptAudioSession",
+          code: "MEDIA_PROMPT_AUDIO_SESSION_FAILED",
           message: error.localizedDescription
         )
         return nil

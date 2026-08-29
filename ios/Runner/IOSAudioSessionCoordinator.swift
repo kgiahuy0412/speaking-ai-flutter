@@ -361,6 +361,27 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
   }
 
+  /// Uses the output-only playback category so iOS keeps the selected H20 on
+  /// A2DP instead of opening its HFP microphone for a coach prompt. Apple
+  /// automatically routes playback-category audio to a paired A2DP device.
+  func prepareMediaPlayback(caller: String) throws {
+    acquireSessionOwner(.prompt, caller: caller)
+    trace(stage: "media_prompt_audio_prepare", caller: caller)
+    do {
+      try ensureCategory(
+        category: .playback,
+        mode: .spokenAudio,
+        options: [],
+        caller: caller
+      )
+      try ensureActive(caller: caller)
+    } catch {
+      releaseSessionOwner(.prompt, caller: "\(caller).failed")
+      releaseAudioSessionIfIdle(caller: "\(caller).failed")
+      throw error
+    }
+  }
+
   /// Releases a record-capable route when no MAIN turn owns it.
   ///
   /// The selected HFP UID is kept by `HfpAudioBridge`; only the live SCO/audio
@@ -377,7 +398,18 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
     trace(stage: "audio_session_release_requested", caller: caller)
     do {
-      try ensureOutputOverride(.none, caller: caller)
+      // overrideOutputAudioPort belongs to the play-and-record family. Lesson
+      // coach speech now uses the output-only playback category for A2DP, so
+      // attempting the override there can fail before setActive(false) runs.
+      if session.category == .playAndRecord {
+        try ensureOutputOverride(.none, caller: caller)
+      } else {
+        trace(
+          stage: "overrideOutput_skipped",
+          caller: caller,
+          message: session.category.rawValue
+        )
+      }
       try setActive(false, notifyOthers: true, caller: caller)
       trace(stage: "audio_session_release_completed", caller: caller)
       // Resume deferred CoreBluetooth recovery only after HFP/SCO has actually
@@ -505,16 +537,17 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   private func ensureCategory(
+    category: AVAudioSession.Category = .playAndRecord,
     mode: AVAudioSession.Mode,
     options: AVAudioSession.CategoryOptions,
     caller: String
   ) throws {
-    guard session.category != .playAndRecord || session.mode != mode || session.categoryOptions != options else {
+    guard session.category != category || session.mode != mode || session.categoryOptions != options else {
       trace(stage: "setCategory_skipped", caller: caller)
       return
     }
-    trace(stage: "setCategory_requested", caller: caller, message: "playAndRecord/\(mode.rawValue)/\(options.rawValue)")
-    try session.setCategory(.playAndRecord, mode: mode, options: options)
+    trace(stage: "setCategory_requested", caller: caller, message: "\(category.rawValue)/\(mode.rawValue)/\(options.rawValue)")
+    try session.setCategory(category, mode: mode, options: options)
     trace(stage: "setCategory_completed", caller: caller)
   }
 

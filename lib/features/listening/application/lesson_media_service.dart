@@ -331,9 +331,15 @@ class LessonMediaService {
 
   Future<void> _preparePlaybackRoute(LessonPlaybackRoute route) async {
     final playback = _activePlayback;
-    final useSelectedHfp =
+    final selectedHfp =
         route == LessonPlaybackRoute.selectedLessonDevice &&
         _shouldUseSelectedHfp;
+    // On iOS, ordinary lesson output belongs on A2DP. Apple's playback
+    // category automatically selects the paired A2DP route, so sound still
+    // comes from H20 while its independent BLE MAIN link remains available.
+    // HFP/SCO is opened only when the H20 microphone is actually required.
+    final useSelectedHfp =
+        selectedHfp && (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS);
     if (playback is CommunicationRouteAwareAudioPlaybackService) {
       (playback as CommunicationRouteAwareAudioPlaybackService)
           .setCommunicationRouteActive(useSelectedHfp);
