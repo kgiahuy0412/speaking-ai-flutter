@@ -500,7 +500,7 @@ class RunnerTests: XCTestCase {
     let turnId = coordinator.beginMainTurn(source: "RunnerTests")
 
     let rawEvent = timeline.first {
-      ($0["stage"] as? String) == "main_raw_received"
+      ($0["stage"] as? String) == "MAIN_RAW_RECEIVED"
     }
     XCTAssertEqual(rawEvent?["turnId"] as? String, turnId)
     XCTAssertTrue(
@@ -568,7 +568,7 @@ class RunnerTests: XCTestCase {
 
     coordinator.notePhysicalMain(rawHex: "01 01 02 01")
     let secondRawEvent = timeline.last {
-      ($0["stage"] as? String) == "main_raw_received"
+      ($0["stage"] as? String) == "MAIN_RAW_RECEIVED"
     }
     let secondTurnId = coordinator.beginMainTurn(source: "RunnerTests.second")
 
@@ -598,6 +598,30 @@ class RunnerTests: XCTestCase {
       expectedTurnId: secondTurnId
     )
     XCTAssertFalse(coordinator.isMainTurnActive)
+    coordinator.dispose()
+  }
+
+  func testIOSAudioCoordinatorReturnsABoundedChronologicalDiagnosticTimeline() {
+    let coordinator = IOSAudioSessionCoordinator()
+    for index in 0..<205 {
+      coordinator.trace(
+        stage: "event_\(index)",
+        caller: "RunnerTests",
+        values: ["index": index]
+      )
+    }
+
+    let timeline = coordinator.diagnosticTimelineSnapshot()
+
+    XCTAssertEqual(timeline.count, 200)
+    XCTAssertEqual(timeline.first?["stage"] as? String, "event_5")
+    XCTAssertEqual(timeline.last?["stage"] as? String, "event_204")
+    XCTAssertEqual(
+      coordinator.diagnosticTimelineSnapshot(limit: 2).compactMap {
+        $0["stage"] as? String
+      },
+      ["event_203", "event_204"]
+    )
     coordinator.dispose()
   }
 

@@ -437,6 +437,9 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
   @override
   Stream<Aiv0ButtonEvent> get buttonEvents => _buttons.stream;
 
+  @override
+  Future<void> markParentDiagnosticsOpened() async {}
+
   void emitMain({
     required int sequence,
     Aiv0ButtonGesture gesture = Aiv0ButtonGesture.shortPress,

@@ -110,7 +110,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     pendingTurnStartedAt = Date()
     sequence = 0
     trace(
-      stage: "main_raw_received",
+      stage: "MAIN_RAW_RECEIVED",
       caller: "Aiv0BleControlBridge",
       message: rawHex,
       values: [
@@ -234,6 +234,14 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func detachTraceSink() {
     traceSink = nil
+  }
+
+  /// Returns a stable, chronological copy of the native BLE/HFP/audio trace.
+  /// The buffer belongs to the coordinator rather than a Flutter screen, so
+  /// opening Parent settings cannot create or erase the evidence it displays.
+  func diagnosticTimelineSnapshot(limit: Int = 200) -> [[String: Any]] {
+    let boundedLimit = min(max(limit, 1), 200)
+    return Array(traceBuffer.suffix(boundedLimit))
   }
 
   func eventMetadata() -> [String: Any] {

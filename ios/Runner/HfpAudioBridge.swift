@@ -286,6 +286,14 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   private func startAudioRoute(_ result: @escaping FlutterResult) {
     routeActivationGeneration += 1
     let activationGeneration = routeActivationGeneration
+    audioSessionCoordinator.trace(
+      stage: "HFP_ROUTE_START_REQUESTED",
+      caller: "HfpAudioBridge.startAudioRoute",
+      values: [
+        "selectedInputId": selectedInputId ?? "",
+        "generation": activationGeneration,
+      ]
+    )
     let acquiredLeaseForThisAttempt = acquireHfpSessionLease(
       caller: "HfpAudioBridge.startAudioRoute"
     )
@@ -302,6 +310,15 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       routeActive = true
       phase = "recording"
       message = "Đang dùng lại mic và loa H20 trên route bluetoothHFP hai chiều."
+      audioSessionCoordinator.trace(
+        stage: "HFP_ROUTE_CONFIRMED",
+        caller: "HfpAudioBridge.startAudioRoute.reused",
+        values: [
+          "inputId": activeInput.uid,
+          "inputName": activeInput.portName,
+          "generation": activationGeneration,
+        ]
+      )
       emitStatus()
       result(snapshot())
       return
@@ -363,6 +380,16 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       message = recording
         ? "Đang dùng mic và loa H20 trên route bluetoothHFP hai chiều."
         : "Đã xác nhận mic và loa H20 trên route bluetoothHFP."
+      audioSessionCoordinator.trace(
+        stage: "HFP_ROUTE_CONFIRMED",
+        caller: "HfpAudioBridge.waitForActiveBluetoothInput",
+        values: [
+          "inputId": hfpInput.uid,
+          "inputName": hfpInput.portName,
+          "generation": generation,
+          "recording": recording,
+        ]
+      )
       emitStatus()
       // Let AVAudioSession finish settling before AVAudioEngine opens its tap.
       DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in

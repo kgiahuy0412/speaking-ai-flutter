@@ -5,6 +5,43 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AIV0 native diagnostics', () {
+    test('decodes the merged BLE-HFP timeline in chronological order', () {
+      final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+        'phase': 'reconnecting',
+        'diagnosticTimeline': <Object?>[
+          <Object?, Object?>{
+            'stage': 'BLE_DISCONNECTED',
+            'caller': 'Aiv0BleControlBridge',
+            'eventEpochMs': 1_787_900_001_610,
+            'audioRoute': 'in=[BluetoothHFP:H20] out=[BluetoothHFP:H20]',
+            'systemIsReconnecting': true,
+            'code': 'CBErrorDomain:7',
+          },
+          <Object?, Object?>{
+            'stage': 'HFP_ROUTE_CONFIRMED',
+            'caller': 'HfpAudioBridge',
+            'eventEpochMs': 1_787_900_001_420,
+            'audioRoute': 'in=[BluetoothHFP:H20] out=[BluetoothHFP:H20]',
+          },
+        ],
+      }, protocolConfirmed: false);
+
+      expect(status.diagnosticTimeline.map((event) => event.stage), <String>[
+        'HFP_ROUTE_CONFIRMED',
+        'BLE_DISCONNECTED',
+      ]);
+      expect(
+        status.diagnosticTimeline.last.occurredAt,
+        DateTime.fromMillisecondsSinceEpoch(1_787_900_001_610),
+      );
+      expect(status.diagnosticTimeline.last.caller, 'Aiv0BleControlBridge');
+      expect(status.diagnosticTimeline.last.code, 'CBErrorDomain:7');
+      expect(
+        status.diagnosticTimeline.last.metadata['systemIsReconnecting'],
+        true,
+      );
+    });
+
     test('recognizes the connected CBPeripheral raw-value description', () {
       final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
         'phase': 'connected',

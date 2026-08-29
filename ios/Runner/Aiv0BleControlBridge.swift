@@ -348,6 +348,18 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       sendAppState(arguments?["bytes"], result: result)
     case "status":
       result(snapshot())
+    case "markParentDiagnosticsOpened":
+      audioSessionCoordinator.trace(
+        stage: "PARENT_SCREEN_OPENED",
+        caller: "Aiv0BleControlBridge.methodChannel",
+        values: [
+          "phase": phase,
+          "peripheralState": connectedPeripheral.map { String(describing: $0.state) } ?? "unavailable",
+          "mainNotificationState": buttonCharacteristic?.isNotifying == true ? "notifying" : "unavailable",
+        ]
+      )
+      emitStatus()
+      result(snapshot())
     case "dispose":
       dispose()
       result(nil)
@@ -523,7 +535,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     connectTimeoutWorkItem = nil
     failPendingConnect(code: "CONNECT_CANCELLED", message: "Đã hủy kết nối H20.")
     if let peripheral = connectedPeripheral {
-      central?.cancelPeripheralConnection(peripheral)
+      requestPeripheralDisconnect(
+        peripheral,
+        caller: "Aiv0BleControlBridge.disconnect",
+        code: "manual_disconnect"
+      )
     }
     resetCharacteristics()
     connectedPeripheral = nil
@@ -531,6 +547,20 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     message = nil
     emitStatus()
     result(nil)
+  }
+
+  private func requestPeripheralDisconnect(
+    _ peripheral: CBPeripheral,
+    caller: String,
+    code: String
+  ) {
+    audioSessionCoordinator.trace(
+      stage: "BLE_DISCONNECT_REQUESTED",
+      caller: caller,
+      code: code,
+      values: ["peripheralState": String(describing: peripheral.state)]
+    )
+    central?.cancelPeripheralConnection(peripheral)
   }
 
   private func sendAppState(_ rawBytes: Any?, result: @escaping FlutterResult) {
@@ -586,12 +616,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let item = DispatchWorkItem { [weak self] in
       guard let self, self.pendingConnectResult != nil else { return }
       if let peripheral = self.connectedPeripheral {
-        self.audioSessionCoordinator.trace(
-          stage: "ble_disconnect_requested",
+        self.requestPeripheralDisconnect(
+          peripheral,
           caller: "Aiv0BleControlBridge.connectTimeout",
           code: "connect_timeout"
         )
-        self.central?.cancelPeripheralConnection(peripheral)
       }
       self.phase = "error"
       self.message = "Hết thời gian xác minh dịch vụ BLE Control H20."
@@ -930,7 +959,13 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       message = "H20 thiếu characteristic MAIN hoặc APP State."
       emitStatus()
       failPendingConnect(code: "PROTOCOL_MISMATCH", message: message!)
-      if let peripheral = connectedPeripheral { central?.cancelPeripheralConnection(peripheral) }
+      if let peripheral = connectedPeripheral {
+        requestPeripheralDisconnect(
+          peripheral,
+          caller: "Aiv0BleControlBridge.validateControlCharacteristics",
+          code: "protocol_mismatch"
+        )
+      }
       return
     }
     let canNotify = button.properties.contains(.notify) || button.properties.contains(.indicate)
@@ -948,6 +983,13 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       audioSessionCoordinator.trace(
         stage: "ble_notification_already_active",
         caller: "Aiv0BleControlBridge.validateControlCharacteristics"
+      )
+      audioSessionCoordinator.trace(
+        stage: "MAIN_NOTIFY_ENABLED",
+        caller: "Aiv0BleControlBridge.validateControlCharacteristics",
+        values: [
+          "peripheralState": connectedPeripheral.map { String(describing: $0.state) } ?? "unavailable"
+        ]
       )
       completeConnection()
     case .enable:
@@ -985,6 +1027,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "duplicatePacketCount": duplicatePacketFilter.duplicateCount,
       "reconnectCount": reconnectCount,
       "deferredRecoveryRepeatCount": deferredRecoveryTraceState.repeatCount,
+      "diagnosticTimeline": audioSessionCoordinator.diagnosticTimelineSnapshot(limit: 80),
     ]
     if let peripheral = connectedPeripheral {
       value["deviceId"] = peripheral.identifier.uuidString
@@ -1049,7 +1092,13 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     connectTimeoutWorkItem?.cancel()
     cancelReconnectTasks()
     central?.stopScan()
-    if let peripheral = connectedPeripheral { central?.cancelPeripheralConnection(peripheral) }
+    if let peripheral = connectedPeripheral {
+      requestPeripheralDisconnect(
+        peripheral,
+        caller: "Aiv0BleControlBridge.dispose",
+        code: "bridge_disposed"
+      )
+    }
     pendingPermissionResults.forEach { $0(false) }
     pendingPermissionResults.removeAll()
     pendingScanResult?(FlutterError(code: "BLE_DISPOSED", message: "Đã đóng cầu nối BLE.", details: nil))
@@ -1131,6 +1180,14 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     phase = "connecting"
     message = "Đang xác minh dịch vụ BLE Control…"
     lastNotificationRecovery = "connected • peripheral=\(peripheral.state) • notify=discovering"
+    audioSessionCoordinator.trace(
+      stage: "BLE_CONNECTED",
+      caller: "Aiv0BleControlBridge.didConnect",
+      values: [
+        "deviceId": peripheral.identifier.uuidString,
+        "peripheralState": String(describing: peripheral.state),
+      ]
+    )
     emitStatus()
     peripheral.discoverServices([
       ProtocolUUID.controlService,
@@ -1205,17 +1262,17 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
         ? "BLE GATT H20 vừa ngắt; iOS đang tự khôi phục MAIN."
         : "BLE GATT H20 vừa ngắt; đang chờ khôi phục MAIN."
     }
-    emitStatus()
     audioSessionCoordinator.trace(
-      stage: "didDisconnectPeripheral",
+      stage: "BLE_DISCONNECTED",
       caller: "Aiv0BleControlBridge",
       code: disconnectCode,
       message: disconnectMessage,
       values: [
         "peripheralState": peripheralState,
-        "systemIsReconnecting": systemIsReconnecting ? "true" : "false",
+        "systemIsReconnecting": systemIsReconnecting,
       ]
     )
+    emitStatus()
     resetCharacteristics()
     let recoveryStep = Aiv0DisconnectRecoveryPolicy.nextStep(
       manualDisconnect: manualDisconnect,
@@ -1324,7 +1381,11 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         )
         // A real CoreBluetooth notification error is the only maintenance
         // failure that may tear down the link and enter normal reconnect.
-        central?.cancelPeripheralConnection(peripheral)
+        requestPeripheralDisconnect(
+          peripheral,
+          caller: "Aiv0BleControlBridge.notificationRefresh",
+          code: "notification_refresh_failed"
+        )
         return
       }
       lastNotificationRecovery = "callback • peripheral=\(peripheralState) • notify=\(notificationState)"
@@ -1336,6 +1397,13 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
           "peripheralState": peripheralState,
         ]
       )
+      if characteristic.isNotifying {
+        audioSessionCoordinator.trace(
+          stage: "MAIN_NOTIFY_ENABLED",
+          caller: "Aiv0BleControlBridge.notificationRefresh",
+          values: ["peripheralState": peripheralState]
+        )
+      }
       emitStatus()
       refreshMainNotificationSubscription()
       return
@@ -1349,6 +1417,11 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
       stage: "ble_main_notification_state_updated",
       caller: "Aiv0BleControlBridge.initial",
       message: notificationState,
+      values: ["peripheralState": peripheralState]
+    )
+    audioSessionCoordinator.trace(
+      stage: "MAIN_NOTIFY_ENABLED",
+      caller: "Aiv0BleControlBridge.initial",
       values: ["peripheralState": peripheralState]
     )
     emitStatus()
@@ -1423,6 +1496,12 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
     message = text
     emitStatus()
     failPendingConnect(code: "PROTOCOL_MISMATCH", message: text)
-    if let peripheral = connectedPeripheral { central?.cancelPeripheralConnection(peripheral) }
+    if let peripheral = connectedPeripheral {
+      requestPeripheralDisconnect(
+        peripheral,
+        caller: "Aiv0BleControlBridge.failDiscovery",
+        code: "discovery_failed"
+      )
+    }
   }
 }

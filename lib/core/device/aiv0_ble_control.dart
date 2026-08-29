@@ -231,6 +231,58 @@ class Aiv0DraftProtocolCodec {
   }
 }
 
+class Aiv0BleDiagnosticEvent {
+  Aiv0BleDiagnosticEvent({
+    required this.occurredAt,
+    required this.stage,
+    required this.metadata,
+    this.caller,
+    this.code,
+    this.message,
+    this.audioRoute,
+    this.turnId,
+  });
+
+  factory Aiv0BleDiagnosticEvent.fromMap(Map<Object?, Object?> map) {
+    final eventEpochMs = (map['eventEpochMs'] as num?)?.toInt() ?? 0;
+    final metadata = <String, Object?>{};
+    for (final entry in map.entries) {
+      final key = entry.key?.toString();
+      if (key == null || _coreKeys.contains(key)) continue;
+      metadata[key] = entry.value;
+    }
+    return Aiv0BleDiagnosticEvent(
+      occurredAt: DateTime.fromMillisecondsSinceEpoch(eventEpochMs),
+      stage: map['stage']?.toString() ?? '',
+      caller: map['caller']?.toString(),
+      code: map['code']?.toString(),
+      message: map['message']?.toString(),
+      audioRoute: map['audioRoute']?.toString(),
+      turnId: map['turnId']?.toString(),
+      metadata: Map<String, Object?>.unmodifiable(metadata),
+    );
+  }
+
+  static const _coreKeys = <String>{
+    'eventEpochMs',
+    'stage',
+    'caller',
+    'code',
+    'message',
+    'audioRoute',
+    'turnId',
+  };
+
+  final DateTime occurredAt;
+  final String stage;
+  final String? caller;
+  final String? code;
+  final String? message;
+  final String? audioRoute;
+  final String? turnId;
+  final Map<String, Object?> metadata;
+}
+
 class Aiv0BleStatus {
   const Aiv0BleStatus({
     required this.phase,
@@ -255,6 +307,7 @@ class Aiv0BleStatus {
     this.lastDisconnectAt,
     this.lastNotificationRecovery,
     this.deferredRecoveryRepeatCount = 0,
+    this.diagnosticTimeline = const <Aiv0BleDiagnosticEvent>[],
   });
 
   const Aiv0BleStatus.disabled()
@@ -284,6 +337,17 @@ class Aiv0BleStatus {
         : reportedPhase;
     final lastDisconnectEpochMs = (map['lastDisconnectEpochMs'] as num?)
         ?.toInt();
+    final diagnosticTimeline =
+        (map['diagnosticTimeline'] as List<Object?>? ?? const <Object?>[])
+            .whereType<Map<Object?, Object?>>()
+            .map(Aiv0BleDiagnosticEvent.fromMap)
+            .where(
+              (event) =>
+                  event.stage.isNotEmpty &&
+                  event.occurredAt.millisecondsSinceEpoch > 0,
+            )
+            .toList(growable: false)
+          ..sort((left, right) => left.occurredAt.compareTo(right.occurredAt));
     return Aiv0BleStatus(
       phase: phase,
       protocolConfirmed: protocolConfirmed,
@@ -311,6 +375,7 @@ class Aiv0BleStatus {
       lastNotificationRecovery: map['lastNotificationRecovery']?.toString(),
       deferredRecoveryRepeatCount:
           (map['deferredRecoveryRepeatCount'] as num?)?.toInt() ?? 0,
+      diagnosticTimeline: diagnosticTimeline,
     );
   }
 
@@ -336,6 +401,7 @@ class Aiv0BleStatus {
   final DateTime? lastDisconnectAt;
   final String? lastNotificationRecovery;
   final int deferredRecoveryRepeatCount;
+  final List<Aiv0BleDiagnosticEvent> diagnosticTimeline;
 
   bool get isConnected => phase == Aiv0BlePhase.connected;
 
@@ -360,6 +426,7 @@ abstract interface class Aiv0BleControl {
   Future<List<Aiv0BleDevice>> scan({Duration timeout});
   Future<void> connect(String deviceId);
   Future<void> disconnect();
+  Future<void> markParentDiagnosticsOpened();
   Future<void> sendAppState({
     required Aiv0AppState state,
     required Aiv0AppResult result,
@@ -577,6 +644,15 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
     if (!_enabled) return;
     _manualDisconnectRequested = true;
     await _methodChannel.invokeMethod<void>('disconnect');
+  }
+
+  @override
+  Future<void> markParentDiagnosticsOpened() async {
+    if (!_enabled || defaultTargetPlatform != TargetPlatform.iOS) return;
+    final map = await _methodChannel.invokeMapMethod<Object?, Object?>(
+      'markParentDiagnosticsOpened',
+    );
+    if (map != null) _updateStatus(map);
   }
 
   @override

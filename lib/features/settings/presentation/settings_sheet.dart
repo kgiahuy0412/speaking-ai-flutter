@@ -1443,7 +1443,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
         status.peripheralState != null ||
         status.mainNotificationState != null ||
         status.lastDisconnectCode != null ||
-        status.lastNotificationRecovery != null;
+        status.lastNotificationRecovery != null ||
+        status.diagnosticTimeline.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1547,6 +1548,48 @@ class _Aiv0BleControlCard extends StatelessWidget {
                     label: context.tr('Retry đang hoãn', '延迟重试'),
                     value: '${status.deferredRecoveryRepeatCount}',
                   ),
+                  if (status.diagnosticTimeline.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Text(
+                      context.tr(
+                        'Timeline BLE / HFP (tối đa 80 sự kiện gần nhất)',
+                        'BLE / HFP 时间线（最近最多 80 个事件）',
+                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      key: const Key('aiv0-ble-hfp-timeline'),
+                      constraints: const BoxConstraints(maxHeight: 360),
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLowest.withValues(
+                          alpha: 0.76,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          status.diagnosticTimeline
+                              .skip(
+                                status.diagnosticTimeline.length > 80
+                                    ? status.diagnosticTimeline.length - 80
+                                    : 0,
+                              )
+                              .map(_formatTimelineEvent)
+                              .join('\n'),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10.5,
+                            height: 1.45,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1705,7 +1748,23 @@ class _Aiv0BleControlCard extends StatelessWidget {
   String _formatEventTime(DateTime value) {
     String twoDigits(int number) => number.toString().padLeft(2, '0');
     return '${twoDigits(value.hour)}:${twoDigits(value.minute)}:'
-        '${twoDigits(value.second)}';
+        '${twoDigits(value.second)}.'
+        '${value.millisecond.toString().padLeft(3, '0')}';
+  }
+
+  String _formatTimelineEvent(Aiv0BleDiagnosticEvent event) {
+    final metadata = event.metadata.entries
+        .where((entry) => entry.key != 'type')
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(' • ');
+    return <String>[
+      '${_formatEventTime(event.occurredAt)}  ${event.stage}'
+          '${event.caller == null ? '' : '  @${event.caller}'}',
+      if (event.code != null) '  code=${event.code}',
+      if (event.message != null) '  ${event.message}',
+      if (metadata.isNotEmpty) '  $metadata',
+      if (event.audioRoute != null) '  route=${event.audioRoute}',
+    ].join('\n');
   }
 }
 

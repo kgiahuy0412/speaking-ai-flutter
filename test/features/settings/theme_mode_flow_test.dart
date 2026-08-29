@@ -177,6 +177,8 @@ void main() {
     );
 
     expect(find.byKey(const Key('aiv0-native-diagnostics')), findsOneWidget);
+    expect(find.byKey(const Key('aiv0-ble-hfp-timeline')), findsOneWidget);
+    expect(find.textContaining('BLE_DISCONNECTED'), findsOneWidget);
     expect(find.textContaining('disconnected'), findsWidgets);
     expect(find.textContaining('CBErrorDomain:7'), findsOneWidget);
     expect(find.textContaining('reconnect'), findsWidgets);
@@ -205,6 +207,14 @@ class _DiagnosticAiv0BleControl implements Aiv0BleControl {
     'lastNotificationRecovery':
         'reconnect • peripheral=disconnected • notify=unavailable',
     'deferredRecoveryRepeatCount': 12,
+    'diagnosticTimeline': <Object?>[
+      <Object?, Object?>{
+        'stage': 'BLE_DISCONNECTED',
+        'caller': 'Aiv0BleControlBridge',
+        'eventEpochMs': 1_787_987_522_081,
+        'systemIsReconnecting': false,
+      },
+    ],
   }, protocolConfirmed: false);
 
   @override
@@ -218,6 +228,9 @@ class _DiagnosticAiv0BleControl implements Aiv0BleControl {
 
   @override
   Future<void> disconnect() async {}
+
+  @override
+  Future<void> markParentDiagnosticsOpened() async {}
 
   @override
   Future<void> dispose() async {

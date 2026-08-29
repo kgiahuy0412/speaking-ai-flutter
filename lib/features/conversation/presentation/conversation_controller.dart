@@ -758,6 +758,17 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> markParentDiagnosticsOpened() async {
+    try {
+      await _aiv0BleControl?.markParentDiagnosticsOpened();
+      if (!_disposed) notifyListeners();
+    } catch (error) {
+      // This marker is diagnostic-only and must never block the protected
+      // Parent area if an older native build does not expose it yet.
+      debugPrint('Parent BLE/HFP diagnostic marker unavailable: $error');
+    }
+  }
+
   void _onAiv0ButtonEvent(Aiv0ButtonEvent event) {
     if (_disposed) return;
     _aiv0ButtonEventLog.insert(0, event);

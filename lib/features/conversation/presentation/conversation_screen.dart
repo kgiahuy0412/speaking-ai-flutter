@@ -146,6 +146,8 @@ class ConversationScreen extends StatelessWidget {
   }
 
   Future<void> _showSettings(BuildContext context) async {
+    await controller.markParentDiagnosticsOpened();
+    if (!context.mounted) return;
     onModalVisibilityChanged?.call(true);
     try {
       await showModalBottomSheet<void>(

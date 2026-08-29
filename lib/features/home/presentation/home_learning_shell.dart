@@ -824,6 +824,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   Future<void> _openSettingsSheet() async {
+    await widget.controller.markParentDiagnosticsOpened();
+    if (!mounted) return;
     widget.onModalVisibilityChanged?.call(true);
     try {
       await showModalBottomSheet<void>(
