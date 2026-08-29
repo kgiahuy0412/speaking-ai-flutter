@@ -245,33 +245,46 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testAiv0MainNotificationRecoveryRearmsAStaleSubscriptionAfterHfpTurn() {
+  func testAiv0MainNotificationRecoveryNeverTogglesAHealthyHfpSubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
         peripheralConnected: true,
         hasButtonCharacteristic: true,
-        recoveryMode: .forceDisable,
         isNotifying: true
       ),
-      .disable
+      .complete
     )
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(
         peripheralConnected: true,
         hasButtonCharacteristic: true,
-        recoveryMode: .forceEnable,
         isNotifying: false
       ),
       .enable
     )
+  }
+
+  func testAiv0MainNotificationTimeoutNeverDisconnectsAHealthyGattLink() {
     XCTAssertEqual(
-      Aiv0MainNotificationRefreshPolicy.nextStep(
+      Aiv0MainNotificationTimeoutPolicy.nextStep(
         peripheralConnected: true,
-        hasButtonCharacteristic: true,
-        recoveryMode: .forceEnable,
         isNotifying: true
       ),
       .complete
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationTimeoutPolicy.nextStep(
+        peripheralConnected: true,
+        isNotifying: false
+      ),
+      .reportFailure
+    )
+    XCTAssertEqual(
+      Aiv0MainNotificationTimeoutPolicy.nextStep(
+        peripheralConnected: false,
+        isNotifying: false
+      ),
+      .reconnect
     )
   }
 
