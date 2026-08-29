@@ -1170,7 +1170,7 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     )
   }
 
-  @available(iOS 17.0, *)
+  @available(iOS 15.0, *)
   func centralManager(
     _ central: CBCentralManager,
     didDisconnectPeripheral peripheral: CBPeripheral,
