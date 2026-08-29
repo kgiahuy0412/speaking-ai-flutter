@@ -63,7 +63,10 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
     XCTAssertEqual(Aiv0ReconnectPolicy.attemptTimeoutSeconds, 10)
-    XCTAssertTrue(
+  }
+
+  func testAiv0ReconnectPolicyKeepsBleControlRecoveryIndependentOfHfpAudio() {
+    XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: true,
         promptActive: false,
@@ -79,39 +82,7 @@ class RunnerTests: XCTestCase {
         hfpRouteActive: false
       )
     )
-    XCTAssertTrue(
-      Aiv0ReconnectPolicy.shouldDeferReconnect(
-        mainTurnActive: false,
-        promptActive: false,
-        speechCaptureActive: false,
-        hfpRouteActive: true
-      )
-    )
     XCTAssertFalse(
-      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
-        mainTurnActive: false,
-        speechCaptureActive: false,
-        hfpRouteActive: true
-      )
-    )
-    XCTAssertFalse(
-      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
-        mainTurnActive: false,
-        speechCaptureActive: false,
-        hfpRouteActive: false
-      )
-    )
-    XCTAssertTrue(
-      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
-        mainTurnActive: false,
-        speechCaptureActive: true,
-        hfpRouteActive: true
-      )
-    )
-  }
-
-  func testAiv0ReconnectPolicyDefersEveryLiveAudioCriticalSection() {
-    XCTAssertTrue(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: false,
         promptActive: true,
@@ -119,12 +90,41 @@ class RunnerTests: XCTestCase {
         hfpRouteActive: false
       )
     )
-    XCTAssertTrue(
+    XCTAssertFalse(
       Aiv0ReconnectPolicy.shouldDeferReconnect(
         mainTurnActive: false,
         promptActive: false,
         speechCaptureActive: true,
         hfpRouteActive: false
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDeferReconnect(
+        mainTurnActive: false,
+        promptActive: false,
+        speechCaptureActive: false,
+        hfpRouteActive: true
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
+        mainTurnActive: false,
+        speechCaptureActive: false,
+        hfpRouteActive: true
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
+        mainTurnActive: false,
+        speechCaptureActive: false,
+        hfpRouteActive: false
+      )
+    )
+    XCTAssertFalse(
+      Aiv0ReconnectPolicy.shouldDeferNotificationMaintenance(
+        mainTurnActive: false,
+        speechCaptureActive: true,
+        hfpRouteActive: true
       )
     )
   }
@@ -275,14 +275,30 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testAiv0DeferredRecoveryNeverReconnectsAnAttachedPeripheral() {
+  func testAiv0DeferredRecoveryRepairsBleControlDuringAnHfpTurn() {
     XCTAssertEqual(
       Aiv0DeferredRecoveryPolicy.nextStep(
         audioCritical: true,
         peripheralConnected: true,
         hasButtonCharacteristic: true
       ),
-      .wait
+      .rearmNotification
+    )
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: true,
+        peripheralConnected: true,
+        hasButtonCharacteristic: false
+      ),
+      .rediscover
+    )
+    XCTAssertEqual(
+      Aiv0DeferredRecoveryPolicy.nextStep(
+        audioCritical: true,
+        peripheralConnected: false,
+        hasButtonCharacteristic: false
+      ),
+      .reconnect
     )
     XCTAssertEqual(
       Aiv0DeferredRecoveryPolicy.nextStep(

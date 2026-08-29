@@ -5,12 +5,24 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AIV0 native diagnostics', () {
+    test('recognizes the connected CBPeripheral raw-value description', () {
+      final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+        'phase': 'connected',
+        'peripheralState': 'CBPeripheralState(rawValue: 2)',
+        'mainNotificationState': 'notifying',
+      }, protocolConfirmed: false);
+
+      expect(status.phase, Aiv0BlePhase.connected);
+      expect(status.isConnected, isTrue);
+      expect(status.peripheralState, 'connected');
+    });
+
     test(
       'does not report connected when the native GATT peripheral is disconnected',
       () {
         final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
           'phase': 'connected',
-          'peripheralState': 'disconnected',
+          'peripheralState': 'CBPeripheralState(rawValue: 0)',
           'mainNotificationState': 'unavailable',
           'lastDisconnectCode': 'CBErrorDomain:7',
           'lastDisconnectMessage': 'The specified device has disconnected.',

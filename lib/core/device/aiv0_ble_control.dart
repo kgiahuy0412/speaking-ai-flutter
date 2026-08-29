@@ -273,7 +273,9 @@ class Aiv0BleStatus {
       (value) => value.name == rawPhase,
       orElse: () => Aiv0BlePhase.idle,
     );
-    final peripheralState = map['peripheralState']?.toString();
+    final peripheralState = _normalizePeripheralState(
+      map['peripheralState']?.toString(),
+    );
     final phase =
         reportedPhase == Aiv0BlePhase.connected &&
             peripheralState != null &&
@@ -336,6 +338,17 @@ class Aiv0BleStatus {
   final int deferredRecoveryRepeatCount;
 
   bool get isConnected => phase == Aiv0BlePhase.connected;
+
+  static String? _normalizePeripheralState(String? value) {
+    final state = value?.trim();
+    return switch (state) {
+      'CBPeripheralState(rawValue: 0)' => 'disconnected',
+      'CBPeripheralState(rawValue: 1)' => 'connecting',
+      'CBPeripheralState(rawValue: 2)' => 'connected',
+      'CBPeripheralState(rawValue: 3)' => 'disconnecting',
+      _ => state,
+    };
+  }
 }
 
 abstract interface class Aiv0BleControl {

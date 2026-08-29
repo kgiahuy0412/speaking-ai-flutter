@@ -60,7 +60,10 @@ struct Aiv0ReconnectPolicy {
     speechCaptureActive: Bool,
     hfpRouteActive: Bool
   ) -> Bool {
-    mainTurnActive || promptActive || speechCaptureActive || hfpRouteActive
+    // BLE GATT carries only H20 control packets. Reconnecting this link must
+    // stay independent from the HFP audio route so a later MAIN press remains
+    // available while a lesson prompt or speech capture is active.
+    false
   }
 
   static func shouldDeferNotificationMaintenance(
@@ -68,10 +71,9 @@ struct Aiv0ReconnectPolicy {
     speechCaptureActive: Bool,
     hfpRouteActive: Bool
   ) -> Bool {
-    // HFP is the selected mic/loa route, not a reason to starve BLE forever.
-    // Only a live MAIN turn or PCM capture owns the short critical section.
-    _ = hfpRouteActive
-    return mainTurnActive || speechCaptureActive
+    // Re-arming the MAIN characteristic does not reconfigure AVAudioSession.
+    // Deferring it for HFP/speech leaves the physical button unreachable.
+    false
   }
 }
 
@@ -146,7 +148,6 @@ struct Aiv0DeferredRecoveryPolicy {
     peripheralConnected: Bool,
     hasButtonCharacteristic: Bool
   ) -> Aiv0DeferredRecoveryStep {
-    guard !audioCritical else { return .wait }
     guard peripheralConnected else { return .reconnect }
     return hasButtonCharacteristic ? .rearmNotification : .rediscover
   }
@@ -737,9 +738,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   }
 
   private func shouldDeferForcedNotificationRecovery() -> Bool {
-    audioSessionCoordinator.isMainTurnActive
-      || audioSessionCoordinator.isPromptActive
-      || audioSessionCoordinator.isSpeechCaptureActive
+    // CoreBluetooth notification recovery is intentionally isolated from the
+    // HFP mic/speaker lifecycle. It must be allowed during an active lesson.
+    false
   }
 
   private func scheduleDeferredBluetoothRecoveryRetry() {
