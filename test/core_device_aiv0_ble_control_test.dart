@@ -4,6 +4,44 @@ import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('AIV0 native diagnostics', () {
+    test(
+      'does not report connected when the native GATT peripheral is disconnected',
+      () {
+        final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+          'phase': 'connected',
+          'peripheralState': 'disconnected',
+          'mainNotificationState': 'unavailable',
+          'lastDisconnectCode': 'CBErrorDomain:7',
+          'lastDisconnectMessage': 'The specified device has disconnected.',
+          'lastDisconnectEpochMs': 1_787_987_522_081,
+          'lastNotificationRecovery':
+              'reconnect • peripheral=disconnected • notify=unavailable',
+          'deferredRecoveryRepeatCount': 12,
+        }, protocolConfirmed: false);
+
+        expect(status.phase, Aiv0BlePhase.reconnecting);
+        expect(status.isConnected, isFalse);
+        expect(status.peripheralState, 'disconnected');
+        expect(status.mainNotificationState, 'unavailable');
+        expect(status.lastDisconnectCode, 'CBErrorDomain:7');
+        expect(
+          status.lastDisconnectMessage,
+          'The specified device has disconnected.',
+        );
+        expect(
+          status.lastDisconnectAt,
+          DateTime.fromMillisecondsSinceEpoch(1_787_987_522_081),
+        );
+        expect(
+          status.lastNotificationRecovery,
+          'reconnect • peripheral=disconnected • notify=unavailable',
+        );
+        expect(status.deferredRecoveryRepeatCount, 12);
+      },
+    );
+  });
+
   group('AIV0 automatic connection selection', () {
     test('prefers the previously verified H20 address', () {
       const devices = <Aiv0BleDevice>[

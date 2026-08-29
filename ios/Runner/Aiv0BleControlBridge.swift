@@ -120,6 +120,26 @@ enum Aiv0DeferredRecoveryStep: Equatable {
   case rearmNotification
 }
 
+struct Aiv0DeferredRecoveryTraceState {
+  private var lastStep: Aiv0DeferredRecoveryStep?
+  private(set) var repeatCount = 0
+
+  mutating func record(_ step: Aiv0DeferredRecoveryStep) -> Bool {
+    if lastStep == step {
+      repeatCount += 1
+      return false
+    }
+    lastStep = step
+    repeatCount = 1
+    return true
+  }
+
+  mutating func reset() {
+    lastStep = nil
+    repeatCount = 0
+  }
+}
+
 struct Aiv0DeferredRecoveryPolicy {
   static func nextStep(
     audioCritical: Bool,
@@ -227,6 +247,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var notificationValidationPending = false
   private var notificationForceRearmPending = false
   private var notificationRecoveryMode: Aiv0MainNotificationRecoveryMode = .validate
+  private var deferredRecoveryTraceState = Aiv0DeferredRecoveryTraceState()
   private var phase = "idle"
   private var message: String?
   private var writeMode: String?
@@ -237,6 +258,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var packetCount = 0
   private var invalidPacketCount = 0
   private var reconnectCount = 0
+  private var lastDisconnectEpochMs: Int?
+  private var lastDisconnectCode: String?
+  private var lastDisconnectMessage: String?
+  private var lastDisconnectPeripheralState: String?
+  private var lastNotificationRecovery: String?
   private var manualDisconnect = false
   private var disposed = false
 
@@ -690,6 +716,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     deferredRecoveryWorkItem?.cancel()
     deferredRecoveryWorkItem = nil
     deferredReconnectPeripheral = nil
+    deferredRecoveryTraceState.reset()
   }
 
   private func shouldDeferBluetoothReconnect() -> Bool {
@@ -737,11 +764,21 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         peripheralConnected: connected,
         hasButtonCharacteristic: buttonCharacteristic != nil
       )
-      audioSessionCoordinator.trace(
-        stage: "ble_deferred_recovery",
-        caller: "Aiv0BleControlBridge",
-        message: String(describing: step)
-      )
+      let changedStep = deferredRecoveryTraceState.record(step)
+      let repeatCount = deferredRecoveryTraceState.repeatCount
+      let shouldReport = changedStep || repeatCount == 4 || repeatCount % 20 == 0
+      if shouldReport {
+        audioSessionCoordinator.trace(
+          stage: "ble_deferred_recovery",
+          caller: "Aiv0BleControlBridge",
+          message: String(describing: step),
+          values: [
+            "peripheralState": String(describing: peripheral.state),
+            "repeatCount": repeatCount,
+          ]
+        )
+        emitStatus()
+      }
       switch step {
       case .wait:
         scheduleDeferredBluetoothRecoveryRetry()
@@ -877,11 +914,22 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       refreshInProgress: notificationRefreshInProgress,
       isNotifying: buttonCharacteristic?.isNotifying ?? false
     )
+    let peripheralState = String(describing: peripheral.state)
+    let notificationState = buttonCharacteristic == nil
+      ? "unavailable"
+      : (buttonCharacteristic?.isNotifying == true ? "notifying" : "disabled")
+    lastNotificationRecovery = "\(step) • peripheral=\(peripheralState) • notify=\(notificationState) • mode=\(notificationRecoveryMode)"
     audioSessionCoordinator.trace(
       stage: "ble_main_notification_refresh",
       caller: "Aiv0BleControlBridge",
-      message: String(describing: step)
+      message: String(describing: step),
+      values: [
+        "peripheralState": peripheralState,
+        "notificationState": notificationState,
+        "recoveryMode": String(describing: notificationRecoveryMode),
+      ]
     )
+    emitStatus()
     switch step {
     case .reconnect:
       notificationRefreshInProgress = false
@@ -912,11 +960,13 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       notificationRefreshInProgress = false
       notificationRecoveryMode = .validate
       notificationForceRearmPending = false
+      deferredRecoveryTraceState.reset()
       let shouldRefreshAgain = notificationValidationPending
       notificationValidationPending = false
       duplicatePacketFilter.resetWindow()
       phase = "connected"
       message = "BLE Control H20 đã kết nối; nút MAIN sẵn sàng."
+      lastNotificationRecovery = "complete • peripheral=\(peripheralState) • notify=\(notificationState)"
       emitStatus()
       if shouldRefreshAgain {
         scheduleMainNotificationRefresh(forceRearm: notificationForceRearmPending)
@@ -970,6 +1020,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     batteryPercent = nil
     firmwareRevision = nil
     duplicatePacketFilter.resetWindow()
+    deferredRecoveryTraceState.reset()
   }
 
   private func finishScanIfNeeded() {
@@ -985,16 +1036,32 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "invalidPacketCount": invalidPacketCount,
       "duplicatePacketCount": duplicatePacketFilter.duplicateCount,
       "reconnectCount": reconnectCount,
+      "deferredRecoveryRepeatCount": deferredRecoveryTraceState.repeatCount,
     ]
     if let peripheral = connectedPeripheral {
       value["deviceId"] = peripheral.identifier.uuidString
       value["deviceName"] = peripheral.name ?? discoveredDevices[peripheral.identifier]?.name ?? "H20"
+      value["peripheralState"] = String(describing: peripheral.state)
+    } else {
+      value["peripheralState"] = "unavailable"
     }
+    value["mainNotificationState"] = buttonCharacteristic == nil
+      ? "unavailable"
+      : (buttonCharacteristic?.isNotifying == true ? "notifying" : "disabled")
     if let message { value["message"] = message }
     if let writeMode { value["writeMode"] = writeMode }
     if let batteryPercent { value["batteryPercent"] = batteryPercent }
     if let firmwareRevision { value["firmwareRevision"] = firmwareRevision }
     if let lastRawHex { value["lastRawHex"] = lastRawHex }
+    if let lastDisconnectEpochMs { value["lastDisconnectEpochMs"] = lastDisconnectEpochMs }
+    if let lastDisconnectCode { value["lastDisconnectCode"] = lastDisconnectCode }
+    if let lastDisconnectMessage { value["lastDisconnectMessage"] = lastDisconnectMessage }
+    if let lastDisconnectPeripheralState {
+      value["lastDisconnectPeripheralState"] = lastDisconnectPeripheralState
+    }
+    if let lastNotificationRecovery {
+      value["lastNotificationRecovery"] = lastNotificationRecovery
+    }
     return value
   }
 
@@ -1117,6 +1184,7 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     peripheral.delegate = self
     phase = "connecting"
     message = "Đang xác minh dịch vụ BLE Control…"
+    lastNotificationRecovery = "connected • peripheral=\(peripheral.state) • notify=discovering"
     emitStatus()
     peripheral.discoverServices([
       ProtocolUUID.controlService,
@@ -1152,11 +1220,25 @@ extension Aiv0BleControlBridge: CBCentralManagerDelegate {
     error: Error?
   ) {
     let nsError = error as NSError?
+    let peripheralState = String(describing: peripheral.state)
+    let disconnectCode = nsError.map { "\($0.domain):\($0.code)" } ?? "none"
+    let disconnectMessage = error?.localizedDescription ?? "no CoreBluetooth error"
+    lastDisconnectEpochMs = Int(Date().timeIntervalSince1970 * 1_000)
+    lastDisconnectCode = disconnectCode
+    lastDisconnectMessage = disconnectMessage
+    lastDisconnectPeripheralState = peripheralState
+    lastNotificationRecovery = "disconnect • peripheral=\(peripheralState) • notify=unavailable"
+    if !manualDisconnect && !disposed {
+      phase = "reconnecting"
+      message = "BLE GATT H20 vừa ngắt; đang chờ khôi phục MAIN."
+    }
+    emitStatus()
     audioSessionCoordinator.trace(
       stage: "didDisconnectPeripheral",
       caller: "Aiv0BleControlBridge",
-      code: nsError.map { "\($0.domain):\($0.code)" },
-      message: error?.localizedDescription ?? "no CoreBluetooth error"
+      code: disconnectCode,
+      message: disconnectMessage,
+      values: ["peripheralState": peripheralState]
     )
     resetCharacteristics()
     reconnectTimeoutWorkItem?.cancel()
@@ -1233,6 +1315,8 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
     error: Error?
   ) {
     guard characteristic.uuid == ProtocolUUID.buttonEvent else { return }
+    let peripheralState = String(describing: peripheral.state)
+    let notificationState = characteristic.isNotifying ? "notifying" : "disabled"
     if notificationRefreshInProgress {
       notificationRefreshTimeoutWorkItem?.cancel()
       notificationRefreshTimeoutWorkItem = nil
@@ -1240,6 +1324,8 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         let nsError = error as NSError
         notificationRefreshInProgress = false
         notificationRecoveryMode = .validate
+        lastNotificationRecovery = "failed • peripheral=\(peripheralState) • notify=\(notificationState) • \(nsError.domain):\(nsError.code)"
+        emitStatus()
         audioSessionCoordinator.trace(
           stage: "ble_main_notification_refresh_failed",
           caller: "Aiv0BleControlBridge",
@@ -1260,6 +1346,17 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
       if notificationRecoveryMode == .forceDisable {
         notificationRecoveryMode = .forceEnable
       }
+      lastNotificationRecovery = "callback • peripheral=\(peripheralState) • notify=\(notificationState) • mode=\(notificationRecoveryMode)"
+      audioSessionCoordinator.trace(
+        stage: "ble_main_notification_state_updated",
+        caller: "Aiv0BleControlBridge",
+        message: notificationState,
+        values: [
+          "peripheralState": peripheralState,
+          "recoveryMode": String(describing: notificationRecoveryMode),
+        ]
+      )
+      emitStatus()
       refreshMainNotificationSubscription()
       return
     }
@@ -1267,6 +1364,14 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
       failDiscovery("Không bật được thông báo MAIN của H20.")
       return
     }
+    lastNotificationRecovery = "initial • peripheral=\(peripheralState) • notify=\(notificationState)"
+    audioSessionCoordinator.trace(
+      stage: "ble_main_notification_state_updated",
+      caller: "Aiv0BleControlBridge.initial",
+      message: notificationState,
+      values: ["peripheralState": peripheralState]
+    )
+    emitStatus()
     completeConnection()
   }
 

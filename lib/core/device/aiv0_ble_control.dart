@@ -248,6 +248,13 @@ class Aiv0BleStatus {
     this.invalidPacketCount = 0,
     this.duplicatePacketCount = 0,
     this.reconnectCount = 0,
+    this.peripheralState,
+    this.mainNotificationState,
+    this.lastDisconnectCode,
+    this.lastDisconnectMessage,
+    this.lastDisconnectAt,
+    this.lastNotificationRecovery,
+    this.deferredRecoveryRepeatCount = 0,
   });
 
   const Aiv0BleStatus.disabled()
@@ -262,11 +269,21 @@ class Aiv0BleStatus {
     required bool protocolConfirmed,
   }) {
     final rawPhase = map['phase']?.toString();
+    final reportedPhase = Aiv0BlePhase.values.firstWhere(
+      (value) => value.name == rawPhase,
+      orElse: () => Aiv0BlePhase.idle,
+    );
+    final peripheralState = map['peripheralState']?.toString();
+    final phase =
+        reportedPhase == Aiv0BlePhase.connected &&
+            peripheralState != null &&
+            peripheralState != 'connected'
+        ? Aiv0BlePhase.reconnecting
+        : reportedPhase;
+    final lastDisconnectEpochMs = (map['lastDisconnectEpochMs'] as num?)
+        ?.toInt();
     return Aiv0BleStatus(
-      phase: Aiv0BlePhase.values.firstWhere(
-        (value) => value.name == rawPhase,
-        orElse: () => Aiv0BlePhase.idle,
-      ),
+      phase: phase,
       protocolConfirmed: protocolConfirmed,
       deviceId: map['deviceId']?.toString(),
       deviceName: map['deviceName']?.toString(),
@@ -281,6 +298,17 @@ class Aiv0BleStatus {
       invalidPacketCount: (map['invalidPacketCount'] as num?)?.toInt() ?? 0,
       duplicatePacketCount: (map['duplicatePacketCount'] as num?)?.toInt() ?? 0,
       reconnectCount: (map['reconnectCount'] as num?)?.toInt() ?? 0,
+      peripheralState: peripheralState,
+      mainNotificationState: map['mainNotificationState']?.toString(),
+      lastDisconnectCode: map['lastDisconnectCode']?.toString(),
+      lastDisconnectMessage: map['lastDisconnectMessage']?.toString(),
+      lastDisconnectAt:
+          lastDisconnectEpochMs == null || lastDisconnectEpochMs <= 0
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(lastDisconnectEpochMs),
+      lastNotificationRecovery: map['lastNotificationRecovery']?.toString(),
+      deferredRecoveryRepeatCount:
+          (map['deferredRecoveryRepeatCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -299,6 +327,13 @@ class Aiv0BleStatus {
   final int invalidPacketCount;
   final int duplicatePacketCount;
   final int reconnectCount;
+  final String? peripheralState;
+  final String? mainNotificationState;
+  final String? lastDisconnectCode;
+  final String? lastDisconnectMessage;
+  final DateTime? lastDisconnectAt;
+  final String? lastNotificationRecovery;
+  final int deferredRecoveryRepeatCount;
 
   bool get isConnected => phase == Aiv0BlePhase.connected;
 }

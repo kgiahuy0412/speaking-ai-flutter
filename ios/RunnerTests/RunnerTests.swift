@@ -310,6 +310,22 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testAiv0DeferredRecoveryTraceCollapsesRepeatedWaits() {
+    var traceState = Aiv0DeferredRecoveryTraceState()
+
+    XCTAssertTrue(traceState.record(.wait))
+    XCTAssertFalse(traceState.record(.wait))
+    XCTAssertFalse(traceState.record(.wait))
+    XCTAssertEqual(traceState.repeatCount, 3)
+
+    XCTAssertTrue(traceState.record(.rearmNotification))
+    XCTAssertEqual(traceState.repeatCount, 1)
+
+    traceState.reset()
+    XCTAssertEqual(traceState.repeatCount, 0)
+    XCTAssertTrue(traceState.record(.wait))
+  }
+
   func testAiv0MainNotificationRefreshEnablesOnlyAMissingSubscription() {
     XCTAssertEqual(
       Aiv0MainNotificationRefreshPolicy.nextStep(

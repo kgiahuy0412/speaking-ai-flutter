@@ -1439,6 +1439,11 @@ class _Aiv0BleControlCard extends StatelessWidget {
         ? AppColors.coral
         : AppColors.muted;
     final name = status.deviceName?.trim();
+    final hasNativeDiagnostics =
+        status.peripheralState != null ||
+        status.mainNotificationState != null ||
+        status.lastDisconnectCode != null ||
+        status.lastNotificationRecovery != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1499,6 +1504,53 @@ class _Aiv0BleControlCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (hasNativeDiagnostics) ...<Widget>[
+            const SizedBox(height: 9),
+            Container(
+              key: const Key('aiv0-native-diagnostics'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('GATT thực tế', '实际 GATT'),
+                    value:
+                        '${status.peripheralState ?? 'unknown'} • MAIN Notify '
+                        '${status.mainNotificationState ?? 'unknown'}',
+                  ),
+                  if (status.lastDisconnectCode != null ||
+                      status.lastDisconnectMessage != null)
+                    _Aiv0DiagnosticLine(
+                      label: context.tr('Mất BLE gần nhất', '最近 BLE 断开'),
+                      value: <String>[
+                        if (status.lastDisconnectAt != null)
+                          _formatEventTime(status.lastDisconnectAt!),
+                        if (status.lastDisconnectCode != null)
+                          status.lastDisconnectCode!,
+                        if (status.lastDisconnectMessage != null)
+                          status.lastDisconnectMessage!,
+                      ].join(' • '),
+                    ),
+                  if (status.lastNotificationRecovery != null)
+                    _Aiv0DiagnosticLine(
+                      label: context.tr('Khôi phục MAIN', '恢复 MAIN'),
+                      value: status.lastNotificationRecovery!,
+                    ),
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('Retry đang hoãn', '延迟重试'),
+                    value: '${status.deferredRecoveryRepeatCount}',
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (connected) ...<Widget>[
             const SizedBox(height: 9),
             _Aiv0DiagnosticLine(
@@ -1531,6 +1583,11 @@ class _Aiv0BleControlCard extends StatelessWidget {
                     )
                   : context.tr('Chưa xác định', '尚未确定'),
             ),
+          ],
+          if (status.deviceId != null ||
+              events.isNotEmpty ||
+              status.packetCount > 0) ...<Widget>[
+            const SizedBox(height: 9),
             _Aiv0DiagnosticLine(
               label: context.tr('Giao thức packet', '数据包协议'),
               value: status.protocolConfirmed

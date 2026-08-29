@@ -1,13 +1,15 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/app/app_theme_mode.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
+import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/settings/presentation/settings_sheet.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -151,6 +153,91 @@ void main() {
       expect(find.text('HFP streaming'), findsNothing);
     },
   );
+
+  testWidgets('iOS settings keeps the GATT disconnect cause visible', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final ble = _DiagnosticAiv0BleControl();
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      aiv0BleControl: ble,
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: SettingsSheet(controller: controller)),
+      ),
+    );
+
+    expect(find.byKey(const Key('aiv0-native-diagnostics')), findsOneWidget);
+    expect(find.textContaining('disconnected'), findsWidgets);
+    expect(find.textContaining('CBErrorDomain:7'), findsOneWidget);
+    expect(find.textContaining('reconnect'), findsWidgets);
+    expect(find.text('MAIN → trợ lý'), findsOneWidget);
+    expect(find.textContaining('0 gói'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+  });
+}
+
+class _DiagnosticAiv0BleControl implements Aiv0BleControl {
+  final StreamController<Aiv0BleStatus> _statuses =
+      StreamController<Aiv0BleStatus>.broadcast();
+  final StreamController<Aiv0ButtonEvent> _buttons =
+      StreamController<Aiv0ButtonEvent>.broadcast();
+
+  @override
+  Aiv0BleStatus get status => Aiv0BleStatus.fromMap(<Object?, Object?>{
+    'phase': 'connected',
+    'deviceId': 'H20-BLE',
+    'deviceName': 'H20',
+    'peripheralState': 'disconnected',
+    'mainNotificationState': 'unavailable',
+    'lastDisconnectCode': 'CBErrorDomain:7',
+    'lastDisconnectMessage': 'The specified device has disconnected.',
+    'lastDisconnectEpochMs': 1_787_987_522_081,
+    'lastNotificationRecovery':
+        'reconnect • peripheral=disconnected • notify=unavailable',
+    'deferredRecoveryRepeatCount': 12,
+  }, protocolConfirmed: false);
+
+  @override
+  Stream<Aiv0BleStatus> get statusStream => _statuses.stream;
+
+  @override
+  Stream<Aiv0ButtonEvent> get buttonEvents => _buttons.stream;
+
+  @override
+  Future<void> connect(String deviceId) async {}
+
+  @override
+  Future<void> disconnect() async {}
+
+  @override
+  Future<void> dispose() async {
+    await _statuses.close();
+    await _buttons.close();
+  }
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<List<Aiv0BleDevice>> scan({Duration timeout = Duration.zero}) async =>
+      const <Aiv0BleDevice>[];
+
+  @override
+  Future<void> sendAppState({
+    required Aiv0AppState state,
+    required Aiv0AppResult result,
+    int sequence = 0,
+  }) async {}
 }
 
 class _FakeStreamingSpeechInput implements StreamingSpeechInput {
