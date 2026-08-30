@@ -360,7 +360,7 @@ class MainVoiceAssistantFlow {
   MainVoiceAssistantTurn _beginContinuousTranslation(String recognizedText) {
     reset();
     return MainVoiceAssistantTurn(
-      promptText: 'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
+      promptText: 'Con nói từng câu nhé. Khi muốn dừng, con nhấn MAIN.',
       continueListening: false,
       navigationAfterPrompt: VoiceNavigationIntent(
         destination: VoiceNavigationDestination.conversation,

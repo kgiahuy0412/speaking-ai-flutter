@@ -250,13 +250,58 @@ class RunnerTests: XCTestCase {
   func testIOSHfpRouteLeaseReleasesAtUtteranceBoundary() {
     var lease = IOSHfpRouteLeaseState()
 
-    XCTAssertTrue(lease.acquireIfNeeded())
-    XCTAssertFalse(lease.acquireIfNeeded())
+    XCTAssertTrue(lease.acquireIfNeeded(generation: 1))
+    XCTAssertFalse(lease.acquireIfNeeded(generation: 1))
     XCTAssertTrue(lease.isHeld)
 
-    XCTAssertTrue(lease.finishUtterance())
-    XCTAssertFalse(lease.finishUtterance())
+    XCTAssertTrue(lease.finishUtterance(generation: 1))
+    XCTAssertFalse(lease.finishUtterance(generation: 1))
     XCTAssertFalse(lease.isHeld)
+  }
+
+  func testIOSHfpRouteLeaseIgnoresAStaleActivationCompletion() {
+    var lease = IOSHfpRouteLeaseState()
+
+    XCTAssertTrue(lease.acquireIfNeeded(generation: 1))
+    XCTAssertTrue(lease.finishUtterance(generation: 1))
+    XCTAssertTrue(lease.acquireIfNeeded(generation: 2))
+
+    XCTAssertFalse(lease.releaseIfHeld(generation: 1))
+    XCTAssertEqual(lease.activeGeneration, 2)
+    XCTAssertTrue(lease.releaseIfHeld(generation: 2))
+  }
+
+  func testIOSHfpRouteLeaseTransfersWithoutAddingAnotherOwner() {
+    var lease = IOSHfpRouteLeaseState()
+
+    XCTAssertTrue(lease.acquireIfNeeded(generation: 1))
+    XCTAssertFalse(lease.acquireIfNeeded(generation: 2))
+    XCTAssertEqual(lease.activeGeneration, 2)
+    XCTAssertFalse(lease.releaseIfHeld(generation: 1))
+    XCTAssertTrue(lease.releaseIfHeld(generation: 2))
+  }
+
+  func testIOSHfpInputSelectionRecoversTheSameH20AfterUIDChanges() {
+    let selected = IOSHfpInputSelectionPolicy.select(
+      from: [
+        IOSHfpInputIdentity(uid: "new-h20-uid", name: "H20"),
+        IOSHfpInputIdentity(uid: "airpods", name: "AirPods Pro")
+      ],
+      selectedUID: "old-h20-uid",
+      selectedName: "H20"
+    )
+
+    XCTAssertEqual(selected?.uid, "new-h20-uid")
+  }
+
+  func testIOSHfpInputSelectionNeverSubstitutesAnUnrelatedHeadset() {
+    let selected = IOSHfpInputSelectionPolicy.select(
+      from: [IOSHfpInputIdentity(uid: "airpods", name: "AirPods Pro")],
+      selectedUID: "old-h20-uid",
+      selectedName: "H20"
+    )
+
+    XCTAssertNil(selected)
   }
 
   func testAiv0MainNotificationRefreshPreservesAHealthySubscription() {

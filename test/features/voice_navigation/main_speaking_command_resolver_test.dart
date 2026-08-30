@@ -11,13 +11,12 @@ void main() {
       'Con muốn học cái khác',
       'Con muốn học thứ khác',
       'Cho con học bài khác',
-      'Con không muốn luyện nói nữa',
     ]) {
       expect(resolver.resolve(text), MainSpeakingCommand.otherLearning);
     }
   });
 
-  test('detects D10/E04 stop phrases without matching ordinary sentences', () {
+  test('keeps spoken stop phrases in the normal translation flow', () {
     for (final text in <String>[
       'Dừng lại',
       'Con muốn dừng lại',
@@ -31,14 +30,9 @@ void main() {
       'Hãy dừng lại',
       'Làm ơn ngừng lại nhé ạ',
       'Dừng lại đi ạ',
-    ]) {
-      expect(resolver.resolve(text), MainSpeakingCommand.stop);
-    }
-
-    for (final text in <String>[
-      'Con đứng lại chờ mẹ',
-      'Con không muốn dừng ở công viên',
-      'Hôm nay con học liên tục',
+      'Dừng luyện nói',
+      'Thoát luyện nói',
+      'Con không muốn luyện nói nữa',
     ]) {
       expect(resolver.resolve(text), isNull);
     }

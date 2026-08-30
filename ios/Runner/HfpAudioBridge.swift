@@ -29,22 +29,31 @@ struct IOSHfpRoutePolicy {
 /// `AVAudioSession` from deactivating and makes the H20 firmware drop/reconnect
 /// its independent BLE control link, so later physical MAIN presses disappear.
 struct IOSHfpRouteLeaseState {
-  private(set) var isHeld = false
+  private(set) var activeGeneration: Int?
 
-  mutating func acquireIfNeeded() -> Bool {
-    guard !isHeld else { return false }
-    isHeld = true
+  var isHeld: Bool { activeGeneration != nil }
+
+  mutating func acquireIfNeeded(generation: Int) -> Bool {
+    if activeGeneration != nil {
+      // The coordinator owner already exists, but the newest activation now
+      // owns it. A stale callback from the previous generation must not be
+      // able to release the superseding route.
+      activeGeneration = generation
+      return false
+    }
+    activeGeneration = generation
     return true
   }
 
-  mutating func releaseIfHeld() -> Bool {
-    guard isHeld else { return false }
-    isHeld = false
+  mutating func releaseIfHeld(generation: Int? = nil) -> Bool {
+    guard let activeGeneration else { return false }
+    if let generation, generation != activeGeneration { return false }
+    self.activeGeneration = nil
     return true
   }
 
-  mutating func finishUtterance() -> Bool {
-    releaseIfHeld()
+  mutating func finishUtterance(generation: Int? = nil) -> Bool {
+    releaseIfHeld(generation: generation)
   }
 }
 
@@ -64,6 +73,41 @@ struct IOSHfpIdleRouteReleasePolicy {
   ) -> IOSHfpIdleRouteReleaseStep {
     guard hasTwoWayHfpRoute else { return .complete }
     return attemptsRemaining > 0 ? .wait : .timedOut
+  }
+}
+
+struct IOSHfpInputIdentity: Equatable {
+  let uid: String
+  let name: String
+}
+
+/// Restores a remembered H20 selection after iOS tears down A2DP/HFP and
+/// publishes the same physical input with a different transient UID.
+struct IOSHfpInputSelectionPolicy {
+  static func select(
+    from available: [IOSHfpInputIdentity],
+    selectedUID: String?,
+    selectedName: String?
+  ) -> IOSHfpInputIdentity? {
+    if let selectedUID,
+      let exactUID = available.first(where: { $0.uid == selectedUID })
+    {
+      return exactUID
+    }
+    let normalizedSelectedName = normalize(selectedName ?? "")
+    guard !normalizedSelectedName.isEmpty else { return nil }
+    return available.first {
+      normalize($0.name) == normalizedSelectedName
+    }
+  }
+
+  private static func normalize(_ value: String) -> String {
+    value
+      .lowercased()
+      .unicodeScalars
+      .filter { CharacterSet.alphanumerics.contains($0) }
+      .map(String.init)
+      .joined()
   }
 }
 
@@ -295,16 +339,15 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       ]
     )
     let acquiredLeaseForThisAttempt = acquireHfpSessionLease(
-      caller: "HfpAudioBridge.startAudioRoute"
+      caller: "HfpAudioBridge.startAudioRoute",
+      generation: activationGeneration
     )
     // H20 can already own a confirmed two-way HFP route after Settings or a
     // previous MAIN turn. Re-applying the category, active flag and preferred
     // input here makes iOS renegotiate the Classic Bluetooth profile. On the
     // combined H20 firmware that renegotiation also interrupts the BLE control
     // link, so the physical MAIN packet is followed by an unnecessary reconnect.
-    if let activeInput = activeTwoWayHfpInput(),
-      selectedInputId == nil || selectedInputId == activeInput.uid
-    {
+    if let activeInput = selectedOrUnclaimedActiveTwoWayHfpInput() {
       selectedInputId = activeInput.uid
       selectedInputName = activeInput.portName
       routeActive = true
@@ -325,22 +368,11 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     }
     do {
       try configureSession(activate: true)
-      if let selectedInputId {
-        guard let selected = bluetoothInputs().first(where: { $0.uid == selectedInputId }) else {
-          throw HfpBridgeError.inputUnavailable
-        }
-        try audioSessionCoordinator.configureHfp(
-          activate: true,
-          preferredInput: selected,
-          caller: "HfpAudioBridge.startAudioRoute"
-        )
-        selectedInputName = selected.portName
-      }
       routeActive = false
       phase = "connecting"
-      message = "Đang kích hoạt đường mic HFP…"
+      message = "Đang chờ iOS công bố lại mic HFP…"
       emitStatus()
-      waitForActiveBluetoothInput(
+      waitForSelectedInputThenActivate(
         generation: activationGeneration,
         attemptsRemaining: 15,
         recording: true,
@@ -349,9 +381,108 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       )
     } catch {
       if acquiredLeaseForThisAttempt {
-        releaseHfpSessionLease(caller: "HfpAudioBridge.startAudioRoute.failed")
+        releaseHfpSessionLease(
+          caller: "HfpAudioBridge.startAudioRoute.failed",
+          generation: activationGeneration
+        )
       }
       fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: error)
+    }
+  }
+
+  private func waitForSelectedInputThenActivate(
+    generation: Int,
+    attemptsRemaining: Int,
+    recording: Bool,
+    releaseLeaseOnFailure: Bool,
+    result: @escaping FlutterResult
+  ) {
+    guard !disposed, generation == routeActivationGeneration else {
+      result(
+        FlutterError(
+          code: "HFP_ROUTE_CANCELLED",
+          message: HfpBridgeError.routeCancelled.localizedDescription,
+          details: nil
+        )
+      )
+      return
+    }
+
+    let inputs = bluetoothInputs()
+    let identities = inputs.map {
+      IOSHfpInputIdentity(uid: $0.uid, name: $0.portName)
+    }
+    let selectedIdentity = IOSHfpInputSelectionPolicy.select(
+      from: identities,
+      selectedUID: selectedInputId,
+      selectedName: selectedInputName
+    )
+    if selectedInputId == nil || selectedIdentity != nil {
+      do {
+        if let selectedIdentity,
+          let selected = inputs.first(where: { $0.uid == selectedIdentity.uid })
+        {
+          try audioSessionCoordinator.configureHfp(
+            activate: true,
+            preferredInput: selected,
+            caller: "HfpAudioBridge.startAudioRoute.selectedInput"
+          )
+          selectedInputId = selected.uid
+          selectedInputName = selected.portName
+        }
+        message = "Đang kích hoạt đường mic HFP…"
+        emitStatus()
+        waitForActiveBluetoothInput(
+          generation: generation,
+          attemptsRemaining: 15,
+          recording: recording,
+          releaseLeaseOnFailure: releaseLeaseOnFailure,
+          result: result
+        )
+      } catch {
+        if releaseLeaseOnFailure {
+          releaseHfpSessionLease(
+            caller: "HfpAudioBridge.selectedInput.failed",
+            generation: generation
+          )
+        }
+        fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: error)
+      }
+      return
+    }
+
+    guard attemptsRemaining > 0 else {
+      if releaseLeaseOnFailure {
+        releaseHfpSessionLease(
+          caller: "HfpAudioBridge.selectedInput.timeout",
+          generation: generation
+        )
+      }
+      fail(
+        result,
+        code: "HFP_ROUTE_UNAVAILABLE",
+        error: HfpBridgeError.inputUnavailable
+      )
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+      guard let self else {
+        result(
+          FlutterError(
+            code: "HFP_ROUTE_CANCELLED",
+            message: HfpBridgeError.routeCancelled.localizedDescription,
+            details: nil
+          )
+        )
+        return
+      }
+      self.waitForSelectedInputThenActivate(
+        generation: generation,
+        attemptsRemaining: attemptsRemaining - 1,
+        recording: recording,
+        releaseLeaseOnFailure: releaseLeaseOnFailure,
+        result: result
+      )
     }
   }
 
@@ -372,7 +503,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       )
       return
     }
-    if let hfpInput = activeTwoWayHfpInput() {
+    if let hfpInput = selectedOrUnclaimedActiveTwoWayHfpInput() {
       selectedInputId = hfpInput.uid
       selectedInputName = hfpInput.portName
       routeActive = true
@@ -428,7 +559,8 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     guard attemptsRemaining > 0 else {
       if recording && releaseLeaseOnFailure {
         releaseHfpSessionLease(
-          caller: "HfpAudioBridge.waitForActiveBluetoothInput.timeout"
+          caller: "HfpAudioBridge.waitForActiveBluetoothInput.timeout",
+          generation: generation
         )
       }
       fail(result, code: "HFP_ROUTE_UNAVAILABLE", error: HfpBridgeError.routeUnavailable)
@@ -460,9 +592,7 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     // Preserve only the selected H20 identity. The live HFP/SCO session is an
     // utterance-scoped resource and must be released so BLE GATT can remain
     // connected and keep receiving physical MAIN notifications while idle.
-    if let activeInput = activeTwoWayHfpInput(),
-      selectedInputId == nil || selectedInputId == activeInput.uid
-    {
+    if let activeInput = selectedOrUnclaimedActiveTwoWayHfpInput() {
       selectedInputId = activeInput.uid
       selectedInputName = activeInput.portName
     }
@@ -554,14 +684,18 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   }
 
   @discardableResult
-  private func acquireHfpSessionLease(caller: String) -> Bool {
-    guard hfpRouteLease.acquireIfNeeded() else { return false }
-    audioSessionCoordinator.acquireHfpRoute(caller: caller)
-    return true
+  private func acquireHfpSessionLease(caller: String, generation: Int) -> Bool {
+    let needsCoordinatorOwner = hfpRouteLease.acquireIfNeeded(
+      generation: generation
+    )
+    if needsCoordinatorOwner {
+      audioSessionCoordinator.acquireHfpRoute(caller: caller)
+    }
+    return hfpRouteLease.activeGeneration == generation
   }
 
-  private func releaseHfpSessionLease(caller: String) {
-    guard hfpRouteLease.releaseIfHeld() else { return }
+  private func releaseHfpSessionLease(caller: String, generation: Int? = nil) {
+    guard hfpRouteLease.releaseIfHeld(generation: generation) else { return }
     audioSessionCoordinator.releaseHfpRoute(caller: caller)
   }
 
@@ -582,30 +716,49 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
     return activeHfpInput()
   }
 
+  /// Accepts the live route only when it is the remembered H20 (exact UID or
+  /// the same normalized name after iOS republishes a transient UID). An
+  /// unrelated active headset must never replace the user's H20 selection.
+  private func selectedOrUnclaimedActiveTwoWayHfpInput()
+    -> AVAudioSessionPortDescription?
+  {
+    guard let active = activeTwoWayHfpInput() else { return nil }
+    guard selectedInputId != nil else { return active }
+    let selected = IOSHfpInputSelectionPolicy.select(
+      from: [IOSHfpInputIdentity(uid: active.uid, name: active.portName)],
+      selectedUID: selectedInputId,
+      selectedName: selectedInputName
+    )
+    return selected == nil ? nil : active
+  }
+
   private func refreshStatus() {
-    if phase == "recording", let active = activeTwoWayHfpInput() {
+    if phase == "recording",
+      let active = selectedOrUnclaimedActiveTwoWayHfpInput()
+    {
       selectedInputId = active.uid
       selectedInputName = active.portName
+      routeActive = true
       phase = "recording"
       message = "Đang dùng mic và loa H20 trên route bluetoothHFP hai chiều."
-    } else if let selectedInputId,
-      let active = activeTwoWayHfpInput(),
-      active.uid == selectedInputId
-    {
+    } else if let active = selectedOrUnclaimedActiveTwoWayHfpInput() {
+      selectedInputId = active.uid
+      selectedInputName = active.portName
       routeActive = true
       phase = "ready"
       message = "Mic và loa H20 đã được xác nhận trên currentRoute."
-    } else if let active = activeTwoWayHfpInput() {
-      selectedInputId = active.uid
-      selectedInputName = active.portName
-      routeActive = true
-      phase = "ready"
-      message = "iOS đang định tuyến mic và loa qua bluetoothHFP."
     } else {
       routeActive = false
-      phase = "idle"
+      phase = phase == "recording" ? "error" : "idle"
       if selectedInputId != nil {
-        message = bluetoothInputs().contains(where: { $0.uid == selectedInputId })
+        let available = bluetoothInputs().map {
+          IOSHfpInputIdentity(uid: $0.uid, name: $0.portName)
+        }
+        message = IOSHfpInputSelectionPolicy.select(
+          from: available,
+          selectedUID: selectedInputId,
+          selectedName: selectedInputName
+        ) != nil
           ? "Đã chọn mic HFP; route hiện chưa hoạt động."
           : "Mic HFP không còn khả dụng; hãy kiểm tra Bluetooth iOS."
       }

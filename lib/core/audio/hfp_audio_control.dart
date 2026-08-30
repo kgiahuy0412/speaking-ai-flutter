@@ -105,6 +105,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     sampleRate: 16000,
   );
   bool _disposed = false;
+  int _routeRequestGeneration = 0;
 
   @override
   bool get usesBrowserAudioInput => false;
@@ -215,6 +216,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     if (!enabled) {
       return;
     }
+    _routeRequestGeneration += 1;
     try {
       await _methodChannel.invokeMethod<void>('disconnect');
     } on MissingPluginException {
@@ -224,18 +226,42 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
 
   @override
   Future<void> startAudioRoute() async {
+    final requestGeneration = ++_routeRequestGeneration;
     await initialize();
+    if (_disposed || requestGeneration != _routeRequestGeneration) return;
     _requireSupport();
-    final snapshot = await _methodChannel.invokeMapMethod<dynamic, dynamic>(
-      'startAudioRoute',
-    );
-    if (snapshot != null) {
-      _setStatus(_statusFromMap(snapshot));
+    const retryDelays = <Duration>[
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 500),
+    ];
+    for (var attempt = 0; ; attempt += 1) {
+      if (_disposed || requestGeneration != _routeRequestGeneration) return;
+      try {
+        final snapshot = await _methodChannel.invokeMapMethod<dynamic, dynamic>(
+          'startAudioRoute',
+        );
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+        if (snapshot != null) {
+          _setStatus(_statusFromMap(snapshot));
+        }
+        return;
+      } on PlatformException catch (error) {
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+        final canRetry =
+            error.code == 'HFP_ROUTE_UNAVAILABLE' &&
+            attempt < retryDelays.length;
+        if (!canRetry) {
+          throw HfpAudioException(_friendlyError(error));
+        }
+        await Future<void>.delayed(retryDelays[attempt]);
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+      }
     }
   }
 
   @override
   Future<void> stopAudioRoute() async {
+    _routeRequestGeneration += 1;
     if (!enabled) {
       return;
     }

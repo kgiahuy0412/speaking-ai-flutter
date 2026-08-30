@@ -51,6 +51,23 @@ class MainSpeakingSessionController extends ChangeNotifier {
     _setState(MainSpeakingSessionState.inactive);
   }
 
+  /// Ends hands-free translation at the physical MAIN boundary, discards the
+  /// current turn, then opens the normal assistant menu in that strict order.
+  Future<bool> interruptForMainAssistant({
+    required Future<bool> Function() cancelCurrentAction,
+    required Future<bool> Function() activateAssistant,
+  }) async {
+    if (_disposed || !isActive) {
+      return false;
+    }
+    final cancelled = await cancelCurrentAction();
+    if (_disposed || !cancelled) {
+      return false;
+    }
+    exit();
+    return activateAssistant();
+  }
+
   /// The first silent continuous turn gets one child-friendly retry. A second
   /// consecutive silent turn exits the hands-free session.
   MainSpeakingNoSpeechAction registerNoSpeechTurn() {

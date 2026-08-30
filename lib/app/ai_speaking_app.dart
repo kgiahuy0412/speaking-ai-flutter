@@ -822,7 +822,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     // already proves that the selected HFP/phone route and assistant lifecycle
     // are valid; source-specific preparation used to create a second, racy path
     // that could return busy before the assistant prompt was started.
-    final activated = await _activateMainAssistant();
+    final activated = _mainSpeakingSessionController.isActive
+        ? await _interruptContinuousTranslationWithMain()
+        : await _activateMainAssistant();
     if (!activated && _restoreHfpAfterPhysicalMain) {
       unawaited(_restoreHfpSelectionAfterPhysicalMain());
     }
@@ -832,6 +834,40 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     return activated
         ? MainButtonActionResult.accepted
         : MainButtonActionResult.busy;
+  }
+
+  Future<bool> _interruptContinuousTranslationWithMain() async {
+    final voiceController = _voiceNavigationController;
+    final controller = _controller;
+    if (voiceController == null ||
+        controller == null ||
+        _isActivatingMainAssistant ||
+        _isFinishingMainSpeakingMode) {
+      return false;
+    }
+
+    _isFinishingMainSpeakingMode = true;
+    _hasMainSpeakingTurnStarted = false;
+    if (mounted) {
+      setState(() => _isActivatingMainAssistant = true);
+    }
+    try {
+      return _mainSpeakingSessionController.interruptForMainAssistant(
+        cancelCurrentAction: () async {
+          // MAIN is the explicit cancellation boundary. Do not finalize or
+          // translate the interrupted sentence before opening the menu.
+          final action = await controller.cancelCurrentMainAction();
+          controller.clearMessage();
+          return action != MainButtonActionResult.busy;
+        },
+        activateAssistant: voiceController.activateOtherLearningFromSpeaking,
+      );
+    } finally {
+      _isFinishingMainSpeakingMode = false;
+      if (mounted) {
+        setState(() => _isActivatingMainAssistant = false);
+      }
+    }
   }
 
   Future<ActiveLearningCommandResult> _handleActiveLearningCommand(
@@ -1253,7 +1289,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   Future<void> _handleMainSpeakingCommand(String recognizedText) async {
     final voiceController = _voiceNavigationController;
     final controller = _controller;
-    final isContinuousSpeaking = _mainSpeakingSessionController.isActive;
     if (voiceController == null ||
         controller == null ||
         _isFinishingMainSpeakingMode) {
@@ -1267,7 +1302,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
-    if (isContinuousSpeaking) {
+    if (_mainSpeakingSessionController.isActive) {
       _mainSpeakingSessionController.exit();
     }
     controller.clearMessage();
@@ -1275,22 +1310,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      // A stop command only ends hands-free translation. Requests to learn
-      // something else reopen the normal MAIN routing menu.
-      if (command == MainSpeakingCommand.stop && isContinuousSpeaking) {
-        await controller.speakAssistantPrompt('Đã dừng dịch liên tục.');
-      } else {
-        await voiceController.activateOtherLearningFromSpeaking();
-      }
+      await voiceController.activateOtherLearningFromSpeaking();
     } finally {
       _isFinishingMainSpeakingMode = false;
       if (mounted) {
         setState(() => _isActivatingMainAssistant = false);
-      }
-      if (command == MainSpeakingCommand.stop &&
-          isContinuousSpeaking &&
-          _restoreHfpAfterPhysicalMain) {
-        unawaited(_restoreHfpSelectionAfterPhysicalMain());
       }
     }
   }

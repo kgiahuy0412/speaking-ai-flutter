@@ -123,6 +123,13 @@ abstract interface class StreamingSpeechInput {
   Future<void> dispose();
 }
 
+/// Marks a native recognizer that acquires and releases its own short HFP
+/// route lease for every recognition turn.
+///
+/// A controller using this input must not open a second lease around start(),
+/// otherwise its route flag becomes stale as soon as the recognizer stops.
+abstract interface class HfpRouteOwningStreamingSpeechInput {}
+
 /// Optional signal emitted as soon as the native audio engine detects speech.
 ///
 /// A partial transcript can arrive noticeably later (especially on an HFP
@@ -1115,7 +1122,8 @@ class AndroidStreamingSpeechInput
   }
 }
 
-class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput {
+class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
+    implements HfpRouteOwningStreamingSpeechInput {
   IOSStreamingSpeechInput({
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),

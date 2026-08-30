@@ -1,4 +1,4 @@
-enum MainSpeakingCommand { stop, otherLearning }
+enum MainSpeakingCommand { otherLearning }
 
 /// Resolves high-priority commands spoken while the automatic speaking
 /// practice microphone is open. Unmatched sentences stay in the normal
@@ -12,11 +12,6 @@ class MainSpeakingCommandResolver {
       return null;
     }
 
-    final commandText = _stripPoliteSuffix(normalized);
-    if (_stopPhrases.contains(commandText)) {
-      return MainSpeakingCommand.stop;
-    }
-
     final asksForSomethingElse =
         _containsPhrase(normalized, 'cai gi khac de hoc') ||
         _containsPhrase(normalized, 'gi khac de hoc') ||
@@ -26,56 +21,10 @@ class MainSpeakingCommandResolver {
         _containsPhrase(normalized, 'hoc mon khac') ||
         _containsPhrase(normalized, 'hoc bai khac') ||
         _containsPhrase(normalized, 'doi sang hoc khac');
-    final wantsToLeaveSpeaking =
-        _containsPhrase(normalized, 'khong muon luyen noi nua') ||
-        _containsPhrase(normalized, 'dung luyen noi') ||
-        _containsPhrase(normalized, 'thoat luyen noi');
-    if (asksForSomethingElse || wantsToLeaveSpeaking) {
+    if (asksForSomethingElse) {
       return MainSpeakingCommand.otherLearning;
     }
     return null;
-  }
-
-  static const Set<String> _stopPhrases = <String>{
-    'dung',
-    'dung lai',
-    'con muon dung',
-    'con muon dung lai',
-    'dung dich',
-    'dung dich lai',
-    'dung dich lien tuc',
-    'ngung',
-    'ngung lai',
-    'con muon ngung',
-    'con muon ngung lai',
-    'ngung dich',
-    'thoi dung lai',
-    'thoi con dung lai',
-    'khong dich nua',
-    'con khong dich nua',
-    'con khong muon dich nua',
-    'thoat dich',
-    'hay dung lai',
-    'hay ngung lai',
-    'lam on dung lai',
-    'lam on ngung lai',
-  };
-
-  static String _stripPoliteSuffix(String value) {
-    var result = value;
-    const suffixes = <String>[' nhe a', ' di a', ' nhe', ' di', ' a'];
-    var changed = true;
-    while (changed) {
-      changed = false;
-      for (final suffix in suffixes) {
-        if (result.endsWith(suffix)) {
-          result = result.substring(0, result.length - suffix.length).trim();
-          changed = true;
-          break;
-        }
-      }
-    }
-    return result;
   }
 
   static bool _containsPhrase(String value, String phrase) =>

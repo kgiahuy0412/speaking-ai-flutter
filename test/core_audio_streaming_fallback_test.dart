@@ -8,6 +8,7 @@ import 'package:ai_speaking_flutter_app/core/audio/offline_intent_recognizer.dar
 import 'package:ai_speaking_flutter_app/core/audio/preferred_audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/realtime_fallback_buffer.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
+import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
@@ -1449,6 +1450,330 @@ void main() {
     controller.dispose();
   });
 
+  test('iOS streaming speech exclusively owns the capture HFP lease', () async {
+    final hfp = _FakeHfpAudioControl();
+    final recognizer = _FakeRouteOwningIOSStreamingSpeechInput(hfp);
+    final resultCompleter = Completer<ConversationResult>()
+      ..complete(
+        _result(
+          'stream-result',
+          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+        ),
+      );
+    final repository = _FallbackRepository(
+      streamingResultCompleter: resultCompleter,
+    );
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Mic iPhone',
+      ),
+      streamingSpeechInput: recognizer,
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(
+        id: 'ios-hfp-input',
+        name: 'H20 HFP',
+        isConnected: true,
+      ),
+    );
+    await controller.startRecording();
+
+    expect(hfp.startRouteCount, 1, reason: 'Only the iOS recognizer opens SCO');
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(
+      hfp.startRouteCount,
+      2,
+      reason: 'Playback obtains a fresh route after recognition releases SCO',
+    );
+    expect(hfp.stopRouteCount, 2);
+    expect(repository.streamingCapture?.isBluetoothInput, isTrue);
+    controller.dispose();
+  });
+
+  test('audio preparation has a finite failure boundary', () async {
+    final playback = _NeverPreparingPlaybackService();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      streamingSpeechInput: _FakeStreamingSpeechInput(
+        sourceText: 'Một câu hoàn toàn mới',
+      ),
+      playbackService: playback,
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      audioPreparationTimeout: const Duration(milliseconds: 25),
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller
+        .stopRecording(manual: true)
+        .timeout(const Duration(milliseconds: 300));
+
+    expect(controller.phase, ConversationPhase.error);
+    expect(controller.errorMessage, contains('chuẩn bị âm thanh'));
+    controller.dispose();
+  });
+
+  test('MAIN cancellation during HFP start prevents late recording', () async {
+    final hfp = _BlockingStartHfpAudioControl();
+    final recognizer = _FakeIOSStreamingSpeechInput();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Mic iPhone',
+      ),
+      streamingSpeechInput: recognizer,
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
+    );
+    final starting = controller.startRecording();
+    await hfp.startRequested.future;
+
+    final cancellation = await controller.cancelCurrentMainAction();
+    hfp.completeStart();
+    await starting.timeout(const Duration(milliseconds: 300));
+
+    expect(cancellation, MainButtonActionResult.accepted);
+    expect(recognizer.startCount, 0);
+    expect(controller.phase, ConversationPhase.idle);
+    controller.dispose();
+  });
+
+  test('pending HFP cancellation remains busy until native start settles', () async {
+    final hfp = _StubbornStartHfpAudioControl();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Mic iPhone',
+      ),
+      hfpAudioControl: hfp,
+      streamingSpeechInput: _FakeIOSStreamingSpeechInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      cancellationBarrierTimeout: const Duration(milliseconds: 20),
+    );
+
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
+    );
+    final starting = controller.startRecording();
+    await hfp.startRequested.future;
+
+    final cancellation = await controller.cancelCurrentMainAction();
+
+    expect(cancellation, MainButtonActionResult.busy);
+    expect(controller.isBusy, isTrue);
+
+    hfp.completeStart();
+    await starting.timeout(const Duration(milliseconds: 300));
+    expect(controller.isBusy, isFalse);
+    controller.dispose();
+  });
+
+  test(
+    'MAIN cancellation during native start prevents late recording',
+    () async {
+      final recognizer = _BlockingStartIOSStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Mic iPhone',
+        ),
+        streamingSpeechInput: recognizer,
+        playbackService: const _FakePlaybackService(),
+        repository: _FallbackRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      final starting = controller.startRecording();
+      await recognizer.startRequested.future;
+      final cancellation = await controller.cancelCurrentMainAction();
+      recognizer.completeStart();
+      await starting.timeout(const Duration(milliseconds: 300));
+
+      expect(cancellation, MainButtonActionResult.accepted);
+      expect(controller.phase, ConversationPhase.idle);
+      controller.dispose();
+    },
+  );
+
+  test('playback start has a finite failure boundary', () async {
+    final playback = _NeverStartingPlaybackService();
+    final resultCompleter = Completer<ConversationResult>()
+      ..complete(
+        _result(
+          'stream-result',
+          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+        ),
+      );
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      streamingSpeechInput: _FakeStreamingSpeechInput(
+        sourceText: 'Một câu hoàn toàn mới',
+      ),
+      playbackService: playback,
+      repository: _FallbackRepository(
+        streamingResultCompleter: resultCompleter,
+      ),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      audioPreparationTimeout: const Duration(milliseconds: 25),
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller
+        .stopRecording(manual: true)
+        .timeout(const Duration(milliseconds: 300));
+
+    expect(controller.phase, ConversationPhase.error);
+    expect(controller.errorMessage, contains('chuẩn bị âm thanh'));
+    expect(playback.stopCount, greaterThan(0));
+    controller.dispose();
+  });
+
+  test('early exact-rule playback cannot prepare forever', () async {
+    final playback = _NeverStartingPlaybackService();
+    final resultCompleter = Completer<ConversationResult>()
+      ..complete(
+        _result(
+          'stream-result',
+          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+        ),
+      );
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      streamingSpeechInput: _FakeStreamingSpeechInput(
+        sourceText: 'Con muốn uống nước',
+      ),
+      playbackService: playback,
+      repository: _FallbackRepository(
+        streamingResultCompleter: resultCompleter,
+      ),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      audioPreparationTimeout: const Duration(milliseconds: 25),
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller
+        .stopRecording(manual: true)
+        .timeout(const Duration(milliseconds: 300));
+
+    expect(controller.phase, ConversationPhase.error);
+    expect(playback.stopCount, greaterThan(0));
+    controller.dispose();
+  });
+
+  test('HFP playback route start has a finite failure boundary', () async {
+    final hfp = _NeverStartingHfpAudioControl();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Mic iPhone',
+      ),
+      hfpAudioControl: hfp,
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      audioPreparationTimeout: const Duration(milliseconds: 25),
+    );
+    controller.result = _result(
+      'result',
+      audioUri: Uri.parse('https://api.example.com/result.mp3'),
+    );
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
+    );
+
+    await expectLater(
+      controller
+          .playResult(reportLatency: true, propagateFailure: true)
+          .timeout(const Duration(milliseconds: 300)),
+      throwsA(isA<PlaybackException>()),
+    );
+
+    expect(controller.transientMessage, contains('H20'));
+    expect(hfp.stopRouteCount, 1);
+    controller.dispose();
+  });
+
+  test('MAIN cancellation blocks a late HFP playback start', () async {
+    final hfp = _BlockingStartHfpAudioControl();
+    final playback = _RecordingPlaybackService();
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Mic iPhone',
+      ),
+      hfpAudioControl: hfp,
+      playbackService: playback,
+      repository: _FallbackRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+      cancellationBarrierTimeout: const Duration(milliseconds: 100),
+    );
+    controller.result = _result(
+      'result',
+      audioUri: Uri.parse('https://api.example.com/result.mp3'),
+    );
+    await controller.connectHfpDevice(
+      const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
+    );
+
+    final pendingPlayback = controller.playResult();
+    await hfp.startRequested.future;
+    final cancellation = await controller.cancelCurrentMainAction();
+    await pendingPlayback.timeout(const Duration(milliseconds: 300));
+
+    expect(cancellation, MainButtonActionResult.accepted);
+    expect(playback.playCount, 0);
+    expect(hfp.stopRouteCount, greaterThan(0));
+    expect(controller.phase, ConversationPhase.idle);
+    controller.dispose();
+  });
+
   test('iOS start failure records with Cloudflare Batch fallback', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -1844,6 +2169,58 @@ class _FakeIOSStreamingSpeechInput extends _FakeStreamingSpeechInput
   }
 }
 
+class _BlockingStartIOSStreamingSpeechInput
+    extends _FakeIOSStreamingSpeechInput {
+  final Completer<void> startRequested = Completer<void>();
+  final Completer<void> _startCompleter = Completer<void>();
+
+  void completeStart() {
+    if (!_startCompleter.isCompleted) _startCompleter.complete();
+  }
+
+  @override
+  Future<void> start() async {
+    if (!startRequested.isCompleted) startRequested.complete();
+    await _startCompleter.future;
+    await super.start();
+  }
+
+  @override
+  Future<void> cancel() async {
+    completeStart();
+    await super.cancel();
+  }
+}
+
+class _FakeRouteOwningIOSStreamingSpeechInput
+    extends _FakeIOSStreamingSpeechInput
+    implements HfpRouteOwningStreamingSpeechInput {
+  _FakeRouteOwningIOSStreamingSpeechInput(this.routeControl);
+
+  final HfpAudioControl routeControl;
+
+  @override
+  Future<void> start() async {
+    await routeControl.startAudioRoute();
+    await super.start();
+  }
+
+  @override
+  Future<StreamingSpeechCapture> stop() async {
+    try {
+      return await super.stop();
+    } finally {
+      await routeControl.stopAudioRoute();
+    }
+  }
+
+  @override
+  Future<void> cancel() async {
+    await super.cancel();
+    await routeControl.stopAudioRoute();
+  }
+}
+
 class _ArchivingFallbackRepository extends _FallbackRepository
     implements UserAudioArchiveRepository {
   final Completer<(ConversationResult, AudioCapture)> archived =
@@ -1948,6 +2325,60 @@ class _FakeHfpAudioControl implements HfpAudioControl {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _BlockingStartHfpAudioControl extends _FakeHfpAudioControl {
+  final Completer<void> startRequested = Completer<void>();
+  final Completer<void> _startCompleter = Completer<void>();
+
+  void completeStart() {
+    if (!_startCompleter.isCompleted) _startCompleter.complete();
+  }
+
+  @override
+  Future<void> startAudioRoute() async {
+    startRouteCount += 1;
+    if (!startRequested.isCompleted) startRequested.complete();
+    await _startCompleter.future;
+  }
+
+  @override
+  Future<void> stopAudioRoute() async {
+    await super.stopAudioRoute();
+    completeStart();
+  }
+}
+
+class _StubbornStartHfpAudioControl extends _FakeHfpAudioControl {
+  final Completer<void> startRequested = Completer<void>();
+  final Completer<void> _startCompleter = Completer<void>();
+
+  void completeStart() {
+    if (!_startCompleter.isCompleted) _startCompleter.complete();
+  }
+
+  @override
+  Future<void> startAudioRoute() async {
+    startRouteCount += 1;
+    if (!startRequested.isCompleted) startRequested.complete();
+    await _startCompleter.future;
+  }
+}
+
+class _NeverStartingHfpAudioControl extends _FakeHfpAudioControl {
+  final Completer<void> _startCompleter = Completer<void>();
+
+  @override
+  Future<void> startAudioRoute() {
+    startRouteCount += 1;
+    return _startCompleter.future;
+  }
+
+  @override
+  Future<void> stopAudioRoute() async {
+    await super.stopAudioRoute();
+    if (!_startCompleter.isCompleted) _startCompleter.complete();
+  }
 }
 
 class _FakeChunkedInput implements ChunkedAudioInput {
@@ -2485,6 +2916,88 @@ class _BlockingPlaybackService implements AudioPlaybackService {
 
   @override
   Future<PlaybackStartMetrics> play(Uri uri) => _playCompleter.future;
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _NeverPreparingPlaybackService implements AudioPlaybackService {
+  final Completer<void> _preparation = Completer<void>();
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> prepare() => _preparation.future;
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) async =>
+      const PlaybackStartMetrics(
+        audioLoadDuration: Duration.zero,
+        startedAfterRequest: Duration.zero,
+        fromDeviceCache: false,
+      );
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _NeverStartingPlaybackService implements AudioPlaybackService {
+  final Completer<PlaybackStartMetrics> _playback =
+      Completer<PlaybackStartMetrics>();
+  int stopCount = 0;
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) => _playback.future;
+
+  @override
+  Future<void> stop() async {
+    stopCount += 1;
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _RecordingPlaybackService implements AudioPlaybackService {
+  int playCount = 0;
+
+  @override
+  Stream<bool> get playingStream => const Stream<bool>.empty();
+
+  @override
+  Future<void> prepare() async {}
+
+  @override
+  Future<void> preload(Uri uri) async {}
+
+  @override
+  Future<PlaybackStartMetrics> play(Uri uri) async {
+    playCount += 1;
+    return const PlaybackStartMetrics(
+      audioLoadDuration: Duration.zero,
+      startedAfterRequest: Duration.zero,
+      fromDeviceCache: false,
+    );
+  }
 
   @override
   Future<void> stop() async {}

@@ -489,12 +489,23 @@ class VoiceNavigationController extends ChangeNotifier {
           if (_disposed || generation != _generation) {
             return false;
           }
-          await promptService
-              .speakAndWait(utterance.text, locale: utterance.locale)
-              .timeout(
-                _voicePromptTimeout,
-                onTimeout: () => promptService.stop(),
-              );
+          final promptPlayback =
+              !kIsWeb &&
+                  defaultTargetPlatform == TargetPlatform.iOS &&
+                  promptService is SelectedMediaOutputVoicePromptService
+              ? (promptService as SelectedMediaOutputVoicePromptService)
+                    .speakAndWaitOnSelectedMediaOutput(
+                      utterance.text,
+                      locale: utterance.locale,
+                    )
+              : promptService.speakAndWait(
+                  utterance.text,
+                  locale: utterance.locale,
+                );
+          await promptPlayback.timeout(
+            _voicePromptTimeout,
+            onTimeout: () => promptService.stop(),
+          );
         }
       }
     } catch (error) {

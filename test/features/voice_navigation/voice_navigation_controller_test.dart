@@ -8,6 +8,7 @@ import 'package:ai_speaking_flutter_app/features/voice_navigation/application/ma
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -88,7 +89,7 @@ void main() {
     );
     expect(voicePrompt.spokenTexts, <String>[
       MainVoiceAssistantFlow.openingPrompt,
-      'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
+      'Con nói từng câu nhé. Khi muốn dừng, con nhấn MAIN.',
     ]);
     expect(
       receivedIntent?.destination,
@@ -99,6 +100,28 @@ void main() {
 
     controller.dispose();
     await speechInput.dispose();
+  });
+
+  test('iOS MAIN prompts use the selected H20 media output', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _SelectedMediaVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+    );
+    addTearDown(() async {
+      controller.dispose();
+      await speechInput.dispose();
+    });
+
+    expect(await controller.activateFromMainButton(), isTrue);
+
+    expect(voicePrompt.mediaOutputTexts, <String>[
+      MainVoiceAssistantFlow.openingPrompt,
+    ]);
+    expect(voicePrompt.regularOutputTexts, isEmpty);
   });
 
   test(
@@ -1186,6 +1209,30 @@ class _FakeMainTurnVoicePromptService extends _FakeVoicePromptService
   Future<void> endMainTurn(String reason, {String? turnId}) async {
     endedReasons.add(reason);
     endedTurnIds.add(turnId);
+  }
+}
+
+class _SelectedMediaVoicePromptService extends _FakeVoicePromptService
+    implements SelectedMediaOutputVoicePromptService {
+  final List<String> mediaOutputTexts = <String>[];
+  final List<String> regularOutputTexts = <String>[];
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    regularOutputTexts.add(text);
+  }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    regularOutputTexts.add(text);
+  }
+
+  @override
+  Future<void> speakAndWaitOnSelectedMediaOutput(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    mediaOutputTexts.add(text);
   }
 }
 

@@ -13,7 +13,8 @@ void main() {
     expect(flow.begin(), MainVoiceAssistantFlow.openingPrompt);
     final turn = await flow.handle('Con muốn luyện nói');
 
-    expect(turn.promptText, contains('Muốn dừng thì nói dừng lại'));
+    expect(turn.promptText, contains('nhấn MAIN'));
+    expect(turn.promptText, isNot(contains('nói dừng lại')));
     expect(turn.continueListening, isFalse);
     expect(
       turn.navigationAfterPrompt?.destination,
