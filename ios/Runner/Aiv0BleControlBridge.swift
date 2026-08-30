@@ -47,10 +47,23 @@ struct Aiv0DuplicatePacketFilter {
 }
 
 struct Aiv0ReconnectPolicy {
-  static let maxAttempts = 3
+  // Match Android's recovery budget. H20 can briefly drop its BLE GATT link
+  // while iOS brings up the two-way HFP route, but MAIN must recover without
+  // waiting for the user to open Parent settings.
+  static let maxAttempts = 5
 
   static func delaySeconds(forAttempt attempt: Int) -> TimeInterval {
-    min(pow(2.0, Double(max(attempt, 1) - 1)), 4.0)
+    switch max(attempt, 1) {
+    case 1:
+      // The disconnect callback is already definitive. An extra one-second
+      // delay creates a window where a physical MAIN press is irretrievably
+      // lost, so start the first CoreBluetooth reconnect immediately.
+      return 0
+    case 2:
+      return 0.25
+    default:
+      return min(0.75 * pow(2.0, Double(attempt - 3)), 3.0)
+    }
   }
 
   static func shouldDeferReconnect(
@@ -702,6 +715,16 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     message = "Đang kết nối lại H20 (lần \(attempt)/\(Aiv0ReconnectPolicy.maxAttempts))…"
     emitStatus()
     let delay = Aiv0ReconnectPolicy.delaySeconds(forAttempt: attempt)
+    audioSessionCoordinator.trace(
+      stage: "ble_manual_reconnect_scheduled",
+      caller: "Aiv0BleControlBridge.scheduleReconnect",
+      values: [
+        "attempt": attempt,
+        "delayMs": Int(delay * 1_000),
+        "hfpRouteActive": audioSessionCoordinator.hasTwoWayHfpRoute(),
+        "speechCaptureActive": audioSessionCoordinator.isSpeechCaptureActive,
+      ]
+    )
     let item = DispatchWorkItem { [weak self, weak peripheral] in
       guard let self, let peripheral, !self.manualDisconnect, !self.disposed else { return }
       self.reconnectWorkItem = nil
@@ -721,6 +744,15 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self.resetCharacteristics()
       peripheral.delegate = self
       if let manager = self.central {
+        self.audioSessionCoordinator.trace(
+          stage: "ble_manual_reconnect_started",
+          caller: "Aiv0BleControlBridge.reconnectWorkItem",
+          values: [
+            "attempt": attempt,
+            "hfpRouteActive": self.audioSessionCoordinator.hasTwoWayHfpRoute(),
+            "speechCaptureActive": self.audioSessionCoordinator.isSpeechCaptureActive,
+          ]
+        )
         self.connectPeripheral(peripheral, using: manager)
       }
       // CoreBluetooth connection requests intentionally have no application

@@ -144,6 +144,18 @@ struct IOSNativeSpeechTaskHintSelector {
   }
 }
 
+/// A stop-time recognizer error is expected on some iOS/Speech combinations
+/// after `endAudio()`/`finish()`. If Apple Speech already delivered a useful
+/// partial transcript, preserve it as the final result instead of turning a
+/// successful child utterance into another "prepare microphone" retry.
+struct IOSSpeechStopSalvagePolicy {
+  static func transcript(stopping: Bool, latestText: String) -> String? {
+    guard stopping else { return nil }
+    let normalized = latestText.trimmingCharacters(in: .whitespacesAndNewlines)
+    return normalized.isEmpty ? nil : normalized
+  }
+}
+
 /// Native, on-device-first speech recognition for iOS.
 ///
 /// iOS 26 uses SpeechAnalyzer when the Vietnamese model is supported. Older
@@ -702,6 +714,23 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
 
   private func finishWithError(code: String, error: Error) {
     guard active else { return }
+    if let transcript = IOSSpeechStopSalvagePolicy.transcript(
+      stopping: stopping,
+      latestText: latestText
+    ) {
+      audioSessionCoordinator.trace(
+        stage: "speech.stop_partial_salvaged",
+        caller: "IOSSpeechRecognizerBridge.finishWithError",
+        code: code,
+        message: transcript
+      )
+      finishSuccessfully(
+        text: transcript,
+        alternatives: latestAlternatives,
+        confidence: latestConfidence
+      )
+      return
+    }
     finalAt = Date()
     stopAudioCapture()
     recognitionRequest?.endAudio()

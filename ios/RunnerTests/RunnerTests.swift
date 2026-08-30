@@ -7,6 +7,37 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testAiv0ReconnectPolicyRecoversMainImmediatelyThenUsesBoundedBackoff() {
+    XCTAssertEqual(Aiv0ReconnectPolicy.maxAttempts, 5)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 1), 0)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 2), 0.25)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 0.75)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 1.5)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 5), 3)
+  }
+
+  func testIOSSpeechStopSalvagePolicyPreservesOnlyStopTimePartialText() {
+    XCTAssertEqual(
+      IOSSpeechStopSalvagePolicy.transcript(
+        stopping: true,
+        latestText: "  Con muốn đi sở thú  "
+      ),
+      "Con muốn đi sở thú"
+    )
+    XCTAssertNil(
+      IOSSpeechStopSalvagePolicy.transcript(
+        stopping: true,
+        latestText: "   "
+      )
+    )
+    XCTAssertNil(
+      IOSSpeechStopSalvagePolicy.transcript(
+        stopping: false,
+        latestText: "Con muốn đi sở thú"
+      )
+    )
+  }
+
   func testAiv0DuplicatePacketFilterUsesAndroidParityWindow() {
     var filter = Aiv0DuplicatePacketFilter()
 
