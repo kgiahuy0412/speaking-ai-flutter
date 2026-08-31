@@ -222,6 +222,99 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'continuous HFP waits for BLE MAIN Notify recovery before opening route',
+    () async {
+      final aiv0 = _FakeAiv0BleControl(
+        protocolConfirmed: true,
+        initialStatus: const Aiv0BleStatus(
+          phase: Aiv0BlePhase.reconnecting,
+          protocolConfirmed: true,
+          deviceId: 'H20-BLE',
+          deviceName: 'H20',
+          peripheralState: 'connecting',
+          mainNotificationState: 'unavailable',
+        ),
+      );
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        hfpAudioControl: _FakeHfpAudioControl(),
+        aiv0BleControl: aiv0,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+
+      final opening = controller.beginContinuousHfpSession(
+        bleRecoveryTimeout: const Duration(milliseconds: 500),
+        bleStableFor: const Duration(milliseconds: 20),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(speechInput.cancelCount, 1);
+      expect(speechInput.beginSessionCount, 0);
+
+      aiv0.emitStatus(
+        const Aiv0BleStatus(
+          phase: Aiv0BlePhase.connected,
+          protocolConfirmed: true,
+          deviceId: 'H20-BLE',
+          deviceName: 'H20',
+          peripheralState: 'connected',
+          mainNotificationState: 'notifying',
+        ),
+      );
+
+      expect(await opening, isTrue);
+      expect(speechInput.beginSessionCount, 1);
+      expect(controller.isContinuousHfpSessionActive, isTrue);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'continuous HFP does not open when MAIN Notify cannot recover',
+    () async {
+      final aiv0 = _FakeAiv0BleControl(
+        protocolConfirmed: true,
+        initialStatus: const Aiv0BleStatus(
+          phase: Aiv0BlePhase.reconnecting,
+          protocolConfirmed: true,
+          deviceId: 'H20-BLE',
+          deviceName: 'H20',
+          peripheralState: 'connecting',
+          mainNotificationState: 'unavailable',
+        ),
+      );
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        hfpAudioControl: _FakeHfpAudioControl(),
+        aiv0BleControl: aiv0,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+
+      expect(
+        await controller.beginContinuousHfpSession(
+          bleRecoveryTimeout: const Duration(milliseconds: 120),
+          bleStableFor: const Duration(milliseconds: 10),
+        ),
+        isFalse,
+      );
+      expect(speechInput.cancelCount, 1);
+      expect(speechInput.beginSessionCount, 0);
+      expect(controller.isContinuousHfpSessionActive, isFalse);
+      controller.dispose();
+    },
+  );
 }
 
 Future<void> _flushAsyncEvents() async {
@@ -273,6 +366,66 @@ class _FakeAudioInput implements AudioInput {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _FakeContinuousHfpStreamingSpeechInput
+    implements StreamingSpeechInput, ContinuousHfpSessionStreamingSpeechInput {
+  int cancelCount = 0;
+  int beginSessionCount = 0;
+  bool _sessionActive = false;
+
+  @override
+  String get label => 'H20 Apple Speech';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  bool get isContinuousHfpSessionActive => _sessionActive;
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
+    sourceText: 'hello',
+    duration: Duration(seconds: 1),
+    inputLabel: 'H20 Apple Speech',
+    confidence: 1,
+    firstResultMs: 10,
+    finalAfterStopMs: 10,
+    isBluetoothInput: true,
+  );
+
+  @override
+  Future<void> cancel() async {
+    cancelCount += 1;
+  }
+
+  @override
+  Future<void> beginContinuousHfpSession() async {
+    beginSessionCount += 1;
+    _sessionActive = true;
+  }
+
+  @override
+  Future<void> endContinuousHfpSession() async {
+    _sessionActive = false;
+  }
+
+  @override
+  Future<void> dispose() async {
+    _sessionActive = false;
+  }
 }
 
 class _FakeHfpAudioControl implements HfpAudioControl {
@@ -413,9 +566,23 @@ class _FakePlaybackService
 }
 
 class _FakeAiv0BleControl implements Aiv0BleControl {
-  _FakeAiv0BleControl({required this.protocolConfirmed});
+  _FakeAiv0BleControl({
+    required this.protocolConfirmed,
+    Aiv0BleStatus? initialStatus,
+  }) : _status =
+           initialStatus ??
+           Aiv0BleStatus(
+             phase: Aiv0BlePhase.connected,
+             protocolConfirmed: protocolConfirmed,
+             deviceId: 'H20-BLE',
+             deviceName: 'H20',
+             writeMode: 'withResponse',
+             peripheralState: 'connected',
+             mainNotificationState: 'notifying',
+           );
 
   final bool protocolConfirmed;
+  Aiv0BleStatus _status;
   final StreamController<Aiv0BleStatus> _statuses =
       StreamController<Aiv0BleStatus>.broadcast(sync: true);
   final StreamController<Aiv0ButtonEvent> _buttons =
@@ -423,13 +590,7 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
   int appStateWrites = 0;
 
   @override
-  Aiv0BleStatus get status => Aiv0BleStatus(
-    phase: Aiv0BlePhase.connected,
-    protocolConfirmed: protocolConfirmed,
-    deviceId: 'H20-BLE',
-    deviceName: 'H20',
-    writeMode: 'withResponse',
-  );
+  Aiv0BleStatus get status => _status;
 
   @override
   Stream<Aiv0BleStatus> get statusStream => _statuses.stream;
@@ -439,6 +600,11 @@ class _FakeAiv0BleControl implements Aiv0BleControl {
 
   @override
   Future<void> markParentDiagnosticsOpened() async {}
+
+  void emitStatus(Aiv0BleStatus status) {
+    _status = status;
+    _statuses.add(status);
+  }
 
   void emitMain({
     required int sequence,

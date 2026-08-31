@@ -622,31 +622,74 @@ class ConversationController extends ChangeNotifier {
     _mainButtonDispatcher = dispatcher;
   }
 
-  /// Opens one HFP route for a hands-free translation session, but only when
-  /// the physical MAIN transport is already confirmed. The first capture turn
-  /// performs the decisive BLE/HFP coexistence check before this lease is kept.
-  Future<bool> beginContinuousHfpSession() async {
+  /// Opens one HFP route for a hands-free translation session after the BLE
+  /// MAIN transport has recovered from the preceding command-recognition turn.
+  /// The first capture turn then performs the decisive BLE/HFP coexistence
+  /// check before this lease is kept.
+  Future<bool> beginContinuousHfpSession({
+    Duration bleRecoveryTimeout = const Duration(seconds: 8),
+    Duration bleStableFor = const Duration(milliseconds: 400),
+  }) async {
     final speechInput = _streamingSpeechInput;
-    final bleWasReady = _isAiv0MainTransportReady(aiv0BleStatus);
     if (_continuousHfpSessionActive) return true;
     if (!usesHfpInput ||
-        speechInput is! ContinuousHfpSessionStreamingSpeechInput ||
-        !bleWasReady) {
+        speechInput is! ContinuousHfpSessionStreamingSpeechInput) {
       recordAiv0MainDiagnostic(
         'MAIN_CONTINUOUS_HFP_SKIPPED',
         values: <String, Object?>{
           'usesHfpInput': usesHfpInput,
           'supportsSessionLease':
               speechInput is ContinuousHfpSessionStreamingSpeechInput,
-          'bleReady': bleWasReady,
         },
       );
       return false;
     }
+    final activeSpeechInput = speechInput as StreamingSpeechInput;
     final continuousInput =
-        speechInput as ContinuousHfpSessionStreamingSpeechInput;
+        activeSpeechInput as ContinuousHfpSessionStreamingSpeechInput;
 
     try {
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_PREPARE_STARTED');
+
+      // MAIN command recognition owns an utterance-scoped HFP lease. Release
+      // it before waiting for BLE; otherwise iOS cannot restore GATT/Notify and
+      // the wait itself would keep the transport permanently unavailable.
+      await activeSpeechInput.cancel();
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_PREVIOUS_CAPTURE_RELEASED');
+
+      if (!_isAiv0MainTransportReady(aiv0BleStatus)) {
+        recordAiv0MainDiagnostic(
+          'MAIN_CONTINUOUS_HFP_WAITING_FOR_BLE',
+          values: <String, Object?>{
+            'blePhase': aiv0BleStatus.phase.name,
+            'peripheralState': aiv0BleStatus.peripheralState ?? '',
+            'notify': aiv0BleStatus.mainNotificationState ?? '',
+          },
+        );
+        _requestAiv0MainTransportRecovery();
+      }
+
+      final mainTransportRecovered = await _waitForStableAiv0MainTransport(
+        timeout: bleRecoveryTimeout,
+        stableFor: bleStableFor,
+      );
+      if (!mainTransportRecovered) {
+        recordAiv0MainDiagnostic(
+          'MAIN_CONTINUOUS_HFP_BLE_RECOVERY_TIMEOUT',
+          values: <String, Object?>{
+            'timeoutMs': bleRecoveryTimeout.inMilliseconds,
+            'blePhase': aiv0BleStatus.phase.name,
+            'peripheralState': aiv0BleStatus.peripheralState ?? '',
+            'notify': aiv0BleStatus.mainNotificationState ?? '',
+          },
+        );
+        return false;
+      }
+      recordAiv0MainDiagnostic(
+        'MAIN_CONTINUOUS_HFP_BLE_READY_BEFORE_HFP',
+        values: <String, Object?>{'stableForMs': bleStableFor.inMilliseconds},
+      );
+
       await continuousInput.beginContinuousHfpSession();
       _continuousHfpSessionActive =
           continuousInput.isContinuousHfpSessionActive;
@@ -664,6 +707,27 @@ class ConversationController extends ChangeNotifier {
       await endContinuousHfpSession();
       return false;
     }
+  }
+
+  void _requestAiv0MainTransportRecovery() {
+    final control = _aiv0BleControl;
+    if (control is! MethodChannelAiv0BleControl) return;
+    unawaited(() async {
+      try {
+        final recovered = await control.autoConnectKnownOrNearby(
+          scanTimeout: const Duration(seconds: 2),
+        );
+        recordAiv0MainDiagnostic(
+          'MAIN_CONTINUOUS_HFP_RECOVERY_REQUEST_FINISHED',
+          values: <String, Object?>{'recovered': recovered},
+        );
+      } catch (error) {
+        recordAiv0MainDiagnostic(
+          'MAIN_CONTINUOUS_HFP_RECOVERY_REQUEST_FAILED',
+          message: '$error',
+        );
+      }
+    }());
   }
 
   Future<void> endContinuousHfpSession() async {
@@ -1942,7 +2006,10 @@ class ConversationController extends ChangeNotifier {
         // AVAudioEngine input activation is the boundary that made H20 drop
         // GATT in device logs. Do not trust a route-only preflight: require BLE
         // MAIN Notify to remain stable after real HFP audio buffers have begun.
-        final mainTransportStable = await _waitForStableAiv0MainTransport();
+        recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_WAITING_FOR_COEXISTENCE');
+        final mainTransportStable = await _waitForStableAiv0MainTransport(
+          timeout: const Duration(seconds: 7),
+        );
         if (await abandonCancelledRecordingStart()) return;
         if (!mainTransportStable) {
           recordAiv0MainDiagnostic(
