@@ -1450,7 +1450,7 @@ void main() {
     controller.dispose();
   });
 
-  test('iOS streaming speech exclusively owns the capture HFP lease', () async {
+  test('iOS native HFP capture uses selected media output for playback', () async {
     final hfp = _FakeHfpAudioControl();
     final recognizer = _FakeRouteOwningIOSStreamingSpeechInput(hfp);
     final resultCompleter = Completer<ConversationResult>()
@@ -1493,10 +1493,10 @@ void main() {
 
     expect(
       hfp.startRouteCount,
-      2,
-      reason: 'Playback obtains a fresh route after recognition releases SCO',
+      1,
+      reason: 'Playback must not reopen SCO after recognition releases it',
     );
-    expect(hfp.stopRouteCount, 2);
+    expect(hfp.stopRouteCount, 1);
     expect(repository.streamingCapture?.isBluetoothInput, isTrue);
     controller.dispose();
   });

@@ -587,6 +587,9 @@ class ConversationController extends ChangeNotifier {
       _audioInput is ChunkedAudioInput;
   bool get isBrowserHfpMode => supportsBrowserHfp && _hfpInputSelected;
   bool get usesHfpInput => _hfpInputSelected;
+  bool get _usesNativeUtteranceScopedHfpCapture =>
+      usesHfpInput &&
+      _streamingSpeechInput is HfpRouteOwningStreamingSpeechInput;
   bool get isBluetoothInput =>
       usesHfpInput || _usingHfpRoute || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
@@ -3101,7 +3104,21 @@ class ConversationController extends ChangeNotifier {
 
     var openedHfpForReplay = false;
     try {
-      if (usesHfpInput && canUseHfp && !_usingHfpRoute) {
+      // Native iOS recognition already opened and released one utterance-scoped
+      // HFP/SCO route. Reopening HFP only to play the translated sentence makes
+      // every continuous turn negotiate Classic Bluetooth twice, invalidates
+      // the playback preparation started alongside the backend request, and
+      // closes the BLE window needed by the physical MAIN button. Output-only
+      // playback keeps the paired H20 on A2DP while BLE remains available; the
+      // next recording turn will explicitly reopen its HFP microphone lease.
+      final useSelectedMediaOutput = _usesNativeUtteranceScopedHfpCapture;
+      if (useSelectedMediaOutput) {
+        _setPlaybackCommunicationRoute(false);
+      }
+      if (usesHfpInput &&
+          canUseHfp &&
+          !_usingHfpRoute &&
+          !useSelectedMediaOutput) {
         await _startHfpRouteWithTimeout(
           expectedTurnGeneration: playbackTurnGeneration,
         );
