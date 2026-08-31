@@ -474,6 +474,7 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
   StreamSubscription<Object?>? _eventSubscription;
   Aiv0BleStatus _status;
   Future<void> _writeQueue = Future<void>.value();
+  Future<void> _diagnosticWriteQueue = Future<void>.value();
   Future<bool>? _autoConnectFuture;
   bool _manualDisconnectRequested = false;
 
@@ -653,6 +654,32 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
       'markParentDiagnosticsOpened',
     );
     if (map != null) _updateStatus(map);
+  }
+
+  /// Appends one Flutter-side MAIN lifecycle boundary to the native iOS
+  /// BLE/HFP timeline. Calls are serialized so their order still reflects the
+  /// real dispatcher order when cancellation and assistant activation overlap.
+  Future<void> recordMainDiagnostic({
+    required String stage,
+    String? message,
+    Map<String, Object?> values = const <String, Object?>{},
+  }) {
+    if (!_enabled || defaultTargetPlatform != TargetPlatform.iOS) {
+      return Future<void>.value();
+    }
+    final write = _diagnosticWriteQueue.catchError((Object _) {}).then((
+      _,
+    ) async {
+      await _methodChannel
+          .invokeMethod<void>('recordMainDiagnostic', <String, Object?>{
+            'stage': stage,
+            'message': ?message,
+            'dartEventEpochMs': DateTime.now().millisecondsSinceEpoch,
+            'values': values,
+          });
+    });
+    _diagnosticWriteQueue = write;
+    return write;
   }
 
   @override

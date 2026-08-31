@@ -64,4 +64,45 @@ void main() {
     );
     await control.dispose();
   });
+
+  test(
+    'serializes Flutter MAIN diagnostics into the native timeline',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return null;
+          });
+      final control = MethodChannelAiv0BleControl(
+        enabled: true,
+        draftProtocolConfirmed: false,
+      );
+
+      await Future.wait<void>(<Future<void>>[
+        control.recordMainDiagnostic(
+          stage: 'MAIN_DART_RECEIVED',
+          values: const <String, Object?>{'sequence': 7},
+        ),
+        control.recordMainDiagnostic(
+          stage: 'MAIN_DART_DISPATCH_COMPLETED',
+          values: const <String, Object?>{'result': 'accepted'},
+        ),
+      ]);
+
+      expect(calls.map((call) => call.method), <String>[
+        'recordMainDiagnostic',
+        'recordMainDiagnostic',
+      ]);
+      expect(
+        (calls.first.arguments as Map<Object?, Object?>)['stage'],
+        'MAIN_DART_RECEIVED',
+      );
+      expect(
+        (calls.last.arguments as Map<Object?, Object?>)['stage'],
+        'MAIN_DART_DISPATCH_COMPLETED',
+      );
+      await control.dispose();
+    },
+  );
 }

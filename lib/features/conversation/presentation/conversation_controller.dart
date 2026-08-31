@@ -791,6 +791,8 @@ class ConversationController extends ChangeNotifier {
     if (!event.isActionable) {
       _recordAiv0MainDispatch(
         'raw nhận được nhưng chưa hỗ trợ • ${event.rawHex}',
+        stage: 'MAIN_DART_UNSUPPORTED_RAW',
+        values: _mainDiagnosticValues(event: event),
       );
       transientMessage = 'Đã nhận raw hex chưa hỗ trợ từ H20: ${event.rawHex}.';
       notifyListeners();
@@ -799,10 +801,16 @@ class ConversationController extends ChangeNotifier {
     _recordAiv0MainDispatch(
       'received • seq=${event.sequence ?? 0} • '
       '${event.isDuplicate ? 'duplicate' : 'actionable'}',
+      stage: 'MAIN_DART_RECEIVED',
+      values: _mainDiagnosticValues(event: event),
     );
     unawaited(
       _handleAiv0ButtonEvent(event).catchError((Object error) async {
-        _recordAiv0MainDispatch('error • ${_friendlyError(error)}');
+        _recordAiv0MainDispatch(
+          'error • ${_friendlyError(error)}',
+          stage: 'MAIN_DART_DISPATCH_ERROR',
+          values: _mainDiagnosticValues(event: event),
+        );
         transientMessage = _friendlyError(error);
         if (!_disposed) notifyListeners();
         await _syncAiv0AppState(
@@ -816,7 +824,11 @@ class ConversationController extends ChangeNotifier {
   Future<void> _handleAiv0ButtonEvent(Aiv0ButtonEvent event) async {
     final sequence = event.sequence ?? 0;
     if (event.isDuplicate) {
-      _recordAiv0MainDispatch('duplicate ignored • seq=$sequence');
+      _recordAiv0MainDispatch(
+        'duplicate ignored • seq=$sequence',
+        stage: 'MAIN_DART_DUPLICATE_IGNORED',
+        values: _mainDiagnosticValues(event: event),
+      );
       await _syncAiv0AppState(
         resultCode: Aiv0AppResult.duplicate,
         sequence: sequence,
@@ -843,14 +855,25 @@ class ConversationController extends ChangeNotifier {
       gesture: gesture,
       sequence: event.sequence,
     );
-    _recordAiv0MainDispatch('dispatching • ${gesture.name} • seq=$sequence');
+    _recordAiv0MainDispatch(
+      'dispatching • ${gesture.name} • seq=$sequence',
+      stage: 'MAIN_DART_DISPATCH_STARTED',
+      values: _mainDiagnosticValues(event: event),
+    );
     final dispatcher = _mainButtonDispatcher;
     final result = dispatcher == null
         ? gesture == MainButtonGesture.shortPress
               ? await handleBleMainShortPress(inputEvent)
               : MainButtonActionResult.ignored
         : await dispatcher(inputEvent);
-    _recordAiv0MainDispatch('${result.name} • seq=$sequence');
+    _recordAiv0MainDispatch(
+      '${result.name} • seq=$sequence',
+      stage: 'MAIN_DART_DISPATCH_COMPLETED',
+      values: <String, Object?>{
+        ..._mainDiagnosticValues(event: event),
+        'result': result.name,
+      },
+    );
     await _syncAiv0AppState(
       resultCode: switch (result) {
         MainButtonActionResult.accepted => Aiv0AppResult.accepted,
@@ -861,13 +884,57 @@ class ConversationController extends ChangeNotifier {
     );
   }
 
-  void _recordAiv0MainDispatch(String status) {
+  Map<String, Object?> _mainDiagnosticValues({Aiv0ButtonEvent? event}) =>
+      <String, Object?>{
+        if (event != null) ...<String, Object?>{
+          'sequence': event.sequence ?? 0,
+          'gesture': event.gesture.name,
+          'duplicate': event.isDuplicate,
+          'rawHex': event.rawHex,
+        },
+        'conversationPhase': phase.name,
+        'processingStage': processingStage.name,
+        'preparingMicrophone': _preparingMicrophone,
+        'recordingStartPending': _recordingStartOperation != null,
+        'stopInProgress': _stopInProgress,
+        'playbackPlaying': _playbackPlaying,
+      };
+
+  void _recordAiv0MainDispatch(
+    String status, {
+    String stage = 'MAIN_DART_STATUS',
+    Map<String, Object?> values = const <String, Object?>{},
+  }) {
     _aiv0MainDispatchStatus = status;
     _aiv0MainDispatchAt = DateTime.now();
     debugPrint('H20 MAIN: $status');
+    recordAiv0MainDiagnostic(stage, message: status, values: values);
     if (!_disposed) {
       notifyListeners();
     }
+  }
+
+  /// Records the app coordinator boundary in the same native timeline as BLE,
+  /// HFP and Apple Speech. This is intentionally best-effort and never blocks a
+  /// physical MAIN action.
+  void recordAiv0MainDiagnostic(
+    String stage, {
+    String? message,
+    Map<String, Object?> values = const <String, Object?>{},
+  }) {
+    final control = _aiv0BleControl;
+    if (control is! MethodChannelAiv0BleControl) return;
+    unawaited(
+      control
+          .recordMainDiagnostic(
+            stage: stage,
+            message: message,
+            values: <String, Object?>{..._mainDiagnosticValues(), ...values},
+          )
+          .catchError((Object error) {
+            debugPrint('Cannot append MAIN diagnostic: $error');
+          }),
+    );
   }
 
   /// Preserves the V1 physical MAIN short-press behavior. The coordinator uses

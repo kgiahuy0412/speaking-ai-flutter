@@ -373,6 +373,31 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       )
       emitStatus()
       result(snapshot())
+    case "recordMainDiagnostic":
+      let arguments = call.arguments as? [String: Any]
+      let requestedStage = (arguments?["stage"] as? String)?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      guard requestedStage.hasPrefix("MAIN_") else {
+        result(
+          FlutterError(
+            code: "INVALID_DIAGNOSTIC_STAGE",
+            message: "MAIN diagnostic stage is invalid.",
+            details: nil
+          )
+        )
+        return
+      }
+      var values = arguments?["values"] as? [String: Any] ?? [:]
+      if let dartEventEpochMs = arguments?["dartEventEpochMs"] as? NSNumber {
+        values["dartEventEpochMs"] = dartEventEpochMs.intValue
+      }
+      audioSessionCoordinator.trace(
+        stage: requestedStage,
+        caller: "Flutter.MainDispatch",
+        message: arguments?["message"] as? String,
+        values: values
+      )
+      result(nil)
     case "dispose":
       dispose()
       result(nil)
@@ -1489,6 +1514,16 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         bytes[3] == 0x01
       {
         audioSessionCoordinator.notePhysicalMain(rawHex: rawHex)
+        let packetSequence = Int(bytes[4]) | (Int(bytes[5]) << 8)
+        audioSessionCoordinator.trace(
+          stage: "MAIN_EVENT_DELIVERY_ATTEMPT",
+          caller: "Aiv0BleControlBridge.eventChannel",
+          message: rawHex,
+          values: [
+            "eventSinkAttached": eventSink != nil,
+            "sequence": packetSequence,
+          ]
+        )
       }
       eventSink?([
         "type": "button",

@@ -813,7 +813,24 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   Future<MainButtonActionResult> _handleUnifiedMainShortPress(
     MainButtonInputEvent event,
   ) async {
+    final controller = _controller;
+    controller?.recordAiv0MainDiagnostic(
+      'MAIN_APP_HANDLER_ENTER',
+      values: <String, Object?>{
+        'source': event.source.name,
+        'sequence': event.sequence ?? 0,
+        'startupReady': _startupReady,
+        'voiceAccessEnabled': _voiceAccessEnabled,
+        'mainSpeakingState': _mainSpeakingSessionController.state.name,
+        'activatingAssistant': _isActivatingMainAssistant,
+        'finishingSpeakingMode': _isFinishingMainSpeakingMode,
+      },
+    );
     if (!_startupReady || !_voiceAccessEnabled) {
+      controller?.recordAiv0MainDiagnostic(
+        'MAIN_APP_HANDLER_REJECTED',
+        message: 'startup_or_voice_access_not_ready',
+      );
       return MainButtonActionResult.busy;
     }
     // The physical H20 MAIN and the on-screen MAIN must be indistinguishable
@@ -822,9 +839,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     // already proves that the selected HFP/phone route and assistant lifecycle
     // are valid; source-specific preparation used to create a second, racy path
     // that could return busy before the assistant prompt was started.
+    controller?.recordAiv0MainDiagnostic(
+      'MAIN_APP_PATH_SELECTED',
+      message: _mainSpeakingSessionController.isActive
+          ? 'interrupt_continuous_translation'
+          : 'activate_main_assistant',
+    );
     final activated = _mainSpeakingSessionController.isActive
         ? await _interruptContinuousTranslationWithMain()
         : await _activateMainAssistant();
+    controller?.recordAiv0MainDiagnostic(
+      'MAIN_APP_HANDLER_COMPLETED',
+      values: <String, Object?>{'activated': activated},
+    );
     if (!activated && _restoreHfpAfterPhysicalMain) {
       unawaited(_restoreHfpSelectionAfterPhysicalMain());
     }
@@ -843,6 +870,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         controller == null ||
         _isActivatingMainAssistant ||
         _isFinishingMainSpeakingMode) {
+      controller?.recordAiv0MainDiagnostic(
+        'MAIN_INTERRUPT_REJECTED',
+        values: <String, Object?>{
+          'voiceControllerAvailable': voiceController != null,
+          'activatingAssistant': _isActivatingMainAssistant,
+          'finishingSpeakingMode': _isFinishingMainSpeakingMode,
+        },
+      );
       return false;
     }
 
@@ -852,15 +887,31 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      return _mainSpeakingSessionController.interruptForMainAssistant(
+      controller.recordAiv0MainDiagnostic('MAIN_INTERRUPT_STARTED');
+      return await _mainSpeakingSessionController.interruptForMainAssistant(
         cancelCurrentAction: () async {
           // MAIN is the explicit cancellation boundary. Do not finalize or
           // translate the interrupted sentence before opening the menu.
           final action = await controller.cancelCurrentMainAction();
+          controller.recordAiv0MainDiagnostic(
+            'MAIN_INTERRUPT_CANCEL_COMPLETED',
+            values: <String, Object?>{'result': action.name},
+          );
           controller.clearMessage();
           return action != MainButtonActionResult.busy;
         },
-        activateAssistant: voiceController.activateOtherLearningFromSpeaking,
+        activateAssistant: () async {
+          controller.recordAiv0MainDiagnostic(
+            'MAIN_INTERRUPT_ASSISTANT_STARTING',
+          );
+          final activated = await voiceController
+              .activateOtherLearningFromSpeaking();
+          controller.recordAiv0MainDiagnostic(
+            'MAIN_INTERRUPT_ASSISTANT_COMPLETED',
+            values: <String, Object?>{'activated': activated},
+          );
+          return activated;
+        },
       );
     } finally {
       _isFinishingMainSpeakingMode = false;
