@@ -300,6 +300,7 @@ class ConversationController extends ChangeNotifier {
   bool _usingStreamingSpeech = false;
   bool _usingRecordedAudioSpeech = false;
   bool _usingHfpRoute = false;
+  bool _continuousHfpSessionActive = false;
   bool _hfpInputSelected;
   bool _preparingMicrophone = false;
   Future<void>? _recordingStartOperation;
@@ -596,6 +597,7 @@ class ConversationController extends ChangeNotifier {
   bool get isRecording => phase == ConversationPhase.recording;
   bool get isPlaybackPlaying => _playbackPlaying;
   bool get isPreparingMicrophone => _preparingMicrophone;
+  bool get isContinuousHfpSessionActive => _continuousHfpSessionActive;
   ConversationTurnEndReason? get lastTurnEndReason => _lastTurnEndReason;
   bool get h20HardwareTestActive =>
       h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
@@ -618,6 +620,97 @@ class ConversationController extends ChangeNotifier {
     dispatcher,
   ) {
     _mainButtonDispatcher = dispatcher;
+  }
+
+  /// Opens one HFP route for a hands-free translation session, but only when
+  /// the physical MAIN transport is already confirmed. The first capture turn
+  /// performs the decisive BLE/HFP coexistence check before this lease is kept.
+  Future<bool> beginContinuousHfpSession() async {
+    final speechInput = _streamingSpeechInput;
+    final bleWasReady = _isAiv0MainTransportReady(aiv0BleStatus);
+    if (_continuousHfpSessionActive) return true;
+    if (!usesHfpInput ||
+        speechInput is! ContinuousHfpSessionStreamingSpeechInput ||
+        !bleWasReady) {
+      recordAiv0MainDiagnostic(
+        'MAIN_CONTINUOUS_HFP_SKIPPED',
+        values: <String, Object?>{
+          'usesHfpInput': usesHfpInput,
+          'supportsSessionLease':
+              speechInput is ContinuousHfpSessionStreamingSpeechInput,
+          'bleReady': bleWasReady,
+        },
+      );
+      return false;
+    }
+    final continuousInput =
+        speechInput as ContinuousHfpSessionStreamingSpeechInput;
+
+    try {
+      await continuousInput.beginContinuousHfpSession();
+      _continuousHfpSessionActive =
+          continuousInput.isContinuousHfpSessionActive;
+      if (_continuousHfpSessionActive) {
+        _setPlaybackCommunicationRoute(true);
+        recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_OPENED');
+        notifyListeners();
+      }
+      return _continuousHfpSessionActive;
+    } catch (error) {
+      recordAiv0MainDiagnostic(
+        'MAIN_CONTINUOUS_HFP_OPEN_FAILED',
+        message: '$error',
+      );
+      await endContinuousHfpSession();
+      return false;
+    }
+  }
+
+  Future<void> endContinuousHfpSession() async {
+    final speechInput = _streamingSpeechInput;
+    final continuousInput =
+        speechInput is ContinuousHfpSessionStreamingSpeechInput
+        ? speechInput as ContinuousHfpSessionStreamingSpeechInput
+        : null;
+    final hadSession =
+        _continuousHfpSessionActive ||
+        (continuousInput?.isContinuousHfpSessionActive ?? false);
+    _continuousHfpSessionActive = false;
+    if (continuousInput != null) {
+      await continuousInput.endContinuousHfpSession().catchError((
+        Object error,
+      ) {
+        debugPrint('Cannot close continuous HFP session: $error');
+      });
+    }
+    if (hadSession) {
+      _setPlaybackCommunicationRoute(false);
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_CLOSED');
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  bool _isAiv0MainTransportReady(Aiv0BleStatus status) =>
+      status.isConnected &&
+      status.peripheralState == 'connected' &&
+      status.mainNotificationState == 'notifying';
+
+  Future<bool> _waitForStableAiv0MainTransport({
+    Duration timeout = const Duration(seconds: 3),
+    Duration stableFor = const Duration(milliseconds: 400),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    DateTime? readySince;
+    while (!_disposed && DateTime.now().isBefore(deadline)) {
+      if (_isAiv0MainTransportReady(aiv0BleStatus)) {
+        readySince ??= DateTime.now();
+        if (DateTime.now().difference(readySince) >= stableFor) return true;
+      } else {
+        readySince = null;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 75));
+    }
+    return false;
   }
 
   Future<({String englishText, String vietnameseText})> translateVocabulary(
@@ -1844,6 +1937,33 @@ class ConversationController extends ChangeNotifier {
       }
 
       if (await abandonCancelledRecordingStart()) return;
+
+      if (_continuousHfpSessionActive) {
+        // AVAudioEngine input activation is the boundary that made H20 drop
+        // GATT in device logs. Do not trust a route-only preflight: require BLE
+        // MAIN Notify to remain stable after real HFP audio buffers have begun.
+        final mainTransportStable = await _waitForStableAiv0MainTransport();
+        if (await abandonCancelledRecordingStart()) return;
+        if (!mainTransportStable) {
+          recordAiv0MainDiagnostic(
+            'MAIN_CONTINUOUS_HFP_COEXISTENCE_FAILED',
+            values: <String, Object?>{
+              'blePhase': aiv0BleStatus.phase.name,
+              'peripheralState': aiv0BleStatus.peripheralState ?? '',
+              'notify': aiv0BleStatus.mainNotificationState ?? '',
+            },
+          );
+          // The device cannot keep BLE and active HFP together. Return to the
+          // proven utterance-scoped route instead of leaving MAIN unavailable
+          // for the whole session.
+          await endContinuousHfpSession();
+          if (await abandonCancelledRecordingStart()) return;
+          await _streamingSpeechInput!.start();
+          if (await abandonCancelledRecordingStart()) return;
+        } else {
+          recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_COEXISTENCE_CONFIRMED');
+        }
+      }
 
       _recordingStartedAt = DateTime.now();
       phase = ConversationPhase.recording;
@@ -3178,13 +3298,18 @@ class ConversationController extends ChangeNotifier {
       // closes the BLE window needed by the physical MAIN button. Output-only
       // playback keeps the paired H20 on A2DP while BLE remains available; the
       // next recording turn will explicitly reopen its HFP microphone lease.
-      final useSelectedMediaOutput = _usesNativeUtteranceScopedHfpCapture;
+      final useContinuousHfpSession = _continuousHfpSessionActive;
+      final useSelectedMediaOutput =
+          _usesNativeUtteranceScopedHfpCapture && !useContinuousHfpSession;
       if (useSelectedMediaOutput) {
         _setPlaybackCommunicationRoute(false);
+      } else if (useContinuousHfpSession) {
+        _setPlaybackCommunicationRoute(true);
       }
       if (usesHfpInput &&
           canUseHfp &&
           !_usingHfpRoute &&
+          !useContinuousHfpSession &&
           !useSelectedMediaOutput) {
         await _startHfpRouteWithTimeout(
           expectedTurnGeneration: playbackTurnGeneration,
@@ -3223,7 +3348,7 @@ class ConversationController extends ChangeNotifier {
           metrics: metrics,
         );
       }
-      if (_usingHfpRoute) {
+      if (_usingHfpRoute || useContinuousHfpSession) {
         await _waitForActivePlaybackToComplete();
       }
     } catch (error) {

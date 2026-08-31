@@ -82,9 +82,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _themeModeChangedByUser = false;
   bool _isActivatingMainAssistant = false;
   bool _isStartingMainSpeakingTurn = false;
+  bool _isPreparingMainSpeakingHfpSession = false;
   bool _isFinishingMainSpeakingMode = false;
   bool _isHandlingMainSpeakingNoSpeech = false;
   bool _hasMainSpeakingTurnStarted = false;
+  int _mainSpeakingHfpSessionGeneration = 0;
   bool _isGlobalModalOpen = false;
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
@@ -893,6 +895,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           // MAIN is the explicit cancellation boundary. Do not finalize or
           // translate the interrupted sentence before opening the menu.
           final action = await controller.cancelCurrentMainAction();
+          _invalidateMainSpeakingHfpPreparation();
+          await controller.endContinuousHfpSession();
           controller.recordAiv0MainDiagnostic(
             'MAIN_INTERRUPT_CANCEL_COMPLETED',
             values: <String, Object?>{'result': action.name},
@@ -1097,8 +1101,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (endedMainSpeakingSession) {
       _hasMainSpeakingTurnStarted = false;
       _mainSpeakingSessionController.exit();
+      _invalidateMainSpeakingHfpPreparation();
     }
     final result = await controller.stopCurrentMainAction();
+    if (endedMainSpeakingSession) {
+      await controller.endContinuousHfpSession();
+    }
     if (result != MainButtonActionResult.ignored) {
       await controller.speakAssistantPrompt('Đã dừng.');
       return result;
@@ -1172,7 +1180,31 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _hasMainSpeakingTurnStarted = false;
     _isHandlingMainSpeakingNoSpeech = false;
     _mainSpeakingSessionController.enter();
-    _synchronizeMainSpeakingSession();
+    final generation = ++_mainSpeakingHfpSessionGeneration;
+    _isPreparingMainSpeakingHfpSession = true;
+    unawaited(_prepareMainSpeakingHfpSession(generation));
+  }
+
+  Future<void> _prepareMainSpeakingHfpSession(int generation) async {
+    final controller = _controller;
+    if (controller == null) return;
+    try {
+      await controller.beginContinuousHfpSession();
+      if (generation != _mainSpeakingHfpSessionGeneration ||
+          !_mainSpeakingSessionController.isActive) {
+        await controller.endContinuousHfpSession();
+      }
+    } finally {
+      if (generation == _mainSpeakingHfpSessionGeneration) {
+        _isPreparingMainSpeakingHfpSession = false;
+        _synchronizeMainSpeakingSession();
+      }
+    }
+  }
+
+  void _invalidateMainSpeakingHfpPreparation() {
+    _mainSpeakingHfpSessionGeneration += 1;
+    _isPreparingMainSpeakingHfpSession = false;
   }
 
   void _synchronizeMainSpeakingSession() {
@@ -1186,11 +1218,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       isPlaying: controller.isPlaybackPlaying,
     );
     if (!_mainSpeakingSessionController.isActive ||
+        _isPreparingMainSpeakingHfpSession ||
         _isFinishingMainSpeakingMode ||
         _isHandlingMainSpeakingNoSpeech) {
       if (!_mainSpeakingSessionController.isActive &&
           _restoreHfpAfterPhysicalMain) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
+      }
+      if (!_mainSpeakingSessionController.isActive &&
+          controller.isContinuousHfpSessionActive) {
+        _invalidateMainSpeakingHfpPreparation();
+        unawaited(controller.endContinuousHfpSession());
       }
       return;
     }
@@ -1225,6 +1263,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final controller = _controller;
     if (controller == null ||
         !_mainSpeakingSessionController.isActive ||
+        _isPreparingMainSpeakingHfpSession ||
         _isStartingMainSpeakingTurn ||
         _isFinishingMainSpeakingMode ||
         controller.isBusy ||
@@ -1313,7 +1352,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       setState(() => _isActivatingMainAssistant = true);
     }
     _mainSpeakingSessionController.exit();
+    _invalidateMainSpeakingHfpPreparation();
     try {
+      await controller?.endContinuousHfpSession();
       if (sayGoodbye && controller != null) {
         controller.clearMessage();
         await controller.speakAssistantPrompt(goodbyeText);
@@ -1356,11 +1397,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (_mainSpeakingSessionController.isActive) {
       _mainSpeakingSessionController.exit();
     }
+    _invalidateMainSpeakingHfpPreparation();
     controller.clearMessage();
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
+      await controller.endContinuousHfpSession();
       await voiceController.activateOtherLearningFromSpeaking();
     } finally {
       _isFinishingMainSpeakingMode = false;

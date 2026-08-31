@@ -130,6 +130,19 @@ abstract interface class StreamingSpeechInput {
 /// otherwise its route flag becomes stale as soon as the recognizer stops.
 abstract interface class HfpRouteOwningStreamingSpeechInput {}
 
+/// Lets a hands-free session keep one verified HFP route across consecutive
+/// recognition turns.
+///
+/// The caller must still verify that the independent BLE MAIN transport stays
+/// connected after the route opens. If BLE/HFP coexistence is not stable on a
+/// device, it must end this session and fall back to utterance-scoped leases.
+abstract interface class ContinuousHfpSessionStreamingSpeechInput {
+  bool get isContinuousHfpSessionActive;
+
+  Future<void> beginContinuousHfpSession();
+  Future<void> endContinuousHfpSession();
+}
+
 /// Optional signal emitted as soon as the native audio engine detects speech.
 ///
 /// A partial transcript can arrive noticeably later (especially on an HFP
@@ -1123,7 +1136,9 @@ class AndroidStreamingSpeechInput
 }
 
 class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
-    implements HfpRouteOwningStreamingSpeechInput {
+    implements
+        HfpRouteOwningStreamingSpeechInput,
+        ContinuousHfpSessionStreamingSpeechInput {
   IOSStreamingSpeechInput({
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),
@@ -1149,6 +1164,66 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   int _audioRouteGeneration = 0;
   int? _pendingAudioRouteGeneration;
   int? _activeAudioRouteGeneration;
+  int? _continuousAudioRouteGeneration;
+
+  @override
+  bool get isContinuousHfpSessionActive =>
+      _continuousAudioRouteGeneration != null;
+
+  @override
+  Future<void> beginContinuousHfpSession() async {
+    if (isContinuousHfpSessionActive) return;
+    final routeControl = _audioRouteControl;
+    if (routeControl == null ||
+        (routeControl.status.deviceId == null &&
+            !routeControl.status.isConnected)) {
+      throw const HfpAudioException(
+        'Hãy kết nối H20 trước khi bắt đầu dịch liên tục.',
+      );
+    }
+
+    await _cancelCurrentRecognition(preserveContinuousSession: false);
+    final routeGeneration = ++_audioRouteGeneration;
+    _pendingAudioRouteGeneration = routeGeneration;
+    try {
+      await routeControl.startAudioRoute();
+      if (routeGeneration != _audioRouteGeneration) {
+        await routeControl.stopAudioRoute().catchError((Object _) {});
+        throw const StreamingSpeechInputException(
+          'Đã dừng trước khi phiên HFP liên tục sẵn sàng.',
+          code: 'CONTINUOUS_HFP_START_CANCELLED',
+        );
+      }
+      if (!routeControl.status.routeActive ||
+          routeControl.status.phase !=
+              BluetoothAudioConnectionPhase.recording) {
+        throw const HfpAudioException(
+          'iOS chưa xác nhận HFP ổn định cho phiên dịch liên tục.',
+        );
+      }
+      _pendingAudioRouteGeneration = null;
+      _continuousAudioRouteGeneration = routeGeneration;
+    } catch (_) {
+      if (_pendingAudioRouteGeneration == routeGeneration) {
+        _pendingAudioRouteGeneration = null;
+      }
+      if (_continuousAudioRouteGeneration == routeGeneration) {
+        _continuousAudioRouteGeneration = null;
+      }
+      await routeControl.stopAudioRoute().catchError((Object _) {});
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> endContinuousHfpSession() async {
+    final routeGeneration = _continuousAudioRouteGeneration;
+    if (routeGeneration == null) return;
+    _continuousAudioRouteGeneration = null;
+    _audioRouteGeneration += 1;
+    await super.cancel().catchError((Object _) {});
+    await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
+  }
 
   @override
   Future<void> start() => _startWithAudioRoute(commandMode: false);
@@ -1168,12 +1243,11 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     required bool commandMode,
     String? localeIdentifier,
   }) async {
-    // Each recognition turn owns a short HFP lease. Releasing the previous
-    // lease before opening the next one lets the independent BLE MAIN control
-    // link recover between speech captures instead of holding SCO across the
-    // entire assistant or lesson session.
-    await cancel().catchError((Object _) {});
-    final routeGeneration = ++_audioRouteGeneration;
+    // Outside a verified continuous session, each recognition turn still owns
+    // a short HFP lease. A continuous session is opt-in and survives only after
+    // its caller proves that BLE MAIN Notify remains stable with HFP active.
+    await _cancelCurrentRecognition(preserveContinuousSession: true);
+    int? routeGeneration;
 
     final routeControl = _audioRouteControl;
     final audioSource = takeNativeSpeechAudioSource(
@@ -1188,22 +1262,25 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
           routeControl != null &&
           (routeControl.status.deviceId != null ||
               routeControl.status.isConnected)) {
-        // Selecting H20 in Settings only remembers the preferred input. The
-        // HFP route must be activated immediately before AVAudioEngine opens
-        // its input node or Apple Speech can remain on an inactive route.
-        _pendingAudioRouteGeneration = routeGeneration;
-        await routeControl.startAudioRoute();
-        if (routeGeneration != _audioRouteGeneration) {
-          await _releaseStaleAudioRouteIfUnowned();
-          throw const StreamingSpeechInputException(
-            'Đã dừng trước khi micro HFP sẵn sàng.',
-            code: 'SPEECH_START_CANCELLED',
-          );
+        if (!isContinuousHfpSessionActive) {
+          // Selecting H20 in Settings only remembers the preferred input. The
+          // HFP route must be activated immediately before AVAudioEngine opens
+          // its input node or Apple Speech can remain on an inactive route.
+          routeGeneration = ++_audioRouteGeneration;
+          _pendingAudioRouteGeneration = routeGeneration;
+          await routeControl.startAudioRoute();
+          if (routeGeneration != _audioRouteGeneration) {
+            await _releaseStaleAudioRouteIfUnowned();
+            throw const StreamingSpeechInputException(
+              'Đã dừng trước khi micro HFP sẵn sàng.',
+              code: 'SPEECH_START_CANCELLED',
+            );
+          }
+          if (_pendingAudioRouteGeneration == routeGeneration) {
+            _pendingAudioRouteGeneration = null;
+          }
+          _activeAudioRouteGeneration = routeGeneration;
         }
-        if (_pendingAudioRouteGeneration == routeGeneration) {
-          _pendingAudioRouteGeneration = null;
-        }
-        _activeAudioRouteGeneration = routeGeneration;
         if (!routeControl.status.routeActive ||
             routeControl.status.phase !=
                 BluetoothAudioConnectionPhase.recording) {
@@ -1218,7 +1295,9 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
         localeIdentifier: localeIdentifier,
       );
     } catch (_) {
-      await _releaseAudioRouteLease(routeGeneration);
+      if (routeGeneration != null) {
+        await _releaseAudioRouteLease(routeGeneration);
+      }
       rethrow;
     }
   }
@@ -1246,10 +1325,19 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
 
   @override
   Future<void> cancel() async {
+    await _cancelCurrentRecognition(preserveContinuousSession: true);
+  }
+
+  Future<void> _cancelCurrentRecognition({
+    required bool preserveContinuousSession,
+  }) async {
     // Detach ownership before waiting for native cancellation. A late callback
     // from this turn must never release a newer HFP lease acquired meanwhile.
     final routeGeneration = _detachAudioRouteLease();
-    final routeStop = _stopDetachedAudioRoute(routeGeneration);
+    final routeStop = _stopDetachedAudioRoute(
+      routeGeneration,
+      preserveContinuousSession: preserveContinuousSession,
+    );
     try {
       await super.cancel();
     } finally {
@@ -1259,7 +1347,10 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
 
   Future<void> _stopAudioRoute() async {
     final routeGeneration = _detachAudioRouteLease();
-    await _stopDetachedAudioRoute(routeGeneration);
+    await _stopDetachedAudioRoute(
+      routeGeneration,
+      preserveContinuousSession: false,
+    );
   }
 
   int? _detachAudioRouteLease() {
@@ -1271,8 +1362,12 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     return routeGeneration;
   }
 
-  Future<void> _stopDetachedAudioRoute(int? routeGeneration) async {
+  Future<void> _stopDetachedAudioRoute(
+    int? routeGeneration, {
+    required bool preserveContinuousSession,
+  }) async {
     if (routeGeneration == null) return;
+    if (preserveContinuousSession && isContinuousHfpSessionActive) return;
     await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
   }
 
@@ -1288,14 +1383,16 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
       _activeAudioRouteGeneration = null;
     }
     if (_pendingAudioRouteGeneration == null &&
-        _activeAudioRouteGeneration == null) {
+        _activeAudioRouteGeneration == null &&
+        !isContinuousHfpSessionActive) {
       await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
     }
   }
 
   Future<void> _releaseStaleAudioRouteIfUnowned() async {
     if (_pendingAudioRouteGeneration != null ||
-        _activeAudioRouteGeneration != null) {
+        _activeAudioRouteGeneration != null ||
+        isContinuousHfpSessionActive) {
       return;
     }
     await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
@@ -1304,6 +1401,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   @override
   Future<void> dispose() async {
     try {
+      await endContinuousHfpSession();
       await super.dispose();
     } finally {
       await _stopAudioRoute();

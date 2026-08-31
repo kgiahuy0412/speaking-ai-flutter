@@ -361,6 +361,75 @@ void main() {
     expect(route.status.routeActive, isFalse);
   });
 
+  test(
+    'iOS keeps one HFP lease across a verified continuous session',
+    () async {
+      const methodChannel = MethodChannel('test_ios_continuous_hfp_session');
+      final events = StreamController<dynamic>.broadcast();
+      final route = _FakeHfpAudioControl();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(methodChannel, (call) async {
+        switch (call.method) {
+          case 'speech.isAvailable':
+            return true;
+          case 'speech.start':
+            scheduleMicrotask(() {
+              events.add(<String, dynamic>{
+                'type': 'speech.ready',
+                'engine': 'sf_speech_recognizer',
+                'audioRoute': 'in=[BluetoothHFP:H20]',
+              });
+            });
+            return true;
+          case 'speech.stop':
+          case 'speech.cancel':
+            return true;
+        }
+        return null;
+      });
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(methodChannel, null);
+        await events.close();
+        await route.dispose();
+      });
+
+      final input = IOSStreamingSpeechInput(
+        methodChannel: methodChannel,
+        eventStream: events.stream,
+        audioRouteControl: route,
+      );
+      addTearDown(input.dispose);
+
+      await input.beginContinuousHfpSession();
+      expect(input.isContinuousHfpSessionActive, isTrue);
+      expect(route.startRouteCount, 1);
+
+      await input.startCommandRecognition();
+      await input.cancel();
+      await input.startLessonEnglishRecognition();
+      events.add(<String, dynamic>{
+        'type': 'speech.final',
+        'text': 'Hello',
+        'alternatives': <String>['Hello'],
+        'engine': 'sf_speech_recognizer',
+        'locale': 'en-US',
+      });
+      await Future<void>.delayed(Duration.zero);
+      await input.stop();
+
+      expect(route.startRouteCount, 1);
+      expect(route.stopRouteCount, 0);
+      expect(route.status.routeActive, isTrue);
+
+      await input.endContinuousHfpSession();
+
+      expect(input.isContinuousHfpSessionActive, isFalse);
+      expect(route.stopRouteCount, 1);
+      expect(route.status.routeActive, isFalse);
+    },
+  );
+
   test('iOS re-arms an active H20 route left ready by another flow', () async {
     const methodChannel = MethodChannel('test_ios_hfp_route_rearm');
     final events = StreamController<dynamic>.broadcast();
