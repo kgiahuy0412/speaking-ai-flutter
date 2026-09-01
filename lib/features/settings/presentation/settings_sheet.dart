@@ -1664,6 +1664,7 @@ class _Aiv0BleControlCard extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 3),
                       child: SelectableText(
                         '${_formatEventTime(event.receivedAt)}  '
+                        '${event.transportSource == 'hfpRemote' ? '[HFP] ' : '[BLE] '}'
                         '${event.isDuplicate ? '[TRÙNG] ' : ''}${event.rawHex}',
                         style: TextStyle(
                           fontFamily: 'monospace',
@@ -1679,8 +1680,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               context.tr(
-                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.reconnectCount} reconnect',
-                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.reconnectCount} 次重连',
+                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.remoteMainCount} MAIN HFP${status.remoteMainCommandsEnabled ? ' • HFP remote sẵn sàng' : ''} • ${status.reconnectCount} reconnect',
+                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.remoteMainCount} 次 HFP MAIN${status.remoteMainCommandsEnabled ? ' • HFP remote 已就绪' : ''} • ${status.reconnectCount} 次重连',
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),

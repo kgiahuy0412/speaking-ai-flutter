@@ -1048,6 +1048,7 @@ class ConversationController extends ChangeNotifier {
           'gesture': event.gesture.name,
           'duplicate': event.isDuplicate,
           'rawHex': event.rawHex,
+          'transportSource': event.transportSource ?? 'ble',
         },
         'conversationPhase': phase.name,
         'processingStage': processingStage.name,

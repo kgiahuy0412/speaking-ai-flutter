@@ -24,6 +24,10 @@ void main() {
             'audioRoute': 'in=[BluetoothHFP:H20] out=[BluetoothHFP:H20]',
           },
         ],
+        'remoteMainCount': 2,
+        'remoteMainDuplicateCount': 1,
+        'remoteMainCommandsEnabled': true,
+        'lastMainTransportSource': 'hfpRemote',
       }, protocolConfirmed: false);
 
       expect(status.diagnosticTimeline.map((event) => event.stage), <String>[
@@ -40,6 +44,10 @@ void main() {
         status.diagnosticTimeline.last.metadata['systemIsReconnecting'],
         true,
       );
+      expect(status.remoteMainCount, 2);
+      expect(status.remoteMainDuplicateCount, 1);
+      expect(status.remoteMainCommandsEnabled, isTrue);
+      expect(status.lastMainTransportSource, 'hfpRemote');
     });
 
     test('recognizes the connected CBPeripheral raw-value description', () {

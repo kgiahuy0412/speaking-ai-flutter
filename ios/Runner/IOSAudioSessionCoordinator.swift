@@ -66,8 +66,11 @@ final class IOSAudioSessionCoordinator: NSObject {
   private(set) var isBackgroundLearningEnabled = false
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
   var isPromptActive: Bool { ownership.contains(.prompt) }
+  var isHfpRouteActive: Bool { ownership.contains(.hfpRoute) }
   var onMainTurnEnded: (() -> Void)?
+  var onSpeechCaptureStarted: (() -> Void)?
   var onSpeechCaptureEnded: (() -> Void)?
+  var onHfpRouteOwnershipChanged: (() -> Void)?
   var onPromptEnded: (() -> Void)?
   var onAudioSessionReleased: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
@@ -101,7 +104,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
   }
 
-  func notePhysicalMain(rawHex: String) {
+  func notePhysicalMain(rawHex: String, source: String = "ble") {
     // Every accepted physical MAIN packet starts a new logical turn. The BLE
     // bridge has already collapsed the firmware notification burst before this
     // method is called, so retaining an older active turn here can only make a
@@ -111,21 +114,24 @@ final class IOSAudioSessionCoordinator: NSObject {
     sequence = 0
     trace(
       stage: "MAIN_RAW_RECEIVED",
-      caller: "Aiv0BleControlBridge",
+      caller: source == "ble" ? "Aiv0BleControlBridge" : "H20RemoteMainBridge",
       message: rawHex,
       values: [
         "turnId": pendingTurnId ?? "",
         "supersedesTurnId": activeTurnId ?? "",
+        "transportSource": source,
       ]
     )
   }
 
   func acquireHfpRoute(caller: String) {
     acquireSessionOwner(.hfpRoute, caller: caller)
+    onHfpRouteOwnershipChanged?()
   }
 
   func releaseHfpRoute(caller: String) {
     releaseSessionOwner(.hfpRoute, caller: caller)
+    onHfpRouteOwnershipChanged?()
     releaseAudioSessionIfIdle(caller: caller)
   }
 
@@ -454,6 +460,7 @@ final class IOSAudioSessionCoordinator: NSObject {
         if hasTwoWayHfpRoute() {
           trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
           trace(stage: "route_confirmed", caller: caller, values: ["audioSource": target.rawValue])
+          onSpeechCaptureStarted?()
           return
         }
         guard let input = currentOrAvailableInput(portType: .bluetoothHFP) else {
@@ -469,6 +476,7 @@ final class IOSAudioSessionCoordinator: NSObject {
         try ensurePreferredInput(input, caller: caller)
       }
       trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
+      onSpeechCaptureStarted?()
     } catch {
       // A failed route/capture preparation can still switch the H20 radio
       // profile and invalidate its BLE notification subscription. Treat it as
@@ -504,7 +512,9 @@ final class IOSAudioSessionCoordinator: NSObject {
     interruptionToken = nil
     traceSink = nil
     onMainTurnEnded = nil
+    onSpeechCaptureStarted = nil
     onSpeechCaptureEnded = nil
+    onHfpRouteOwnershipChanged = nil
     onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
   }

@@ -1,6 +1,9 @@
+import AVFoundation
 import CoreBluetooth
 import Flutter
 import Foundation
+import MediaPlayer
+import UIKit
 
 struct Aiv0DuplicatePacketFilter {
   static let windowMilliseconds: TimeInterval = 750
@@ -86,6 +89,44 @@ struct Aiv0ReconnectPolicy {
     // Re-arming the MAIN characteristic does not reconfigure AVAudioSession.
     // Deferring it for HFP/speech leaves the physical button unreachable.
     false
+  }
+}
+
+/// Decides whether an iOS headset/remote-control event can safely stand in for
+/// a missing BLE MAIN notification. H20 firmware 1.0.0 can temporarily drop
+/// GATT while its HFP microphone is active, so this fallback is deliberately
+/// limited to a foreground H20 capture or an explicitly-owned HFP session.
+struct H20RemoteMainPolicy {
+  static func shouldHandle(
+    applicationIsActive: Bool,
+    speechCaptureActive: Bool,
+    hfpRouteActive: Bool,
+    hfpPortNames: [String]
+  ) -> Bool {
+    applicationIsActive
+      && (speechCaptureActive || hfpRouteActive)
+      && hfpPortNames.contains { $0.localizedCaseInsensitiveContains("H20") }
+  }
+
+  /// Build an observed H20-shaped packet so the existing decoder, coordinator,
+  /// and duplicate filter remain the single MAIN path for BLE and HFP remote
+  /// events. Sequence and uptime are diagnostic transport fields only.
+  static func syntheticPacket(
+    sequence: UInt8,
+    batteryPercent: Int?,
+    uptimeMilliseconds: UInt32
+  ) -> [UInt8] {
+    let battery = UInt16(clamping: batteryPercent ?? 0)
+    return [
+      0x01, 0x01, sequence, 0x01,
+      0xFF, 0xFF,
+      UInt8(truncatingIfNeeded: battery),
+      UInt8(truncatingIfNeeded: battery >> 8),
+      UInt8(truncatingIfNeeded: uptimeMilliseconds),
+      UInt8(truncatingIfNeeded: uptimeMilliseconds >> 8),
+      UInt8(truncatingIfNeeded: uptimeMilliseconds >> 16),
+      UInt8(truncatingIfNeeded: uptimeMilliseconds >> 24),
+    ]
   }
 }
 
@@ -222,9 +263,15 @@ struct Aiv0InitialNotificationSetupPolicy {
 }
 
 /// iOS implementation of the same AIV0/H20 BLE control contract used by the
-/// Android bridge. Audio remains on HFP; BLE carries MAIN button notifications,
-/// battery/firmware diagnostics, and the optional APP State packet only.
+/// Android bridge. Audio remains on HFP; BLE normally carries MAIN button
+/// notifications, battery/firmware diagnostics, and optional APP State. A
+/// narrowly-scoped iOS headset fallback covers MAIN while H20 GATT is absent.
 final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
+  private struct RemoteCommandRegistration {
+    let command: MPRemoteCommand
+    let target: Any
+  }
+
   private enum ProtocolUUID {
     static let controlService = CBUUID(string: "9E3B0001-4A7C-4D6F-8B21-5C17A2D94010")
     static let buttonEvent = CBUUID(string: "9E3B0002-4A7C-4D6F-8B21-5C17A2D94010")
@@ -282,9 +329,15 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private var batteryPercent: Int?
   private var firmwareRevision: String?
   private var lastRawHex: String?
+  private var lastMainTransportSource: String?
   private var duplicatePacketFilter = Aiv0DuplicatePacketFilter()
   private var packetCount = 0
   private var invalidPacketCount = 0
+  private var remoteMainCount = 0
+  private var remoteMainDuplicateCount = 0
+  private var remoteMainSequence: UInt8 = 0
+  private var remoteMainCommandsEnabled = false
+  private var remoteCommandRegistrations: [RemoteCommandRegistration] = []
   private var reconnectAttempt = 0
   private var reconnectCount = 0
   private var lastDisconnectEpochMs: Int?
@@ -313,15 +366,23 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self?.handle(call, result: result)
     }
     eventChannel.setStreamHandler(self)
+    registerRemoteMainCommands()
     audioSessionCoordinator.onMainTurnEnded = { [weak self] in
       // Match Android: HFP activity never tears down a healthy BLE
       // subscription. Resume only work created by a real BLE failure.
       self?.resumeDeferredBluetoothRecovery()
     }
+    audioSessionCoordinator.onSpeechCaptureStarted = { [weak self] in
+      self?.updateRemoteMainCommandAvailability(reason: "speech_capture_started")
+    }
     audioSessionCoordinator.onSpeechCaptureEnded = { [weak self] in
+      self?.updateRemoteMainCommandAvailability(reason: "speech_capture_ended")
       // A capture ending is not evidence that CoreBluetooth lost MAIN notify.
       // Resume only work that an actual BLE failure deferred during capture.
       self?.resumeDeferredBluetoothRecovery()
+    }
+    audioSessionCoordinator.onHfpRouteOwnershipChanged = { [weak self] in
+      self?.updateRemoteMainCommandAvailability(reason: "hfp_route_ownership_changed")
     }
     audioSessionCoordinator.onPromptEnded = { [weak self] in
       // Prompt playback and speech capture are equally unsafe windows for a
@@ -330,6 +391,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self?.resumeDeferredBluetoothRecovery()
     }
     audioSessionCoordinator.onAudioSessionReleased = { [weak self] in
+      self?.updateRemoteMainCommandAvailability(reason: "audio_session_released")
       self?.resumeDeferredBluetoothRecovery()
     }
   }
@@ -1075,6 +1137,178 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     finishScan()
   }
 
+  private func registerRemoteMainCommands() {
+    let commandCenter = MPRemoteCommandCenter.shared()
+    let commands: [(String, MPRemoteCommand)] = [
+      ("togglePlayPause", commandCenter.togglePlayPauseCommand),
+      ("play", commandCenter.playCommand),
+      ("pause", commandCenter.pauseCommand),
+    ]
+    for (name, command) in commands {
+      command.isEnabled = false
+      let target = command.addTarget { [weak self] _ -> MPRemoteCommandHandlerStatus in
+        return self?.handleRemoteMainCommand(name: name) ?? .commandFailed
+      }
+      remoteCommandRegistrations.append(
+        RemoteCommandRegistration(command: command, target: target)
+      )
+    }
+  }
+
+  private func unregisterRemoteMainCommands() {
+    if remoteMainCommandsEnabled {
+      UIApplication.shared.endReceivingRemoteControlEvents()
+    }
+    for registration in remoteCommandRegistrations {
+      registration.command.isEnabled = false
+      registration.command.removeTarget(registration.target)
+    }
+    remoteCommandRegistrations.removeAll()
+    remoteMainCommandsEnabled = false
+  }
+
+  private func updateRemoteMainCommandAvailability(reason: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.updateRemoteMainCommandAvailability(reason: reason)
+      }
+      return
+    }
+    let hfpPortNames = audioSessionCoordinator.session.currentRoute.inputs
+      .filter { $0.portType == .bluetoothHFP }
+      .map(\.portName)
+    let shouldEnable = H20RemoteMainPolicy.shouldHandle(
+      applicationIsActive: UIApplication.shared.applicationState == .active,
+      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive,
+      hfpRouteActive: audioSessionCoordinator.isHfpRouteActive,
+      hfpPortNames: hfpPortNames
+    )
+    setRemoteMainCommandsEnabled(shouldEnable, reason: reason)
+  }
+
+  private func setRemoteMainCommandsEnabled(_ enabled: Bool, reason: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.setRemoteMainCommandsEnabled(enabled, reason: reason)
+      }
+      return
+    }
+    guard remoteMainCommandsEnabled != enabled else { return }
+    remoteMainCommandsEnabled = enabled
+    for registration in remoteCommandRegistrations {
+      registration.command.isEnabled = enabled
+    }
+    if enabled {
+      UIApplication.shared.beginReceivingRemoteControlEvents()
+    } else {
+      UIApplication.shared.endReceivingRemoteControlEvents()
+    }
+    audioSessionCoordinator.trace(
+      stage: enabled ? "MAIN_REMOTE_LISTENING_ENABLED" : "MAIN_REMOTE_LISTENING_DISABLED",
+      caller: "H20RemoteMainBridge",
+      message: reason,
+      values: [
+        "speechCaptureActive": audioSessionCoordinator.isSpeechCaptureActive,
+        "hfpRouteActive": audioSessionCoordinator.isHfpRouteActive,
+        "route": audioSessionCoordinator.routeDescription(),
+      ]
+    )
+    emitStatus()
+  }
+
+  private func handleRemoteMainCommand(name: String) -> MPRemoteCommandHandlerStatus {
+    if Thread.isMainThread {
+      return deliverRemoteMainCommand(name: name) ? .success : .commandFailed
+    }
+    var delivered = false
+    DispatchQueue.main.sync {
+      delivered = deliverRemoteMainCommand(name: name)
+    }
+    return delivered ? .success : .commandFailed
+  }
+
+  private func deliverRemoteMainCommand(name: String) -> Bool {
+    guard !disposed else { return false }
+    let hfpPortNames = audioSessionCoordinator.session.currentRoute.inputs
+      .filter { $0.portType == .bluetoothHFP }
+      .map(\.portName)
+    let shouldHandle = H20RemoteMainPolicy.shouldHandle(
+      applicationIsActive: UIApplication.shared.applicationState == .active,
+      speechCaptureActive: audioSessionCoordinator.isSpeechCaptureActive,
+      hfpRouteActive: audioSessionCoordinator.isHfpRouteActive,
+      hfpPortNames: hfpPortNames
+    )
+    guard shouldHandle else {
+      audioSessionCoordinator.trace(
+        stage: "MAIN_REMOTE_IGNORED",
+        caller: "H20RemoteMainBridge",
+        message: name,
+        values: [
+          "applicationState": String(describing: UIApplication.shared.applicationState),
+          "speechCaptureActive": audioSessionCoordinator.isSpeechCaptureActive,
+          "hfpRouteActive": audioSessionCoordinator.isHfpRouteActive,
+          "hfpPortNames": hfpPortNames,
+        ]
+      )
+      emitStatus()
+      return false
+    }
+
+    remoteMainSequence &+= 1
+    let uptimeMilliseconds = UInt32(
+      truncatingIfNeeded: Int64(ProcessInfo.processInfo.systemUptime * 1_000)
+    )
+    let bytes = H20RemoteMainPolicy.syntheticPacket(
+      sequence: remoteMainSequence,
+      batteryPercent: batteryPercent,
+      uptimeMilliseconds: uptimeMilliseconds
+    )
+    let rawHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+    let duplicate = duplicatePacketFilter.register(
+      bytes: bytes,
+      uptimeMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
+    )
+    remoteMainCount += 1
+    if duplicate { remoteMainDuplicateCount += 1 }
+    lastRawHex = rawHex
+    lastMainTransportSource = "hfpRemote"
+
+    audioSessionCoordinator.trace(
+      stage: "MAIN_REMOTE_RECEIVED",
+      caller: "H20RemoteMainBridge",
+      message: name,
+      values: [
+        "duplicate": duplicate,
+        "eventSinkAttached": eventSink != nil,
+        "rawHex": rawHex,
+        "route": audioSessionCoordinator.routeDescription(),
+      ]
+    )
+    if !duplicate {
+      audioSessionCoordinator.notePhysicalMain(rawHex: rawHex, source: "hfpRemote")
+      audioSessionCoordinator.trace(
+        stage: "MAIN_EVENT_DELIVERY_ATTEMPT",
+        caller: "H20RemoteMainBridge.eventChannel",
+        message: rawHex,
+        values: [
+          "eventSinkAttached": eventSink != nil,
+          "sequence": Int(remoteMainSequence),
+          "transportSource": "hfpRemote",
+        ]
+      )
+    }
+    eventSink?([
+      "type": "button",
+      "bytes": bytes.map { Int($0) },
+      "deviceId": connectedPeripheral?.identifier.uuidString ?? "H20-HFP",
+      "duplicate": duplicate,
+      "transportSource": "hfpRemote",
+      "receivedAtEpochMs": Int(Date().timeIntervalSince1970 * 1_000),
+    ])
+    emitStatus()
+    return eventSink != nil
+  }
+
   private func snapshot() -> [String: Any] {
     var value: [String: Any] = [
       "type": "status",
@@ -1082,6 +1316,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "packetCount": packetCount,
       "invalidPacketCount": invalidPacketCount,
       "duplicatePacketCount": duplicatePacketFilter.duplicateCount,
+      "remoteMainCount": remoteMainCount,
+      "remoteMainDuplicateCount": remoteMainDuplicateCount,
+      "remoteMainCommandsEnabled": remoteMainCommandsEnabled,
       "reconnectCount": reconnectCount,
       "deferredRecoveryRepeatCount": deferredRecoveryTraceState.repeatCount,
       "diagnosticTimeline": audioSessionCoordinator.diagnosticTimelineSnapshot(limit: 80),
@@ -1101,6 +1338,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     if let batteryPercent { value["batteryPercent"] = batteryPercent }
     if let firmwareRevision { value["firmwareRevision"] = firmwareRevision }
     if let lastRawHex { value["lastRawHex"] = lastRawHex }
+    if let lastMainTransportSource { value["lastMainTransportSource"] = lastMainTransportSource }
     if let lastDisconnectEpochMs { value["lastDisconnectEpochMs"] = lastDisconnectEpochMs }
     if let lastDisconnectCode { value["lastDisconnectCode"] = lastDisconnectCode }
     if let lastDisconnectMessage { value["lastDisconnectMessage"] = lastDisconnectMessage }
@@ -1133,7 +1371,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     guard !disposed else { return }
     disposed = true
     audioSessionCoordinator.onMainTurnEnded = nil
+    audioSessionCoordinator.onSpeechCaptureStarted = nil
     audioSessionCoordinator.onSpeechCaptureEnded = nil
+    audioSessionCoordinator.onHfpRouteOwnershipChanged = nil
     audioSessionCoordinator.onPromptEnded = nil
     audioSessionCoordinator.onAudioSessionReleased = nil
     deferredReconnectPeripheral = nil
@@ -1164,6 +1404,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     pendingWriteResult?(FlutterError(code: "BLE_DISPOSED", message: "Đã đóng cầu nối BLE.", details: nil))
     pendingWriteResult = nil
     eventSink = nil
+    unregisterRemoteMainCommands()
     methodChannel.setMethodCallHandler(nil)
     eventChannel.setStreamHandler(nil)
     central?.delegate = nil
@@ -1507,14 +1748,15 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         uptimeMilliseconds: ProcessInfo.processInfo.systemUptime * 1_000
       )
       lastRawHex = rawHex
+      lastMainTransportSource = "ble"
       if !duplicate,
         bytes.count == 12,
         bytes[0] == 0x01,
         bytes[1] == 0x01,
         bytes[3] == 0x01
       {
-        audioSessionCoordinator.notePhysicalMain(rawHex: rawHex)
-        let packetSequence = Int(bytes[4]) | (Int(bytes[5]) << 8)
+        audioSessionCoordinator.notePhysicalMain(rawHex: rawHex, source: "ble")
+        let packetSequence = Int(bytes[2])
         audioSessionCoordinator.trace(
           stage: "MAIN_EVENT_DELIVERY_ATTEMPT",
           caller: "Aiv0BleControlBridge.eventChannel",
@@ -1522,6 +1764,7 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
           values: [
             "eventSinkAttached": eventSink != nil,
             "sequence": packetSequence,
+            "transportSource": "ble",
           ]
         )
       }
@@ -1530,6 +1773,7 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
         "bytes": bytes.map { Int($0) },
         "deviceId": peripheral.identifier.uuidString,
         "duplicate": duplicate,
+        "transportSource": "ble",
         "receivedAtEpochMs": Int(Date().timeIntervalSince1970 * 1_000),
       ])
       emitStatus()

@@ -96,6 +96,7 @@ class Aiv0ButtonEvent {
     required this.rawBytes,
     required this.receivedAt,
     this.deviceId,
+    this.transportSource,
     this.button = Aiv0Button.unknown,
     this.gesture = Aiv0ButtonGesture.unknown,
     this.sequence,
@@ -110,6 +111,7 @@ class Aiv0ButtonEvent {
   final Uint8List rawBytes;
   final DateTime receivedAt;
   final String? deviceId;
+  final String? transportSource;
   final Aiv0Button button;
   final Aiv0ButtonGesture gesture;
   final int? sequence;
@@ -299,6 +301,10 @@ class Aiv0BleStatus {
     this.packetCount = 0,
     this.invalidPacketCount = 0,
     this.duplicatePacketCount = 0,
+    this.remoteMainCount = 0,
+    this.remoteMainDuplicateCount = 0,
+    this.remoteMainCommandsEnabled = false,
+    this.lastMainTransportSource,
     this.reconnectCount = 0,
     this.peripheralState,
     this.mainNotificationState,
@@ -363,6 +369,11 @@ class Aiv0BleStatus {
       packetCount: (map['packetCount'] as num?)?.toInt() ?? 0,
       invalidPacketCount: (map['invalidPacketCount'] as num?)?.toInt() ?? 0,
       duplicatePacketCount: (map['duplicatePacketCount'] as num?)?.toInt() ?? 0,
+      remoteMainCount: (map['remoteMainCount'] as num?)?.toInt() ?? 0,
+      remoteMainDuplicateCount:
+          (map['remoteMainDuplicateCount'] as num?)?.toInt() ?? 0,
+      remoteMainCommandsEnabled: map['remoteMainCommandsEnabled'] == true,
+      lastMainTransportSource: map['lastMainTransportSource']?.toString(),
       reconnectCount: (map['reconnectCount'] as num?)?.toInt() ?? 0,
       peripheralState: peripheralState,
       mainNotificationState: map['mainNotificationState']?.toString(),
@@ -393,6 +404,10 @@ class Aiv0BleStatus {
   final int packetCount;
   final int invalidPacketCount;
   final int duplicatePacketCount;
+  final int remoteMainCount;
+  final int remoteMainDuplicateCount;
+  final bool remoteMainCommandsEnabled;
+  final String? lastMainTransportSource;
   final int reconnectCount;
   final String? peripheralState;
   final String? mainNotificationState;
@@ -720,6 +735,7 @@ class MethodChannelAiv0BleControl implements Aiv0BleControl {
           rawBytes: buttonEvent.rawBytes,
           receivedAt: buttonEvent.receivedAt,
           deviceId: buttonEvent.deviceId,
+          transportSource: event['transportSource']?.toString(),
           button: buttonEvent.button,
           gesture: buttonEvent.gesture,
           sequence: buttonEvent.sequence,

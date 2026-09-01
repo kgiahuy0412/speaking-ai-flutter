@@ -87,12 +87,82 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(filter.duplicateCount, 1)
   }
 
-  func testAiv0ReconnectPolicyUsesBoundedExponentialBackoff() {
-    XCTAssertEqual(Aiv0ReconnectPolicy.maxAttempts, 3)
-    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 1), 1)
-    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 2), 2)
-    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 3), 4)
-    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 4), 4)
+  func testH20RemoteMainPolicyOnlyHandlesForegroundH20AudioInteraction() {
+    XCTAssertTrue(
+      H20RemoteMainPolicy.shouldHandle(
+        applicationIsActive: true,
+        speechCaptureActive: true,
+        hfpRouteActive: false,
+        hfpPortNames: ["H20"]
+      )
+    )
+    XCTAssertFalse(
+      H20RemoteMainPolicy.shouldHandle(
+        applicationIsActive: false,
+        speechCaptureActive: true,
+        hfpRouteActive: false,
+        hfpPortNames: ["H20 Hands-Free"]
+      )
+    )
+    XCTAssertFalse(
+      H20RemoteMainPolicy.shouldHandle(
+        applicationIsActive: true,
+        speechCaptureActive: false,
+        hfpRouteActive: false,
+        hfpPortNames: ["H20"]
+      )
+    )
+    XCTAssertFalse(
+      H20RemoteMainPolicy.shouldHandle(
+        applicationIsActive: true,
+        speechCaptureActive: true,
+        hfpRouteActive: false,
+        hfpPortNames: ["iPhone Microphone"]
+      )
+    )
+    XCTAssertTrue(
+      H20RemoteMainPolicy.shouldHandle(
+        applicationIsActive: true,
+        speechCaptureActive: false,
+        hfpRouteActive: true,
+        hfpPortNames: ["H20 Hands-Free"]
+      )
+    )
+  }
+
+  func testH20RemoteMainPolicyBuildsObservedH20Packet() {
+    let packet = H20RemoteMainPolicy.syntheticPacket(
+      sequence: 0x2A,
+      batteryPercent: 55,
+      uptimeMilliseconds: 0x1234_5678
+    )
+
+    XCTAssertEqual(packet.count, 12)
+    XCTAssertEqual(Array(packet.prefix(4)), [0x01, 0x01, 0x2A, 0x01])
+    XCTAssertEqual(Array(packet[4 ... 7]), [0xFF, 0xFF, 0x37, 0x00])
+    XCTAssertEqual(Array(packet.suffix(4)), [0x78, 0x56, 0x34, 0x12])
+  }
+
+  func testH20RemoteAndBleMainShareTheSameDuplicateWindow() {
+    var filter = Aiv0DuplicatePacketFilter()
+    let remotePacket = H20RemoteMainPolicy.syntheticPacket(
+      sequence: 1,
+      batteryPercent: 55,
+      uptimeMilliseconds: 1_000
+    )
+    let blePacket: [UInt8] = [
+      0x01, 0x01, 0x19, 0x01, 0x01, 0x00, 0x37, 0x00, 0x10, 0x04, 0x00, 0x00,
+    ]
+
+    XCTAssertFalse(filter.register(bytes: remotePacket, uptimeMilliseconds: 1_000))
+    XCTAssertTrue(filter.register(bytes: blePacket, uptimeMilliseconds: 1_200))
+    XCTAssertFalse(filter.register(bytes: blePacket, uptimeMilliseconds: 1_951))
+  }
+
+  func testAiv0ReconnectPolicyCapsBackoffAfterTheFifthAttempt() {
+    XCTAssertEqual(Aiv0ReconnectPolicy.maxAttempts, 5)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 5), 3)
+    XCTAssertEqual(Aiv0ReconnectPolicy.delaySeconds(forAttempt: 6), 3)
   }
 
   func testAiv0DisconnectRecoveryDoesNotFightCoreBluetoothAutoReconnect() {
