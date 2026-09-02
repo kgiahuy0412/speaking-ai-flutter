@@ -223,44 +223,41 @@ void main() {
     },
   );
 
-  test(
-    'continuous HFP opens without blocking on BLE MAIN recovery',
-    () async {
-      final aiv0 = _FakeAiv0BleControl(
+  test('continuous HFP opens without blocking on BLE MAIN recovery', () async {
+    final aiv0 = _FakeAiv0BleControl(
+      protocolConfirmed: true,
+      initialStatus: const Aiv0BleStatus(
+        phase: Aiv0BlePhase.reconnecting,
         protocolConfirmed: true,
-        initialStatus: const Aiv0BleStatus(
-          phase: Aiv0BlePhase.reconnecting,
-          protocolConfirmed: true,
-          deviceId: 'H20-BLE',
-          deviceName: 'H20',
-          peripheralState: 'connecting',
-          mainNotificationState: 'unavailable',
-        ),
-      );
-      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
-      final controller = ConversationController(
-        audioInput: _FakeAudioInput(),
-        streamingSpeechInput: speechInput,
-        hfpAudioControl: _FakeHfpAudioControl(),
-        aiv0BleControl: aiv0,
-        playbackService: _FakePlaybackService(),
-        repository: _NoNetworkRepository(),
-        childAge: 6,
-        initialAsrMode: AsrMode.hfpStreaming,
-      );
+        deviceId: 'H20-BLE',
+        deviceName: 'H20',
+        peripheralState: 'connecting',
+        mainNotificationState: 'unavailable',
+      ),
+    );
+    final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      streamingSpeechInput: speechInput,
+      hfpAudioControl: _FakeHfpAudioControl(),
+      aiv0BleControl: aiv0,
+      playbackService: _FakePlaybackService(),
+      repository: _NoNetworkRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.hfpStreaming,
+    );
 
-      expect(
-        await controller.beginContinuousHfpSession().timeout(
-          const Duration(seconds: 1),
-        ),
-        isTrue,
-      );
-      expect(speechInput.cancelCount, 1);
-      expect(speechInput.beginSessionCount, 1);
-      expect(controller.isContinuousHfpSessionActive, isTrue);
-      controller.dispose();
-    },
-  );
+    expect(
+      await controller.beginContinuousHfpSession().timeout(
+        const Duration(seconds: 1),
+      ),
+      isTrue,
+    );
+    expect(speechInput.cancelCount, 1);
+    expect(speechInput.beginSessionCount, 1);
+    expect(controller.isContinuousHfpSessionActive, isTrue);
+    controller.dispose();
+  });
 
   test(
     'continuous HFP recording start does not wait for BLE coexistence',
@@ -297,6 +294,50 @@ void main() {
       expect(controller.isRecording, isTrue);
       expect(speechInput.startCount, 1);
       await controller.cancelCurrentMainAction();
+      controller.dispose();
+    },
+  );
+
+  test(
+    'continuous HFP observes cached English playback completion before play',
+    () async {
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final playback = _FakePlaybackService();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        hfpAudioControl: _FakeHfpAudioControl(),
+        aiv0BleControl: _FakeAiv0BleControl(protocolConfirmed: true),
+        playbackService: playback,
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+      controller.result = ConversationResult(
+        conversationId: 'continuous-turn',
+        sessionId: 'continuous-session',
+        context: PracticeContext.home,
+        vietnameseText: 'Con khát nước.',
+        englishText: 'I am thirsty.',
+        audioUri: Uri.parse('https://example.com/i-am-thirsty.mp3'),
+        processingMode: 'rule',
+        textSource: 'phrase_rule',
+        audioSource: 'cache',
+        asrMode: 'android_streaming',
+        latency: const ConversationLatency(
+          asrMs: 1,
+          llmMs: 0,
+          ttsMs: 0,
+          timeToFirstAudioMs: 1,
+        ),
+      );
+
+      expect(await controller.beginContinuousHfpSession(), isTrue);
+      await controller.playResult().timeout(const Duration(seconds: 1));
+
+      expect(playback.playedUris, <Uri>[
+        Uri.parse('https://example.com/i-am-thirsty.mp3'),
+      ]);
       controller.dispose();
     },
   );

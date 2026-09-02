@@ -3289,6 +3289,12 @@ class ConversationController extends ChangeNotifier {
         openedHfpForReplay = true;
         _setPlaybackCommunicationRoute(true);
       }
+      // Arm completion before starting playback. A short cached sentence can
+      // otherwise finish between play() resolving and the later subscription,
+      // leaving the continuous flow waiting on an event that already happened.
+      final playbackCompletion = _usingHfpRoute || useContinuousHfpSession
+          ? _waitForActivePlaybackToComplete()
+          : null;
       final playbackRequestedAt = DateTime.now();
       PlaybackStartMetrics? gestureMetrics;
       final gesturePlayback = _playbackService;
@@ -3319,9 +3325,7 @@ class ConversationController extends ChangeNotifier {
           metrics: metrics,
         );
       }
-      if (_usingHfpRoute || useContinuousHfpSession) {
-        await _waitForActivePlaybackToComplete();
-      }
+      if (playbackCompletion != null) await playbackCompletion;
     } catch (error) {
       await _playbackService.stop().catchError((Object _) {});
       if (playbackTurnGeneration != _conversationTurnGeneration) return;
