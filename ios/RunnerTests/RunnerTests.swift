@@ -143,6 +143,31 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(Array(packet.suffix(4)), [0x78, 0x56, 0x34, 0x12])
   }
 
+  func testH20RemoteMainDiagnosticPolicyCoversEveryRegisteredCommandOnce() {
+    let names = H20RemoteMainDiagnosticPolicy.commandNames
+
+    XCTAssertEqual(names.count, 20)
+    XCTAssertEqual(Set(names).count, names.count)
+    XCTAssertTrue(names.contains("togglePlayPause"))
+    XCTAssertTrue(names.contains("stop"))
+    XCTAssertTrue(names.contains("nextTrack"))
+    XCTAssertTrue(names.contains("seekForward"))
+    XCTAssertTrue(names.contains("changePlaybackPosition"))
+    XCTAssertTrue(names.contains("enableLanguageOption"))
+  }
+
+  func testH20ExplicitNowPlayingSessionUsesAValidSilentPcmWave() {
+    if #available(iOS 16.0, *) {
+      let wave = H20ExplicitNowPlayingSession.silentWaveData
+
+      XCTAssertGreaterThan(wave.count, 44)
+      XCTAssertEqual(String(data: wave.prefix(4), encoding: .ascii), "RIFF")
+      XCTAssertEqual(String(data: wave[8 ..< 12], encoding: .ascii), "WAVE")
+      XCTAssertEqual(String(data: wave[36 ..< 40], encoding: .ascii), "data")
+      XCTAssertTrue(wave.dropFirst(44).allSatisfy { $0 == 0 })
+    }
+  }
+
   func testH20RemoteAndBleMainShareTheSameDuplicateWindow() {
     var filter = Aiv0DuplicatePacketFilter()
     let remotePacket = H20RemoteMainPolicy.syntheticPacket(
