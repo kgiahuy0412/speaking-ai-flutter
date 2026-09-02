@@ -224,60 +224,7 @@ void main() {
   );
 
   test(
-    'continuous HFP waits for BLE MAIN Notify recovery before opening route',
-    () async {
-      final aiv0 = _FakeAiv0BleControl(
-        protocolConfirmed: true,
-        initialStatus: const Aiv0BleStatus(
-          phase: Aiv0BlePhase.reconnecting,
-          protocolConfirmed: true,
-          deviceId: 'H20-BLE',
-          deviceName: 'H20',
-          peripheralState: 'connecting',
-          mainNotificationState: 'unavailable',
-        ),
-      );
-      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
-      final controller = ConversationController(
-        audioInput: _FakeAudioInput(),
-        streamingSpeechInput: speechInput,
-        hfpAudioControl: _FakeHfpAudioControl(),
-        aiv0BleControl: aiv0,
-        playbackService: _FakePlaybackService(),
-        repository: _NoNetworkRepository(),
-        childAge: 6,
-        initialAsrMode: AsrMode.hfpStreaming,
-      );
-
-      final opening = controller.beginContinuousHfpSession(
-        bleRecoveryTimeout: const Duration(milliseconds: 500),
-        bleStableFor: const Duration(milliseconds: 20),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-
-      expect(speechInput.cancelCount, 1);
-      expect(speechInput.beginSessionCount, 0);
-
-      aiv0.emitStatus(
-        const Aiv0BleStatus(
-          phase: Aiv0BlePhase.connected,
-          protocolConfirmed: true,
-          deviceId: 'H20-BLE',
-          deviceName: 'H20',
-          peripheralState: 'connected',
-          mainNotificationState: 'notifying',
-        ),
-      );
-
-      expect(await opening, isTrue);
-      expect(speechInput.beginSessionCount, 1);
-      expect(controller.isContinuousHfpSessionActive, isTrue);
-      controller.dispose();
-    },
-  );
-
-  test(
-    'continuous HFP does not open when MAIN Notify cannot recover',
+    'continuous HFP opens without blocking on BLE MAIN recovery',
     () async {
       final aiv0 = _FakeAiv0BleControl(
         protocolConfirmed: true,
@@ -303,15 +250,53 @@ void main() {
       );
 
       expect(
-        await controller.beginContinuousHfpSession(
-          bleRecoveryTimeout: const Duration(milliseconds: 120),
-          bleStableFor: const Duration(milliseconds: 10),
+        await controller.beginContinuousHfpSession().timeout(
+          const Duration(seconds: 1),
         ),
-        isFalse,
+        isTrue,
       );
       expect(speechInput.cancelCount, 1);
-      expect(speechInput.beginSessionCount, 0);
-      expect(controller.isContinuousHfpSessionActive, isFalse);
+      expect(speechInput.beginSessionCount, 1);
+      expect(controller.isContinuousHfpSessionActive, isTrue);
+      controller.dispose();
+    },
+  );
+
+  test(
+    'continuous HFP recording start does not wait for BLE coexistence',
+    () async {
+      final aiv0 = _FakeAiv0BleControl(
+        protocolConfirmed: true,
+        initialStatus: const Aiv0BleStatus(
+          phase: Aiv0BlePhase.reconnecting,
+          protocolConfirmed: true,
+          deviceId: 'H20-BLE',
+          deviceName: 'H20',
+          peripheralState: 'connecting',
+          mainNotificationState: 'unavailable',
+        ),
+      );
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        hfpAudioControl: _FakeHfpAudioControl(),
+        aiv0BleControl: aiv0,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.hfpStreaming,
+      );
+
+      expect(await controller.beginContinuousHfpSession(), isTrue);
+      expect(speechInput.cancelCount, 1);
+      expect(speechInput.beginSessionCount, 1);
+      await controller
+          .startRecording(noSpeechTimeout: const Duration(minutes: 1))
+          .timeout(const Duration(seconds: 1));
+      expect(controller.isRecording, isTrue);
+      expect(speechInput.startCount, 1);
+      await controller.cancelCurrentMainAction();
       controller.dispose();
     },
   );
@@ -369,9 +354,13 @@ class _FakeAudioInput implements AudioInput {
 }
 
 class _FakeContinuousHfpStreamingSpeechInput
-    implements StreamingSpeechInput, ContinuousHfpSessionStreamingSpeechInput {
+    implements
+        StreamingSpeechInput,
+        HfpRouteOwningStreamingSpeechInput,
+        ContinuousHfpSessionStreamingSpeechInput {
   int cancelCount = 0;
   int beginSessionCount = 0;
+  int startCount = 0;
   bool _sessionActive = false;
 
   @override
@@ -393,7 +382,9 @@ class _FakeContinuousHfpStreamingSpeechInput
   Future<bool> checkAvailability() async => true;
 
   @override
-  Future<void> start() async {}
+  Future<void> start() async {
+    startCount += 1;
+  }
 
   @override
   Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
