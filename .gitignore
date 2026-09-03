@@ -58,3 +58,9 @@ flutter_*.log
 
 # Deployed from its own Sites source repository.
 /homi-legal-site/
+
+# Local reports, extracted test videos, and temporary deployment bundles.
+# Keep these on the workstation; they may contain user recordings or logs.
+/artifacts/reports/
+/tmp/
+~$*.docx
