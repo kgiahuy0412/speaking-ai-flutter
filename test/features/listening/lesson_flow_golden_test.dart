@@ -184,6 +184,8 @@ void main() {
       find.byType(LessonPracticeScreen),
       matchesGoldenFile('goldens/lesson-reminder-popup-390x844.png'),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 301));
   });
 
   testWidgets('recording praise fireworks match the approved direction', (
@@ -221,6 +223,8 @@ void main() {
       find.byType(LessonPracticeScreen),
       matchesGoldenFile('goldens/lesson-praise-fireworks-390x844.png'),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 301));
   });
 
   testWidgets('English-only lesson review matches the approved direction', (
@@ -415,6 +419,12 @@ class _GoldenMediaService extends LessonMediaService {
   Set<int> recordedSentenceNumbers = const <int>{};
 
   @override
+  Future<void> preparePhoneSpeakerOutput() async {}
+
+  @override
+  Future<void> prepareSelectedLessonOutput() async {}
+
+  @override
   Future<String?> existingRecording({
     required String lessonId,
     required int sentenceNumber,
@@ -449,12 +459,16 @@ class _GoldenMediaService extends LessonMediaService {
   }
 
   @override
-  Future<void> play(Uri uri) async {}
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {}
 
   @override
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {}
 
   @override

@@ -889,7 +889,7 @@ class _VocabularyHeader extends StatelessWidget {
                                 fit: BoxFit.scaleDown,
                                 alignment: Alignment.centerLeft,
                                 child: Text(
-                                  'INNOTRIK',
+                                  'HOMI',
                                   maxLines: 1,
                                   style: Theme.of(context)
                                       .textTheme

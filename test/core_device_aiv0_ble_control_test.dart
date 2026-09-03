@@ -4,6 +4,101 @@ import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('AIV0 native diagnostics', () {
+    test('decodes the merged BLE-HFP timeline in chronological order', () {
+      final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+        'phase': 'reconnecting',
+        'diagnosticTimeline': <Object?>[
+          <Object?, Object?>{
+            'stage': 'BLE_DISCONNECTED',
+            'caller': 'Aiv0BleControlBridge',
+            'eventEpochMs': 1_787_900_001_610,
+            'audioRoute': 'in=[BluetoothHFP:H20] out=[BluetoothHFP:H20]',
+            'systemIsReconnecting': true,
+            'code': 'CBErrorDomain:7',
+          },
+          <Object?, Object?>{
+            'stage': 'HFP_ROUTE_CONFIRMED',
+            'caller': 'HfpAudioBridge',
+            'eventEpochMs': 1_787_900_001_420,
+            'audioRoute': 'in=[BluetoothHFP:H20] out=[BluetoothHFP:H20]',
+          },
+        ],
+        'remoteMainCount': 2,
+        'remoteMainDuplicateCount': 1,
+        'remoteMainCommandsEnabled': true,
+        'lastMainTransportSource': 'hfpRemote',
+      }, protocolConfirmed: false);
+
+      expect(status.diagnosticTimeline.map((event) => event.stage), <String>[
+        'HFP_ROUTE_CONFIRMED',
+        'BLE_DISCONNECTED',
+      ]);
+      expect(
+        status.diagnosticTimeline.last.occurredAt,
+        DateTime.fromMillisecondsSinceEpoch(1_787_900_001_610),
+      );
+      expect(status.diagnosticTimeline.last.caller, 'Aiv0BleControlBridge');
+      expect(status.diagnosticTimeline.last.code, 'CBErrorDomain:7');
+      expect(
+        status.diagnosticTimeline.last.metadata['systemIsReconnecting'],
+        true,
+      );
+      expect(status.remoteMainCount, 2);
+      expect(status.remoteMainDuplicateCount, 1);
+      expect(status.remoteMainCommandsEnabled, isTrue);
+      expect(status.lastMainTransportSource, 'hfpRemote');
+    });
+
+    test('recognizes the connected CBPeripheral raw-value description', () {
+      final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+        'phase': 'connected',
+        'peripheralState': 'CBPeripheralState(rawValue: 2)',
+        'mainNotificationState': 'notifying',
+      }, protocolConfirmed: false);
+
+      expect(status.phase, Aiv0BlePhase.connected);
+      expect(status.isConnected, isTrue);
+      expect(status.peripheralState, 'connected');
+    });
+
+    test(
+      'does not report connected when the native GATT peripheral is disconnected',
+      () {
+        final status = Aiv0BleStatus.fromMap(<Object?, Object?>{
+          'phase': 'connected',
+          'peripheralState': 'CBPeripheralState(rawValue: 0)',
+          'mainNotificationState': 'unavailable',
+          'lastDisconnectCode': 'CBErrorDomain:7',
+          'lastDisconnectMessage': 'The specified device has disconnected.',
+          'lastDisconnectEpochMs': 1_787_987_522_081,
+          'lastNotificationRecovery':
+              'reconnect • peripheral=disconnected • notify=unavailable',
+          'deferredRecoveryRepeatCount': 12,
+        }, protocolConfirmed: false);
+
+        expect(status.phase, Aiv0BlePhase.reconnecting);
+        expect(status.isConnected, isFalse);
+        expect(status.peripheralState, 'disconnected');
+        expect(status.mainNotificationState, 'unavailable');
+        expect(status.lastDisconnectCode, 'CBErrorDomain:7');
+        expect(
+          status.lastDisconnectMessage,
+          'The specified device has disconnected.',
+        );
+        expect(
+          status.lastDisconnectAt,
+          DateTime.fromMillisecondsSinceEpoch(1_787_987_522_081),
+        );
+        expect(
+          status.lastNotificationRecovery,
+          'reconnect • peripheral=disconnected • notify=unavailable',
+        );
+        expect(status.deferredRecoveryRepeatCount, 12);
+      },
+    );
+  });
+
   group('AIV0 automatic connection selection', () {
     test('prefers the previously verified H20 address', () {
       const devices = <Aiv0BleDevice>[
@@ -83,7 +178,7 @@ void main() {
       expect(event.rawHex, '01 01 10 01 01 04 3E 00 3A F2 0B 00');
     });
 
-    test('decodes observed H20 long press and release from byte 3', () {
+    test('does not invent long press or release for current H20 packets', () {
       const codec = Aiv0DraftProtocolCodec(confirmed: false);
       final longPress = codec.decodeButtonEvent(
         Uint8List.fromList(<int>[
@@ -118,12 +213,14 @@ void main() {
         ]),
       );
 
-      expect(longPress.button, Aiv0Button.main);
-      expect(longPress.gesture, Aiv0ButtonGesture.longPress);
-      expect(longPress.sequence, 0x11);
-      expect(longPress.isActionable, isTrue);
-      expect(release.gesture, Aiv0ButtonGesture.release);
-      expect(release.sequence, 0x11);
+      expect(longPress.button, Aiv0Button.unknown);
+      expect(longPress.gesture, Aiv0ButtonGesture.unknown);
+      expect(longPress.isObservedH20Packet, isFalse);
+      expect(longPress.isActionable, isFalse);
+      expect(release.button, Aiv0Button.unknown);
+      expect(release.gesture, Aiv0ButtonGesture.unknown);
+      expect(release.isObservedH20Packet, isFalse);
+      expect(release.isActionable, isFalse);
     });
 
     test('keeps an unknown raw packet diagnostic-only', () {

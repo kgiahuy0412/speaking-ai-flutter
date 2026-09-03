@@ -65,6 +65,11 @@ abstract interface class ActiveLearningModuleController {
 /// above the practice route). The last registered route receives MAIN commands;
 /// removing it restores the route immediately below it.
 class ActiveLearningModuleRegistry extends ChangeNotifier {
+  ActiveLearningModuleRegistry({
+    Duration operationTimeout = const Duration(seconds: 3),
+  }) : _operationTimeout = operationTimeout;
+
+  final Duration _operationTimeout;
   final List<_ActiveLearningModuleRegistration> _registrations =
       <_ActiveLearningModuleRegistration>[];
   bool _notificationScheduled = false;
@@ -112,12 +117,32 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
   }
 
   Future<bool> pauseForMainAssistant() async {
-    final active = controller;
-    if (active == null) {
-      return false;
+    // A lesson can replace its intro/practice/review route while MAIN is being
+    // pressed. Pausing only the controller captured before that transition
+    // leaves the newly visible route playing, and the app then rejects MAIN as
+    // busy. Follow the top registration until the visible owner is stable.
+    var remainingAttempts = _registrations.length + 1;
+    while (remainingAttempts > 0) {
+      remainingAttempts -= 1;
+      final active = controller;
+      if (active == null) {
+        return false;
+      }
+      try {
+        await active.pauseForMainAssistant().timeout(_operationTimeout);
+      } on TimeoutException {
+        // Module state is changed synchronously before native media cleanup.
+        // Accept that paused state and let obsolete native callbacks drain in
+        // the background instead of permanently disabling physical MAIN.
+        return identical(active, controller) && active.isPausedForMain;
+      } catch (_) {
+        return false;
+      }
+      if (identical(active, controller)) {
+        return true;
+      }
     }
-    await active.pauseForMainAssistant();
-    return identical(active, controller);
+    return controller?.isPausedForMain ?? false;
   }
 
   Future<ActiveLearningCommandResult> execute(
@@ -127,7 +152,15 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
     if (active == null) {
       return const ActiveLearningCommandResult.unavailable();
     }
-    return active.handleMainCommand(command);
+    try {
+      return await active.handleMainCommand(command).timeout(_operationTimeout);
+    } on TimeoutException {
+      return const ActiveLearningCommandResult.busy(
+        spokenReply: 'Bài học đang xử lý. Con thử lại sau một chút nhé.',
+      );
+    } catch (_) {
+      return const ActiveLearningCommandResult.busy();
+    }
   }
 }
 

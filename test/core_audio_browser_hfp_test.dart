@@ -1,5 +1,6 @@
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/browser_hfp_audio_control.dart';
+import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -12,6 +13,29 @@ void main() {
     );
     expect(isLikelyBrowserHfpLabel('iPhone Microphone'), isFalse);
     expect(isLikelyBrowserHfpLabel('Default - Microphone Array'), isFalse);
+  });
+
+  test('automatic H20 selection ignores an unrelated connected headset', () {
+    const devices = <HfpAudioDevice>[
+      HfpAudioDevice(id: 'airpods', name: 'AirPods Pro', isConnected: true),
+      HfpAudioDevice(id: 'h20', name: 'H20', isConnected: false),
+    ];
+
+    expect(selectLikelyH20HfpDevice(devices, bleDeviceName: 'H20')?.id, 'h20');
+    expect(
+      selectLikelyH20HfpDevice(const <HfpAudioDevice>[
+        HfpAudioDevice(id: 'airpods', name: 'AirPods Pro', isConnected: true),
+      ], bleDeviceName: 'H20'),
+      isNull,
+    );
+  });
+
+  test('automatic H20 selection accepts known ODM device names', () {
+    const devices = <HfpAudioDevice>[
+      HfpAudioDevice(id: 'odm', name: 'INNOTRIK HFP', isConnected: true),
+    ];
+
+    expect(selectLikelyH20HfpDevice(devices)?.id, 'odm');
   });
 
   test(

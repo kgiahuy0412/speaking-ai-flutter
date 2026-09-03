@@ -1,4 +1,146 @@
 workflows:
+  ios-app-store:
+    name: HOMI iOS App Store IPA and TestFlight Upload
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    integrations:
+      app_store_connect: innotrik_app_store_connect
+
+    environment:
+      groups:
+        - homi_app_store
+      flutter: 3.44.6
+      xcode: 26.6
+      vars:
+        BUNDLE_ID: com.innotrik.aispeaking
+        BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
+        REQUIRE_BACKEND_HEALTH: "true"
+        USE_DEMO_BACKEND: "false"
+        CHILD_AGE: "6"
+        PREFER_BLE_STREAMING: "false"
+        REALTIME_BATCH_FALLBACK: "false"
+        REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+        ENABLE_AIV0_BLE_CONTROL: "true"
+        AIV0_DRAFT_PROTOCOL_CONFIRMED: "false"
+        ENABLE_HFP_AUDIO: "true"
+
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Verify release, privacy, and signing configuration
+        script: |
+          set -euo pipefail
+          flutter --version
+          xcodebuild -version
+
+          for name in CERTIFICATE_PRIVATE_KEY PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL AI_SUBPROCESSORS DATA_RETENTION_SUMMARY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required Codemagic variable: $name"
+              exit 1
+            fi
+          done
+
+          case "$BACKEND_BASE_URL" in
+            https://*) ;;
+            *) echo "BACKEND_BASE_URL must be an HTTPS URL"; exit 1 ;;
+          esac
+
+          if curl --fail --silent --show-error \
+              --retry 3 --retry-all-errors --retry-delay 2 \
+              --connect-timeout 10 --max-time 20 \
+              "$BACKEND_BASE_URL/api/health" >/dev/null; then
+            echo "Backend health check passed."
+          elif [ "${REQUIRE_BACKEND_HEALTH:-true}" = "true" ]; then
+            echo "Backend health check failed and is required for this release."
+            exit 1
+          else
+            echo "WARNING: Backend health check failed; continuing this TestFlight navigation test build."
+          fi
+
+          for name in PRIVACY_POLICY_URL TERMS_URL SUPPORT_URL; do
+            case "${!name}" in
+              https://*) ;;
+              *) echo "$name must be an HTTPS URL"; exit 1 ;;
+            esac
+          done
+
+      - name: Resolve Flutter dependencies
+        script: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Analyze Dart code
+        script: |
+          set -euo pipefail
+          flutter analyze
+
+      - name: Run platform-independent automated tests
+        script: |
+          set -euo pipefail
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print | while IFS= read -r file; do
+            if ! grep -q 'matchesGoldenFile' "$file"; then
+              printf '%s\n' "$file"
+            fi
+          done)"
+          if [ -z "$NON_GOLDEN_TESTS" ]; then
+            echo "No platform-independent Flutter tests were found."
+            exit 1
+          fi
+          flutter test $NON_GOLDEN_TESTS
+
+      - name: Initialize iOS signing keychain
+        script: |
+          set -euo pipefail
+          keychain initialize
+
+      - name: Fetch or create App Store signing files
+        script: |
+          set -euo pipefail
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Install certificate and apply App Store profile
+        script: |
+          set -euo pipefail
+          keychain add-certificates
+          xcode-project use-profiles --project ios/Runner.xcodeproj
+
+      - name: Build signed App Store IPA
+        script: |
+          set -euo pipefail
+          flutter build ipa \
+            --release \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist="$HOME/export_options.plist" \
+            --dart-define=BACKEND_BASE_URL="$BACKEND_BASE_URL" \
+            --dart-define=USE_DEMO_BACKEND="$USE_DEMO_BACKEND" \
+            --dart-define=CHILD_AGE="$CHILD_AGE" \
+            --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
+            --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES" \
+            --dart-define=ENABLE_AIV0_BLE_CONTROL="$ENABLE_AIV0_BLE_CONTROL" \
+            --dart-define=AIV0_DRAFT_PROTOCOL_CONFIRMED="$AIV0_DRAFT_PROTOCOL_CONFIRMED" \
+            --dart-define=ENABLE_HFP_AUDIO="$ENABLE_HFP_AUDIO" \
+            --dart-define=PRIVACY_POLICY_URL="$PRIVACY_POLICY_URL" \
+            --dart-define=TERMS_URL="$TERMS_URL" \
+            --dart-define=SUPPORT_URL="$SUPPORT_URL" \
+            --dart-define=AI_SUBPROCESSORS="$AI_SUBPROCESSORS" \
+            --dart-define=DATA_RETENTION_SUMMARY="$DATA_RETENTION_SUMMARY"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/ios/archive/*.xcarchive
+      - build/ios/archive/*.xcarchive/dSYMs/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
+
   ios-bootstrap:
     name: iOS Bootstrap and Simulator Validation
     instance_type: mac_mini_m2
@@ -6,14 +148,17 @@ workflows:
 
     environment:
       flutter: 3.44.6
-      xcode: 26.0
+      xcode: 26.6
       vars:
         BACKEND_BASE_URL: https://speaking-ai-nextjs-backend-production.up.railway.app
         USE_DEMO_BACKEND: "false"
         CHILD_AGE: "6"
         PREFER_BLE_STREAMING: "false"
-        REALTIME_BATCH_FALLBACK: "true"
+        REALTIME_BATCH_FALLBACK: "false"
         REALTIME_FALLBACK_BUFFER_BYTES: "15728640"
+        ENABLE_AIV0_BLE_CONTROL: "true"
+        AIV0_DRAFT_PROTOCOL_CONFIRMED: "false"
+        ENABLE_HFP_AUDIO: "true"
 
     cache:
       cache_paths:
@@ -65,7 +210,11 @@ workflows:
           # Golden baselines are approved on Windows. macOS rasterizes fonts
           # and anti-aliasing differently, so run all logic/widget tests here
           # while keeping golden verification on its baseline platform.
-          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print)"
+          NON_GOLDEN_TESTS="$(find test -type f -name '*_test.dart' ! -name '*golden*.dart' -print | while IFS= read -r file; do
+            if ! grep -q 'matchesGoldenFile' "$file"; then
+              printf '%s\n' "$file"
+            fi
+          done)"
           if [ -z "$NON_GOLDEN_TESTS" ]; then
             echo "No platform-independent Flutter tests were found."
             exit 1
@@ -83,7 +232,27 @@ workflows:
             --dart-define=CHILD_AGE="$CHILD_AGE" \
             --dart-define=PREFER_BLE_STREAMING="$PREFER_BLE_STREAMING" \
             --dart-define=REALTIME_BATCH_FALLBACK="$REALTIME_BATCH_FALLBACK" \
-            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES"
+            --dart-define=REALTIME_FALLBACK_BUFFER_BYTES="$REALTIME_FALLBACK_BUFFER_BYTES" \
+            --dart-define=ENABLE_AIV0_BLE_CONTROL="$ENABLE_AIV0_BLE_CONTROL" \
+            --dart-define=AIV0_DRAFT_PROTOCOL_CONFIRMED="$AIV0_DRAFT_PROTOCOL_CONFIRMED" \
+            --dart-define=ENABLE_HFP_AUDIO="$ENABLE_HFP_AUDIO"
+
+      - name: Run iOS native unit tests
+        script: |
+          set -euo pipefail
+          SIMULATOR_UDID="$(
+            xcrun simctl list devices available -j |
+              python3 -c 'import json, sys; data = json.load(sys.stdin); devices = [device for runtime in data["devices"].values() for device in runtime if device.get("isAvailable") and device.get("name", "").startswith("iPhone")]; print(devices[0]["udid"] if devices else "")'
+          )"
+          if [ -z "$SIMULATOR_UDID" ]; then
+            echo "No available iPhone simulator was found."
+            exit 1
+          fi
+          xcodebuild test \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Package generated iOS scaffold
         script: |

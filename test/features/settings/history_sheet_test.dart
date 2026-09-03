@@ -33,18 +33,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Lịch sử gần đây'), findsOneWidget);
-      expect(find.text('3 lượt đã lưu'), findsOneWidget);
+      expect(find.text('4 lượt đã lưu'), findsOneWidget);
+      expect(find.text('3 bản ghi âm gần nhất'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith('user-audio-'),
+        ),
+        findsNWidgets(3),
+      );
       expect(find.text('Đúng ý'), findsWidgets);
       expect(find.text('Sai ý'), findsWidgets);
       expect(find.text('Chưa đánh giá'), findsWidgets);
       expect(find.text('Câu đã duyệt'), findsOneWidget);
 
-      await tester.drag(
-        find.byType(SingleChildScrollView),
-        const Offset(-180, 0),
+      final rejectedChip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'Sai ý'),
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Sai ý'));
+      rejectedChip.onSelected!(true);
       await tester.pumpAndSettle();
 
       expect(find.text('Câu bị từ chối'), findsOneWidget);
@@ -67,6 +74,7 @@ class _FakeHistoryRepository implements ConversationRepository {
         qualityApproved: true,
         learningStatus: 'promoted',
         learningUseCount: 3,
+        hasUserAudio: true,
       ),
       ConversationHistoryItem(
         conversationId: 'rejected',
@@ -75,6 +83,7 @@ class _FakeHistoryRepository implements ConversationRepository {
         createdAt: now.subtract(const Duration(minutes: 1)),
         qualityApproved: false,
         learningStatus: 'rejected',
+        hasUserAudio: true,
       ),
       ConversationHistoryItem(
         conversationId: 'pending',
@@ -84,6 +93,15 @@ class _FakeHistoryRepository implements ConversationRepository {
         qualityApproved: null,
         learningStatus: 'observing',
         learningUseCount: 2,
+        hasUserAudio: true,
+      ),
+      ConversationHistoryItem(
+        conversationId: 'older-audio',
+        vietnameseText: 'Câu ghi âm cũ',
+        englishText: 'Older recording.',
+        createdAt: now.subtract(const Duration(minutes: 3)),
+        qualityApproved: null,
+        hasUserAudio: true,
       ),
     ];
   }

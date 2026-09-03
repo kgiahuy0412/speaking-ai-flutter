@@ -7,12 +7,40 @@ VoicePromptService createPlatformVoicePromptService() =>
     const MethodChannelVoicePromptService();
 
 class MethodChannelVoicePromptService
-    implements VoicePromptService, SpeechReadyCuePlayer {
+    implements
+        VoicePromptService,
+        SpeechReadyCuePlayer,
+        PhoneSpeakerVoicePromptService,
+        SelectedMediaOutputVoicePromptService,
+        MainTurnVoicePromptService {
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
   }) : _channel = channel;
 
   final MethodChannel _channel;
+
+  @override
+  Future<String?> beginMainTurn() async {
+    try {
+      return await _channel.invokeMethod<String>('beginMainTurn');
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> endMainTurn(String reason, {String? turnId}) async {
+    try {
+      await _channel.invokeMethod<void>('endMainTurn', <String, dynamic>{
+        'reason': reason,
+        'turnId': ?turnId,
+      });
+    } on MissingPluginException {
+      // Optional native capability.
+    } on PlatformException {
+      // Turn cleanup is best effort during navigation cancellation.
+    }
+  }
 
   @override
   Future<void> speak(String text, {String locale = 'vi-VN'}) async {
@@ -24,10 +52,38 @@ class MethodChannelVoicePromptService
     await _invokeSpeak('speakAndWait', text, locale: locale);
   }
 
+  @override
+  Future<void> speakAndWaitOnPhoneSpeaker(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    await _invokeSpeak(
+      'speakAndWait',
+      text,
+      locale: locale,
+      forcePhoneSpeaker: true,
+    );
+  }
+
+  @override
+  Future<void> speakAndWaitOnSelectedMediaOutput(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    await _invokeSpeak(
+      'speakAndWait',
+      text,
+      locale: locale,
+      forceMediaPlayback: true,
+    );
+  }
+
   Future<void> _invokeSpeak(
     String method,
     String text, {
     required String locale,
+    bool forcePhoneSpeaker = false,
+    bool forceMediaPlayback = false,
   }) async {
     if (text.trim().isEmpty) {
       return;
@@ -37,6 +93,8 @@ class MethodChannelVoicePromptService
         'text': text.trim(),
         'locale': locale,
         'gainDb': androidSpeechBoostDb,
+        'forcePhoneSpeaker': forcePhoneSpeaker,
+        'forceMediaPlayback': forceMediaPlayback,
       });
     } on MissingPluginException {
       // The prompt is supplementary. The visible message remains available on

@@ -8,6 +8,7 @@ import 'package:ai_speaking_flutter_app/features/voice_navigation/application/ma
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -67,7 +68,12 @@ void main() {
     VoiceNavigationIntent? receivedIntent;
     controller.setIntentHandler((intent) => receivedIntent = intent);
 
-    expect(await controller.activateFromMainButton(), isTrue);
+    expect(
+      await controller.activateFromMainButton(
+        inputLabelOverride: 'Mic iPhone (giữ BLE H20)',
+      ),
+      isTrue,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 520));
 
     expect(voicePrompt.spokenTexts, <String>[
@@ -76,13 +82,14 @@ void main() {
     expect(voicePrompt.readyCueCount, 1);
     expect(controller.isAwaitingCommand, isTrue);
     expect(controller.isListening, isTrue);
+    expect(controller.activeInputLabel, 'Mic iPhone (giữ BLE H20)');
     expect(
       await controller.dispatchRecognizedText('Con ghi muốn luyện nói'),
       isTrue,
     );
     expect(voicePrompt.spokenTexts, <String>[
       MainVoiceAssistantFlow.openingPrompt,
-      'Con nói từng câu nhé. Muốn dừng thì nói dừng lại.',
+      'Con nói từng câu nhé. Khi muốn dừng, con nhấn MAIN.',
     ]);
     expect(
       receivedIntent?.destination,
@@ -94,6 +101,188 @@ void main() {
     controller.dispose();
     await speechInput.dispose();
   });
+
+  test('iOS MAIN prompts use the selected H20 media output', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _SelectedMediaVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+    );
+    addTearDown(() async {
+      controller.dispose();
+      await speechInput.dispose();
+    });
+
+    expect(await controller.activateFromMainButton(), isTrue);
+
+    expect(voicePrompt.mediaOutputTexts, <String>[
+      MainVoiceAssistantFlow.openingPrompt,
+    ]);
+    expect(voicePrompt.regularOutputTexts, isEmpty);
+  });
+
+  test(
+    'Main opens the microphone when the native ready cue never completes',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _HangingReadyCueVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        speechReadyCueTimeout: const Duration(milliseconds: 5),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 520));
+
+      expect(voicePrompt.readyCueCount, 1);
+      expect(controller.isAwaitingCommand, isTrue);
+      expect(controller.isListening, isTrue);
+      expect(
+        speechInput.events.where((event) => event == 'start'),
+        hasLength(1),
+      );
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main command window starts only after the microphone is ready',
+    () async {
+      final speechInput = _DelayedNavigationSpeechInput();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        commandWindowDuration: const Duration(milliseconds: 120),
+        microphoneStartTimeout: const Duration(seconds: 2),
+      );
+
+      final activation = controller.activateFromMainButton();
+      await Future<void>.delayed(const Duration(milliseconds: 530));
+
+      expect(controller.isStarting, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(controller.isAwaitingCommand, isTrue);
+
+      speechInput.releaseStart();
+      await Future<void>.delayed(const Duration(milliseconds: 3));
+      expect(await activation, isTrue);
+      expect(controller.isListening, isTrue);
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'HFP speech activity extends MAIN command window before transcript',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 250),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => controller.isListening);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      speechInput.emitSpeechStarted();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      expect(controller.isListening, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      expect(
+        voicePrompt.spokenTexts,
+        isNot(contains(MainVoiceAssistantFlow.noSpeechRetryPrompt)),
+      );
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main exposes its first microphone start failure without retrying',
+    () async {
+      final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 1);
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        microphoneStartRetryDelay: const Duration(milliseconds: 2),
+      );
+
+      expect(await controller.activateFromMainButton(), isFalse);
+
+      expect(speechInput.startCount, 1);
+      expect(controller.isListening, isFalse);
+      expect(controller.lastErrorMessage, contains('Không mở được micro'));
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main pauses its command deadline while a premature completion recovers',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(stopText: '');
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        commandWindowDuration: const Duration(milliseconds: 200),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => controller.isListening);
+      expect(controller.isListening, isTrue);
+
+      speechInput.emitCompleted();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(controller.isMainButtonSessionActive, isTrue);
+      expect(voicePrompt.spokenTexts, <String>[
+        MainVoiceAssistantFlow.openingPrompt,
+      ]);
+
+      await controller.pause();
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main stops automatic retries and exposes the microphone error',
+    () async {
+      final speechInput = _FailingNavigationSpeechInput(failuresRemaining: 10);
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        microphoneStartRetryDelay: const Duration(milliseconds: 2),
+      );
+
+      expect(await controller.activateFromMainButton(), isFalse);
+
+      expect(speechInput.startCount, 1);
+      expect(controller.isMainButtonSessionActive, isFalse);
+      expect(controller.continuousRequested, isFalse);
+      expect(controller.lastErrorMessage, contains('Không mở được micro'));
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
 
   test('Main activation never exposes a transient inactive session', () async {
     final speechInput = _FakeNavigationSpeechInput();
@@ -348,7 +537,7 @@ void main() {
     'active lesson Main next answer advances through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       ActiveLearningCommand? receivedCommand;
       final controller = VoiceNavigationController(
         speechInput: speechInput,
@@ -370,6 +559,16 @@ void main() {
       expect(voicePrompt.spokenTexts.last, 'Mình học câu tiếp theo nhé');
       expect(receivedCommand, ActiveLearningCommand.nextItem);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(voicePrompt.endedReasons.last, 'main_assistant_completed');
+      expect(voicePrompt.endedTurnIds.last, 'test-main-1');
+
+      // The completed command must release the first MAIN turn so the same
+      // BLE/screen button can immediately start another one in the lesson.
+      expect(
+        await controller.activateFromMainButton(activeLearning: true),
+        isTrue,
+      );
+      expect(voicePrompt.beginCount, 2);
 
       controller.dispose();
       await speechInput.dispose();
@@ -380,7 +579,7 @@ void main() {
     'active lesson Main previous answer moves back through the module bridge',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       ActiveLearningCommand? receivedCommand;
       final controller = VoiceNavigationController(
         speechInput: speechInput,
@@ -399,6 +598,7 @@ void main() {
       expect(voicePrompt.spokenTexts.last, 'Mình nghe lại câu trước nhé');
       expect(receivedCommand, ActiveLearningCommand.previousItem);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(voicePrompt.endedReasons.last, 'main_assistant_completed');
 
       controller.dispose();
       await speechInput.dispose();
@@ -499,10 +699,36 @@ void main() {
   );
 
   test(
-    'Main asks once after silence then exits on the second timeout',
+    'MAIN finalizes buffered iOS transcript when its command window ends',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
+      VoiceNavigationIntent? receivedIntent;
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+        commandWindowDuration: const Duration(milliseconds: 8),
+      );
+      controller.setIntentHandler((intent) => receivedIntent = intent);
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => receivedIntent != null);
+
+      expect(
+        receivedIntent?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+      expect(controller.isMainButtonSessionActive, isFalse);
+
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
+    'Main asks once after silence then exits on the second timeout',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(stopText: '');
+      final voicePrompt = _FakeMainTurnVoicePromptService();
       final controller = VoiceNavigationController(
         speechInput: speechInput,
         voicePromptService: voicePrompt,
@@ -511,14 +737,14 @@ void main() {
       );
 
       expect(await controller.activateFromMainButton(), isTrue);
-      await Future<void>.delayed(const Duration(milliseconds: 15));
+      await _waitUntil(() => voicePrompt.spokenTexts.length >= 2);
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
       ]);
       expect(controller.isMainButtonSessionActive, isTrue);
 
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await _waitUntil(() => voicePrompt.spokenTexts.length >= 3);
       expect(voicePrompt.spokenTexts, <String>[
         MainVoiceAssistantFlow.openingPrompt,
         MainVoiceAssistantFlow.noSpeechRetryPrompt,
@@ -526,6 +752,10 @@ void main() {
       ]);
       expect(voicePrompt.readyCueCount, 2);
       expect(controller.isMainButtonSessionActive, isFalse);
+      expect(
+        voicePrompt.endedReasons,
+        contains('main_assistant_no_speech_exit'),
+      );
 
       controller.dispose();
       await speechInput.dispose();
@@ -647,15 +877,20 @@ void main() {
   );
 
   test('returns to wake-word mode when the command window expires', () async {
+    final speechInput = _FakeNavigationSpeechInput();
     final controller = VoiceNavigationController(
-      speechInput: _FakeNavigationSpeechInput(),
+      speechInput: speechInput,
       voicePromptService: _FakeVoicePromptService(),
-      commandWindowDuration: const Duration(milliseconds: 5),
+      commandWindowDuration: const Duration(milliseconds: 30),
+      partialIntentDebounce: const Duration(milliseconds: 1),
     );
 
-    expect(await controller.dispatchRecognizedText('Hey Pico'), isTrue);
+    controller.startContinuous();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    speechInput.emitPartial('Hey Pico');
+    await Future<void>.delayed(const Duration(milliseconds: 115));
     expect(controller.isAwaitingCommand, isTrue);
-    await Future<void>.delayed(const Duration(milliseconds: 15));
+    await Future<void>.delayed(const Duration(milliseconds: 35));
 
     expect(controller.isAwaitingCommand, isFalse);
     expect(
@@ -663,6 +898,7 @@ void main() {
       isFalse,
     );
     controller.dispose();
+    await speechInput.dispose();
   });
 
   test(
@@ -694,6 +930,14 @@ void main() {
       expect(controller.isAcknowledgingWakeWord, isFalse);
       expect(controller.isAwaitingCommand, isTrue);
       expect(controller.isListening, isTrue);
+      expect(
+        speechInput.diagnosticStages,
+        containsAllInOrder(<String>[
+          'prompt_done',
+          'microphone_start_requested',
+          'microphone_listening',
+        ]),
+      );
       expect(
         speechInput.events.where((event) => event == 'start'),
         hasLength(2),
@@ -739,6 +983,19 @@ void main() {
   );
 }
 
+Future<void> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for the expected navigation state.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 Future<ListeningContentCatalog> _loadMainAssistantContent() async {
   return const ListeningContentCatalog(
     groups: <ListeningContentAgeGroup>[
@@ -781,7 +1038,11 @@ Future<ListeningContentCatalog> _loadMainAssistantContent() async {
 }
 
 class _FakeNavigationSpeechInput
-    implements StreamingSpeechInput, AlternativeTranscriptStreamingSpeechInput {
+    implements
+        StreamingSpeechInput,
+        SpeechActivityStreamingSpeechInput,
+        AlternativeTranscriptStreamingSpeechInput,
+        NativeSpeechDiagnostics {
   _FakeNavigationSpeechInput({
     this.stopText = 'Con muốn học từ vựng',
     this.stopAlternatives = const <String>[],
@@ -789,15 +1050,21 @@ class _FakeNavigationSpeechInput
 
   final StreamController<double> _amplitudeController =
       StreamController<double>.broadcast();
+  final StreamController<void> _speechStartedController =
+      StreamController<void>.broadcast();
   final StreamController<void> _completedController =
       StreamController<void>.broadcast();
   final StreamController<String> _partialTextController =
       StreamController<String>.broadcast();
   final StreamController<List<String>> _alternativeTextController =
       StreamController<List<String>>.broadcast();
+  final StreamController<NativeSpeechDiagnostic> _diagnosticsController =
+      StreamController<NativeSpeechDiagnostic>.broadcast();
   final List<String> events = <String>[];
+  final List<String> diagnosticStages = <String>[];
   final String stopText;
   final List<String> stopAlternatives;
+  NativeSpeechDiagnostic? _nativeDiagnostic;
 
   void emitPartial(String text) => _partialTextController.add(text);
 
@@ -806,11 +1073,16 @@ class _FakeNavigationSpeechInput
 
   void emitCompleted() => _completedController.add(null);
 
+  void emitSpeechStarted() => _speechStartedController.add(null);
+
   @override
   String get label => 'Navigation ASR';
 
   @override
   Stream<double> get amplitudeDbfs => _amplitudeController.stream;
+
+  @override
+  Stream<void> get speechStarted => _speechStartedController.stream;
 
   @override
   Stream<void> get completed => _completedController.stream;
@@ -821,6 +1093,42 @@ class _FakeNavigationSpeechInput
   @override
   Stream<List<String>> get transcriptAlternatives =>
       _alternativeTextController.stream;
+
+  @override
+  NativeSpeechDiagnostic? get nativeSpeechDiagnostic => _nativeDiagnostic;
+
+  @override
+  Stream<NativeSpeechDiagnostic> get nativeSpeechDiagnostics =>
+      _diagnosticsController.stream;
+
+  @override
+  void reportNativeSpeechStage(
+    String stage, {
+    String? audioSource,
+    String? audioRoute,
+    String? code,
+    String? message,
+    String? turnId,
+    int? sequence,
+    int? elapsedMs,
+    String? caller,
+    DateTime? occurredAt,
+  }) {
+    diagnosticStages.add(stage);
+    _nativeDiagnostic = NativeSpeechDiagnostic(
+      stage: stage,
+      occurredAt: occurredAt ?? DateTime.now(),
+      audioSource: audioSource,
+      audioRoute: audioRoute,
+      code: code,
+      message: message,
+      turnId: turnId,
+      sequence: sequence,
+      elapsedMs: elapsedMs,
+      caller: caller,
+    );
+    _diagnosticsController.add(_nativeDiagnostic!);
+  }
 
   @override
   Future<bool> checkAvailability() async => true;
@@ -849,9 +1157,11 @@ class _FakeNavigationSpeechInput
   @override
   Future<void> dispose() async {
     await _amplitudeController.close();
+    await _speechStartedController.close();
     await _completedController.close();
     await _partialTextController.close();
     await _alternativeTextController.close();
+    await _diagnosticsController.close();
   }
 }
 
@@ -883,6 +1193,49 @@ class _FakeVoicePromptService
   Future<void> dispose() async {}
 }
 
+class _FakeMainTurnVoicePromptService extends _FakeVoicePromptService
+    implements MainTurnVoicePromptService {
+  int beginCount = 0;
+  final List<String> endedReasons = <String>[];
+  final List<String?> endedTurnIds = <String?>[];
+
+  @override
+  Future<String?> beginMainTurn() async {
+    beginCount += 1;
+    return 'test-main-$beginCount';
+  }
+
+  @override
+  Future<void> endMainTurn(String reason, {String? turnId}) async {
+    endedReasons.add(reason);
+    endedTurnIds.add(turnId);
+  }
+}
+
+class _SelectedMediaVoicePromptService extends _FakeVoicePromptService
+    implements SelectedMediaOutputVoicePromptService {
+  final List<String> mediaOutputTexts = <String>[];
+  final List<String> regularOutputTexts = <String>[];
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    regularOutputTexts.add(text);
+  }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    regularOutputTexts.add(text);
+  }
+
+  @override
+  Future<void> speakAndWaitOnSelectedMediaOutput(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    mediaOutputTexts.add(text);
+  }
+}
+
 class _BlockingVoicePromptService extends _FakeVoicePromptService {
   final Completer<void> _completion = Completer<void>();
 
@@ -892,6 +1245,16 @@ class _BlockingVoicePromptService extends _FakeVoicePromptService {
   Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
     await super.speak(text, locale: locale);
     await _completion.future;
+  }
+}
+
+class _HangingReadyCueVoicePromptService extends _FakeVoicePromptService {
+  final Completer<void> _neverCompletes = Completer<void>();
+
+  @override
+  Future<void> playSpeechReadyCue() {
+    readyCueCount += 1;
+    return _neverCompletes.future;
   }
 }
 
@@ -948,5 +1311,25 @@ class _DelayedNavigationSpeechInput implements StreamingSpeechInput {
     await _amplitudeController.close();
     await _completedController.close();
     await _partialTextController.close();
+  }
+}
+
+class _FailingNavigationSpeechInput extends _FakeNavigationSpeechInput {
+  _FailingNavigationSpeechInput({required this.failuresRemaining});
+
+  int failuresRemaining;
+  int startCount = 0;
+
+  @override
+  Future<void> start() async {
+    startCount += 1;
+    events.add('start');
+    if (failuresRemaining > 0) {
+      failuresRemaining -= 1;
+      throw const StreamingSpeechInputException(
+        'Không mở được micro thử nghiệm.',
+        code: 'TEST_MICROPHONE_START_FAILED',
+      );
+    }
   }
 }

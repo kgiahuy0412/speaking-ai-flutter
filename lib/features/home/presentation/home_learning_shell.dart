@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
+import '../../../core/platform/background_learning_session.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
@@ -14,6 +15,7 @@ import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../onboarding/application/onboarding_progress_store.dart';
 import '../../onboarding/presentation/user_onboarding_tour.dart';
+import '../../privacy/presentation/parental_gate.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
@@ -32,8 +34,15 @@ class HomeLearningShell extends StatefulWidget {
     this.onChildAgeChanged,
     this.onMainSpeakingModeStarted,
     this.onModalVisibilityChanged,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
     this.onboardingStore,
     this.listeningContentFuture,
+    this.parentAccessGate,
+    this.backgroundLearningSession,
     super.key,
   });
 
@@ -45,8 +54,15 @@ class HomeLearningShell extends StatefulWidget {
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
   final ValueChanged<bool>? onModalVisibilityChanged;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
   final OnboardingProgressStore? onboardingStore;
   final Future<ListeningContentCatalog>? listeningContentFuture;
+  final Future<bool> Function(BuildContext context)? parentAccessGate;
+  final BackgroundLearningSessionControl? backgroundLearningSession;
 
   @override
   State<HomeLearningShell> createState() => _HomeLearningShellState();
@@ -65,6 +81,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool _voiceNavigationPausedForOverlay = false;
   bool _voiceNavigationHelpShown = false;
   int? _activeVoiceTopicIndex;
+  late final BackgroundLearningSessionControl _backgroundLearningSession;
+  StreamSubscription<BackgroundLearningEvent>? _backgroundLearningSubscription;
+  bool _backgroundLearningActive = false;
+  bool _startingBackgroundLearning = false;
 
   final GlobalKey _speakActionKey = GlobalKey(
     debugLabel: 'onboarding-speak-action',
@@ -90,9 +110,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     _appLifecycleState =
         WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
     _pageController = PageController();
+    _backgroundLearningSession =
+        widget.backgroundLearningSession ??
+        MethodChannelBackgroundLearningSession();
     _attachVoiceNavigationHandler();
     widget.controller.addListener(_onConversationControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_ensureBackgroundLearningStarted());
       _scheduleVoiceNavigationListening(
         delay: const Duration(milliseconds: 450),
       );
@@ -129,6 +153,15 @@ class _HomeLearningShellState extends State<HomeLearningShell>
         unawaited(widget.voiceNavigationController?.pause());
       }
     }
+    if (oldWidget.voiceAccessEnabled != widget.voiceAccessEnabled) {
+      if (widget.voiceAccessEnabled) {
+        unawaited(_ensureBackgroundLearningStarted());
+      } else {
+        _backgroundLearningActive = false;
+        unawaited(_backgroundLearningSession.stop());
+        unawaited(widget.voiceNavigationController?.pause());
+      }
+    }
   }
 
   @override
@@ -138,6 +171,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     widget.controller.removeListener(_onConversationControllerChanged);
     widget.voiceNavigationController?.setIntentHandler(null);
     unawaited(widget.voiceNavigationController?.pause());
+    unawaited(_backgroundLearningSubscription?.cancel());
+    unawaited(_backgroundLearningSession.stop());
     _pageController.dispose();
     super.dispose();
   }
@@ -146,9 +181,52 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
     if (state == AppLifecycleState.resumed) {
+      unawaited(_ensureBackgroundLearningStarted());
       _scheduleVoiceNavigationListening();
       return;
     }
+    if (state == AppLifecycleState.detached) {
+      _backgroundLearningActive = false;
+      unawaited(_backgroundLearningSession.stop());
+    } else if (_backgroundLearningActive && widget.voiceAccessEnabled) {
+      // Android's foreground service and iOS audio/BLE background modes own
+      // this deliberate learning session. Keep an already-running recognizer
+      // alive while the screen is locked or a silent app covers HOMI.
+      _scheduleVoiceNavigationListening();
+      return;
+    }
+    _voiceNavigationRestartTimer?.cancel();
+    unawaited(widget.voiceNavigationController?.pause());
+  }
+
+  Future<void> _ensureBackgroundLearningStarted() async {
+    if (!mounted ||
+        !widget.voiceAccessEnabled ||
+        _backgroundLearningActive ||
+        _startingBackgroundLearning ||
+        kIsWeb) {
+      return;
+    }
+    _startingBackgroundLearning = true;
+    final active = await _backgroundLearningSession.start();
+    _startingBackgroundLearning = false;
+    if (!mounted) {
+      if (active) {
+        await _backgroundLearningSession.stop();
+      }
+      return;
+    }
+    _backgroundLearningActive = active;
+    if (active) {
+      _backgroundLearningSubscription ??= _backgroundLearningSession.events
+          .listen(_handleBackgroundLearningEvent);
+      _scheduleVoiceNavigationListening();
+    }
+  }
+
+  void _handleBackgroundLearningEvent(BackgroundLearningEvent event) {
+    if (!mounted) return;
+    _backgroundLearningActive = false;
     _voiceNavigationRestartTimer?.cancel();
     unawaited(widget.voiceNavigationController?.pause());
   }
@@ -187,6 +265,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                       historyButtonKey: _historyButtonKey,
                       settingsButtonKey: _settingsButtonKey,
                       onModalVisibilityChanged: widget.onModalVisibilityChanged,
+                      privacyConsentGranted: widget.privacyConsentGranted,
+                      voiceAccessEnabled: widget.voiceAccessEnabled,
+                      onRequestVoiceAccess: widget.onRequestVoiceAccess,
+                      onManagePrivacyConsent: widget.onManagePrivacyConsent,
+                      onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
+                      onOpenHistory: _showHistory,
+                      onOpenSettings: _showSettings,
                     ),
                     VocabularyHomeScreen(
                       isReady: widget.controller.isInputAvailable,
@@ -272,6 +357,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool get _continuousVoiceNavigationEnabled =>
       widget.config.enableVoiceNavigation &&
       widget.config.autoStartVoiceNavigation &&
+      widget.voiceAccessEnabled &&
       widget.voiceNavigationController != null &&
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android;
@@ -279,7 +365,9 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool get _canStartVoiceNavigationListening =>
       mounted &&
       _continuousVoiceNavigationEnabled &&
-      _appLifecycleState == AppLifecycleState.resumed &&
+      (_appLifecycleState == AppLifecycleState.resumed ||
+          (_backgroundLearningActive &&
+              _appLifecycleState != AppLifecycleState.detached)) &&
       !_voiceNavigationPausedForOverlay &&
       !_tutorialActive &&
       !widget.controller.isBusy &&
@@ -287,9 +375,16 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       widget.controller.isInputAvailable;
 
   void _onConversationControllerChanged() {
-    if (!_continuousVoiceNavigationEnabled ||
-        widget.controller.isBusy ||
-        widget.controller.isPlaybackPlaying) {
+    // This listener owns Android's optional, always-on wake-word session only.
+    // iOS uses the same VoiceNavigationController for an explicit MAIN turn.
+    // Pausing when continuous navigation is disabled therefore cancelled an
+    // iOS MAIN turn whenever BLE/HFP diagnostics notified the conversation
+    // controller -- often only a few milliseconds after beginMainTurn().
+    if (!_continuousVoiceNavigationEnabled) {
+      _voiceNavigationRestartTimer?.cancel();
+      return;
+    }
+    if (widget.controller.isBusy || widget.controller.isPlaybackPlaying) {
       _voiceNavigationRestartTimer?.cancel();
       unawaited(widget.voiceNavigationController?.pause());
       return;
@@ -432,7 +527,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   List<UserOnboardingStep> get _tutorialSteps => <UserOnboardingStep>[
     UserOnboardingStep(
       kind: UserOnboardingStepKind.welcome,
-      title: context.tr('Chào mừng đến với INNOTRIK', '欢迎使用 INNOTRIK'),
+      title: context.tr('Chào mừng đến với HOMI', '欢迎使用 HOMI'),
       description: context.tr(
         'Mình sẽ chỉ cho bạn những khu vực quan trọng để bắt đầu học thật dễ dàng.',
         '接下来带你快速认识几个重要功能，轻松开始学习。',
@@ -443,8 +538,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       kind: UserOnboardingStepKind.spotlight,
       title: context.tr('Bắt đầu nói', '开始说话'),
       description: context.tr(
-        'Chạm nút micro, nói một câu tiếng Việt và INNOTRIK sẽ giúp chuyển sang tiếng Anh.',
-        '点击麦克风，说一句越南语，INNOTRIK 会帮你转换成英语。',
+        'Chạm nút micro, nói một câu tiếng Việt và HOMI sẽ giúp chuyển sang tiếng Anh.',
+        '点击麦克风，说一句越南语，HOMI 会帮你转换成英语。',
       ),
       icon: Icons.mic_rounded,
       targetKey: _speakActionKey,
@@ -658,6 +753,23 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             onVoiceNavigationResume: _resumeVoiceNavigation,
             initialVoiceTarget: initialVoiceTarget,
             onTopicSelected: (index) => _activeVoiceTopicIndex = index,
+            onChildAgeChanged: widget.onChildAgeChanged,
+            onRequestParentAccess: _requestParentAccess,
+            onLessonSelectionRequested:
+                ({
+                  required childAge,
+                  required topicNumber,
+                  required topicContent,
+                  required completedLessonNumbers,
+                }) async {
+                  await widget.voiceNavigationController
+                      ?.activateLessonSelectionForTopic(
+                        childAge: childAge,
+                        topicNumber: topicNumber,
+                        topicContent: topicContent,
+                        completedLessonNumbers: completedLessonNumbers,
+                      );
+                },
             onTopicSelectionAfterCompletion:
                 ({required childAge, required completedTopicNumbers}) async {
                   await widget.voiceNavigationController
@@ -700,11 +812,20 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   void _showSettings() {
-    unawaited(_pauseVoiceNavigation('settings_opened'));
-    unawaited(_openSettingsSheet());
+    unawaited(_openParentSettings());
+  }
+
+  Future<void> _openParentSettings() async {
+    if (!await _requestParentAccess()) {
+      return;
+    }
+    await _pauseVoiceNavigation('settings_opened');
+    await _openSettingsSheet();
   }
 
   Future<void> _openSettingsSheet() async {
+    await widget.controller.markParentDiagnosticsOpened();
+    if (!mounted) return;
     widget.onModalVisibilityChanged?.call(true);
     try {
       await showModalBottomSheet<void>(
@@ -718,6 +839,12 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           onThemeModeChanged: widget.onThemeModeChanged,
           onChildAgeChanged: widget.onChildAgeChanged,
           onStartTutorial: _startTutorial,
+          config: widget.config,
+          privacyConsentGranted: widget.privacyConsentGranted,
+          voiceAccessEnabled: widget.voiceAccessEnabled,
+          onRequestVoiceAccess: widget.onRequestVoiceAccess,
+          onManagePrivacyConsent: widget.onManagePrivacyConsent,
+          onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
         ),
       );
     } finally {
@@ -729,8 +856,20 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   void _showHistory() {
-    unawaited(_pauseVoiceNavigation('history_opened'));
-    unawaited(_openHistorySheet());
+    unawaited(_openParentHistory());
+  }
+
+  Future<void> _openParentHistory() async {
+    if (!await _requestParentAccess()) {
+      return;
+    }
+    await _pauseVoiceNavigation('history_opened');
+    await _openHistorySheet();
+  }
+
+  Future<bool> _requestParentAccess() {
+    final gate = widget.parentAccessGate;
+    return gate == null ? showParentalGate(context) : gate(context);
   }
 
   Future<void> _openHistorySheet() async {

@@ -101,6 +101,10 @@ class _HistorySheetState extends State<HistorySheet> {
       760.0,
     );
     final visibleItems = _visibleItems;
+    final recentUserAudioItems = _items
+        .where((item) => item.hasUserAudio)
+        .take(3)
+        .toList(growable: false);
 
     return DisplayLanguageScope(
       language: widget.controller.displayLanguage,
@@ -173,6 +177,46 @@ class _HistorySheetState extends State<HistorySheet> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  if (!_loading && recentUserAudioItems.isNotEmpty) ...<Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        context.tr('3 bản ghi âm gần nhất', '最近 3 条录音'),
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: recentUserAudioItems
+                            .map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: OutlinedButton.icon(
+                                  key: ValueKey<String>(
+                                    'user-audio-${item.conversationId}',
+                                  ),
+                                  onPressed:
+                                      _busyItems.contains(item.conversationId)
+                                      ? null
+                                      : () => _playUserAudioItem(item),
+                                  icon: const Icon(
+                                    Icons.graphic_eq_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    '${_formatTime(item.createdAt)} · ${item.vietnameseText}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Expanded(
                     child: _HistoryBody(
                       loading: _loading,
@@ -202,6 +246,22 @@ class _HistorySheetState extends State<HistorySheet> {
     setState(() => _busyItems.add(item.conversationId));
     try {
       await widget.controller.playHistoryItem(item);
+    } catch (error) {
+      _showMessage(_friendlyError(error), isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _busyItems.remove(item.conversationId));
+      }
+    }
+  }
+
+  Future<void> _playUserAudioItem(ConversationHistoryItem item) async {
+    if (_busyItems.contains(item.conversationId)) {
+      return;
+    }
+    setState(() => _busyItems.add(item.conversationId));
+    try {
+      await widget.controller.playHistoryUserAudio(item);
     } catch (error) {
       _showMessage(_friendlyError(error), isError: true);
     } finally {
@@ -269,7 +329,7 @@ class _HistorySheetState extends State<HistorySheet> {
         title: Text(_t('Xóa lượt nói này?', '删除这条记录？')),
         content: Text(
           _t(
-            '“${item.vietnameseText}” sẽ bị xóa khỏi lịch sử.',
+            'HOMI sẽ yêu cầu máy chủ xóa “${item.vietnameseText}” cùng transcript và audio liên quan. Thao tác chỉ hoàn tất khi máy chủ xác nhận.',
             '“${item.vietnameseText}”将从历史记录中删除。',
           ),
         ),
@@ -305,7 +365,9 @@ class _HistorySheetState extends State<HistorySheet> {
             )
             .toList(growable: false);
       });
-      _showMessage(_t('Đã xóa lượt nói.', '已删除这条记录。'));
+      _showMessage(
+        _t('Máy chủ đã xác nhận yêu cầu xóa lượt nói.', '服务器已确认删除这条记录。'),
+      );
     } catch (error) {
       _showMessage(_friendlyError(error), isError: true);
     } finally {
@@ -322,7 +384,7 @@ class _HistorySheetState extends State<HistorySheet> {
         title: Text(_t('Xóa toàn bộ lịch sử?', '清除全部历史记录？')),
         content: Text(
           _t(
-            'Thao tác này sẽ xóa tất cả lượt nói đã lưu và không thể hoàn tác.',
+            'HOMI sẽ yêu cầu máy chủ xóa toàn bộ history, transcript và audio liên quan. Thao tác chỉ hoàn tất khi máy chủ xác nhận và không thể hoàn tác.',
             '此操作将删除所有已保存的对话记录，且无法撤销。',
           ),
         ),
@@ -355,7 +417,12 @@ class _HistorySheetState extends State<HistorySheet> {
         _items = const <ConversationHistoryItem>[];
         _loading = false;
       });
-      _showMessage(_t('Đã xóa toàn bộ lịch sử.', '已清除全部历史记录。'));
+      _showMessage(
+        _t(
+          'Máy chủ đã xác nhận yêu cầu xóa toàn bộ dữ liệu lịch sử.',
+          '服务器已确认删除全部历史数据。',
+        ),
+      );
     } catch (error) {
       if (mounted) {
         setState(() => _loading = false);

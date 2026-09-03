@@ -1,5 +1,5 @@
 name: ai_speaking_flutter_app
-description: INNOTRIK speaking assistant for Android and installable web.
+description: HOMI speaking assistant for Android, iOS, and installable web.
 publish_to: none
 version: 1.0.4+7
 
@@ -14,6 +14,7 @@ dependencies:
     sdk: flutter
   http: ^1.6.0
   just_audio: ^0.10.6
+  local_auth: ^3.0.2
   package_info_plus: ^10.2.1
   path_provider: ^2.1.6
   record: ^7.1.1
@@ -94,7 +95,8 @@ flutter:
         
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
+  remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
   web:

@@ -10,10 +10,10 @@ abstract interface class BrowserAudioPlayback {
   Duration? preloadedSourceLoadedAfter(Uri uri);
   Duration? preloadedSourceReadyAfter(Uri uri);
 
+  void setPlaybackRate(double rate);
   Future<void> unlockForUserGesture();
   Future<void> preload(Uri uri);
   Future<void> play(Uri uri);
   Future<void> pause();
-  void setPlaybackRate(double rate);
   Future<void> dispose();
 }

@@ -23,6 +23,13 @@ class ConversationScreen extends StatelessWidget {
     this.onChildAgeChanged,
     this.onStartTutorial,
     this.onModalVisibilityChanged,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
+    this.onOpenHistory,
+    this.onOpenSettings,
     this.speakActionKey,
     this.resultPanelKey,
     this.historyButtonKey,
@@ -37,6 +44,13 @@ class ConversationScreen extends StatelessWidget {
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
   final ValueChanged<bool>? onModalVisibilityChanged;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
+  final VoidCallback? onOpenHistory;
+  final VoidCallback? onOpenSettings;
   final Key? speakActionKey;
   final Key? resultPanelKey;
   final Key? historyButtonKey;
@@ -59,8 +73,9 @@ class ConversationScreen extends StatelessWidget {
                   children: <Widget>[
                     ScenicAppHeader(
                       isReady: controller.isInputAvailable,
-                      onHistory: () => _showHistory(context),
-                      onSettings: () => _showSettings(context),
+                      onHistory: onOpenHistory ?? () => _showHistory(context),
+                      onSettings:
+                          onOpenSettings ?? () => _showSettings(context),
                       historyButtonKey: historyButtonKey,
                       settingsButtonKey: settingsButtonKey,
                     ),
@@ -131,6 +146,8 @@ class ConversationScreen extends StatelessWidget {
   }
 
   Future<void> _showSettings(BuildContext context) async {
+    await controller.markParentDiagnosticsOpened();
+    if (!context.mounted) return;
     onModalVisibilityChanged?.call(true);
     try {
       await showModalBottomSheet<void>(
@@ -144,6 +161,12 @@ class ConversationScreen extends StatelessWidget {
           onThemeModeChanged: onThemeModeChanged,
           onChildAgeChanged: onChildAgeChanged,
           onStartTutorial: onStartTutorial,
+          config: config,
+          privacyConsentGranted: privacyConsentGranted,
+          voiceAccessEnabled: voiceAccessEnabled,
+          onRequestVoiceAccess: onRequestVoiceAccess,
+          onManagePrivacyConsent: onManagePrivacyConsent,
+          onRevokePrivacyConsent: onRevokePrivacyConsent,
         ),
       );
     } finally {

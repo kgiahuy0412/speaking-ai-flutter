@@ -78,6 +78,13 @@ abstract interface class UserAudioArchiveRepository {
   });
 }
 
+/// Optional authenticated playback capability for a child's archived audio.
+/// Implementations return a short-lived URL rather than exposing storage
+/// identifiers in the history response.
+abstract interface class UserAudioHistoryPlaybackRepository {
+  Future<Uri> fetchUserAudioPlaybackUri(String conversationId);
+}
+
 abstract interface class BatchChunkUploadSession {
   void addAudioChunk(Uint8List bytes);
 

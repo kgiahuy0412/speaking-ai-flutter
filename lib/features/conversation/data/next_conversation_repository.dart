@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
+import '../../../core/auth/installation_authenticated_client.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/pcm16_speech_trimmer.dart';
@@ -22,22 +23,31 @@ class NextConversationRepository
     implements
         ConversationRepository,
         UserAudioArchiveRepository,
+        UserAudioHistoryPlaybackRepository,
         ChunkedConversationRepository,
         RealtimeConversationRepository,
         OfflineIntentCatalogRepository {
   NextConversationRepository({
     required AppConfig config,
     required Future<String> Function() clientIdProvider,
+    Future<void> Function()? clientIdResetter,
     http.Client? client,
   }) : _config = config,
-       _client = client ?? http.Client(),
+       _client =
+           client ??
+           InstallationAuthenticatedClient(
+             config: config,
+             clientIdProvider: clientIdProvider,
+             clientIdResetter: clientIdResetter,
+           ),
        _ownsClient = client == null,
-       _clientId = clientIdProvider();
+       _clientIdProvider = clientIdProvider;
 
   final AppConfig _config;
   final http.Client _client;
   final bool _ownsClient;
-  final Future<String> _clientId;
+  final Future<String> Function() _clientIdProvider;
+  Future<String> get _clientId => _clientIdProvider();
   Future<OfflineIntentManifest>? _offlineIntentManifest;
 
   @override
@@ -557,11 +567,13 @@ class NextConversationRepository
   Future<_AudioSessionDescriptor> _createAudioSession({
     String encoding = 'pcm_s16le',
   }) async {
+    final clientId = await _clientId;
     final response = await _client
         .post(
           _config.resolve('/api/audio-sessions'),
           headers: const <String, String>{'content-type': 'application/json'},
           body: jsonEncode(<String, dynamic>{
+            'clientId': clientId,
             'protocolVersion': 2,
             'audio': <String, dynamic>{
               'encoding': encoding,
@@ -1073,6 +1085,28 @@ class NextConversationRepository
   }
 
   @override
+  Future<Uri> fetchUserAudioPlaybackUri(String conversationId) async {
+    final clientId = await _clientId;
+    final uri = _config
+        .resolve(
+          '/api/conversations/${Uri.encodeComponent(conversationId)}/user-audio',
+        )
+        .replace(queryParameters: <String, String>{'clientId': clientId});
+    final response = await _client
+        .get(uri)
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeResponse(response);
+    final rawAudioUrl = json['audioUrl'];
+    if (rawAudioUrl is! String || rawAudioUrl.trim().isEmpty) {
+      throw const ConversationApiException(
+        'Backend không trả về đường dẫn bản ghi âm.',
+        errorCode: 'USER_AUDIO_URL_MISSING',
+      );
+    }
+    return _config.backendBaseUri.resolve(rawAudioUrl);
+  }
+
+  @override
   Future<void> deleteHistoryItem(String conversationId) async {
     final clientId = await _clientId;
     final uri = _config
@@ -1081,6 +1115,7 @@ class NextConversationRepository
           queryParameters: <String, String>{
             'conversationId': conversationId,
             'clientId': clientId,
+            'deleteRelatedData': 'true',
           },
         );
     final response = await _client
@@ -1094,7 +1129,12 @@ class NextConversationRepository
     final clientId = await _clientId;
     final uri = _config
         .resolve('/api/history')
-        .replace(queryParameters: <String, String>{'clientId': clientId});
+        .replace(
+          queryParameters: <String, String>{
+            'clientId': clientId,
+            'deleteRelatedData': 'true',
+          },
+        );
     final response = await _client
         .delete(uri)
         .timeout(const Duration(seconds: 10));

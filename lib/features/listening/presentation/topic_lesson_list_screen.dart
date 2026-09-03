@@ -61,7 +61,11 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
   void initState() {
     super.initState();
     _ownsMediaService = widget.mediaService == null;
-    _mediaService = widget.mediaService ?? LessonMediaService();
+    _mediaService =
+        widget.mediaService ??
+        LessonMediaService(
+          hfpAudioControl: widget.controller?.learningAudioRouteControl,
+        );
     _progressFuture = widget.progressStore.readAll();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_openInitialLesson());

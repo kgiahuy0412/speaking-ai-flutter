@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
+import '../../listening/domain/listening_content.dart';
 import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
 
@@ -32,7 +33,11 @@ class VoiceNavigationController extends ChangeNotifier {
     bool ownsVoicePromptService = false,
     Duration restartDelay = const Duration(milliseconds: 300),
     Duration partialIntentDebounce = const Duration(milliseconds: 160),
-    Duration commandWindowDuration = const Duration(seconds: 6),
+    Duration commandWindowDuration = const Duration(seconds: 8),
+    Duration speechReadyCueTimeout = const Duration(milliseconds: 900),
+    Duration microphoneStartTimeout = const Duration(seconds: 15),
+    Duration microphoneStartRetryDelay = const Duration(seconds: 2),
+    Duration pauseDrainTimeout = const Duration(seconds: 2),
     ActiveLearningCommandHandler? activeLearningCommandHandler,
   }) : _speechInput = speechInput,
        _resolver = resolver,
@@ -43,6 +48,10 @@ class VoiceNavigationController extends ChangeNotifier {
        _restartDelay = restartDelay,
        _partialIntentDebounce = partialIntentDebounce,
        _commandWindowDuration = commandWindowDuration,
+       _speechReadyCueTimeout = speechReadyCueTimeout,
+       _microphoneStartTimeout = microphoneStartTimeout,
+       _microphoneStartRetryDelay = microphoneStartRetryDelay,
+       _pauseDrainTimeout = pauseDrainTimeout,
        _activeLearningCommandHandler = activeLearningCommandHandler {
     _completedSubscription = _speechInput.completed.listen((_) {
       if (_listening && !_finishing) {
@@ -52,6 +61,15 @@ class VoiceNavigationController extends ChangeNotifier {
     _partialTextSubscription = _speechInput.partialText.listen(
       _handlePartialText,
     );
+    _amplitudeSubscription = _speechInput.amplitudeDbfs.listen(
+      _handleAmplitude,
+    );
+    final activityInput = _speechInput is SpeechActivityStreamingSpeechInput
+        ? _speechInput as SpeechActivityStreamingSpeechInput
+        : null;
+    _speechActivitySubscription = activityInput?.speechStarted.listen((_) {
+      _markSpeechActivity();
+    });
     final alternativeInput =
         _speechInput is AlternativeTranscriptStreamingSpeechInput
         ? _speechInput as AlternativeTranscriptStreamingSpeechInput
@@ -69,7 +87,6 @@ class VoiceNavigationController extends ChangeNotifier {
   static const Duration _mainCommandListenRestartDelay = Duration(
     milliseconds: 500,
   );
-
   final StreamingSpeechInput _speechInput;
   final VoiceNavigationIntentResolver _resolver;
   final MainVoiceAssistantFlow _mainAssistantFlow;
@@ -79,10 +96,16 @@ class VoiceNavigationController extends ChangeNotifier {
   final Duration _restartDelay;
   final Duration _partialIntentDebounce;
   final Duration _commandWindowDuration;
+  final Duration _speechReadyCueTimeout;
+  final Duration _microphoneStartTimeout;
+  final Duration _microphoneStartRetryDelay;
+  final Duration _pauseDrainTimeout;
   final ActiveLearningCommandHandler? _activeLearningCommandHandler;
 
   StreamSubscription<void>? _completedSubscription;
   StreamSubscription<String>? _partialTextSubscription;
+  StreamSubscription<double>? _amplitudeSubscription;
+  StreamSubscription<void>? _speechActivitySubscription;
   StreamSubscription<List<String>>? _alternativeTextSubscription;
   Timer? _restartTimer;
   Timer? _noSpeechTimer;
@@ -98,6 +121,7 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _listening = false;
   bool _finishing = false;
   bool _speechDetected = false;
+  int _speechActivitySamples = 0;
   bool _awaitingCommand = false;
   bool _acknowledgingWakeWord = false;
   bool _buttonCommandSession = false;
@@ -106,6 +130,9 @@ class VoiceNavigationController extends ChangeNotifier {
   int _generation = 0;
   int _mainNoSpeechRetryCount = 0;
   Object? _lastError;
+  String? _activeInputLabelOverride;
+  String? _nativeMainTurnId;
+  int? _nativeMainTurnGeneration;
 
   bool get isListening => _listening;
   bool get isStarting => _starting;
@@ -123,6 +150,15 @@ class VoiceNavigationController extends ChangeNotifier {
       _buttonCommandSession || _mainButtonActivationInProgress;
   MainVoiceAssistantStage get mainAssistantStage => _mainAssistantFlow.stage;
   Object? get lastError => _lastError;
+  String get activeInputLabel =>
+      _activeInputLabelOverride ?? _speechInput.label;
+  String? get lastErrorMessage {
+    final error = _lastError;
+    if (error == null) return null;
+    if (error is StreamingSpeechInputException) return error.message;
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Không mở được micro. Con thử lại nhé.' : message;
+  }
 
   void setIntentHandler(VoiceNavigationIntentHandler? handler) {
     _intentHandler = handler;
@@ -136,6 +172,9 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed) {
       return;
     }
+    if (!_continuousRequested) {
+      _lastError = null;
+    }
     _continuousRequested = true;
     _scheduleSession(delay);
   }
@@ -148,11 +187,13 @@ class VoiceNavigationController extends ChangeNotifier {
   Future<bool> activateFromMainButton({
     bool activeLearning = false,
     ActiveLearningModuleKind? activeLearningKind,
+    String? inputLabelOverride,
   }) async {
     return _activateMainAssistantFlow(
       activeLearning
           ? _mainAssistantFlow.beginActiveLearning
           : _mainAssistantFlow.begin,
+      inputLabelOverride: inputLabelOverride,
     );
   }
 
@@ -175,7 +216,28 @@ class VoiceNavigationController extends ChangeNotifier {
     );
   }
 
-  Future<bool> _activateMainAssistantFlow(String Function() beginFlow) async {
+  /// Continues a topic selected on screen using the child's real lesson
+  /// progress, so MAIN can offer the next lesson or confirm a replay.
+  Future<bool> activateLessonSelectionForTopic({
+    required int childAge,
+    required int topicNumber,
+    required ListeningTopicContent topicContent,
+    required List<int> completedLessonNumbers,
+  }) async {
+    return _activateMainAssistantFlow(
+      () => _mainAssistantFlow.beginLessonSelectionForTopic(
+        childAge: childAge,
+        topicNumber: topicNumber,
+        topicContent: topicContent,
+        completedLessonNumbers: completedLessonNumbers,
+      ),
+    );
+  }
+
+  Future<bool> _activateMainAssistantFlow(
+    String Function() beginFlow, {
+    String? inputLabelOverride,
+  }) async {
     if (_disposed) {
       return false;
     }
@@ -186,6 +248,9 @@ class VoiceNavigationController extends ChangeNotifier {
       if (_disposed) {
         return false;
       }
+      await _beginNativeMainTurn(_generation);
+      _activeInputLabelOverride = inputLabelOverride;
+      _lastError = null;
       _buttonCommandSession = true;
       _mainNoSpeechRetryCount = 0;
       _continuousRequested = true;
@@ -198,12 +263,22 @@ class VoiceNavigationController extends ChangeNotifier {
         _buttonCommandSession = false;
         _continuousRequested = false;
         _mainAssistantFlow.reset();
+        await _endNativeMainTurn(
+          'prompt_not_acknowledged',
+          generation: generation,
+        );
         return false;
       }
-      // Give Android audio focus and the speaker a short time to settle so the
-      // recognizer does not capture the tail of Bi cô's own sentence.
-      _scheduleSession(_mainCommandListenRestartDelay);
-      return true;
+      // Perform one explicit prompt -> mic hand-off and do not report MAIN as
+      // activated until native speech has actually emitted speech.ready. The
+      // ready-cue service already includes its playback tail; adding another
+      // detached/delayed start only created a second lifecycle that could race
+      // pause/cancel and hide a native start failure.
+      if (_disposed || generation != _generation || !_continuousRequested) {
+        return false;
+      }
+      await _runStartSession(generation);
+      return _listening;
     } finally {
       _mainButtonActivationInProgress = false;
       if (!_disposed) {
@@ -221,6 +296,7 @@ class VoiceNavigationController extends ChangeNotifier {
     _buttonCommandSession = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    final endingGeneration = _generation;
     _generation += 1;
     _cancelTimers();
     final shouldStopPrompt = _acknowledgingWakeWord;
@@ -233,15 +309,24 @@ class VoiceNavigationController extends ChangeNotifier {
     final shouldCancelInput = _starting || _listening;
     final starting = _startInProgress;
     final finishing = _finishInProgress;
+    // Detach stale native operations immediately. Their generation is no
+    // longer current, so any late completion must not block or replace the
+    // next physical MAIN turn.
+    _startInProgress = null;
+    _finishInProgress = null;
     _starting = false;
     _listening = false;
     _speechDetected = false;
     final pendingOperations = <Future<void>>[
-      if (shouldCancelInput) _speechInput.cancel().catchError((Object _) {}),
-      if (starting != null) starting.catchError((Object _) {}),
-      if (finishing != null) finishing.catchError((Object _) {}),
+      if (shouldCancelInput || starting != null || finishing != null)
+        _boundedCleanup(_speechInput.cancel()),
+      if (starting != null) _boundedCleanup(starting),
+      if (finishing != null) _boundedCleanup(finishing),
       if (shouldStopPrompt && _voicePromptService != null)
-        _voicePromptService.stop().catchError((Object _) {}),
+        _boundedCleanup(_voicePromptService.stop()),
+      _boundedCleanup(
+        _endNativeMainTurn('controller_pause', generation: endingGeneration),
+      ),
     ];
     final Future<void> operation = pendingOperations.isEmpty
         ? Future<void>.value()
@@ -355,6 +440,13 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    // The MAIN controller is the sole owner of the native turn. Apple Speech
+    // may start, stop, or be replaced several times while the assistant asks
+    // follow-up questions, so recognition callbacks must not release HFP/BLE.
+    await _endNativeMainTurn(
+      'main_assistant_completed',
+      generation: generation,
+    );
     final activeLearningCommand = turn.activeLearningCommand;
     if (activeLearningCommand != null) {
       final handler = _activeLearningCommandHandler;
@@ -397,12 +489,23 @@ class VoiceNavigationController extends ChangeNotifier {
           if (_disposed || generation != _generation) {
             return false;
           }
-          await promptService
-              .speakAndWait(utterance.text, locale: utterance.locale)
-              .timeout(
-                _voicePromptTimeout,
-                onTimeout: () => promptService.stop(),
-              );
+          final promptPlayback =
+              !kIsWeb &&
+                  defaultTargetPlatform == TargetPlatform.iOS &&
+                  promptService is SelectedMediaOutputVoicePromptService
+              ? (promptService as SelectedMediaOutputVoicePromptService)
+                    .speakAndWaitOnSelectedMediaOutput(
+                      utterance.text,
+                      locale: utterance.locale,
+                    )
+              : promptService.speakAndWait(
+                  utterance.text,
+                  locale: utterance.locale,
+                );
+          await promptPlayback.timeout(
+            _voicePromptTimeout,
+            onTimeout: () => promptService.stop(),
+          );
         }
       }
     } catch (error) {
@@ -413,8 +516,8 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed || generation != _generation) {
       return false;
     }
-    _acknowledgingWakeWord = false;
     if (!openCommandWindow) {
+      _acknowledgingWakeWord = false;
       _awaitingCommand = false;
       notifyListeners();
       return true;
@@ -422,7 +525,12 @@ class VoiceNavigationController extends ChangeNotifier {
     try {
       final readyCuePlayer = _voicePromptService;
       if (readyCuePlayer is SpeechReadyCuePlayer) {
-        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+        // AudioServices completion is not guaranteed to arrive promptly while
+        // iOS is switching a Bluetooth HFP route after prompt playback. Never
+        // let a missing ready-cue callback prevent Apple Speech from opening.
+        await (readyCuePlayer as SpeechReadyCuePlayer)
+            .playSpeechReadyCue()
+            .timeout(_speechReadyCueTimeout);
       }
     } catch (error) {
       if (!_disposed && generation == _generation) {
@@ -432,7 +540,21 @@ class VoiceNavigationController extends ChangeNotifier {
     if (_disposed || generation != _generation) {
       return false;
     }
+    // Keep the visible prompt state through the ready cue. The previous gap
+    // showed an idle "Main" button between the beep and microphone startup,
+    // even though the same activation was still in progress.
+    _acknowledgingWakeWord = false;
+    final diagnostics = _speechInput is NativeSpeechDiagnostics
+        ? _speechInput as NativeSpeechDiagnostics
+        : null;
+    diagnostics?.reportNativeSpeechStage('prompt_done');
     _awaitingCommand = true;
+    notifyListeners();
+    return true;
+  }
+
+  void _armCommandWindowTimer(int generation) {
+    _commandWindowTimer?.cancel();
     _commandWindowTimer = Timer(_commandWindowDuration, () {
       _commandWindowTimer = null;
       if (_disposed || generation != _generation || !_awaitingCommand) {
@@ -445,8 +567,6 @@ class VoiceNavigationController extends ChangeNotifier {
       _awaitingCommand = false;
       notifyListeners();
     });
-    notifyListeners();
-    return true;
   }
 
   Future<void> _handleMainCommandTimeout(int generation) async {
@@ -456,18 +576,55 @@ class VoiceNavigationController extends ChangeNotifier {
         !_awaitingCommand) {
       return;
     }
-    _awaitingCommand = false;
     _cancelSessionTimers();
-    final shouldCancelInput = _starting || _listening;
-    _starting = false;
-    _listening = false;
-    _speechDetected = false;
-    if (shouldCancelInput) {
+    if (_listening) {
+      // SpeechAnalyzer can keep the last phrase in its volatile buffer until
+      // the input sequence is finalized. Cancelling here discarded exactly the
+      // command that iOS had just captured. Stop/finalize first, then decide
+      // whether this was truly a no-speech turn.
+      _listening = false;
+      _finishing = true;
+      notifyListeners();
+      try {
+        final capture = await _speechInput.stop();
+        if (_disposed || generation != _generation) {
+          return;
+        }
+        final outcome = await _handleCaptureCandidates(capture, generation);
+        if (outcome.heardTranscript) {
+          _finishing = false;
+          _speechDetected = false;
+          if (!_disposed) {
+            notifyListeners();
+          }
+          if (_continuousRequested && generation == _generation) {
+            _scheduleSession(
+              _awaitingCommand
+                  ? _buttonCommandSession
+                        ? _mainCommandListenRestartDelay
+                        : _commandListenRestartDelay
+                  : _restartDelay,
+            );
+          }
+          return;
+        }
+      } catch (error) {
+        _lastError = error;
+      } finally {
+        _finishing = false;
+        _speechDetected = false;
+        if (!_disposed) {
+          notifyListeners();
+        }
+      }
+    } else if (_starting) {
+      _starting = false;
       await _speechInput.cancel().catchError((Object _) {});
     }
     if (_disposed || generation != _generation || !_buttonCommandSession) {
       return;
     }
+    _awaitingCommand = false;
     if (_mainNoSpeechRetryCount == 0) {
       _mainNoSpeechRetryCount = 1;
       final prompted = await _acknowledgeWakeWord(
@@ -491,6 +648,10 @@ class VoiceNavigationController extends ChangeNotifier {
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
     _mainAssistantFlow.reset();
+    await _endNativeMainTurn(
+      'main_assistant_no_speech_exit',
+      generation: generation,
+    );
     notifyListeners();
   }
 
@@ -511,15 +672,21 @@ class VoiceNavigationController extends ChangeNotifier {
     final generation = _generation;
     _restartTimer = Timer(delay, () {
       _restartTimer = null;
-      final startFuture = _startSession(generation);
-      _startInProgress = startFuture;
-      unawaited(
-        startFuture.whenComplete(() {
-          if (identical(_startInProgress, startFuture)) {
-            _startInProgress = null;
-          }
-        }),
-      );
+      unawaited(_runStartSession(generation));
+    });
+  }
+
+  Future<void> _runStartSession(int generation) {
+    final existing = _startInProgress;
+    if (existing != null) {
+      return existing;
+    }
+    final startFuture = _startSession(generation);
+    _startInProgress = startFuture;
+    return startFuture.whenComplete(() {
+      if (identical(_startInProgress, startFuture)) {
+        _startInProgress = null;
+      }
     });
   }
 
@@ -531,54 +698,169 @@ class VoiceNavigationController extends ChangeNotifier {
       return;
     }
     _starting = true;
-    _lastError = null;
     notifyListeners();
     try {
       final commandInput = _speechInput is CommandStreamingSpeechInput
           ? _speechInput as CommandStreamingSpeechInput
           : null;
-      if (commandInput != null) {
-        await commandInput.startCommandRecognition();
-      } else {
-        await _speechInput.start();
-      }
+      final diagnostics = _speechInput is NativeSpeechDiagnostics
+          ? _speechInput as NativeSpeechDiagnostics
+          : null;
+      diagnostics?.reportNativeSpeechStage('microphone_start_requested');
+      final startOperation = commandInput != null
+          ? commandInput.startCommandRecognition()
+          : _speechInput.start();
+      await startOperation.timeout(
+        _microphoneStartTimeout,
+        onTimeout: () {
+          unawaited(_boundedCleanup(_speechInput.cancel()));
+          throw const StreamingSpeechInputException(
+            'Micro mất quá nhiều thời gian để sẵn sàng. HOMI sẽ thử lại.',
+            code: 'NAVIGATION_MICROPHONE_START_TIMEOUT',
+          );
+        },
+      );
       if (_disposed || !_continuousRequested || generation != _generation) {
-        await _speechInput.cancel().catchError((Object _) {});
+        await _boundedCleanup(_speechInput.cancel());
         return;
       }
       _starting = false;
       _listening = true;
       _speechDetected = false;
-      _noSpeechTimer = Timer(_noSpeechTimeout, () {
-        if (!_speechDetected) {
-          unawaited(_cancelSessionAndRestart(generation));
-        }
-      });
+      _speechActivitySamples = 0;
+      _lastError = null;
+      diagnostics?.reportNativeSpeechStage('microphone_listening');
+      // The prompt may have finished well before iOS finishes preparing the
+      // HFP route or Apple Speech. Reset the command window here so the child
+      // always receives the full listening period after the mic is truly open.
+      if (_awaitingCommand) {
+        _armCommandWindowTimer(generation);
+      }
+      // MAIN already owns a command-window timer which speaks a child-friendly
+      // retry prompt. Running the generic no-speech timer at the same deadline
+      // raced it, cancelled Apple Speech, and could make the button return to
+      // Main immediately after the ready beep.
+      if (!_buttonCommandSession || !_awaitingCommand) {
+        _noSpeechTimer = Timer(_noSpeechTimeout, () {
+          if (!_speechDetected) {
+            unawaited(_cancelSessionAndRestart(generation));
+          }
+        });
+      }
       _maximumSessionTimer = Timer(
         _maximumSessionDuration,
         () => unawaited(_finishSession(generation)),
       );
       notifyListeners();
     } catch (error) {
+      final diagnostics = _speechInput is NativeSpeechDiagnostics
+          ? _speechInput as NativeSpeechDiagnostics
+          : null;
+      diagnostics?.reportNativeSpeechStage(
+        'microphone_start_failed',
+        code: error is StreamingSpeechInputException ? error.code : null,
+        message: error.toString(),
+      );
       _lastError = error;
       _starting = false;
       _listening = false;
+      // A physical/virtual MAIN turn has exactly one native start. Do not hide
+      // its error behind route, recognizer, or delayed retry loops.
+      final exhaustedMainAttempts = _buttonCommandSession;
+      if (exhaustedMainAttempts) {
+        _awaitingCommand = false;
+        _buttonCommandSession = false;
+        _continuousRequested = false;
+        _mainNoSpeechRetryCount = 0;
+        _mainAssistantFlow.reset();
+        await _endNativeMainTurn(
+          'microphone_start_failed',
+          generation: generation,
+        );
+      }
       if (!_disposed) {
         notifyListeners();
       }
-      if (_continuousRequested && generation == _generation) {
-        _scheduleSession(const Duration(seconds: 2));
+      if (!exhaustedMainAttempts &&
+          _continuousRequested &&
+          generation == _generation) {
+        _scheduleRetryAfterFailedStart(generation, _microphoneStartRetryDelay);
       }
     }
+  }
+
+  Future<void> _beginNativeMainTurn(int generation) async {
+    final service = _voicePromptService;
+    if (service is! MainTurnVoicePromptService) {
+      return;
+    }
+    try {
+      final turnId = await (service as MainTurnVoicePromptService)
+          .beginMainTurn();
+      if (_disposed || generation != _generation) {
+        return;
+      }
+      _nativeMainTurnId = turnId;
+      _nativeMainTurnGeneration = generation;
+    } catch (_) {
+      // The visible prompt remains usable on platforms without this bridge.
+    }
+  }
+
+  Future<void> _endNativeMainTurn(
+    String reason, {
+    required int generation,
+  }) async {
+    final service = _voicePromptService;
+    if (service is! MainTurnVoicePromptService) {
+      return;
+    }
+    if (_nativeMainTurnGeneration != generation) {
+      return;
+    }
+    // Claim this exact native turn before awaiting the platform channel. A
+    // delayed cleanup from an obsolete lesson/MAIN generation must never end a
+    // newer turn which has already taken ownership of AVAudioSession.
+    final turnId = _nativeMainTurnId;
+    _nativeMainTurnId = null;
+    _nativeMainTurnGeneration = null;
+    try {
+      await (service as MainTurnVoicePromptService)
+          .endMainTurn(reason, turnId: turnId)
+          .timeout(_pauseDrainTimeout);
+    } catch (_) {
+      // Ending a stale native turn is best-effort. It must never keep the
+      // controller active or prevent the next MAIN gesture.
+    }
+  }
+
+  Future<void> _boundedCleanup(Future<void> operation) async {
+    try {
+      await operation.timeout(_pauseDrainTimeout);
+    } catch (_) {
+      // Cleanup belongs to the obsolete generation. MAIN must be re-armed even
+      // when an AVAudioSession or MethodChannel callback never returns.
+    }
+  }
+
+  void _scheduleRetryAfterFailedStart(int generation, Duration delay) {
+    _restartTimer?.cancel();
+    _restartTimer = Timer(delay, () {
+      _restartTimer = null;
+      if (_disposed || generation != _generation || !_continuousRequested) {
+        return;
+      }
+      // This timer runs after the failed start future has completed, so
+      // _scheduleSession no longer rejects the retry as an active start.
+      _scheduleSession(Duration.zero);
+    });
   }
 
   void _handlePartialText(String text) {
     if (!_listening || text.trim().isEmpty) {
       return;
     }
-    _speechDetected = true;
-    _noSpeechTimer?.cancel();
-    _noSpeechTimer = null;
+    _markSpeechActivity();
 
     // A wake phrase can react from a partial result. Once awake, only explicit
     // action phrases use this fast path; short destination names still wait for
@@ -598,6 +880,34 @@ class VoiceNavigationController extends ChangeNotifier {
       _partialIntentTimer = null;
       unawaited(_finishFromPartialRecognition(generation, text));
     });
+  }
+
+  void _handleAmplitude(double dbfs) {
+    if (!_listening) return;
+    if (dbfs <= -42) {
+      _speechActivitySamples = 0;
+      return;
+    }
+    _speechActivitySamples += 1;
+    // Require two adjacent loud buffers so a route click or the tail of the
+    // ready cue does not count as the child's answer. speech.begin remains the
+    // immediate native fast path when Swift has already confirmed activity.
+    if (_speechActivitySamples >= 2) {
+      _markSpeechActivity();
+    }
+  }
+
+  void _markSpeechActivity() {
+    if (!_listening) return;
+    final firstActivity = !_speechDetected;
+    _speechDetected = true;
+    _noSpeechTimer?.cancel();
+    _noSpeechTimer = null;
+    if (firstActivity && _buttonCommandSession && _awaitingCommand) {
+      // Give Apple Speech a complete command window after the child actually
+      // starts talking; HFP audio can precede its first partial transcript.
+      _armCommandWindowTimer(_generation);
+    }
   }
 
   void _handleAlternativeTranscripts(List<String> candidates) {
@@ -695,6 +1005,14 @@ class VoiceNavigationController extends ChangeNotifier {
       return Future<void>.value();
     }
     _cancelSessionTimers();
+    if (_buttonCommandSession && _awaitingCommand) {
+      // A native runtime completion can arrive before a usable transcript
+      // (for example while HFP is settling). Pause the command deadline while
+      // stop/fallback is being resolved; the next confirmed microphone start
+      // rearms the full window in _startSession.
+      _commandWindowTimer?.cancel();
+      _commandWindowTimer = null;
+    }
     _listening = false;
     _finishing = true;
     notifyListeners();
@@ -709,33 +1027,24 @@ class VoiceNavigationController extends ChangeNotifier {
   }
 
   Future<void> _runFinishSession(int generation) async {
+    var sessionFailed = false;
     try {
       final capture = await _speechInput.stop();
       if (_disposed || generation != _generation) {
         return;
       }
-      final candidates = <String>[capture.sourceText, ...capture.alternatives];
-      final orderedCandidates = _buttonCommandSession
-          ? <String>[
-              ...candidates.where(_mainAssistantFlow.canHandle),
-              ...candidates.where(
-                (candidate) => !_mainAssistantFlow.canHandle(candidate),
-              ),
-            ]
-          : candidates;
-      final handledCandidates = <String>{};
-      for (final candidate in orderedCandidates) {
-        final recognizedText = candidate.trim();
-        if (recognizedText.isEmpty || !handledCandidates.add(recognizedText)) {
-          continue;
-        }
-        if (await _handleRecognizedText(recognizedText, generation)) {
-          break;
-        }
-      }
+      await _handleCaptureCandidates(capture, generation);
     } catch (error) {
+      sessionFailed = true;
       if (!_disposed && generation == _generation) {
         _lastError = error;
+        if (_buttonCommandSession) {
+          _awaitingCommand = false;
+          _buttonCommandSession = false;
+          _continuousRequested = false;
+          _mainNoSpeechRetryCount = 0;
+          _mainAssistantFlow.reset();
+        }
       }
     } finally {
       _finishing = false;
@@ -743,7 +1052,7 @@ class VoiceNavigationController extends ChangeNotifier {
       if (!_disposed) {
         notifyListeners();
       }
-      if (_continuousRequested && generation == _generation) {
+      if (!sessionFailed && _continuousRequested && generation == _generation) {
         _scheduleSession(
           _awaitingCommand
               ? _buttonCommandSession
@@ -753,6 +1062,34 @@ class VoiceNavigationController extends ChangeNotifier {
         );
       }
     }
+  }
+
+  Future<({bool heardTranscript, bool handled})> _handleCaptureCandidates(
+    StreamingSpeechCapture capture,
+    int generation,
+  ) async {
+    final candidates = <String>[capture.sourceText, ...capture.alternatives];
+    final orderedCandidates = _buttonCommandSession
+        ? <String>[
+            ...candidates.where(_mainAssistantFlow.canHandle),
+            ...candidates.where(
+              (candidate) => !_mainAssistantFlow.canHandle(candidate),
+            ),
+          ]
+        : candidates;
+    final handledCandidates = <String>{};
+    var heardTranscript = false;
+    for (final candidate in orderedCandidates) {
+      final recognizedText = candidate.trim();
+      if (recognizedText.isEmpty || !handledCandidates.add(recognizedText)) {
+        continue;
+      }
+      heardTranscript = true;
+      if (await _handleRecognizedText(recognizedText, generation)) {
+        return (heardTranscript: true, handled: true);
+      }
+    }
+    return (heardTranscript: heardTranscript, handled: false);
   }
 
   void _cancelSessionTimers() {
@@ -780,6 +1117,8 @@ class VoiceNavigationController extends ChangeNotifier {
     _cancelTimers();
     unawaited(_completedSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_amplitudeSubscription?.cancel());
+    unawaited(_speechActivitySubscription?.cancel());
     unawaited(_alternativeTextSubscription?.cancel());
     if (_ownsSpeechInput) {
       unawaited(_speechInput.dispose());

@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
@@ -67,6 +69,7 @@ class LessonPracticeScreen extends StatefulWidget {
 
 class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     implements ActiveLearningModuleController {
+  static const Duration _mainPauseCleanupTimeout = Duration(seconds: 2);
   int _sentenceIndex = 0;
   bool _recording = false;
   bool _mediaBusy = false;
@@ -110,8 +113,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   ListeningSentenceContent get _sentence =>
       widget.lesson.sentences[_sentenceIndex];
 
-  bool get _usesGuideV2 =>
-      RegExp(r'^A\d+_T\d+_L\d+$').hasMatch(widget.lesson.code);
+  bool get _usesGuideV2 => widget.lesson.usesGuidedPractice;
+
+  IOSStreamingSpeechInput? get _iosLessonSpeechInput =>
+      widget.controller?.iosLessonSpeechInput;
+
+  bool get _usesIosNativeLessonRecognition =>
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.iOS &&
+      _usesGuideV2 &&
+      _ownsAttemptEvaluator &&
+      _iosLessonSpeechInput != null;
 
   @override
   ActiveLearningModuleKind get moduleKind =>
@@ -167,7 +179,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _praiseFireworksTimer?.cancel();
     _recordingAutoStopTimer?.cancel();
     if (_recording) {
-      widget.mediaService.cancelRecording();
+      if (_usesIosNativeLessonRecognition && !_completionChoiceRecording) {
+        unawaited(_iosLessonSpeechInput!.cancel());
+      } else {
+        widget.mediaService.cancelRecording();
+      }
     }
     if (!_handingOffMediaPlayback) {
       widget.mediaService.stopPlayback();
@@ -185,6 +201,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       attemptEvaluator.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _cancelLessonAttemptCapture() async {
+    if (_usesIosNativeLessonRecognition && !_completionChoiceRecording) {
+      await _iosLessonSpeechInput!.cancel().catchError((Object _) {});
+      return;
+    }
+    await widget.mediaService.cancelRecording().catchError((Object _) {});
   }
 
   Future<void> _loadStartingPoint() async {
@@ -271,6 +295,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _completionChoiceRecording ||
         _recordingStartPending ||
         _recordingDeviceStartInProgress != null;
+    final wasCompletionChoiceRecording = _completionChoiceRecording;
+    final pendingDeviceStart = _recordingDeviceStartInProgress;
+    // The request/generation guards already make a late completion stale.
+    // Detach it now so a native start that never returns cannot own the module
+    // lifecycle or poison the next MAIN gesture.
+    _recordingDeviceStartInProgress = null;
     if (mounted) {
       setState(() {
         _recording = false;
@@ -283,18 +313,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       });
     }
 
-    if (shouldCancelRecording) {
-      await widget.mediaService.cancelRecording().catchError((Object _) {});
-    }
-    final pendingDeviceStart = _recordingDeviceStartInProgress;
+    // Issue every ownership release now and bound the group as one operation.
+    // Never await a stale start here: its request/generation is invalid and a
+    // late callback must not cancel the new recognizer owned by MAIN.
+    final cleanup = <Future<void>>[
+      if (shouldCancelRecording)
+        wasCompletionChoiceRecording
+            ? widget.mediaService.cancelRecording()
+            : _cancelLessonAttemptCapture(),
+      widget.mediaService.stopPlayback(),
+      _voicePromptService.stop(),
+    ];
     if (pendingDeviceStart != null) {
-      await pendingDeviceStart.catchError((Object _) {});
-      // A native start can finish after the first cancellation request. Cancel
-      // once more before MAIN is allowed to play its question.
-      await widget.mediaService.cancelRecording().catchError((Object _) {});
+      unawaited(pendingDeviceStart.catchError((Object _) {}));
     }
-    await widget.mediaService.stopPlayback().catchError((Object _) {});
-    await _voicePromptService.stop().catchError((Object _) {});
+    await _boundedMainPauseCleanup(
+      Future.wait<void>(cleanup).then<void>((_) {}),
+    );
+  }
+
+  Future<void> _boundedMainPauseCleanup(Future<void> operation) async {
+    try {
+      await operation.timeout(_mainPauseCleanupTimeout);
+    } catch (_) {
+      // The request and lifecycle generations above invalidate this operation.
+      // Cleanup must remain finite so MAIN can take microphone ownership.
+    }
   }
 
   @override
@@ -697,6 +741,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     final request = ++_recordingStartRequest;
+    final iosSpeechInput = _usesIosNativeLessonRecognition
+        ? _iosLessonSpeechInput
+        : null;
     _cancelIdleReminder();
     _hideCoachPopup();
     setState(() {
@@ -712,14 +759,19 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (!mounted || request != _recordingStartRequest) {
         return;
       }
-      final deviceStart = widget.mediaService.startRecording(
-        lessonId: widget.lesson.id,
-        sentenceNumber: _sentence.number,
-        lessonTitle: widget.lesson.titleVi,
-        sentenceId: _sentence.id,
-        english: _sentence.english,
-        vietnamese: _sentence.vietnamese,
-      );
+      final Future<void> deviceStart;
+      if (iosSpeechInput != null) {
+        deviceStart = iosSpeechInput.startLessonEnglishRecognition();
+      } else {
+        deviceStart = widget.mediaService.startRecording(
+          lessonId: widget.lesson.id,
+          sentenceNumber: _sentence.number,
+          lessonTitle: widget.lesson.titleVi,
+          sentenceId: _sentence.id,
+          english: _sentence.english,
+          vietnamese: _sentence.vietnamese,
+        );
+      }
       _recordingDeviceStartInProgress = deviceStart;
       try {
         await deviceStart;
@@ -729,7 +781,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         }
       }
       if (!mounted || request != _recordingStartRequest) {
-        await widget.mediaService.cancelRecording();
+        // The owner that invalidated this request already cancelled its native
+        // turn. Cancelling here can arrive late and kill a newer MAIN turn.
+        if (iosSpeechInput == null) {
+          await widget.mediaService.cancelRecording();
+        }
         return;
       }
       if (mounted) {
@@ -750,7 +806,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingAutoStopTimer?.cancel();
       _recordingAutoStopTimer = null;
       if (request != _recordingStartRequest) {
-        await widget.mediaService.cancelRecording();
+        // Stale starts have no authority over the current microphone owner.
+        if (iosSpeechInput == null) {
+          await widget.mediaService.cancelRecording();
+        }
         return;
       }
       if (mounted) {
@@ -773,6 +832,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_recordingStartPending && !_recording) {
       _recordingStartRequest += 1;
       _recordingStartPending = false;
+      await _boundedMainPauseCleanup(_cancelLessonAttemptCapture());
       await widget.mediaService.stopPlayback();
       if (mounted) {
         setState(() => _mediaBusy = false);
@@ -785,6 +845,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     final recordingGeneration = _recordingLifecycleGeneration;
     setState(() => _mediaBusy = true);
     try {
+      final iosSpeechInput = _usesIosNativeLessonRecognition
+          ? _iosLessonSpeechInput
+          : null;
+      if (iosSpeechInput != null) {
+        await _stopIosNativeLessonAttempt(
+          iosSpeechInput,
+          recordingGeneration: recordingGeneration,
+        );
+        return;
+      }
       final recording = await widget.mediaService.stopRecording();
       if (!mounted ||
           _pausedForMainAssistant ||
@@ -849,6 +919,79 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
   }
 
+  Future<void> _stopIosNativeLessonAttempt(
+    IOSStreamingSpeechInput speechInput, {
+    required int recordingGeneration,
+  }) async {
+    LessonAttemptOutcome outcome;
+    Duration? captureDuration;
+    try {
+      final capture = await speechInput.stop();
+      captureDuration = capture.duration;
+      final recognizedCandidates = <String>{
+        capture.sourceText,
+        ...capture.alternatives,
+      };
+      outcome =
+          recognizedCandidates.any(
+            (candidate) =>
+                matchesRecognizedLessonEnglish(_sentence.english, candidate),
+          )
+          ? LessonAttemptOutcome.good
+          : LessonAttemptOutcome.retry;
+      debugPrint(
+        'HOMI iOS lesson recognition completed: '
+        'candidateCount=${recognizedCandidates.length}, outcome=$outcome',
+      );
+    } on StreamingSpeechInputException catch (error) {
+      outcome = LessonAttemptOutcome.unclear;
+      debugPrint(
+        'HOMI iOS lesson recognition returned no usable speech: '
+        'code=${error.code ?? 'unknown'}',
+      );
+    }
+
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        recordingGeneration != _recordingLifecycleGeneration) {
+      return;
+    }
+    final evaluationRequest = ++_attemptEvaluationRequest;
+    final evaluatedSentenceIndex = _sentenceIndex;
+    final evaluatedSentence = _sentence;
+    final evaluatedAttemptNumber = _attemptNumber;
+    setState(() {
+      _recording = false;
+      _mediaBusy = false;
+      _recordingPath = null;
+      _recordingDuration = captureDuration;
+      _message = null;
+      _skippedSentenceIndexes.remove(_sentenceIndex);
+      _evaluatingAttempt = true;
+    });
+    try {
+      await widget.progressStore.clearSkippedSentence(
+        widget.lesson.id,
+        evaluatedSentenceIndex,
+      );
+    } catch (_) {
+      // Recognition and scoring do not depend on progress persistence.
+    }
+    try {
+      await _applyAttemptOutcome(
+        outcome,
+        evaluationRequest: evaluationRequest,
+        sentenceIndex: evaluatedSentenceIndex,
+        sentence: evaluatedSentence,
+        attemptNumber: evaluatedAttemptNumber,
+      );
+    } finally {
+      if (mounted && evaluationRequest == _attemptEvaluationRequest) {
+        setState(() => _evaluatingAttempt = false);
+      }
+    }
+  }
+
   Future<void> _evaluateAttempt(
     LessonRecording recording, {
     required int evaluationRequest,
@@ -865,6 +1008,25 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       attemptNumber: attemptNumber,
       childAge: widget.startAge,
     );
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
+      return;
+    }
+    await _applyAttemptOutcome(
+      outcome,
+      evaluationRequest: evaluationRequest,
+      sentenceIndex: sentenceIndex,
+      sentence: sentence,
+      attemptNumber: attemptNumber,
+    );
+  }
+
+  Future<void> _applyAttemptOutcome(
+    LessonAttemptOutcome outcome, {
+    required int evaluationRequest,
+    required int sentenceIndex,
+    required ListeningSentenceContent sentence,
+    required int attemptNumber,
+  }) async {
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
       return;
     }
@@ -909,7 +1071,33 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await _advanceToNext(autoPlaySentence: true);
         return;
       case LessonAttemptOutcome.unclear:
+        if (attemptNumber >= 2) {
+          await _markSentenceNeedsPractice(sentenceIndex, sentence);
+          if (!_isCurrentEvaluation(
+            evaluationRequest,
+            sentenceIndex,
+            sentence.id,
+          )) {
+            return;
+          }
+          setState(() {
+            _recordingPath = null;
+            _recordingDuration = null;
+            _message = LessonGuideFlowV2.moveToNext.text;
+          });
+          await _playPrompt(LessonGuideFlowV2.moveToNext);
+          if (!_isCurrentEvaluation(
+            evaluationRequest,
+            sentenceIndex,
+            sentence.id,
+          )) {
+            return;
+          }
+          await _advanceToNext(autoPlaySentence: true);
+          return;
+        }
         setState(() {
+          _attemptNumber += 1;
           _recordingPath = null;
           _recordingDuration = null;
           _message = LessonGuideFlowV2.unclear.text;
@@ -1288,7 +1476,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _recordingAutoStopTimer = null;
     await widget.mediaService.stopPlayback();
     if (_recording || _recordingStartPending) {
-      await widget.mediaService.cancelRecording().catchError((Object _) {});
+      await _cancelLessonAttemptCapture();
     }
     try {
       await widget.mediaService.deleteRecordingsForLesson(widget.lesson.id);
@@ -1743,7 +1931,23 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       );
       return;
     }
-    await _voicePromptService.speakAndWait(prompt.text);
+    await widget.mediaService.prepareSelectedLessonOutput();
+    await _speakLessonPrompt(prompt.text);
+  }
+
+  Future<void> _speakLessonPrompt(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    final promptService = _voicePromptService;
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        promptService is SelectedMediaOutputVoicePromptService) {
+      await (promptService as SelectedMediaOutputVoicePromptService)
+          .speakAndWaitOnSelectedMediaOutput(text, locale: locale);
+      return;
+    }
+    await promptService.speakAndWait(text, locale: locale);
   }
 
   Future<void> _playBilingualSentenceSample() async {
@@ -1751,10 +1955,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (englishUri != null) {
       await widget.mediaService.playToCompletion(englishUri);
     } else {
-      await _voicePromptService.speakAndWait(
-        _sentence.english,
-        locale: 'en-US',
-      );
+      await widget.mediaService.prepareSelectedLessonOutput();
+      await _speakLessonPrompt(_sentence.english, locale: 'en-US');
     }
     if (!mounted || _pausedForMainAssistant) {
       return;
@@ -1767,10 +1969,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (vietnameseUri != null) {
       await widget.mediaService.playToCompletion(vietnameseUri);
     } else {
-      await _voicePromptService.speakAndWait(
-        _sentence.vietnamese,
-        locale: 'vi-VN',
-      );
+      await widget.mediaService.prepareSelectedLessonOutput();
+      await _speakLessonPrompt(_sentence.vietnamese, locale: 'vi-VN');
     }
   }
 

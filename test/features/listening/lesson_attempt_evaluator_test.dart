@@ -205,6 +205,28 @@ void main() {
     );
     evaluator.dispose();
   });
+
+  group('basic Apple Speech lesson matching', () {
+    test('accepts exact speech and common contraction/name variants', () {
+      expect(matchesRecognizedLessonEnglish('I am An', "I'm Anne"), isTrue);
+      expect(matchesRecognizedLessonEnglish("I'm An", 'Amen'), isTrue);
+    });
+
+    test('allows a short recognizer prefix around the target sentence', () {
+      expect(
+        matchesRecognizedLessonEnglish('I am hungry', 'Okay I am hungry'),
+        isTrue,
+      );
+    });
+
+    test('keeps silence and a different sentence out of the pass result', () {
+      expect(matchesRecognizedLessonEnglish('I am hungry', ''), isFalse);
+      expect(
+        matchesRecognizedLessonEnglish('I am hungry', 'I want the bathroom'),
+        isFalse,
+      );
+    });
+  });
 }
 
 Future<LessonAttemptOutcome> _evaluate(

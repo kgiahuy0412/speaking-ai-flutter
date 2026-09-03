@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 enum MainButtonSource { screen, ble }
 
@@ -32,13 +33,16 @@ class MainButtonCoordinator {
     required MainButtonAction onScreenShortPress,
     required MainButtonAction onBleShortPress,
     required MainButtonAction onLongPress,
+    Duration actionTimeout = const Duration(seconds: 30),
   }) : _onScreenShortPress = onScreenShortPress,
        _onBleShortPress = onBleShortPress,
-       _onLongPress = onLongPress;
+       _onLongPress = onLongPress,
+       _actionTimeout = actionTimeout;
 
   final MainButtonAction _onScreenShortPress;
   final MainButtonAction _onBleShortPress;
   final MainButtonAction _onLongPress;
+  final Duration _actionTimeout;
   final Map<MainButtonSource, int?> _activeLongPressSequences =
       <MainButtonSource, int?>{};
   Future<void> _operationTail = Future<void>.value();
@@ -47,8 +51,22 @@ class MainButtonCoordinator {
     final completer = Completer<MainButtonActionResult>();
     _operationTail = _operationTail.then<void>((_) async {
       try {
-        completer.complete(await _handleSerially(event));
-      } catch (_) {
+        completer.complete(
+          await _handleSerially(event).timeout(
+            _actionTimeout,
+            onTimeout: () => MainButtonActionResult.busy,
+          ),
+        );
+      } catch (error, stackTrace) {
+        // Do not hide a failed physical MAIN dispatch. This log is mirrored by
+        // the controller's in-app dispatch status so TestFlight diagnostics can
+        // distinguish an ignored BLE packet from a failed assistant action.
+        developer.log(
+          'MAIN action failed.',
+          name: 'homi.main_button',
+          error: error,
+          stackTrace: stackTrace,
+        );
         completer.complete(MainButtonActionResult.busy);
       }
     });

@@ -26,48 +26,46 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const ValueKey('pwa-install-guide')), findsOneWidget);
-    expect(find.text('Cài INNOTRIK lên iPhone'), findsOneWidget);
+    expect(find.text('Cài HOMI lên iPhone'), findsOneWidget);
     expect(
       find.text('Chọn “Mở bằng Safari” trong trình duyệt hiện tại.'),
       findsOneWidget,
     );
     for (var step = 1; step <= 4; step += 1) {
-      expect(
-        find.byKey(ValueKey('pwa-install-step-$step')),
-        findsOneWidget,
-      );
+      expect(find.byKey(ValueKey('pwa-install-step-$step')), findsOneWidget);
     }
     expect(find.text('MAIN_APP'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows the three Safari steps when the page is already in Safari', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: PwaInstallGate(
-          runtimeState: PwaRuntimeState(
-            installRequired: true,
-            inAppBrowser: false,
+  testWidgets(
+    'shows the three Safari steps when the page is already in Safari',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: PwaInstallGate(
+            runtimeState: PwaRuntimeState(
+              installRequired: true,
+              inAppBrowser: false,
+            ),
+            child: Text('MAIN_APP'),
           ),
-          child: Text('MAIN_APP'),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(find.byKey(const ValueKey('pwa-install-guide')), findsOneWidget);
-    expect(
-      find.text('Chọn “Mở bằng Safari” trong trình duyệt hiện tại.'),
-      findsNothing,
-    );
-    expect(find.byKey(const ValueKey('pwa-install-step-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('pwa-install-step-2')), findsOneWidget);
-    expect(find.byKey(const ValueKey('pwa-install-step-3')), findsOneWidget);
-    expect(find.byKey(const ValueKey('pwa-install-step-4')), findsNothing);
-    expect(find.text('MAIN_APP'), findsNothing);
-  });
+      expect(find.byKey(const ValueKey('pwa-install-guide')), findsOneWidget);
+      expect(
+        find.text('Chọn “Mở bằng Safari” trong trình duyệt hiện tại.'),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('pwa-install-step-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pwa-install-step-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pwa-install-step-3')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pwa-install-step-4')), findsNothing);
+      expect(find.text('MAIN_APP'), findsNothing);
+    },
+  );
 
   testWidgets('opens the app directly outside uninstalled iOS web', (
     tester,

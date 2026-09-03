@@ -21,6 +21,11 @@ class AppConfig {
     this.workerAsrPilotBaseUri,
     this.enableVoiceNavigation = true,
     this.autoStartVoiceNavigation = false,
+    this.privacyPolicyUri,
+    this.termsUri,
+    this.supportUri,
+    this.aiSubprocessors = '',
+    this.dataRetentionSummary = '',
   });
 
   factory AppConfig.fromEnvironment() {
@@ -38,6 +43,18 @@ class AppConfig {
       defaultValue: '',
     );
     final normalizedWorkerAsrPilotUrl = configuredWorkerAsrPilotUrl.trim();
+    const configuredPrivacyPolicyUrl = String.fromEnvironment(
+      'PRIVACY_POLICY_URL',
+      defaultValue: '',
+    );
+    const configuredTermsUrl = String.fromEnvironment(
+      'TERMS_URL',
+      defaultValue: '',
+    );
+    const configuredSupportUrl = String.fromEnvironment(
+      'SUPPORT_URL',
+      defaultValue: '',
+    );
 
     return AppConfig(
       backendBaseUri: Uri.parse(
@@ -105,6 +122,17 @@ class AppConfig {
         'AUTO_START_VOICE_NAVIGATION',
         defaultValue: false,
       ),
+      privacyPolicyUri: _httpsUriOrNull(configuredPrivacyPolicyUrl),
+      termsUri: _httpsUriOrNull(configuredTermsUrl),
+      supportUri: _httpsUriOrNull(configuredSupportUrl),
+      aiSubprocessors: const String.fromEnvironment(
+        'AI_SUBPROCESSORS',
+        defaultValue: '',
+      ),
+      dataRetentionSummary: const String.fromEnvironment(
+        'DATA_RETENTION_SUMMARY',
+        defaultValue: '',
+      ),
     );
   }
 
@@ -134,6 +162,32 @@ class AppConfig {
   /// Web remains gesture-driven because browsers can block microphone capture
   /// that was not initiated by the user.
   final bool autoStartVoiceNavigation;
+  final Uri? privacyPolicyUri;
+  final Uri? termsUri;
+  final Uri? supportUri;
+
+  /// Human-readable providers that may receive child voice/text data.
+  /// Release CI requires this value instead of silently guessing providers.
+  final String aiSubprocessors;
+
+  /// Human-readable retention and deletion terms shown before consent.
+  /// This must match the production backend behavior and Privacy Policy.
+  final String dataRetentionSummary;
+
+  bool get privacyReleaseConfigurationComplete =>
+      privacyPolicyUri != null &&
+      termsUri != null &&
+      supportUri != null &&
+      aiSubprocessors.trim().isNotEmpty &&
+      dataRetentionSummary.trim().isNotEmpty;
+
+  String get disclosedAiSubprocessors => aiSubprocessors.trim().isEmpty
+      ? 'HOMI backend trên Railway và Cloudflare'
+      : aiSubprocessors.trim();
+
+  String get disclosedDataRetention => dataRetentionSummary.trim().isEmpty
+      ? 'Chưa cấu hình thời hạn lưu và xóa dữ liệu cho bản phát hành.'
+      : dataRetentionSummary.trim();
 
   bool get workerAsrPilotReady =>
       enableWorkerAsrPilot &&
@@ -150,5 +204,17 @@ class AppConfig {
   Uri resolve(String path) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
     return backendBaseUri.resolve(normalizedPath);
+  }
+
+  static Uri? _httpsUriOrNull(String rawValue) {
+    final value = rawValue.trim();
+    if (value.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+      return null;
+    }
+    return uri;
   }
 }

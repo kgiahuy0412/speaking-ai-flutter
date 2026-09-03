@@ -40,6 +40,7 @@ void main() {
           ),
           home: HomeLearningShell(
             controller: controller,
+            parentAccessGate: (_) async => true,
             config: AppConfig(
               backendBaseUri: Uri.parse('https://api.example.com'),
               useDemoBackend: true,
@@ -77,7 +78,7 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(find.text('Ngữ cảnh'), findsNothing);
-      expect(find.text('Dữ liệu và quyền riêng tư'), findsNothing);
+      expect(find.text('Dữ liệu và quyền riêng tư'), findsOneWidget);
       expect(find.text('Xem hoặc xóa dữ liệu'), findsNothing);
       expect(find.text('Xem lịch sử gần đây'), findsOneWidget);
       semantics.dispose();

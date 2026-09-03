@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ai Speaking Flutter App</string>
+	<string>HOMI App</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ai_speaking_flutter_app</string>
+	<string>HOMI</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,10 +24,20 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ứng dụng cần quyền micro để nghe và hỗ trợ trẻ luyện nói.</string>
+	<string>HOMI dùng micro sau khi phụ huynh đồng ý để nhận dạng lời nói trên thiết bị. Chỉ khi Apple Speech không khả dụng hoặc gặp lỗi, bản ghi mới được gửi tới dịch vụ HOMI/Cloudflare để nhận dạng dự phòng.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>HOMI dùng Face ID để bảo vệ khu vực cài đặt dành cho phụ huynh.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>HOMI dùng Apple Speech để chuyển lời nói tiếng Việt thành văn bản ngay trên iPhone/iPad trước khi gửi văn bản tới dịch vụ dịch và tạo giọng đọc.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HOMI dùng Bluetooth để nhận nút MAIN và trạng thái pin từ thiết bị H20, đồng thời chọn micro HFP đã được kết nối trong Cài đặt iOS.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>HOMI dùng Bluetooth để giao tiếp với nút MAIN trên thiết bị H20.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -51,6 +61,11 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

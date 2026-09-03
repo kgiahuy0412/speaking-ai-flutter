@@ -149,4 +149,42 @@ void main() {
     await Future.wait(<Future<MainButtonActionResult>>[screen, ble]);
     expect(calls, <String>['screen-start', 'screen-end', 'ble']);
   });
+
+  test('a stalled MAIN action cannot poison later physical presses', () async {
+    final neverCompletes = Completer<MainButtonActionResult>();
+    var bleCalls = 0;
+    final coordinator = MainButtonCoordinator(
+      actionTimeout: const Duration(milliseconds: 5),
+      onScreenShortPress: (_) async => MainButtonActionResult.accepted,
+      onBleShortPress: (_) {
+        bleCalls += 1;
+        if (bleCalls == 1) {
+          return neverCompletes.future;
+        }
+        return Future<MainButtonActionResult>.value(
+          MainButtonActionResult.accepted,
+        );
+      },
+      onLongPress: (_) async => MainButtonActionResult.accepted,
+    );
+
+    final first = await coordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.ble,
+        gesture: MainButtonGesture.shortPress,
+        sequence: 40,
+      ),
+    );
+    final second = await coordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.ble,
+        gesture: MainButtonGesture.shortPress,
+        sequence: 41,
+      ),
+    );
+
+    expect(first, MainButtonActionResult.busy);
+    expect(second, MainButtonActionResult.accepted);
+    expect(bleCalls, 2);
+  });
 }

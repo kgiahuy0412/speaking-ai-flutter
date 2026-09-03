@@ -6,6 +6,13 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var platformChannel: FlutterMethodChannel?
   private let clientIdentityStore = IOSClientIdentityStore()
+  private let installationCredentialStore = IOSInstallationCredentialStore()
+  private var aiv0BleControlBridge: Aiv0BleControlBridge?
+  private var hfpAudioBridge: HfpAudioBridge?
+  private var voicePromptBridge: VoicePromptBridge?
+  private var speechRecognizerBridge: IOSSpeechRecognizerBridge?
+  private var backgroundLearningBridge: BackgroundLearningBridge?
+  private var audioSessionCoordinator: IOSAudioSessionCoordinator?
 
   override func application(
     _ application: UIApplication,
@@ -17,19 +24,122 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
+    let messenger = engineBridge.applicationRegistrar.messenger()
+    aiv0BleControlBridge?.dispose()
+    hfpAudioBridge?.dispose()
+    voicePromptBridge?.dispose()
+    speechRecognizerBridge?.dispose()
+    backgroundLearningBridge?.dispose()
+    audioSessionCoordinator?.dispose()
+    let coordinator = IOSAudioSessionCoordinator()
+    audioSessionCoordinator = coordinator
+    aiv0BleControlBridge = Aiv0BleControlBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+    hfpAudioBridge = HfpAudioBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+    voicePromptBridge = VoicePromptBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+    speechRecognizerBridge = IOSSpeechRecognizerBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+    backgroundLearningBridge = BackgroundLearningBridge(
+      messenger: messenger,
+      audioSessionCoordinator: coordinator
+    )
+
     let channel = FlutterMethodChannel(
       name: "ailingo_platform",
-      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+      binaryMessenger: messenger
     )
-    channel.setMethodCallHandler { [clientIdentityStore] call, result in
+    channel.setMethodCallHandler { [clientIdentityStore, installationCredentialStore] call, result in
       switch call.method {
       case "device.clientId":
         result(clientIdentityStore.getOrCreate())
+      case "device.resetClientId":
+        result(clientIdentityStore.reset())
+      case "auth.credentials.read":
+        result(installationCredentialStore.read())
+      case "auth.credentials.write":
+        guard let encoded = call.arguments as? String, !encoded.isEmpty else {
+          result(
+            FlutterError(
+              code: "invalid_credentials",
+              message: "Installation credential không hợp lệ.",
+              details: nil
+            )
+          )
+          return
+        }
+        result(installationCredentialStore.write(encoded))
+      case "auth.credentials.clear":
+        result(installationCredentialStore.clear())
+      case "ble.isSupported":
+        result(true)
+      case "device.protocolInfo":
+        result([
+          "architecture": "HFP_AUDIO_PLUS_BLE_CONTROL",
+          "controlServiceUuid": "9E3B0001-4A7C-4D6F-8B21-5C17A2D94010",
+          "buttonEventUuid": "9E3B0002-4A7C-4D6F-8B21-5C17A2D94010",
+          "appStateUuid": "9E3B0003-4A7C-4D6F-8B21-5C17A2D94010",
+          "batteryServiceUuid": "0000180F-0000-1000-8000-00805F9B34FB",
+          "batteryLevelUuid": "00002A19-0000-1000-8000-00805F9B34FB",
+          "deviceInformationServiceUuid": "0000180A-0000-1000-8000-00805F9B34FB",
+          "firmwareRevisionUuid": "00002A26-0000-1000-8000-00805F9B34FB",
+          "audioTransport": "HFP",
+          "legacyBleAudioEnabledByDefault": false,
+        ])
       default:
         result(FlutterMethodNotImplemented)
       }
     }
     platformChannel = channel
+  }
+}
+
+private final class IOSInstallationCredentialStore {
+  private let account = "installation.credentials.v1"
+
+  func read() -> String? {
+    let query = key.merging([
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]) { _, new in new }
+    var item: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+      let data = item as? Data
+    else {
+      return nil
+    }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func write(_ value: String) -> Bool {
+    SecItemDelete(key as CFDictionary)
+    var item = key
+    item[kSecValueData as String] = Data(value.utf8)
+    item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+  }
+
+  func clear() -> Bool {
+    let status = SecItemDelete(key as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
+  }
+
+  private var key: [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String:
+        "\(Bundle.main.bundleIdentifier ?? "com.innotrik.aispeaking").installation-auth",
+      kSecAttrAccount as String: account,
+    ]
   }
 }
 
@@ -44,6 +154,16 @@ private final class IOSClientIdentityStore {
     let clientId = "ios_\(UUID().uuidString.lowercased())"
     store(clientId)
     return clientId
+  }
+
+  func reset() -> Bool {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+    ]
+    let status = SecItemDelete(query as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
   }
 
   private var service: String {

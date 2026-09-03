@@ -395,6 +395,12 @@ class _SilentMediaService extends LessonMediaService {
   int startRecordingCount = 0;
 
   @override
+  Future<void> preparePhoneSpeakerOutput() async {}
+
+  @override
+  Future<void> prepareSelectedLessonOutput() async {}
+
+  @override
   Future<String?> existingRecording({
     required String lessonId,
     required int sentenceNumber,
@@ -426,12 +432,16 @@ class _SilentMediaService extends LessonMediaService {
   }
 
   @override
-  Future<void> play(Uri uri) async => playedUris.add(uri);
+  Future<void> play(
+    Uri uri, {
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async => playedUris.add(uri);
 
   @override
   Future<void> playToCompletion(
     Uri uri, {
     Duration timeout = const Duration(seconds: 15),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async => playedUris.add(uri);
 
   @override

@@ -26,6 +26,45 @@ class HfpAudioDevice {
   String get displayName => name.isEmpty ? id : name;
 }
 
+/// Selects only an HFP input that can be tied to the connected H20 control
+/// device. iOS may expose unrelated headsets (for example AirPods) at the same
+/// time, so automatic startup must never pick an arbitrary Bluetooth mic.
+HfpAudioDevice? selectLikelyH20HfpDevice(
+  Iterable<HfpAudioDevice> devices, {
+  String? bleDeviceName,
+}) {
+  final normalizedBleName = _normalizeH20DeviceName(bleDeviceName ?? '');
+  final candidates = devices
+      .where((device) {
+        final normalizedName = _normalizeH20DeviceName(device.displayName);
+        if (normalizedName.isEmpty) return false;
+        final matchesBleName =
+            normalizedBleName.length >= 3 &&
+            (normalizedName.contains(normalizedBleName) ||
+                normalizedBleName.contains(normalizedName));
+        return matchesBleName ||
+            normalizedName.contains('h20') ||
+            normalizedName.contains('innotrik') ||
+            normalizedName.contains('ailingo') ||
+            normalizedName.contains('yinluo') ||
+            device.displayName.contains('音洛');
+      })
+      .toList(growable: false);
+  if (candidates.isEmpty) return null;
+  candidates.sort((a, b) {
+    if (a.isConnected != b.isConnected) {
+      return a.isConnected ? -1 : 1;
+    }
+    return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+  });
+  return candidates.first;
+}
+
+String _normalizeH20DeviceName(String value) => value
+    .trim()
+    .toLowerCase()
+    .replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff]+'), '');
+
 abstract interface class HfpAudioControl {
   bool get usesBrowserAudioInput;
   BluetoothAudioStatus get status;
@@ -40,11 +79,11 @@ abstract interface class HfpAudioControl {
   Future<void> dispose();
 }
 
-/// Controls the Android Bluetooth Classic HFP/SCO microphone route.
+/// Controls the native Bluetooth HFP microphone route.
 ///
-/// Android's public API cannot initiate an HFP profile connection. The native
-/// bridge therefore lists paired HFP-capable devices, lets Android Settings
-/// finish the profile connection when needed, and then selects the SCO input.
+/// Android exposes paired HFP devices and routes SCO. iOS exposes the HFP
+/// inputs already connected in Settings and lets the bridge select a preferred
+/// input through AVAudioSession. Neither platform pairs a headset in-app.
 class MethodChannelHfpAudioControl implements HfpAudioControl {
   MethodChannelHfpAudioControl({
     required this.enabled,
@@ -66,6 +105,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     sampleRate: 16000,
   );
   bool _disposed = false;
+  int _routeRequestGeneration = 0;
 
   @override
   bool get usesBrowserAudioInput => false;
@@ -113,7 +153,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
       _setStatus(
         const BluetoothAudioStatus(
           phase: BluetoothAudioConnectionPhase.unsupported,
-          message: 'Bản Android này chưa có cầu nối HFP.',
+          message: 'Bản native này chưa có cầu nối HFP.',
           sampleRate: 16000,
         ),
       );
@@ -128,7 +168,7 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     }
   }
 
-  /// Requests the Android Bluetooth connect permission during app setup.
+  /// Requests the platform Bluetooth permission during app setup when needed.
   Future<bool> requestPermissions() async {
     if (!enabled) return true;
     await initialize();
@@ -176,29 +216,59 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     if (!enabled) {
       return;
     }
+    _routeRequestGeneration += 1;
     try {
       await _methodChannel.invokeMethod<void>('disconnect');
     } on MissingPluginException {
-      // The bridge is optional outside Android.
+      // The bridge is optional outside Android/iOS native.
     }
   }
 
   @override
   Future<void> startAudioRoute() async {
+    final requestGeneration = ++_routeRequestGeneration;
     await initialize();
+    if (_disposed || requestGeneration != _routeRequestGeneration) return;
     _requireSupport();
-    await _methodChannel.invokeMethod<void>('startAudioRoute');
+    const retryDelays = <Duration>[
+      Duration(milliseconds: 250),
+      Duration(milliseconds: 500),
+    ];
+    for (var attempt = 0; ; attempt += 1) {
+      if (_disposed || requestGeneration != _routeRequestGeneration) return;
+      try {
+        final snapshot = await _methodChannel.invokeMapMethod<dynamic, dynamic>(
+          'startAudioRoute',
+        );
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+        if (snapshot != null) {
+          _setStatus(_statusFromMap(snapshot));
+        }
+        return;
+      } on PlatformException catch (error) {
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+        final canRetry =
+            error.code == 'HFP_ROUTE_UNAVAILABLE' &&
+            attempt < retryDelays.length;
+        if (!canRetry) {
+          throw HfpAudioException(_friendlyError(error));
+        }
+        await Future<void>.delayed(retryDelays[attempt]);
+        if (_disposed || requestGeneration != _routeRequestGeneration) return;
+      }
+    }
   }
 
   @override
   Future<void> stopAudioRoute() async {
+    _routeRequestGeneration += 1;
     if (!enabled) {
       return;
     }
     try {
       await _methodChannel.invokeMethod<void>('stopAudioRoute');
     } on MissingPluginException {
-      // The bridge is optional outside Android.
+      // The bridge is optional outside Android/iOS native.
     }
   }
 
@@ -218,14 +288,20 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
 
   BluetoothAudioStatus _statusFromMap(Map<dynamic, dynamic> map) {
     final phaseName = '${map['phase'] ?? 'idle'}';
+    final hasSelectedInput = map['hasSelectedInput'];
+    final clearsSelectedInput = hasSelectedInput == false;
     final phase = BluetoothAudioConnectionPhase.values.firstWhere(
       (item) => item.name == phaseName,
       orElse: () => BluetoothAudioConnectionPhase.error,
     );
     return BluetoothAudioStatus(
       phase: phase,
-      deviceId: _nullableString(map['deviceId']) ?? _status.deviceId,
-      deviceName: _nullableString(map['deviceName']) ?? _status.deviceName,
+      deviceId: clearsSelectedInput
+          ? null
+          : _nullableString(map['deviceId']) ?? _status.deviceId,
+      deviceName: clearsSelectedInput
+          ? null
+          : _nullableString(map['deviceName']) ?? _status.deviceName,
       message: _nullableString(map['message']),
       sampleRate: 16000,
       routeActive: map['routeActive'] == true,

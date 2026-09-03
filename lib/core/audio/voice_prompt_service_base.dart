@@ -15,3 +15,33 @@ abstract interface class SpeechReadyCuePlayer {
   /// Plays a short audible cue and completes after the cue has finished.
   Future<void> playSpeechReadyCue();
 }
+
+/// Optional capability for prompts that must be distinguishable from lesson
+/// audio routed through a selected two-way H20 device.
+abstract interface class PhoneSpeakerVoicePromptService {
+  Future<void> speakAndWaitOnPhoneSpeaker(
+    String text, {
+    String locale = 'vi-VN',
+  });
+}
+
+/// Plays a lesson prompt through the currently selected media output.
+///
+/// On iOS this uses the output-only playback/A2DP route instead of opening the
+/// HFP microphone. H20 remains the speaker, while BLE stays able to receive the
+/// physical MAIN button during coach speech.
+abstract interface class SelectedMediaOutputVoicePromptService {
+  Future<void> speakAndWaitOnSelectedMediaOutput(
+    String text, {
+    String locale = 'vi-VN',
+  });
+}
+
+/// Optional native capability that brackets one physical/virtual MAIN turn.
+/// The iOS implementation uses this boundary to keep one AVAudioSession owner
+/// from the first prompt through the final speech result.
+abstract interface class MainTurnVoicePromptService {
+  Future<String?> beginMainTurn();
+
+  Future<void> endMainTurn(String reason, {String? turnId});
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/device/aiv0_ble_control.dart';
@@ -9,6 +11,7 @@ import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../listening/domain/listening_catalog.dart';
+import '../../privacy/presentation/parental_gate.dart';
 import 'history_sheet.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -18,6 +21,12 @@ class SettingsSheet extends StatelessWidget {
     this.onThemeModeChanged,
     this.onChildAgeChanged,
     this.onStartTutorial,
+    this.config,
+    this.privacyConsentGranted = false,
+    this.voiceAccessEnabled = true,
+    this.onRequestVoiceAccess,
+    this.onManagePrivacyConsent,
+    this.onRevokePrivacyConsent,
     super.key,
   });
 
@@ -26,12 +35,52 @@ class SettingsSheet extends StatelessWidget {
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onStartTutorial;
+  final AppConfig? config;
+  final bool privacyConsentGranted;
+  final bool voiceAccessEnabled;
+  final VoidCallback? onRequestVoiceAccess;
+  final VoidCallback? onManagePrivacyConsent;
+  final Future<void> Function()? onRevokePrivacyConsent;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final isAndroid =
+            !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+        final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+        final nativeDiagnostic = controller.nativeSpeechDiagnostic;
+        final h20State = controller.h20ConnectionState();
+        final nativeDiagnosticTimeline = controller
+            .nativeSpeechDiagnosticLog
+            .reversed
+            .take(40)
+            .toList(growable: false)
+            .reversed
+            .map(
+              (item) => <String>[
+                if (item.elapsedMs != null) '+${item.elapsedMs}ms',
+                item.stage,
+                if (item.caller != null) '@${item.caller}',
+              ].join(' '),
+            )
+            .join('\n');
+        final nativeDiagnosticDetail = nativeDiagnostic == null
+            ? null
+            : <String>[
+                if (nativeDiagnosticTimeline.isNotEmpty)
+                  nativeDiagnosticTimeline,
+                if (nativeDiagnostic.turnId != null)
+                  'turn=${nativeDiagnostic.turnId}',
+                if (nativeDiagnostic.audioSource != null)
+                  'source=${nativeDiagnostic.audioSource}',
+                if (nativeDiagnostic.audioRoute != null)
+                  'route=${nativeDiagnostic.audioRoute}',
+                if (nativeDiagnostic.code != null)
+                  'code=${nativeDiagnostic.code}',
+                if (nativeDiagnostic.message != null) nativeDiagnostic.message!,
+              ].join(' • ');
         return DisplayLanguageScope(
           language: controller.displayLanguage,
           child: Builder(
@@ -99,7 +148,7 @@ class SettingsSheet extends StatelessWidget {
                     _StatusTile(
                       icon: Icons.mic_rounded,
                       title: context.trKnown(controller.inputLabel),
-                      detail: !kIsWeb
+                      detail: isAndroid
                           ? context.tr(
                               controller.usesHfpInput
                                   ? 'H20 qua HFP/SCO • Chế độ tiêu chuẩn'
@@ -107,6 +156,15 @@ class SettingsSheet extends StatelessWidget {
                               controller.usesHfpInput
                                   ? 'H20 通过 HFP/SCO • 标准模式'
                                   : '手机麦克风 • 标准模式',
+                            )
+                          : isIOS
+                          ? context.tr(
+                              controller.usesHfpInput
+                                  ? 'Mic H20 qua HFP • Apple Speech ưu tiên'
+                                  : 'Mic iPhone/iPad • Apple Speech ưu tiên',
+                              controller.usesHfpInput
+                                  ? 'H20 HFP 麦克风 • 优先使用 Apple Speech'
+                                  : 'iPhone/iPad 麦克风 • 优先使用 Apple Speech',
                             )
                           : switch (controller.asrMode) {
                               AsrMode.androidStreaming => context.tr(
@@ -150,23 +208,54 @@ class SettingsSheet extends StatelessWidget {
                       stateColor: AppColors.success,
                     ),
                     const SizedBox(height: 10),
-                    _Aiv0BleControlCard(
-                      status: controller.aiv0BleStatus,
-                      events: controller.aiv0ButtonEventLog,
-                      disabled: controller.isBusy,
-                      onScan: () => _scanAndConnectAiv0(context),
-                      onDisconnect: controller.disconnectAiv0Device,
+                    _StatusTile(
+                      icon: Icons.headset_mic_rounded,
+                      title: context.tr('Trạng thái H20 tổng hợp', 'H20 综合状态'),
+                      detail: context.tr(
+                        h20State.isH20Ready
+                            ? 'HFP và BLE Control đều sẵn sàng.'
+                            : h20State.hfpReady
+                            ? 'HFP sẵn sàng; BLE Control chưa sẵn sàng.'
+                            : h20State.bleReady
+                            ? 'BLE Control sẵn sàng; HFP chưa sẵn sàng.'
+                            : 'HFP và BLE Control chưa sẵn sàng.',
+                        h20State.isH20Ready
+                            ? 'HFP 与 BLE 控制均已就绪。'
+                            : h20State.hfpReady
+                            ? 'HFP 已就绪；BLE 控制尚未就绪。'
+                            : h20State.bleReady
+                            ? 'BLE 控制已就绪；HFP 尚未就绪。'
+                            : 'HFP 与 BLE 控制均未就绪。',
+                      ),
+                      trailing: h20State.isH20Ready
+                          ? context.tr('Sẵn sàng', '已就绪')
+                          : context.tr('Chưa đủ', '未完整'),
+                      stateColor: h20State.isH20Ready
+                          ? AppColors.success
+                          : AppColors.coral,
                     ),
-                    const SizedBox(height: 10),
-                    _HfpStatusCard(
-                      status: controller.hfpAudioStatus,
-                      browserManaged: controller.supportsBrowserHfp,
-                      selected: controller.usesHfpInput,
-                      disabled: controller.isBusy,
-                      onFind: () => _findAndConnectHfp(context),
-                      onDisconnect: controller.disconnectHfpDevice,
-                    ),
-                    if (!kIsWeb) ...<Widget>[
+                    ...<Widget>[
+                      const SizedBox(height: 10),
+                      _Aiv0BleControlCard(
+                        status: controller.aiv0BleStatus,
+                        events: controller.aiv0ButtonEventLog,
+                        mainDispatchStatus: controller.aiv0MainDispatchStatus,
+                        mainDispatchAt: controller.aiv0MainDispatchAt,
+                        disabled: controller.isBusy,
+                        onScan: () => _scanAndConnectAiv0(context),
+                        onDisconnect: controller.disconnectAiv0Device,
+                      ),
+                      const SizedBox(height: 10),
+                      _HfpStatusCard(
+                        status: controller.hfpAudioStatus,
+                        browserManaged: controller.supportsBrowserHfp,
+                        selected: controller.usesHfpInput,
+                        disabled: controller.isBusy,
+                        onFind: () => _findAndConnectHfp(context),
+                        onDisconnect: controller.disconnectHfpDevice,
+                      ),
+                    ],
+                    if (isAndroid) ...<Widget>[
                       const SizedBox(height: 10),
                       _H20OfflineHardwareTestCard(
                         enabled: controller.h20HardwareTestModeEnabled,
@@ -195,7 +284,7 @@ class SettingsSheet extends StatelessWidget {
                           : context.tr('Nhận dạng', '语音识别'),
                     ),
                     const SizedBox(height: 8),
-                    if (!kIsWeb)
+                    if (isAndroid)
                       _StatusTile(
                         key: const Key('android-standard-recognition'),
                         icon: Icons.record_voice_over_rounded,
@@ -206,6 +295,25 @@ class SettingsSheet extends StatelessWidget {
                         ),
                         trailing: context.tr('Mặc định', '默认'),
                         stateColor: AppColors.success,
+                      )
+                    else if (isIOS)
+                      _StatusTile(
+                        key: const Key('ios-native-recognition'),
+                        icon: Icons.record_voice_over_rounded,
+                        title: context.tr(
+                          'Apple Native Speech',
+                          'Apple 原生语音识别',
+                        ),
+                        detail: context.tr(
+                          'iOS dùng một luồng Apple Native Speech cho MAIN; không đổi mic hoặc chuyển sang Batch trong cùng lượt.${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
+                          'iOS 的 MAIN 仅使用一条 Apple 原生语音识别流程；同一轮不会切换麦克风或转入 Batch。${nativeDiagnosticDetail == null ? '' : '\n\n$nativeDiagnosticDetail'}',
+                        ),
+                        trailing:
+                            nativeDiagnostic?.stage ??
+                            context.tr('Ưu tiên', '优先'),
+                        stateColor: nativeDiagnostic?.isError == true
+                            ? AppColors.coral
+                            : AppColors.success,
                       )
                     else
                       _StatusTile(
@@ -273,6 +381,107 @@ class SettingsSheet extends StatelessWidget {
                       icon: const Icon(Icons.history_rounded),
                       label: Text(context.tr('Xem lịch sử gần đây', '查看最近记录')),
                     ),
+                    const SizedBox(height: 26),
+                    _SectionLabel(
+                      label: context.tr('Dữ liệu và quyền riêng tư', '数据与隐私'),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingsActionTile(
+                      key: const Key('settings-privacy-policy'),
+                      icon: Icons.privacy_tip_outlined,
+                      title: context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                      detail: context.tr(
+                        'Xem dữ liệu được thu thập, nhà cung cấp AI, thời hạn lưu và cách yêu cầu xóa.',
+                        '查看所收集的数据、AI 服务商、保存期限和删除方式。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.privacyPolicyUri,
+                        context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SettingsActionTile(
+                      key: const Key('settings-terms'),
+                      icon: Icons.description_outlined,
+                      title: context.tr('Điều khoản sử dụng', '使用条款'),
+                      detail: context.tr(
+                        'Điều khoản dành cho phụ huynh và người giám hộ.',
+                        '面向家长和监护人的使用条款。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.termsUri,
+                        context.tr('Điều khoản sử dụng', '使用条款'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SettingsActionTile(
+                      key: const Key('settings-support'),
+                      icon: Icons.support_agent_rounded,
+                      title: context.tr('Hỗ trợ', '支持'),
+                      detail: context.tr(
+                        'Liên hệ HOMI về quyền riêng tư, dữ liệu hoặc lỗi ứng dụng.',
+                        '就隐私、数据或应用问题联系 HOMI。',
+                      ),
+                      onTap: () => _openParentLink(
+                        context,
+                        config?.supportUri,
+                        context.tr('Hỗ trợ', '支持'),
+                      ),
+                    ),
+                    if (privacyConsentGranted &&
+                        !voiceAccessEnabled &&
+                        onRequestVoiceAccess != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-enable-voice'),
+                        icon: Icons.mic_rounded,
+                        title: context.tr('Cho phép micro', '允许麦克风'),
+                        detail: context.tr(
+                          'Mở hộp thoại quyền hệ thống. Audio chỉ được gửi sau khi có cả chấp thuận phụ huynh và quyền micro.',
+                          '打开系统权限对话框。只有家长同意并授予麦克风权限后才会发送音频。',
+                        ),
+                        onTap: onRequestVoiceAccess!,
+                      ),
+                    ],
+                    if (!privacyConsentGranted &&
+                        onManagePrivacyConsent != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-manage-privacy-consent'),
+                        icon: Icons.verified_user_outlined,
+                        title: context.tr(
+                          'Thiết lập tính năng giọng nói',
+                          '设置语音功能',
+                        ),
+                        detail: context.tr(
+                          'Quay lại màn hình dành cho phụ huynh để đọc thông tin và chọn đồng ý.',
+                          '返回家长设置页面，阅读说明并选择是否同意。',
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onManagePrivacyConsent!();
+                        },
+                      ),
+                    ],
+                    if (privacyConsentGranted &&
+                        onRevokePrivacyConsent != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      _SettingsActionTile(
+                        key: const Key('settings-revoke-privacy-consent'),
+                        icon: Icons.delete_forever_outlined,
+                        title: context.tr(
+                          'Rút chấp thuận và xóa dữ liệu',
+                          '撤回同意并删除数据',
+                        ),
+                        detail: context.tr(
+                          'Yêu cầu backend xóa lịch sử trước, sau đó xóa nhóm tuổi cục bộ và đặt lại mã cài đặt iOS/Web.',
+                          '先请求后端删除历史记录，再删除本地年龄组并重置 iOS/Web 安装标识。',
+                        ),
+                        onTap: () => _revokeConsent(context),
+                      ),
+                    ],
                     if (onStartTutorial != null) ...<Widget>[
                       const SizedBox(height: 26),
                       _SectionLabel(label: context.tr('Hỗ trợ', '帮助')),
@@ -303,6 +512,76 @@ class SettingsSheet extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _openParentLink(
+    BuildContext context,
+    Uri? uri,
+    String label,
+  ) async {
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$label chưa được cấu hình cho bản build này.')),
+      );
+      return;
+    }
+    if (!await showParentalGate(context) || !context.mounted) {
+      return;
+    }
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể mở $label.')));
+    }
+  }
+
+  Future<void> _revokeConsent(BuildContext context) async {
+    final revoke = onRevokePrivacyConsent;
+    if (revoke == null ||
+        !await showParentalGate(context) ||
+        !context.mounted) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rút chấp thuận và yêu cầu xóa dữ liệu?'),
+        content: const Text(
+          'HOMI sẽ gửi yêu cầu xóa history tới backend trước khi xóa chấp thuận, nhóm tuổi lưu cục bộ và mã cài đặt iOS/Web. Nếu máy chủ không xác nhận, thao tác sẽ dừng và hiển thị lỗi.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Tiếp tục xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    try {
+      await revoke();
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Chưa thể xác nhận xóa dữ liệu trên máy chủ. Chấp thuận vẫn được giữ: $error',
+          ),
+        ),
+      );
+    }
   }
 
   void _showHistory(BuildContext context) {
@@ -582,6 +861,7 @@ class SettingsSheet extends StatelessWidget {
   }
 
   Future<void> _findAndConnectHfp(BuildContext context) async {
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     try {
       final devices = await controller.findHfpDevices();
       if (!context.mounted) {
@@ -596,9 +876,13 @@ class SettingsSheet extends StatelessWidget {
           message: context.tr(
             controller.supportsBrowserHfp
                 ? 'Web không thể tự kết nối HFP. Hãy kết nối tai nghe trong Cài đặt Bluetooth, cho phép quyền micro, tải lại trang rồi bấm Chọn mic HFP. Safari trên iPhone có thể chỉ cung cấp mic iPhone.'
+                : isIOS
+                ? 'iOS chỉ cho ứng dụng chọn mic HFP đang kết nối. Hãy kết nối H20 trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.'
                 : 'Hãy ghép đôi tai nghe hoặc thiết bị HFP trong Cài đặt Bluetooth, sau đó quay lại bấm Tìm HFP.',
             controller.supportsBrowserHfp
                 ? '网页无法自行连接 HFP。请先在蓝牙设置中连接耳机、允许麦克风权限、刷新页面，再点击选择 HFP 麦克风。iPhone Safari 可能只提供 iPhone 麦克风。'
+                : isIOS
+                ? 'iOS 只能选择当前已连接的 HFP 麦克风。请先在蓝牙设置中连接 H20，然后返回并点击“查找 HFP”。'
                 : '请先在蓝牙设置中配对耳机或 HFP 设备，然后返回并点击“查找 HFP”。',
           ),
         );
@@ -625,9 +909,13 @@ class SettingsSheet extends StatelessWidget {
                   context.tr(
                     controller.supportsBrowserHfp
                         ? 'Chỉ các mic Bluetooth mà trình duyệt công bố mới xuất hiện. Thiết bị đã chọn được ưu tiên.'
+                        : isIOS
+                        ? 'iOS chỉ hiển thị các mic HFP đang khả dụng trong AVAudioSession. Thiết bị đang dùng được ưu tiên.'
                         : 'Android chỉ cho ứng dụng dùng HFP đã ghép đôi. Thiết bị đang kết nối được ưu tiên.',
                     controller.supportsBrowserHfp
                         ? '这里只显示浏览器公开的蓝牙麦克风；已选择的设备优先。'
+                        : isIOS
+                        ? 'iOS 仅显示 AVAudioSession 中可用的 HFP 麦克风；当前设备优先。'
                         : 'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
                   ),
                   style: Theme.of(
@@ -1122,6 +1410,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
   const _Aiv0BleControlCard({
     required this.status,
     required this.events,
+    required this.mainDispatchStatus,
+    required this.mainDispatchAt,
     required this.disabled,
     required this.onScan,
     required this.onDisconnect,
@@ -1129,6 +1419,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
 
   final Aiv0BleStatus status;
   final List<Aiv0ButtonEvent> events;
+  final String mainDispatchStatus;
+  final DateTime? mainDispatchAt;
   final bool disabled;
   final VoidCallback onScan;
   final Future<void> Function() onDisconnect;
@@ -1147,6 +1439,12 @@ class _Aiv0BleControlCard extends StatelessWidget {
         ? AppColors.coral
         : AppColors.muted;
     final name = status.deviceName?.trim();
+    final hasNativeDiagnostics =
+        status.peripheralState != null ||
+        status.mainNotificationState != null ||
+        status.lastDisconnectCode != null ||
+        status.lastNotificationRecovery != null ||
+        status.diagnosticTimeline.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1207,6 +1505,95 @@ class _Aiv0BleControlCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (hasNativeDiagnostics) ...<Widget>[
+            const SizedBox(height: 9),
+            Container(
+              key: const Key('aiv0-native-diagnostics'),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('GATT thực tế', '实际 GATT'),
+                    value:
+                        '${status.peripheralState ?? 'unknown'} • MAIN Notify '
+                        '${status.mainNotificationState ?? 'unknown'}',
+                  ),
+                  if (status.lastDisconnectCode != null ||
+                      status.lastDisconnectMessage != null)
+                    _Aiv0DiagnosticLine(
+                      label: context.tr('Mất BLE gần nhất', '最近 BLE 断开'),
+                      value: <String>[
+                        if (status.lastDisconnectAt != null)
+                          _formatEventTime(status.lastDisconnectAt!),
+                        if (status.lastDisconnectCode != null)
+                          status.lastDisconnectCode!,
+                        if (status.lastDisconnectMessage != null)
+                          status.lastDisconnectMessage!,
+                      ].join(' • '),
+                    ),
+                  if (status.lastNotificationRecovery != null)
+                    _Aiv0DiagnosticLine(
+                      label: context.tr('Khôi phục MAIN', '恢复 MAIN'),
+                      value: status.lastNotificationRecovery!,
+                    ),
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('Retry đang hoãn', '延迟重试'),
+                    value: '${status.deferredRecoveryRepeatCount}',
+                  ),
+                  if (status.diagnosticTimeline.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Text(
+                      context.tr(
+                        'Timeline BLE / HFP (tối đa 80 sự kiện gần nhất)',
+                        'BLE / HFP 时间线（最近最多 80 个事件）',
+                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      key: const Key('aiv0-ble-hfp-timeline'),
+                      constraints: const BoxConstraints(maxHeight: 360),
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLowest.withValues(
+                          alpha: 0.76,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          status.diagnosticTimeline
+                              .skip(
+                                status.diagnosticTimeline.length > 80
+                                    ? status.diagnosticTimeline.length - 80
+                                    : 0,
+                              )
+                              .map(_formatTimelineEvent)
+                              .join('\n'),
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10.5,
+                            height: 1.45,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           if (connected) ...<Widget>[
             const SizedBox(height: 9),
             _Aiv0DiagnosticLine(
@@ -1239,6 +1626,11 @@ class _Aiv0BleControlCard extends StatelessWidget {
                     )
                   : context.tr('Chưa xác định', '尚未确定'),
             ),
+          ],
+          if (status.deviceId != null ||
+              events.isNotEmpty ||
+              status.packetCount > 0) ...<Widget>[
+            const SizedBox(height: 9),
             _Aiv0DiagnosticLine(
               label: context.tr('Giao thức packet', '数据包协议'),
               value: status.protocolConfirmed
@@ -1247,6 +1639,13 @@ class _Aiv0BleControlCard extends StatelessWidget {
                       'MAIN Raw Hex đã điều khiển APP • chưa gửi APP State',
                       'MAIN Raw Hex 已控制 APP • 尚未发送 APP State',
                     ),
+            ),
+            _Aiv0DiagnosticLine(
+              label: context.tr('MAIN → trợ lý', 'MAIN → 助手'),
+              value: mainDispatchAt == null
+                  ? mainDispatchStatus
+                  : '${_formatEventTime(mainDispatchAt!)} • '
+                        '$mainDispatchStatus',
             ),
             if (events.isNotEmpty) ...<Widget>[
               const SizedBox(height: 8),
@@ -1265,6 +1664,7 @@ class _Aiv0BleControlCard extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 3),
                       child: SelectableText(
                         '${_formatEventTime(event.receivedAt)}  '
+                        '${event.transportSource == 'hfpRemote' ? '[HFP] ' : '[BLE] '}'
                         '${event.isDuplicate ? '[TRÙNG] ' : ''}${event.rawHex}',
                         style: TextStyle(
                           fontFamily: 'monospace',
@@ -1280,8 +1680,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               context.tr(
-                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.reconnectCount} reconnect',
-                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.reconnectCount} 次重连',
+                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.remoteMainCount} MAIN HFP${status.remoteMainCommandsEnabled ? ' • HFP remote sẵn sàng' : ''} • ${status.reconnectCount} reconnect',
+                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.remoteMainCount} 次 HFP MAIN${status.remoteMainCommandsEnabled ? ' • HFP remote 已就绪' : ''} • ${status.reconnectCount} 次重连',
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -1322,8 +1722,8 @@ class _Aiv0BleControlCard extends StatelessWidget {
   String _detail(BuildContext context) {
     return switch (status.phase) {
       Aiv0BlePhase.disabled => context.tr(
-        'BLE Control AIV0 chỉ hoạt động trên APK Android.',
-        'AIV0 BLE 控制仅适用于 Android APK。',
+        'BLE Control AIV0 chỉ hoạt động trên Android/iOS native.',
+        'AIV0 BLE 控制仅适用于 Android/iOS 原生应用。',
       ),
       Aiv0BlePhase.idle => context.tr(
         'Chưa kết nối service 9E3B0001.',
@@ -1349,7 +1749,23 @@ class _Aiv0BleControlCard extends StatelessWidget {
   String _formatEventTime(DateTime value) {
     String twoDigits(int number) => number.toString().padLeft(2, '0');
     return '${twoDigits(value.hour)}:${twoDigits(value.minute)}:'
-        '${twoDigits(value.second)}';
+        '${twoDigits(value.second)}.'
+        '${value.millisecond.toString().padLeft(3, '0')}';
+  }
+
+  String _formatTimelineEvent(Aiv0BleDiagnosticEvent event) {
+    final metadata = event.metadata.entries
+        .where((entry) => entry.key != 'type')
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(' • ');
+    return <String>[
+      '${_formatEventTime(event.occurredAt)}  ${event.stage}'
+          '${event.caller == null ? '' : '  @${event.caller}'}',
+      if (event.code != null) '  code=${event.code}',
+      if (event.message != null) '  ${event.message}',
+      if (metadata.isNotEmpty) '  $metadata',
+      if (event.audioRoute != null) '  route=${event.audioRoute}',
+    ].join('\n');
   }
 }
 
@@ -1618,7 +2034,7 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final hfpConnected = hfpStatus.isConnected;
+    final hfpConnected = hfpStatus.isConnected || hfpStatus.deviceId != null;
     final routeActive = hfpStatus.routeActive;
     final canStart = enabled && hfpConnected && !conversationBusy && !_running;
     final canToggleRecording =
@@ -2028,8 +2444,8 @@ class _HfpStatusCard extends StatelessWidget {
       BluetoothAudioConnectionPhase.error =>
         status.message ?? context.tr('Kết nối HFP gặp lỗi.', 'HFP 连接发生错误。'),
       BluetoothAudioConnectionPhase.idle => context.tr(
-        'Dùng thiết bị HFP đã ghép đôi trong Android.',
-        '使用 Android 中已配对的 HFP 设备。',
+        'Kết nối HFP trong Cài đặt hệ thống, rồi chọn mic tại đây.',
+        '请先在系统设置中连接 HFP，再在此选择麦克风。',
       ),
     };
   }

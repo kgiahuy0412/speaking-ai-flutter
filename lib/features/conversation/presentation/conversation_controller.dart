@@ -13,6 +13,7 @@ import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/aiv0_ble_control.dart';
+import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
 import '../domain/conversation_models.dart';
@@ -88,7 +89,10 @@ class ConversationController extends ChangeNotifier {
     AsrMode? initialAsrMode,
     bool? webRuntimeOverride,
     Duration? adaptiveWebUploadDelay,
+    Duration audioPreparationTimeout = const Duration(seconds: 8),
+    Duration cancellationBarrierTimeout = const Duration(milliseconds: 1500),
     bool recordAndroidAudioForArchive = false,
+    bool Function()? voiceDataProcessingAllowed,
     Future<void> Function()? beforeRecordingStart,
     bool Function(String recognizedText)? recognizedSpeechCommandMatcher,
     Future<void> Function(String recognizedText)? onRecognizedSpeechCommand,
@@ -110,7 +114,10 @@ class ConversationController extends ChangeNotifier {
        _isWebRuntime = webRuntimeOverride ?? kIsWeb,
        _hfpInputSelected = initialAsrMode == AsrMode.hfpStreaming,
        _adaptiveWebUploadDelay = adaptiveWebUploadDelay ?? Duration.zero,
+       _audioPreparationTimeout = audioPreparationTimeout,
+       _cancellationBarrierTimeout = cancellationBarrierTimeout,
        _recordAndroidAudioForArchive = recordAndroidAudioForArchive,
+       _voiceDataProcessingAllowed = voiceDataProcessingAllowed,
        _beforeRecordingStart = beforeRecordingStart,
        _recognizedSpeechCommandMatcher = recognizedSpeechCommandMatcher,
        _onRecognizedSpeechCommand = onRecognizedSpeechCommand,
@@ -139,6 +146,35 @@ class ConversationController extends ChangeNotifier {
     _partialTextSubscription = streamingSpeechInput?.partialText.listen(
       _onPartialText,
     );
+    final nativeDiagnostics = streamingSpeechInput is NativeSpeechDiagnostics
+        ? streamingSpeechInput as NativeSpeechDiagnostics
+        : null;
+    nativeSpeechDiagnostic = nativeDiagnostics?.nativeSpeechDiagnostic;
+    if (nativeSpeechDiagnostic != null) {
+      _nativeSpeechDiagnosticLog.add(nativeSpeechDiagnostic!);
+    }
+    _nativeSpeechDiagnosticSubscription = nativeDiagnostics
+        ?.nativeSpeechDiagnostics
+        .listen((diagnostic) {
+          nativeSpeechDiagnostic = diagnostic;
+          final currentTurnId = diagnostic.turnId;
+          final previousTurnId = _nativeSpeechDiagnosticLog.isEmpty
+              ? null
+              : _nativeSpeechDiagnosticLog.last.turnId;
+          if (currentTurnId != null &&
+              previousTurnId != null &&
+              currentTurnId != previousTurnId) {
+            _nativeSpeechDiagnosticLog.clear();
+          }
+          _nativeSpeechDiagnosticLog.add(diagnostic);
+          if (_nativeSpeechDiagnosticLog.length > 200) {
+            _nativeSpeechDiagnosticLog.removeRange(
+              0,
+              _nativeSpeechDiagnosticLog.length - 200,
+            );
+          }
+          if (!_disposed) notifyListeners();
+        });
     final bluetoothControl = _bluetoothAudioControl;
     if (bluetoothControl != null) {
       _bluetoothStatusSubscription = bluetoothControl.bluetoothStatusChanges
@@ -156,7 +192,10 @@ class ConversationController extends ChangeNotifier {
     final hfpControl = _hfpAudioControl;
     if (hfpControl != null) {
       _hfpStatusSubscription = hfpControl.statusChanges.listen((status) {
-        if (_hfpInputSelected && !status.isConnected && !status.isBusy) {
+        if (_hfpInputSelected &&
+            status.deviceId == null &&
+            !status.isConnected &&
+            !status.isBusy) {
           _hfpInputSelected = false;
         }
         if (!_disposed) {
@@ -211,7 +250,10 @@ class ConversationController extends ChangeNotifier {
   final bool _realtimeBatchFallback;
   final bool _isWebRuntime;
   final Duration _adaptiveWebUploadDelay;
+  final Duration _audioPreparationTimeout;
+  final Duration _cancellationBarrierTimeout;
   final bool _recordAndroidAudioForArchive;
+  final bool Function()? _voiceDataProcessingAllowed;
   final Future<void> Function()? _beforeRecordingStart;
   final bool Function(String recognizedText)? _recognizedSpeechCommandMatcher;
   final Future<void> Function(String recognizedText)?
@@ -230,6 +272,8 @@ class ConversationController extends ChangeNotifier {
   StreamSubscription<bool>? _playbackPlayingSubscription;
   StreamSubscription<void>? _streamingCompletionSubscription;
   StreamSubscription<String>? _partialTextSubscription;
+  StreamSubscription<NativeSpeechDiagnostic>?
+  _nativeSpeechDiagnosticSubscription;
   StreamSubscription<Uint8List>? _batchChunkSubscription;
   StreamSubscription<ConversationPreview>? _batchPreviewSubscription;
   StreamSubscription<Uint8List>? _realtimeChunkSubscription;
@@ -256,8 +300,11 @@ class ConversationController extends ChangeNotifier {
   bool _usingStreamingSpeech = false;
   bool _usingRecordedAudioSpeech = false;
   bool _usingHfpRoute = false;
+  bool _continuousHfpSessionActive = false;
   bool _hfpInputSelected;
   bool _preparingMicrophone = false;
+  Future<void>? _recordingStartOperation;
+  Future<void>? _pendingHfpStartOperation;
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
   bool _playbackPlaying = false;
@@ -281,6 +328,10 @@ class ConversationController extends ChangeNotifier {
   Uri? _preferredPlaybackUri;
   Uri? _speculativePreloadUri;
   final List<Aiv0ButtonEvent> _aiv0ButtonEventLog = <Aiv0ButtonEvent>[];
+  String _aiv0MainDispatchStatus = 'Chưa nhận lệnh MAIN vật lý.';
+  DateTime? _aiv0MainDispatchAt;
+  final List<NativeSpeechDiagnostic> _nativeSpeechDiagnosticLog =
+      <NativeSpeechDiagnostic>[];
 
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
@@ -299,6 +350,7 @@ class ConversationController extends ChangeNotifier {
   H20HardwareTestPhase h20HardwareTestPhase = H20HardwareTestPhase.idle;
   H20HardwareTestResult? h20HardwareTestResult;
   String? h20HardwareTestMessage;
+  NativeSpeechDiagnostic? nativeSpeechDiagnostic;
 
   int get childAge => _childAge;
 
@@ -500,25 +552,52 @@ class ConversationController extends ChangeNotifier {
         phase: BluetoothAudioConnectionPhase.unsupported,
         sampleRate: 16000,
       );
+
+  /// Shared native route owner used by listening lessons so their prompt audio
+  /// and recorder select the same H20 input as the conversation flow.
+  HfpAudioControl? get learningAudioRouteControl => _hfpAudioControl;
+
+  /// Reuses the app's single Apple Speech event stream for listening lessons.
+  /// A second bridge listener would race MAIN for the same native events.
+  IOSStreamingSpeechInput? get iosLessonSpeechInput =>
+      _streamingSpeechInput is IOSStreamingSpeechInput
+      ? _streamingSpeechInput
+      : null;
   bool get supportsHfp => hfpAudioStatus.isBridgeSupported;
-  bool get canUseHfp => hfpAudioStatus.isConnected;
+  bool get canUseHfp =>
+      hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;
+  bool get hasSelectedHfpInput => hfpAudioStatus.deviceId != null;
   Aiv0BleStatus get aiv0BleStatus =>
       _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
   bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
   bool get canUseAiv0Ble => aiv0BleStatus.isConnected;
+  H20ConnectionState h20ConnectionState({bool mainTurnActive = false}) =>
+      H20ConnectionState.from(
+        hfpStatus: hfpAudioStatus,
+        bleStatus: aiv0BleStatus,
+        mainTurnActive: mainTurnActive,
+      );
   List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
       List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
+  String get aiv0MainDispatchStatus => _aiv0MainDispatchStatus;
+  DateTime? get aiv0MainDispatchAt => _aiv0MainDispatchAt;
+  List<NativeSpeechDiagnostic> get nativeSpeechDiagnosticLog =>
+      List<NativeSpeechDiagnostic>.unmodifiable(_nativeSpeechDiagnosticLog);
   bool get supportsBrowserHfp =>
       (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
       _audioInput is ChunkedAudioInput;
   bool get isBrowserHfpMode => supportsBrowserHfp && _hfpInputSelected;
   bool get usesHfpInput => _hfpInputSelected;
+  bool get _usesNativeUtteranceScopedHfpCapture =>
+      usesHfpInput &&
+      _streamingSpeechInput is HfpRouteOwningStreamingSpeechInput;
   bool get isBluetoothInput =>
       usesHfpInput || _usingHfpRoute || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
   bool get isPlaybackPlaying => _playbackPlaying;
   bool get isPreparingMicrophone => _preparingMicrophone;
+  bool get isContinuousHfpSessionActive => _continuousHfpSessionActive;
   ConversationTurnEndReason? get lastTurnEndReason => _lastTurnEndReason;
   bool get h20HardwareTestActive =>
       h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
@@ -526,6 +605,8 @@ class ConversationController extends ChangeNotifier {
       h20HardwareTestPhase == H20HardwareTestPhase.playing;
   bool get isBusy =>
       _preparingMicrophone ||
+      _recordingStartOperation != null ||
+      _pendingHfpStartOperation != null ||
       bleDiagnosticRunning ||
       h20HardwareTestActive ||
       hfpAudioStatus.isBusy ||
@@ -539,6 +620,94 @@ class ConversationController extends ChangeNotifier {
     dispatcher,
   ) {
     _mainButtonDispatcher = dispatcher;
+  }
+
+  /// Opens one HFP route for a hands-free translation session.
+  ///
+  /// BLE MAIN is an independent best-effort control transport. Some H20/iOS
+  /// combinations temporarily lose BLE while HFP capture is active, so waiting
+  /// for BLE here would make microphone preparation block for several seconds
+  /// without improving the audio route.
+  Future<bool> beginContinuousHfpSession() async {
+    final speechInput = _streamingSpeechInput;
+    if (_continuousHfpSessionActive) return true;
+    if (!usesHfpInput ||
+        speechInput is! ContinuousHfpSessionStreamingSpeechInput) {
+      recordAiv0MainDiagnostic(
+        'MAIN_CONTINUOUS_HFP_SKIPPED',
+        values: <String, Object?>{
+          'usesHfpInput': usesHfpInput,
+          'supportsSessionLease':
+              speechInput is ContinuousHfpSessionStreamingSpeechInput,
+        },
+      );
+      return false;
+    }
+    final activeSpeechInput = speechInput as StreamingSpeechInput;
+    final continuousInput =
+        activeSpeechInput as ContinuousHfpSessionStreamingSpeechInput;
+
+    try {
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_PREPARE_STARTED');
+
+      // MAIN command recognition owns an utterance-scoped HFP lease. Release
+      // it before waiting for BLE; otherwise iOS cannot restore GATT/Notify and
+      // the wait itself would keep the transport permanently unavailable.
+      await activeSpeechInput.cancel();
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_PREVIOUS_CAPTURE_RELEASED');
+
+      if (!aiv0BleStatus.isConnected) {
+        recordAiv0MainDiagnostic(
+          'MAIN_CONTINUOUS_HFP_BLE_UNAVAILABLE_AT_OPEN',
+          values: <String, Object?>{
+            'blePhase': aiv0BleStatus.phase.name,
+            'peripheralState': aiv0BleStatus.peripheralState ?? '',
+            'notify': aiv0BleStatus.mainNotificationState ?? '',
+          },
+        );
+      }
+
+      await continuousInput.beginContinuousHfpSession();
+      _continuousHfpSessionActive =
+          continuousInput.isContinuousHfpSessionActive;
+      if (_continuousHfpSessionActive) {
+        _setPlaybackCommunicationRoute(true);
+        recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_OPENED');
+        notifyListeners();
+      }
+      return _continuousHfpSessionActive;
+    } catch (error) {
+      recordAiv0MainDiagnostic(
+        'MAIN_CONTINUOUS_HFP_OPEN_FAILED',
+        message: '$error',
+      );
+      await endContinuousHfpSession();
+      return false;
+    }
+  }
+
+  Future<void> endContinuousHfpSession() async {
+    final speechInput = _streamingSpeechInput;
+    final continuousInput =
+        speechInput is ContinuousHfpSessionStreamingSpeechInput
+        ? speechInput as ContinuousHfpSessionStreamingSpeechInput
+        : null;
+    final hadSession =
+        _continuousHfpSessionActive ||
+        (continuousInput?.isContinuousHfpSessionActive ?? false);
+    _continuousHfpSessionActive = false;
+    if (continuousInput != null) {
+      await continuousInput.endContinuousHfpSession().catchError((
+        Object error,
+      ) {
+        debugPrint('Cannot close continuous HFP session: $error');
+      });
+    }
+    if (hadSession) {
+      _setPlaybackCommunicationRoute(false);
+      recordAiv0MainDiagnostic('MAIN_CONTINUOUS_HFP_CLOSED');
+      if (!_disposed) notifyListeners();
+    }
   }
 
   Future<({String englishText, String vietnameseText})> translateVocabulary(
@@ -692,6 +861,17 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> markParentDiagnosticsOpened() async {
+    try {
+      await _aiv0BleControl?.markParentDiagnosticsOpened();
+      if (!_disposed) notifyListeners();
+    } catch (error) {
+      // This marker is diagnostic-only and must never block the protected
+      // Parent area if an older native build does not expose it yet.
+      debugPrint('Parent BLE/HFP diagnostic marker unavailable: $error');
+    }
+  }
+
   void _onAiv0ButtonEvent(Aiv0ButtonEvent event) {
     if (_disposed) return;
     _aiv0ButtonEventLog.insert(0, event);
@@ -699,12 +879,28 @@ class ConversationController extends ChangeNotifier {
       _aiv0ButtonEventLog.removeRange(12, _aiv0ButtonEventLog.length);
     }
     if (!event.isActionable) {
+      _recordAiv0MainDispatch(
+        'raw nhận được nhưng chưa hỗ trợ • ${event.rawHex}',
+        stage: 'MAIN_DART_UNSUPPORTED_RAW',
+        values: _mainDiagnosticValues(event: event),
+      );
       transientMessage = 'Đã nhận raw hex chưa hỗ trợ từ H20: ${event.rawHex}.';
       notifyListeners();
       return;
     }
+    _recordAiv0MainDispatch(
+      'received • seq=${event.sequence ?? 0} • '
+      '${event.isDuplicate ? 'duplicate' : 'actionable'}',
+      stage: 'MAIN_DART_RECEIVED',
+      values: _mainDiagnosticValues(event: event),
+    );
     unawaited(
       _handleAiv0ButtonEvent(event).catchError((Object error) async {
+        _recordAiv0MainDispatch(
+          'error • ${_friendlyError(error)}',
+          stage: 'MAIN_DART_DISPATCH_ERROR',
+          values: _mainDiagnosticValues(event: event),
+        );
         transientMessage = _friendlyError(error);
         if (!_disposed) notifyListeners();
         await _syncAiv0AppState(
@@ -718,6 +914,11 @@ class ConversationController extends ChangeNotifier {
   Future<void> _handleAiv0ButtonEvent(Aiv0ButtonEvent event) async {
     final sequence = event.sequence ?? 0;
     if (event.isDuplicate) {
+      _recordAiv0MainDispatch(
+        'duplicate ignored • seq=$sequence',
+        stage: 'MAIN_DART_DUPLICATE_IGNORED',
+        values: _mainDiagnosticValues(event: event),
+      );
       await _syncAiv0AppState(
         resultCode: Aiv0AppResult.duplicate,
         sequence: sequence,
@@ -744,12 +945,25 @@ class ConversationController extends ChangeNotifier {
       gesture: gesture,
       sequence: event.sequence,
     );
+    _recordAiv0MainDispatch(
+      'dispatching • ${gesture.name} • seq=$sequence',
+      stage: 'MAIN_DART_DISPATCH_STARTED',
+      values: _mainDiagnosticValues(event: event),
+    );
     final dispatcher = _mainButtonDispatcher;
     final result = dispatcher == null
         ? gesture == MainButtonGesture.shortPress
               ? await handleBleMainShortPress(inputEvent)
               : MainButtonActionResult.ignored
         : await dispatcher(inputEvent);
+    _recordAiv0MainDispatch(
+      '${result.name} • seq=$sequence',
+      stage: 'MAIN_DART_DISPATCH_COMPLETED',
+      values: <String, Object?>{
+        ..._mainDiagnosticValues(event: event),
+        'result': result.name,
+      },
+    );
     await _syncAiv0AppState(
       resultCode: switch (result) {
         MainButtonActionResult.accepted => Aiv0AppResult.accepted,
@@ -757,6 +971,60 @@ class ConversationController extends ChangeNotifier {
         MainButtonActionResult.ignored => Aiv0AppResult.noResult,
       },
       sequence: sequence,
+    );
+  }
+
+  Map<String, Object?> _mainDiagnosticValues({Aiv0ButtonEvent? event}) =>
+      <String, Object?>{
+        if (event != null) ...<String, Object?>{
+          'sequence': event.sequence ?? 0,
+          'gesture': event.gesture.name,
+          'duplicate': event.isDuplicate,
+          'rawHex': event.rawHex,
+          'transportSource': event.transportSource ?? 'ble',
+        },
+        'conversationPhase': phase.name,
+        'processingStage': processingStage.name,
+        'preparingMicrophone': _preparingMicrophone,
+        'recordingStartPending': _recordingStartOperation != null,
+        'stopInProgress': _stopInProgress,
+        'playbackPlaying': _playbackPlaying,
+      };
+
+  void _recordAiv0MainDispatch(
+    String status, {
+    String stage = 'MAIN_DART_STATUS',
+    Map<String, Object?> values = const <String, Object?>{},
+  }) {
+    _aiv0MainDispatchStatus = status;
+    _aiv0MainDispatchAt = DateTime.now();
+    debugPrint('H20 MAIN: $status');
+    recordAiv0MainDiagnostic(stage, message: status, values: values);
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  /// Records the app coordinator boundary in the same native timeline as BLE,
+  /// HFP and Apple Speech. This is intentionally best-effort and never blocks a
+  /// physical MAIN action.
+  void recordAiv0MainDiagnostic(
+    String stage, {
+    String? message,
+    Map<String, Object?> values = const <String, Object?>{},
+  }) {
+    final control = _aiv0BleControl;
+    if (control is! MethodChannelAiv0BleControl) return;
+    unawaited(
+      control
+          .recordMainDiagnostic(
+            stage: stage,
+            message: message,
+            values: <String, Object?>{..._mainDiagnosticValues(), ...values},
+          )
+          .catchError((Object error) {
+            debugPrint('Cannot append MAIN diagnostic: $error');
+          }),
     );
   }
 
@@ -811,14 +1079,18 @@ class ConversationController extends ChangeNotifier {
   /// Used by D10/E04 for single-sentence and continuous translation. Increasing
   /// the generation also makes any already-running backend response harmless.
   Future<MainButtonActionResult> cancelCurrentMainAction() async {
-    if (_preparingMicrophone) {
-      return MainButtonActionResult.busy;
-    }
-
+    final pendingRecordingStart = _recordingStartOperation;
+    final pendingHfpStart = _pendingHfpStartOperation;
+    final wasPreparingMicrophone = _preparingMicrophone;
     final hadActivity =
-        phase != ConversationPhase.idle || _playbackPlaying || _stopInProgress;
+        wasPreparingMicrophone ||
+        pendingHfpStart != null ||
+        phase != ConversationPhase.idle ||
+        _playbackPlaying ||
+        _stopInProgress;
 
     _conversationTurnGeneration += 1;
+    _preparingMicrophone = false;
     _pushToTalkPressed = false;
     _partialPreviewTimer?.cancel();
     _previewGeneration += 1;
@@ -834,6 +1106,17 @@ class ConversationController extends ChangeNotifier {
     _batchPreviewSubscription = null;
     _realtimeFallbackBuffer.clear();
 
+    if (pendingHfpStart != null) {
+      // `_usingHfpRoute` is set only after start completes. Stop the pending
+      // request directly so its Dart/native generations are invalidated even
+      // while that flag is still false.
+      await _hfpAudioControl?.stopAudioRoute().catchError((Object _) {});
+    }
+    if (wasPreparingMicrophone) {
+      await _streamingSpeechInput?.cancel().catchError((Object _) {});
+      await _audioInput.cancel().catchError((Object _) {});
+    }
+
     if (phase == ConversationPhase.recording && !_stopInProgress) {
       _stopInProgress = true;
       final previousSpeakNoSpeechPrompt = _speakNoSpeechPrompt;
@@ -848,6 +1131,11 @@ class ConversationController extends ChangeNotifier {
     await _voicePromptService?.stop().catchError((Object _) {});
     await _playbackService.stop().catchError((Object _) {});
     await _stopHfpRoute();
+
+    final cancellationBarriers = await Future.wait<bool>([
+      _waitForCancellationBarrier(pendingRecordingStart),
+      _waitForCancellationBarrier(pendingHfpStart),
+    ]);
     transientMessage = null;
     errorMessage = null;
     amplitude = 0;
@@ -859,9 +1147,25 @@ class ConversationController extends ChangeNotifier {
     _stopInProgress = false;
     unawaited(_syncAiv0AppState());
     notifyListeners();
+    if (cancellationBarriers.any((settled) => !settled)) {
+      return MainButtonActionResult.busy;
+    }
     return hadActivity
         ? MainButtonActionResult.accepted
         : MainButtonActionResult.ignored;
+  }
+
+  Future<bool> _waitForCancellationBarrier(Future<void>? operation) async {
+    if (operation == null) return true;
+    try {
+      await operation.timeout(_cancellationBarrierTimeout);
+      return true;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      // A cancellation error means the old operation has settled as intended.
+      return true;
+    }
   }
 
   /// Backward-compatible name retained for the single-sentence MAIN flow.
@@ -985,6 +1289,49 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
+  /// After BLE Control reconnects, selects the matching H20 HFP input already
+  /// paired by iOS. Pairing Classic Bluetooth is not available to apps, but an
+  /// existing HFP input can be discovered and selected without opening the
+  /// Settings sheet. Unrelated Bluetooth microphones are deliberately ignored.
+  Future<bool> autoConnectH20Hfp({String? bleDeviceName}) async {
+    final control = _hfpAudioControl;
+    if (control == null ||
+        supportsBrowserHfp ||
+        _preparingMicrophone ||
+        phase == ConversationPhase.recording ||
+        phase == ConversationPhase.processing ||
+        hfpAudioStatus.isBusy) {
+      return false;
+    }
+    if (_hfpInputSelected && hfpAudioStatus.deviceId != null) {
+      return true;
+    }
+    try {
+      final devices = await control.findDevices();
+      final device = selectLikelyH20HfpDevice(
+        devices,
+        bleDeviceName: bleDeviceName,
+      );
+      if (device == null) {
+        return false;
+      }
+      await control.connect(device);
+      _hfpInputSelected = true;
+      asrMode = supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.batchChunks;
+      transientMessage =
+          'Đã tự kết nối BLE Control và chọn mic HFP ${device.displayName}.';
+      notifyListeners();
+      return true;
+    } catch (error) {
+      // Automatic startup is best effort. Keep the phone microphone available
+      // and let Settings show the detailed error if the user chooses to retry.
+      debugPrint('Automatic H20 HFP selection was skipped: $error');
+      return false;
+    }
+  }
+
   Future<void> connectHfpDevice(HfpAudioDevice device) async {
     final control = _hfpAudioControl;
     if (control == null || isBusy) {
@@ -997,12 +1344,14 @@ class ConversationController extends ChangeNotifier {
     try {
       await control.connect(device);
       _hfpInputSelected = true;
-      asrMode = supportsBrowserHfp
-          ? AsrMode.batchChunks
-          : AsrMode.androidStreaming;
+      asrMode = supportsAndroidStreaming
+          ? AsrMode.androidStreaming
+          : AsrMode.batchChunks;
       transientMessage = supportsBrowserHfp
           ? 'Đã chọn mic HFP Web. Trình duyệt sẽ ghi âm từ thiết bị Bluetooth.'
-          : 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.';
+          : supportsAndroidStreaming
+          ? 'Đã chọn H20 làm nguồn âm thanh. Chế độ tiêu chuẩn sẽ nhận dạng qua mic HFP.'
+          : 'Đã chọn mic HFP trên iOS. Apple Speech sẽ nhận âm thanh trực tiếp từ thiết bị Bluetooth.';
       notifyListeners();
     } catch (error) {
       transientMessage = _friendlyError(error);
@@ -1062,7 +1411,9 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     final hfp = _hfpAudioControl;
-    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+    if (hfp == null ||
+        (!hfp.status.isConnected && hfp.status.deviceId == null) ||
+        supportsBrowserHfp) {
       throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra micro.');
     }
 
@@ -1155,7 +1506,9 @@ class ConversationController extends ChangeNotifier {
       return;
     }
     final hfp = _hfpAudioControl;
-    if (hfp == null || !hfp.status.isConnected || supportsBrowserHfp) {
+    if (hfp == null ||
+        (!hfp.status.isConnected && hfp.status.deviceId == null) ||
+        supportsBrowserHfp) {
       throw StateError('Hãy kết nối HFP của H20 trước khi kiểm tra loa.');
     }
     h20HardwareTestPhase = H20HardwareTestPhase.openingRoute;
@@ -1299,7 +1652,36 @@ class ConversationController extends ChangeNotifier {
     Duration noSpeechTimeout = const Duration(seconds: 3),
     bool speakNoSpeechPrompt = true,
     bool stopOnSilence = true,
+  }) {
+    final pending = _recordingStartOperation;
+    if (pending != null) return pending;
+
+    late final Future<void> tracked;
+    tracked =
+        _startRecordingInternal(
+          noSpeechTimeout: noSpeechTimeout,
+          speakNoSpeechPrompt: speakNoSpeechPrompt,
+          stopOnSilence: stopOnSilence,
+        ).whenComplete(() {
+          if (identical(_recordingStartOperation, tracked)) {
+            _recordingStartOperation = null;
+          }
+        });
+    _recordingStartOperation = tracked;
+    return tracked;
+  }
+
+  Future<void> _startRecordingInternal({
+    Duration noSpeechTimeout = const Duration(seconds: 3),
+    bool speakNoSpeechPrompt = true,
+    bool stopOnSilence = true,
   }) async {
+    if (!(_voiceDataProcessingAllowed?.call() ?? true)) {
+      _setError(
+        'Giọng nói đang tắt. Phụ huynh cần đồng ý xử lý dữ liệu và cấp quyền micro trong Cài đặt.',
+      );
+      return;
+    }
     if (!_audioInput.isAvailable || isBusy) {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
@@ -1308,28 +1690,38 @@ class ConversationController extends ChangeNotifier {
       _setError('Hãy tìm và kết nối thiết bị HFP trước khi bắt đầu nói.');
       return;
     }
-    _conversationTurnGeneration += 1;
+    final turnGeneration = ++_conversationTurnGeneration;
+
+    bool recordingStartCancelled() =>
+        _disposed || turnGeneration != _conversationTurnGeneration;
+
+    Future<bool> abandonCancelledRecordingStart() async {
+      if (!recordingStartCancelled()) return false;
+      await _streamingSpeechInput?.cancel().catchError((Object _) {});
+      await _audioInput.cancel().catchError((Object _) {});
+      await _stopHfpRoute();
+      return true;
+    }
 
     try {
       _preparingMicrophone = true;
       notifyListeners();
       await _beforeRecordingStart?.call();
-      if (_disposed) {
-        return;
-      }
+      if (await abandonCancelledRecordingStart()) return;
       final userGesturePlayback = _playbackService;
       if (userGesturePlayback is UserGestureAudioPlaybackService) {
         await (userGesturePlayback as UserGestureAudioPlaybackService)
             .unlockForUserGesture();
+        if (await abandonCancelledRecordingStart()) return;
       }
       await _playbackService.stop();
+      if (await abandonCancelledRecordingStart()) return;
       final readyCuePlayer = _voicePromptService;
       if (readyCuePlayer is SpeechReadyCuePlayer) {
         await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+        if (await abandonCancelledRecordingStart()) return;
       }
-      if (_disposed) {
-        return;
-      }
+      if (await abandonCancelledRecordingStart()) return;
       errorMessage = null;
       transientMessage = null;
       qualityApproved = null;
@@ -1345,9 +1737,9 @@ class ConversationController extends ChangeNotifier {
       _realtimeConnectionGeneration += 1;
       _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
-      // Android V1 has one recognition path only. HFP is an audio source,
-      // never a separate ASR mode, and Android must not upload audio to
-      // Cloudflare when the platform recognizer is available.
+      // Native Android/iOS speech has one recognition path. HFP is an audio
+      // source, never a separate ASR mode. Audio reaches Cloudflare only when
+      // native recognition cannot start or fails without a usable transcript.
       if (!_isWebRuntime &&
           _streamingSpeechInput != null &&
           (asrMode == AsrMode.hfpStreaming || asrMode == AsrMode.batchChunks)) {
@@ -1414,19 +1806,26 @@ class ConversationController extends ChangeNotifier {
       if (previousRealtimeSession != null) {
         await previousRealtimeSession.discard().catchError((Object _) {});
       }
+      if (await abandonCancelledRecordingStart()) return;
 
       if (_usingStreamingSpeech) {
         try {
-          if (_hfpInputSelected && !supportsBrowserHfp) {
-            await _hfpAudioControl!.startAudioRoute();
+          final streamingInputOwnsHfpRoute =
+              _streamingSpeechInput is HfpRouteOwningStreamingSpeechInput;
+          if (_hfpInputSelected &&
+              !supportsBrowserHfp &&
+              !streamingInputOwnsHfpRoute) {
+            await _startHfpRouteWithTimeout(
+              expectedTurnGeneration: turnGeneration,
+            );
+            if (await abandonCancelledRecordingStart()) return;
             _usingHfpRoute = true;
             _setPlaybackCommunicationRoute(true);
           }
-          // Live translation must stay on Android SpeechRecognizer so partial
-          // recognition overlaps the child's speech. Capturing a WAV first and
-          // injecting it only after stop is retained as an explicit archival
-          // compatibility mode, but is deliberately off in the production app
-          // because it adds a full post-recording ASR stage.
+          // Android can optionally record the turn once with HOMI's recorder,
+          // then feed the same WAV to SpeechRecognizer. This avoids competing
+          // microphone consumers and guarantees an archive file, at the cost
+          // of starting recognition after the child finishes speaking.
           final recordedAudioRecognizer =
               _recordAndroidAudioForArchive &&
                   _streamingSpeechInput is RecordedAudioStreamingSpeechInput
@@ -1439,6 +1838,7 @@ class ConversationController extends ChangeNotifier {
           final canRecognizeRecordedAudio =
               hasRecordedAudioPipeline &&
               await recordedAudioRecognizer.supportsRecordedAudioRecognition();
+          if (await abandonCancelledRecordingStart()) return;
           if (canRecognizeRecordedAudio) {
             _usingStreamingSpeech = false;
             _usingRecordedAudioSpeech = true;
@@ -1456,7 +1856,9 @@ class ConversationController extends ChangeNotifier {
           } else {
             await _streamingSpeechInput!.start();
           }
+          if (await abandonCancelledRecordingStart()) return;
         } catch (error) {
+          if (await abandonCancelledRecordingStart()) return;
           final permissionFailure =
               error is StreamingSpeechInputException &&
               (error.code == 'MICROPHONE_PERMISSION_DENIED' ||
@@ -1467,7 +1869,11 @@ class ConversationController extends ChangeNotifier {
           }
           _usingStreamingSpeech = false;
           _usingRecordedAudioSpeech = false;
-          if (!_isWebRuntime && _streamingSpeechInput != null) {
+          final supportsBatchFallback =
+              _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput;
+          if (!_isWebRuntime &&
+              _streamingSpeechInput != null &&
+              !supportsBatchFallback) {
             await _stopHfpRoute();
             asrMode = AsrMode.androidStreaming;
             throw const StreamingSpeechInputException(
@@ -1477,15 +1883,36 @@ class ConversationController extends ChangeNotifier {
           }
           asrMode = AsrMode.batchChunks;
           transientMessage =
-              'Nhận dạng trực tiếp chưa sẵn sàng; đang ghi âm để gửi Cloudflare.';
+              'Apple Speech chưa sẵn sàng; đang ghi âm bằng Cloudflare/Batch dự phòng.';
           await _startBatchRecording();
+          if (await abandonCancelledRecordingStart()) return;
         }
       } else if (isBrowserHfpMode && _audioInput is ChunkedAudioInput) {
         try {
-          await _hfpAudioControl!.startAudioRoute();
+          await _startHfpRouteWithTimeout(
+            expectedTurnGeneration: turnGeneration,
+          );
+          if (await abandonCancelledRecordingStart()) return;
           _usingHfpRoute = true;
           _setPlaybackCommunicationRoute(true);
           await _startAdaptiveWebRecording();
+          if (await abandonCancelledRecordingStart()) return;
+        } catch (_) {
+          await _stopHfpRoute();
+          rethrow;
+        }
+      } else if (usesHfpInput &&
+          !supportsAndroidStreaming &&
+          _audioInput is ChunkedAudioInput) {
+        try {
+          await _startHfpRouteWithTimeout(
+            expectedTurnGeneration: turnGeneration,
+          );
+          if (await abandonCancelledRecordingStart()) return;
+          _usingHfpRoute = true;
+          _setPlaybackCommunicationRoute(true);
+          await _startBatchRecording();
+          if (await abandonCancelledRecordingStart()) return;
         } catch (_) {
           await _stopHfpRoute();
           rethrow;
@@ -1507,6 +1934,8 @@ class ConversationController extends ChangeNotifier {
         await _startBatchRecording();
       }
 
+      if (await abandonCancelledRecordingStart()) return;
+
       _recordingStartedAt = DateTime.now();
       phase = ConversationPhase.recording;
       _preparingMicrophone = false;
@@ -1527,6 +1956,7 @@ class ConversationController extends ChangeNotifier {
       });
       notifyListeners();
     } catch (error) {
+      if (recordingStartCancelled()) return;
       _preparingMicrophone = false;
       _setError(_friendlyError(error));
     }
@@ -2110,21 +2540,39 @@ class ConversationController extends ChangeNotifier {
             recognizerReportedNoSpeech = true;
           } else {
             _usingStreamingSpeech = false;
-            if (!_isWebRuntime && _streamingSpeechInput != null) {
+            final fallbackAudio =
+                _streamingSpeechInput is NativeSpeechFallbackAudioProvider
+                ? (_streamingSpeechInput! as NativeSpeechFallbackAudioProvider)
+                      .takeFallbackAudioCapture()
+                : null;
+            if (fallbackAudio != null) {
+              audioCapture = fallbackAudio;
+              asrMode = AsrMode.batchChunks;
+              transientMessage =
+                  'Apple Speech bị gián đoạn; đang gửi bản ghi cục bộ qua Cloudflare/Batch dự phòng.';
+            } else if (!_isWebRuntime && _streamingSpeechInput != null) {
               asrMode = AsrMode.androidStreaming;
-              throw const StreamingSpeechInputException(
-                'Chế độ tiêu chuẩn bị gián đoạn. Hãy nói lại câu vừa rồi.',
-                code: 'ANDROID_STANDARD_RECOGNITION_INTERRUPTED',
+              throw StreamingSpeechInputException(
+                _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput
+                    ? 'Apple Speech bị gián đoạn và không giữ được bản ghi dự phòng. Hãy nói lại câu vừa rồi.'
+                    : 'Chế độ tiêu chuẩn bị gián đoạn. Hãy nói lại câu vừa rồi.',
+                code:
+                    _streamingSpeechInput
+                        is BatchFallbackCapableNativeSpeechInput
+                    ? 'IOS_NATIVE_RECOGNITION_INTERRUPTED'
+                    : 'ANDROID_STANDARD_RECOGNITION_INTERRUPTED',
               );
             }
-            asrMode = AsrMode.batchChunks;
-            throw StreamingSpeechInputException(
-              'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
-              code: 'STREAMING_FAILED_USE_BATCH',
-            );
+            if (fallbackAudio == null) {
+              asrMode = AsrMode.batchChunks;
+              throw StreamingSpeechInputException(
+                'Nhận diện trực tiếp bị gián đoạn. Ứng dụng đã chuyển sang Cloudflare Batch Chunks; hãy nói lại câu vừa rồi.',
+                code: 'STREAMING_FAILED_USE_BATCH',
+              );
+            }
           }
         }
-        if (_usingHfpRoute && streamingCapture != null) {
+        if ((usesHfpInput || _usingHfpRoute) && streamingCapture != null) {
           streamingCapture = StreamingSpeechCapture(
             sourceText: streamingCapture.sourceText,
             duration: streamingCapture.duration,
@@ -2132,9 +2580,20 @@ class ConversationController extends ChangeNotifier {
             confidence: streamingCapture.confidence,
             firstResultMs: streamingCapture.firstResultMs,
             finalAfterStopMs: streamingCapture.finalAfterStopMs,
-            asrMode: AsrMode.androidStreaming.apiValue,
+            asrMode: streamingCapture.asrMode,
             isBluetoothInput: true,
             initialNoiseRms: streamingCapture.initialNoiseRms,
+            realtimeSessionCreateMs: streamingCapture.realtimeSessionCreateMs,
+            realtimeWebSocketConnectMs:
+                streamingCapture.realtimeWebSocketConnectMs,
+            realtimeWebSocketOpenAfterRecordingMs:
+                streamingCapture.realtimeWebSocketOpenAfterRecordingMs,
+            realtimeChunkDurationMs: streamingCapture.realtimeChunkDurationMs,
+            workerAsrPilotRttMs: streamingCapture.workerAsrPilotRttMs,
+            workerAsrPilotAsrMs: streamingCapture.workerAsrPilotAsrMs,
+            workerAsrPilotAudioBytes: streamingCapture.workerAsrPilotAudioBytes,
+            alternatives: streamingCapture.alternatives,
+            extraBenchmark: streamingCapture.extraBenchmark,
             recordedAudio: streamingCapture.recordedAudio,
           );
         }
@@ -2334,7 +2793,7 @@ class ConversationController extends ChangeNotifier {
             );
       final processing = await Future.wait<Object?>([
         earlyRulePlayback == null
-            ? _playbackService.prepare()
+            ? _preparePlaybackWithTimeout()
             : Future<void>.value(),
         resultFuture,
       ]);
@@ -2347,13 +2806,6 @@ class ConversationController extends ChangeNotifier {
       if (batchCommandText.isNotEmpty &&
           _matchesRecognizedSpeechCommand(batchCommandText)) {
         handledSpeechCommand = batchCommandText;
-        await earlyRulePlayback?.catchError((Object _) {
-          return const PlaybackStartMetrics(
-            audioLoadDuration: Duration.zero,
-            startedAfterRequest: Duration.zero,
-            fromDeviceCache: false,
-          );
-        });
         await _playbackService.stop();
         _completeRecognizedSpeechCommand();
         return;
@@ -2412,7 +2864,9 @@ class ConversationController extends ChangeNotifier {
               nextResult.audioUri == earlyRulePlaybackUri);
       if (canReuseEarlyRulePlayback) {
         try {
-          final metrics = await earlyRulePlayback;
+          final metrics = await _awaitPlaybackStartWithTimeout(
+            earlyRulePlayback,
+          );
           final startedAt = earlyRulePlaybackRequestedAt.add(
             metrics.startedAfterRequest,
           );
@@ -2424,21 +2878,19 @@ class ConversationController extends ChangeNotifier {
           reusedEarlyRulePlayback = true;
         } catch (error) {
           debugPrint('Early exact-rule playback failed: $error');
+          await _playbackService.stop().catchError((Object _) {});
+          if (error is PlaybackException) rethrow;
         }
       }
       if (!reusedEarlyRulePlayback && earlyRulePlayback != null) {
-        await earlyRulePlayback.catchError((Object _) {
-          return const PlaybackStartMetrics(
-            audioLoadDuration: Duration.zero,
-            startedAfterRequest: Duration.zero,
-            fromDeviceCache: false,
-          );
-        });
-        await _playbackService.stop();
+        // The playback start future cannot be cancelled, but stopping the
+        // service releases its source immediately. Never await that stale
+        // future again after a timeout.
+        await _playbackService.stop().catchError((Object _) {});
       }
       if (!reusedEarlyRulePlayback &&
           (nextResult.audioUri != null || _preferredPlaybackUri != null)) {
-        await playResult(reportLatency: true);
+        await playResult(reportLatency: true, propagateFailure: true);
       }
       await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
       stoppedAdaptiveWebUpload = null;
@@ -2487,6 +2939,68 @@ class ConversationController extends ChangeNotifier {
     } catch (error) {
       debugPrint('Recognized speech command matcher failed: $error');
       return false;
+    }
+  }
+
+  Future<void> _preparePlaybackWithTimeout() async {
+    try {
+      await _playbackService.prepare().timeout(_audioPreparationTimeout);
+    } on TimeoutException {
+      await _playbackService.stop().catchError((Object _) {});
+      throw const PlaybackException(
+        'Không thể chuẩn bị âm thanh trong thời gian cho phép. Con thử lại nhé.',
+      );
+    }
+  }
+
+  Future<PlaybackStartMetrics> _awaitPlaybackStartWithTimeout(
+    Future<PlaybackStartMetrics> playbackStart,
+  ) async {
+    try {
+      return await playbackStart.timeout(_audioPreparationTimeout);
+    } on TimeoutException {
+      await _playbackService.stop().catchError((Object _) {});
+      throw const PlaybackException(
+        'Không thể chuẩn bị âm thanh trong thời gian cho phép. Con thử lại nhé.',
+      );
+    }
+  }
+
+  Future<void> _startHfpRouteWithTimeout({
+    required int expectedTurnGeneration,
+  }) {
+    late final Future<void> tracked;
+    tracked = _runHfpRouteStart(expectedTurnGeneration: expectedTurnGeneration)
+        .whenComplete(() {
+          if (identical(_pendingHfpStartOperation, tracked)) {
+            _pendingHfpStartOperation = null;
+          }
+        });
+    _pendingHfpStartOperation = tracked;
+    return tracked;
+  }
+
+  Future<void> _runHfpRouteStart({required int expectedTurnGeneration}) async {
+    final control = _hfpAudioControl;
+    if (control == null) {
+      throw const HfpAudioException('Cầu nối âm thanh H20 chưa sẵn sàng.');
+    }
+    final startOperation = control.startAudioRoute();
+    try {
+      await startOperation.timeout(_audioPreparationTimeout);
+      if (expectedTurnGeneration != _conversationTurnGeneration) {
+        await control.stopAudioRoute().catchError((Object _) {});
+        throw const HfpAudioException(
+          'Đã hủy mở HFP trước khi đường âm thanh sẵn sàng.',
+        );
+      }
+    } on TimeoutException {
+      // Invalidate both Dart retries and the native activation generation so
+      // the timed-out SCO request cannot reopen after MAIN has moved on.
+      await control.stopAudioRoute().catchError((Object _) {});
+      throw const PlaybackException(
+        'Không thể chuẩn bị âm thanh H20 trong thời gian cho phép. Con thử lại nhé.',
+      );
     }
   }
 
@@ -2727,7 +3241,11 @@ class ConversationController extends ChangeNotifier {
         : 'batch_transport_failure';
   }
 
-  Future<void> playResult({bool reportLatency = false}) async {
+  Future<void> playResult({
+    bool reportLatency = false,
+    bool propagateFailure = false,
+  }) async {
+    final playbackTurnGeneration = _conversationTurnGeneration;
     final currentResult = result;
     final audioUri = _preferredPlaybackUri ?? currentResult?.audioUri;
     if (currentResult == null) {
@@ -2744,22 +3262,62 @@ class ConversationController extends ChangeNotifier {
 
     var openedHfpForReplay = false;
     try {
-      if (usesHfpInput && canUseHfp && !_usingHfpRoute) {
-        await _hfpAudioControl!.startAudioRoute();
+      // Native iOS recognition already opened and released one utterance-scoped
+      // HFP/SCO route. Reopening HFP only to play the translated sentence makes
+      // every continuous turn negotiate Classic Bluetooth twice, invalidates
+      // the playback preparation started alongside the backend request, and
+      // closes the BLE window needed by the physical MAIN button. Output-only
+      // playback keeps the paired H20 on A2DP while BLE remains available; the
+      // next recording turn will explicitly reopen its HFP microphone lease.
+      final useContinuousHfpSession = _continuousHfpSessionActive;
+      final useSelectedMediaOutput =
+          _usesNativeUtteranceScopedHfpCapture && !useContinuousHfpSession;
+      if (useSelectedMediaOutput) {
+        _setPlaybackCommunicationRoute(false);
+      } else if (useContinuousHfpSession) {
+        _setPlaybackCommunicationRoute(true);
+      }
+      if (usesHfpInput &&
+          canUseHfp &&
+          !_usingHfpRoute &&
+          !useContinuousHfpSession &&
+          !useSelectedMediaOutput) {
+        await _startHfpRouteWithTimeout(
+          expectedTurnGeneration: playbackTurnGeneration,
+        );
         _usingHfpRoute = true;
         openedHfpForReplay = true;
         _setPlaybackCommunicationRoute(true);
       }
+      // Arm completion before starting playback. A short cached sentence can
+      // otherwise finish between play() resolving and the later subscription,
+      // leaving the continuous flow waiting on an event that already happened.
+      final playbackCompletion = _usingHfpRoute || useContinuousHfpSession
+          ? _waitForActivePlaybackToComplete()
+          : null;
       final playbackRequestedAt = DateTime.now();
       PlaybackStartMetrics? gestureMetrics;
       final gesturePlayback = _playbackService;
       if (!reportLatency &&
           gesturePlayback is DirectUserGestureAudioPlaybackService) {
-        gestureMetrics =
-            await (gesturePlayback as DirectUserGestureAudioPlaybackService)
+        final directStart =
+            (gesturePlayback as DirectUserGestureAudioPlaybackService)
                 .playLoadedForUserGesture(audioUri);
+        final directMetrics = await directStart.timeout(
+          _audioPreparationTimeout,
+          onTimeout: () => throw const PlaybackException(
+            'Không thể chuẩn bị âm thanh trong thời gian cho phép. Con thử lại nhé.',
+          ),
+        );
+        gestureMetrics = directMetrics;
       }
-      final metrics = gestureMetrics ?? await _playbackService.play(audioUri);
+      final metrics =
+          gestureMetrics ??
+          await _awaitPlaybackStartWithTimeout(_playbackService.play(audioUri));
+      if (playbackTurnGeneration != _conversationTurnGeneration) {
+        await _playbackService.stop().catchError((Object _) {});
+        return;
+      }
       if (reportLatency && _stoppedAt != null) {
         _reportPlaybackStarted(
           currentResult: currentResult,
@@ -2767,12 +3325,13 @@ class ConversationController extends ChangeNotifier {
           metrics: metrics,
         );
       }
-      if (_usingHfpRoute) {
-        await _waitForActivePlaybackToComplete();
-      }
+      if (playbackCompletion != null) await playbackCompletion;
     } catch (error) {
+      await _playbackService.stop().catchError((Object _) {});
+      if (playbackTurnGeneration != _conversationTurnGeneration) return;
       transientMessage = _friendlyError(error);
       notifyListeners();
+      if (propagateFailure) rethrow;
     } finally {
       if (openedHfpForReplay) await _stopHfpRoute();
     }
@@ -2911,6 +3470,21 @@ class ConversationController extends ChangeNotifier {
     await _playbackService.play(audioUri);
   }
 
+  Future<void> playHistoryUserAudio(ConversationHistoryItem item) async {
+    if (!item.hasUserAudio) {
+      throw StateError('Bản ghi âm này không còn được lưu trên máy chủ.');
+    }
+    final repository = _repository;
+    if (repository is! UserAudioHistoryPlaybackRepository) {
+      throw StateError('Phiên bản này chưa hỗ trợ nghe lại bản ghi âm.');
+    }
+    final playbackRepository = repository as UserAudioHistoryPlaybackRepository;
+    final audioUri = await playbackRepository.fetchUserAudioPlaybackUri(
+      item.conversationId,
+    );
+    await _playbackService.play(audioUri);
+  }
+
   Future<ConversationLearningOutcome> reviewHistoryItem(
     ConversationHistoryItem item,
     bool approved,
@@ -2953,7 +3527,9 @@ class ConversationController extends ChangeNotifier {
       if (nextMode == AsrMode.batchChunks) {
         asrMode = AsrMode.androidStreaming;
         transientMessage =
-            'Android chỉ dùng Chế độ tiêu chuẩn để nhận dạng. Cloudflare vẫn được dùng cho dịch và phát âm khi cần.';
+            _streamingSpeechInput is BatchFallbackCapableNativeSpeechInput
+            ? 'iOS ưu tiên Apple Native Speech; Cloudflare/Batch chỉ nhận audio khi cần dự phòng.'
+            : 'Android chỉ dùng Chế độ tiêu chuẩn để nhận dạng. Cloudflare vẫn được dùng cho dịch và phát âm khi cần.';
         notifyListeners();
         return;
       }
@@ -2979,7 +3555,7 @@ class ConversationController extends ChangeNotifier {
         return;
       }
       if (_streamingSpeechInput == null && !supportsBrowserHfp) {
-        transientMessage = 'HFP streaming chỉ khả dụng trên Android.';
+        transientMessage = 'HFP streaming chưa khả dụng trên nền tảng này.';
         notifyListeners();
         return;
       }
@@ -3108,6 +3684,7 @@ class ConversationController extends ChangeNotifier {
     }
     unawaited(_streamingCompletionSubscription?.cancel());
     unawaited(_partialTextSubscription?.cancel());
+    unawaited(_nativeSpeechDiagnosticSubscription?.cancel());
     unawaited(_bluetoothStatusSubscription?.cancel());
     unawaited(_hfpStatusSubscription?.cancel());
     unawaited(_aiv0StatusSubscription?.cancel());
