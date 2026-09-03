@@ -64,6 +64,8 @@ void main() {
       await tester.pump();
       await tester.ensureVisible(consentButton);
       expect(tester.widget<FilledButton>(consentButton).onPressed, isNull);
+      expect(find.textContaining('Cloudflare Workers AI'), findsOneWidget);
+      expect(find.textContaining('Cloudinary'), findsOneWidget);
 
       await _completeLegalReview(tester);
       final legalCheckbox = find.byKey(const Key('startup-accept-legal'));
@@ -246,8 +248,16 @@ void main() {
 }
 
 Future<void> _completeLegalReview(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('startup-review-legal')));
+  final legalReviewButton = find.byKey(const Key('startup-review-legal'));
+  await tester.ensureVisible(legalReviewButton);
+  await tester.tap(legalReviewButton);
   await tester.pumpAndSettle();
+
+  expect(find.text('Bên thứ ba nhận dữ liệu và mục đích'), findsOneWidget);
+  expect(
+    find.textContaining('biện pháp bảo vệ dữ liệu tương đương'),
+    findsOneWidget,
+  );
 
   final reviewedButton = find.byKey(const Key('startup-legal-reviewed'));
   expect(tester.widget<FilledButton>(reviewedButton).onPressed, isNull);

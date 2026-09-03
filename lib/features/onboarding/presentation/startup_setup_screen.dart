@@ -204,7 +204,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                 : (value) =>
                       setState(() => _voiceDataAccepted = value ?? false),
             title: const Text(
-              'Tôi đồng ý cho HOMI xử lý, gửi và lưu bản ghi giọng nói cùng transcript cần thiết cho phiên học',
+              'Tôi đồng ý để HOMI gửi dữ liệu giọng nói/audio và transcript tới Railway để vận hành backend; gửi audio khi cần và transcript tới Cloudflare Workers AI để nhận dạng, dịch và tạo giọng đọc; đồng thời gửi bản ghi giọng nói tới Cloudinary để phụ huynh nghe lại.',
             ),
             subtitle: !_legalReviewCompleted
                 ? const Text('Đọc hết nội dung trên để mở lựa chọn này.')
@@ -627,9 +627,13 @@ class _LegalReviewSheetState extends State<_LegalReviewSheet> {
                     const SizedBox(height: 18),
                     _LegalSection(
                       icon: Icons.cloud_outlined,
-                      title: 'Nơi dữ liệu được gửi tới',
+                      title: 'Bên thứ ba nhận dữ liệu và mục đích',
                       text:
-                          'Dữ liệu cần thiết có thể được gửi tới ${widget.aiSubprocessors} để cung cấp và vận hành các tính năng đã mô tả ở trên.',
+                          'Các nhà cung cấp được cấu hình cho bản này: ${widget.aiSubprocessors}. '
+                          'Railway nhận dữ liệu cần thiết để vận hành backend HOMI và xử lý yêu cầu. '
+                          'Cloudflare Workers AI nhận audio khi cần nhận dạng dự phòng và nhận transcript cần thiết để nhận dạng, dịch hoặc tạo giọng đọc. '
+                          'Cloudinary nhận và lưu bản ghi giọng nói có kiểm soát để phụ huynh nghe lại trong Lịch sử gần đây. '
+                          'Các nhà cung cấp này chỉ được xử lý dữ liệu cho các mục đích HOMI mô tả, phải áp dụng biện pháp bảo vệ dữ liệu tương đương và không được dùng dữ liệu cho quảng cáo hoặc huấn luyện mô hình nếu chưa có chấp thuận riêng.',
                     ),
                     const SizedBox(height: 18),
                     _LegalSection(

@@ -7,10 +7,11 @@ const _limitedModeKey = 'homi.parental-privacy-consent.limited-mode';
 class PrivacyConsentStore {
   const PrivacyConsentStore();
 
-  // Version 2 explicitly covers transmitting and retaining the child's raw
-  // voice recording in the parent-visible history. Existing version-1 grants
-  // must be confirmed again because this is a material processing change.
-  static const int currentVersion = 2;
+  // Version 3 explicitly names Railway, Cloudflare Workers AI and Cloudinary,
+  // together with the data each provider receives and its purpose. Existing
+  // grants must be confirmed again because Apple requires this disclosure to
+  // be shown before voice data is sent to third parties.
+  static const int currentVersion = 3;
 
   Future<bool> readGranted() async {
     try {

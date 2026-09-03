@@ -10,10 +10,10 @@ void main() {
   });
 
   test(
-    'requires renewed consent after raw-audio retention disclosure',
+    'requires renewed consent after third-party disclosure changes',
     () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
-        'homi.parental-privacy-consent.version': 1,
+        'homi.parental-privacy-consent.version': 2,
       });
 
       expect(await const PrivacyConsentStore().readGranted(), isFalse);
