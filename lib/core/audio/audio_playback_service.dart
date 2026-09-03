@@ -613,6 +613,17 @@ class PlaybackCompletionTracker {
             processingState == ProcessingState.completed)) {
       _activeDuration = duration;
     }
+    // just_audio can publish ProcessingState.completed before its position
+    // stream has delivered the final position for the same source. Since this
+    // tracker is driven by playerStateStream, there may be no later state event
+    // on which to re-check the position. Once a non-completed playing state for
+    // the current source has been observed, the completed state itself is the
+    // authoritative end signal. The started gate still rejects the replayed
+    // completed state from the previous source when the listener is armed.
+    if (_currentPlaybackStarted &&
+        processingState == ProcessingState.completed) {
+      return true;
+    }
     return isPlaybackAtSourceEnd(
       processingState: processingState,
       position: position,
