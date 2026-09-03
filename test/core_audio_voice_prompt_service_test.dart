@@ -47,11 +47,11 @@ void main() {
       });
 
       const service = MethodChannelVoicePromptService(channel: channel);
-      await service.speakAndWait('Pipo nghe đây');
+      await service.speakAndWait('HOMI nghe đây.');
 
       expect(receivedCall?.method, 'speakAndWait');
       expect(receivedCall?.arguments, <String, dynamic>{
-        'text': 'Pipo nghe đây',
+        'text': 'HOMI nghe đây.',
         'locale': 'vi-VN',
         'gainDb': 8.0,
         'forcePhoneSpeaker': false,

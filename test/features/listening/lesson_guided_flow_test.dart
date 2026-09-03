@@ -530,6 +530,12 @@ void main() {
       intro: 'Mở đầu bài hai.',
       introAudioUri: nextIntroUri,
     );
+    const levelContent = ListeningLevelContent(
+      id: 'v4-level-1',
+      number: 1,
+      titleVi: 'Level 1',
+      topicNumbers: <int>[1, 2, 3],
+    );
     final mediaService = _ControlledNextIntroMediaService(nextIntroUri);
     await tester.pumpWidget(
       _subject(
@@ -539,6 +545,7 @@ void main() {
           firstLesson,
           nextLesson,
         ]),
+        levelContent: levelContent,
         guideAudioLibrary: _silentGuideAudioLibrary(),
         voicePromptService: _FakeVoicePromptService(),
         completionChoiceRecognizer: _FakeCompletionChoiceRecognizer(
@@ -565,6 +572,12 @@ void main() {
           .lesson
           .id,
       nextLesson.id,
+    );
+    expect(
+      tester
+          .widget<LessonIntroScreen>(find.byType(LessonIntroScreen))
+          .levelContent,
+      same(levelContent),
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1613,6 +1626,7 @@ Widget _subject(
   LessonMediaService mediaService, {
   LessonGuideAudioLibrary? guideAudioLibrary,
   ListeningTopicContent? topicContent,
+  ListeningLevelContent? levelContent,
   ListeningProgressStore? progressStore,
   LessonAttemptEvaluator? attemptEvaluator,
   VoicePromptService? voicePromptService,
@@ -1630,6 +1644,7 @@ Widget _subject(
       topic: listeningCatalogs.first.topics.first,
       lesson: lesson,
       topicContent: topicContent,
+      levelContent: levelContent,
       progressStore: progressStore ?? _MemoryProgressStore(),
       mediaService: mediaService,
       vocabularyStore: vocabularyStore ?? _MemoryVocabularyStore(),
@@ -1724,6 +1739,8 @@ class _ScriptedAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
   }) async {
     final outcome = _outcomes[_index.clamp(0, _outcomes.length - 1)];
     _index += 1;
@@ -1747,6 +1764,8 @@ class _DeferredAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
   }) {
     if (!started.isCompleted) {
       started.complete();

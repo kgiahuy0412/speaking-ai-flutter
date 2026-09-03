@@ -3,12 +3,15 @@ import '../../listening/domain/listening_catalog.dart';
 import '../../listening/domain/listening_content.dart';
 import '../../vocabulary/data/vocabulary_store.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
+import '../domain/controlled_speech_lexicon.dart';
+import '../domain/homi_fallback_catalog.dart';
 import 'active_learning_command_resolver.dart';
 import 'voice_navigation_intent_resolver.dart';
 
 enum MainVoiceAssistantStage {
   idle,
   chooseFeature,
+  chooseTranslationMode,
   chooseOtherLearning,
   chooseAlternativeAfterLearning,
   chooseVocabularyCollection,
@@ -67,18 +70,44 @@ class MainVoiceAssistantFlow {
        _configuredChildAge = childAge;
 
   static const String openingPrompt =
-      'Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
-  static const String noSpeechRetryPrompt = 'Con muốn làm gì?';
+      'HOMI đây. Bạn muốn dịch sang tiếng Anh, học theo chủ đề hay học bộ từ vựng?';
+  static const String noSpeechRetryPrompt =
+      'Bạn có thể chọn: dịch sang tiếng Anh, học theo chủ đề hoặc học bộ từ vựng';
   static const String noSpeechExitPrompt =
-      'Khi nào sẵn sàng, con nhấn MAIN gọi mình nhé.';
+      'Khi sẵn sàng, bạn nhấn nút gọi HOMI nhé.';
   static const String otherLearningPrompt =
-      'Có chứ. Con muốn học theo chủ đề, học từ mới hay dịch sang tiếng Anh?';
+      'Được thôi. Bạn muốn dịch sang tiếng Anh, học theo chủ đề hay học bộ từ vựng?';
   static const String activeLearningPrompt =
-      'Con muốn học câu tiếp theo, nghe câu trước, dừng lại hay không học nữa?';
+      'Bạn muốn nghe lại, học câu tiếp theo, học câu trước, hay dừng lại?';
   static const String alternativeAfterLearningPrompt =
-      'Con muốn dịch sang tiếng Anh hay học từ vựng?';
+      'Bạn muốn dịch sang tiếng Anh hay học bộ từ vựng?';
+  static const String stopPrompt =
+      'Mình dừng ở đây. Khi cần, bạn nhấn nút gọi HOMI.';
+  static final String translationModeAcknowledgement =
+      HomiFallbackCatalog.assistantPromptById['AI-020'] ??
+      'Mình cùng dịch sang tiếng Anh nha.';
+  // The approved workbook has no INT-005 / single-sentence mode. AI-020 is
+  // retained verbatim, then made actionable with the sole supported choice.
+  static final String translationModePrompt =
+      '$translationModeAcknowledgement Bạn nói “dịch liên tục” để bắt đầu nhé.';
+  static final String continuousTranslationPrompt =
+      HomiFallbackCatalog.assistantPromptById['AI-022'] ??
+      'Bạn cứ nói từng câu. Muốn dừng thì nói “dừng lại”.';
+  static const Map<MainVoiceAssistantStage, String> _fallbackPolicyIdByStage =
+      <MainVoiceAssistantStage, String>{
+        MainVoiceAssistantStage.chooseFeature: 'FB-001',
+        MainVoiceAssistantStage.chooseTopic: 'FB-004',
+        MainVoiceAssistantStage.chooseTopicAfterCompletion: 'FB-004',
+        MainVoiceAssistantStage.chooseLesson: 'FB-005',
+        MainVoiceAssistantStage.activeLearning: 'FB-006',
+        MainVoiceAssistantStage.confirmReplayTopic: 'FB-007',
+        MainVoiceAssistantStage.chooseVocabularyCollection: 'FB-008',
+        MainVoiceAssistantStage.confirmReplayLesson: 'FB-010',
+      };
   static const ActiveLearningCommandResolver _activeLearningCommandResolver =
       ActiveLearningCommandResolver();
+  static const ControlledSpeechLexicon _controlledSpeechLexicon =
+      ControlledSpeechLexicon();
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
@@ -95,6 +124,9 @@ class MainVoiceAssistantFlow {
   int? _pendingReplayTopicNumber;
   Set<int> _completedLessonNumbers = const <int>{};
   int? _pendingReplayLessonNumber;
+  ActiveLearningModuleKind? _activeLearningKind;
+  final Map<MainVoiceAssistantStage, int> _fallbackAttempts =
+      <MainVoiceAssistantStage, int>{};
 
   MainVoiceAssistantStage get stage => _stage;
 
@@ -118,8 +150,9 @@ class MainVoiceAssistantFlow {
     return otherLearningPrompt;
   }
 
-  String beginActiveLearning() {
+  String beginActiveLearning({ActiveLearningModuleKind? kind}) {
     reset();
+    _activeLearningKind = kind;
     _stage = MainVoiceAssistantStage.activeLearning;
     return activeLearningPrompt;
   }
@@ -187,6 +220,8 @@ class MainVoiceAssistantFlow {
     _pendingReplayTopicNumber = null;
     _completedLessonNumbers = const <int>{};
     _pendingReplayLessonNumber = null;
+    _activeLearningKind = null;
+    _fallbackAttempts.clear();
   }
 
   bool canHandle(String recognizedText) {
@@ -194,46 +229,94 @@ class MainVoiceAssistantFlow {
     if (normalized.isEmpty || _looksLikePromptEcho(normalized)) {
       return false;
     }
-    return switch (_stage) {
-      MainVoiceAssistantStage.chooseFeature =>
-        _isSpeakingChoice(normalized) ||
-            _isTopicChoice(normalized) ||
-            _isVocabularyChoice(normalized) ||
-            _isTranslationChoice(normalized),
-      MainVoiceAssistantStage.chooseOtherLearning =>
-        _isTopicChoice(normalized) ||
-            _isVocabularyChoice(normalized) ||
-            _isTranslationChoice(normalized),
-      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
-        _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
-      MainVoiceAssistantStage.chooseVocabularyCollection =>
-        _isReviewVocabularyChoice(normalized) ||
-            _isStarVocabularyChoice(normalized),
-      MainVoiceAssistantStage.activeLearning =>
-        _activeLearningCommandResolver.resolve(normalized) != null ||
-            _isLeaveActiveLearningChoice(normalized),
-      MainVoiceAssistantStage.confirmReplayTopic =>
-        _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
-      MainVoiceAssistantStage.confirmReplayLesson =>
-        _isReplayLessonChoice(normalized) ||
-            _isContinueLessonChoice(normalized) ||
-            _isAffirmativeChoice(normalized) ||
-            _isNegativeChoice(normalized),
-      MainVoiceAssistantStage.askAge ||
-      MainVoiceAssistantStage.chooseTopic ||
-      MainVoiceAssistantStage.chooseTopicAfterCompletion =>
-        _extractSpokenNumber(normalized) != null,
-      MainVoiceAssistantStage.chooseLesson =>
-        _extractSpokenNumber(normalized) != null ||
-            _isContinueLessonChoice(normalized),
-      MainVoiceAssistantStage.idle => false,
-    };
+    final stageCanHandle = _hasStageSpecificIntent(normalized);
+    if (_isStopChoice(normalized) && !stageCanHandle) {
+      return _stage != MainVoiceAssistantStage.idle;
+    }
+    return stageCanHandle ||
+        (_stage != MainVoiceAssistantStage.idle && _isHelpChoice(normalized));
   }
+
+  /// MAIN commands wait for the final ASR result. The approved corpus includes
+  /// useful but deliberately broad phrases such as "mình muốn học"; treating
+  /// a partial transcript as final could send "mình muốn học từ mới" to the
+  /// topic flow before the word "từ" arrives.
+  bool canHandlePartial(String recognizedText) => false;
+
+  bool _hasStageSpecificIntent(String normalized) => switch (_stage) {
+    MainVoiceAssistantStage.chooseFeature =>
+      _isSpeakingChoice(normalized) ||
+          _isTopicChoice(normalized) ||
+          _isVocabularyChoice(normalized) ||
+          _isTranslationChoice(normalized),
+    MainVoiceAssistantStage.chooseTranslationMode =>
+      _isContinuousTranslationChoice(normalized),
+    MainVoiceAssistantStage.chooseOtherLearning =>
+      _isTopicChoice(normalized) ||
+          _isVocabularyChoice(normalized) ||
+          _isTranslationChoice(normalized),
+    MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+      _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
+    MainVoiceAssistantStage.chooseVocabularyCollection =>
+      _isReviewVocabularyChoice(normalized) ||
+          _isStarVocabularyChoice(normalized),
+    MainVoiceAssistantStage.activeLearning =>
+      _activeLearningCommandResolver.resolve(
+                normalized,
+                state: _activeLearningSpeechState,
+              ) !=
+              null ||
+          _isLeaveActiveLearningChoice(normalized),
+    MainVoiceAssistantStage.confirmReplayTopic =>
+      _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
+    MainVoiceAssistantStage.confirmReplayLesson =>
+      _isReplayLessonChoice(normalized) ||
+          _isContinueLessonChoice(normalized) ||
+          _isAffirmativeChoice(normalized) ||
+          _isNegativeChoice(normalized),
+    MainVoiceAssistantStage.askAge ||
+    MainVoiceAssistantStage.chooseTopic ||
+    MainVoiceAssistantStage.chooseTopicAfterCompletion =>
+      _stage == MainVoiceAssistantStage.askAge
+          ? _extractSpokenNumber(normalized) != null
+          : _hasSelectableTopicNumber(normalized),
+    MainVoiceAssistantStage.chooseLesson =>
+      _hasSelectableLessonNumber(normalized) ||
+          _isContinueLessonChoice(normalized),
+    MainVoiceAssistantStage.idle => false,
+  };
 
   Future<MainVoiceAssistantTurn> handle(String recognizedText) async {
     final normalized = _normalize(recognizedText);
+    final isPromptEcho = _looksLikePromptEcho(normalized);
+    final stageCanHandle = _hasStageSpecificIntent(normalized);
+    if (_isStopChoice(normalized) && !stageCanHandle) {
+      return const MainVoiceAssistantTurn(
+        promptText: stopPrompt,
+        continueListening: false,
+      );
+    }
+    if (!stageCanHandle &&
+        !_isReplayConfirmationStage &&
+        _isHelpChoice(normalized)) {
+      return _helpTurn();
+    }
+    if (!stageCanHandle &&
+        !isPromptEcho &&
+        _stage != MainVoiceAssistantStage.idle) {
+      final fallback = _fallbackForUnrecognizedInput();
+      if (fallback != null) {
+        return fallback;
+      }
+    } else {
+      _fallbackAttempts.remove(_stage);
+    }
     return switch (_stage) {
       MainVoiceAssistantStage.chooseFeature => await _handleFeature(
+        recognizedText,
+        normalized,
+      ),
+      MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
         recognizedText,
         normalized,
       ),
@@ -311,16 +394,19 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
-    if (_isTopicChoice(normalized)) {
-      return _beginConfiguredTopicSelection();
-    }
     if (_isVocabularyChoice(normalized)) {
       return _beginVocabularyLearning(
         recognizedText: recognizedText,
         matchedPhrase: 'hoc tu moi',
       );
     }
-    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+    if (_isTopicChoice(normalized)) {
+      return _beginConfiguredTopicSelection();
+    }
+    if (_isTranslationChoice(normalized)) {
+      return _beginTranslationMode();
+    }
+    if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
@@ -348,7 +434,10 @@ class MainVoiceAssistantFlow {
     if (_isTopicChoice(normalized)) {
       return _beginConfiguredTopicSelection();
     }
-    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+    if (_isTranslationChoice(normalized)) {
+      return _beginTranslationMode();
+    }
+    if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
@@ -357,10 +446,32 @@ class MainVoiceAssistantFlow {
     );
   }
 
+  MainVoiceAssistantTurn _beginTranslationMode() {
+    _stage = MainVoiceAssistantStage.chooseTranslationMode;
+    return MainVoiceAssistantTurn(
+      promptText: translationModePrompt,
+      continueListening: true,
+    );
+  }
+
+  MainVoiceAssistantTurn _handleTranslationMode(
+    String recognizedText,
+    String normalized,
+  ) {
+    if (_looksLikePromptEcho(normalized) ||
+        !_isContinuousTranslationChoice(normalized)) {
+      return MainVoiceAssistantTurn(
+        promptText: translationModePrompt,
+        continueListening: true,
+      );
+    }
+    return _beginContinuousTranslation(recognizedText);
+  }
+
   MainVoiceAssistantTurn _beginContinuousTranslation(String recognizedText) {
     reset();
     return MainVoiceAssistantTurn(
-      promptText: 'Con nói từng câu nhé. Khi muốn dừng, con nhấn MAIN.',
+      promptText: continuousTranslationPrompt,
       continueListening: false,
       navigationAfterPrompt: VoiceNavigationIntent(
         destination: VoiceNavigationDestination.conversation,
@@ -387,7 +498,10 @@ class MainVoiceAssistantFlow {
         matchedPhrase: 'hoc tu vung',
       );
     }
-    if (_isTranslationChoice(normalized) || _isSpeakingChoice(normalized)) {
+    if (_isTranslationChoice(normalized)) {
+      return _beginTranslationMode();
+    }
+    if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
     }
     return const MainVoiceAssistantTurn(
@@ -576,16 +690,19 @@ class MainVoiceAssistantFlow {
         continueListening: true,
       );
     }
+    final command = _activeLearningCommandResolver.resolve(
+      normalized,
+      state: _activeLearningSpeechState,
+    );
+    if (command != null) {
+      return _activeLearningTurn(command);
+    }
     if (_isLeaveActiveLearningChoice(normalized)) {
       _stage = MainVoiceAssistantStage.chooseAlternativeAfterLearning;
       return const MainVoiceAssistantTurn(
         promptText: alternativeAfterLearningPrompt,
         continueListening: true,
       );
-    }
-    final command = _activeLearningCommandResolver.resolve(normalized);
-    if (command != null) {
-      return _activeLearningTurn(command);
     }
     return const MainVoiceAssistantTurn(
       promptText: activeLearningPrompt,
@@ -980,9 +1097,25 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'luyen noi') ||
       _containsPhrase(normalized, 'luyen giao tiep') ||
       _containsPhrase(normalized, 'noi chuyen') ||
-      _containsPhrase(normalized, 'dich lien tuc') ||
       _containsPhrase(normalized, 'con muon noi') ||
       normalized == 'noi';
+
+  static bool _isContinuousTranslationChoice(String normalized) =>
+      _controlledSpeechLexicon
+          .resolve(normalized, state: ControlledSpeechState.translateMenu)
+          ?.intent ==
+      ControlledSpeechIntent.translateContinuous;
+
+  ControlledSpeechState get _activeLearningSpeechState =>
+      _activeLearningKind == ActiveLearningModuleKind.vocabulary
+      ? ControlledSpeechState.vocabulary
+      : ControlledSpeechState.course;
+
+  static bool _isStopChoice(String normalized) =>
+      _matchesFallbackIntent(normalized, 'INT-001');
+
+  static bool _isHelpChoice(String normalized) =>
+      _matchesFallbackIntent(normalized, 'INT-016');
 
   static bool _isTopicChoice(String normalized) =>
       _containsPhrase(normalized, 'bat dau bai hoc') ||
@@ -990,6 +1123,7 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'hoc theo chu de') ||
       _containsPhrase(normalized, 'hoc chu de') ||
       _containsPhrase(normalized, 'hoc bai') ||
+      _matchesFallbackIntent(normalized, 'INT-002') ||
       _containsPhrase(normalized, 'chu de');
 
   static bool _isVocabularyChoice(String normalized) =>
@@ -998,23 +1132,28 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'luyen tu') ||
       _containsPhrase(normalized, 'hoc tu') ||
       _containsPhrase(normalized, 'tu vung') ||
+      _matchesFallbackIntent(normalized, 'INT-003') ||
       _containsPhrase(normalized, 'tu moi');
 
   static bool _isReviewVocabularyChoice(String normalized) =>
       _containsPhrase(normalized, 'luyen lai') ||
       _containsPhrase(normalized, 'on lai') ||
       _containsPhrase(normalized, 'tu chua vung') ||
+      _matchesFallbackIntent(normalized, 'INT-014') ||
       _containsPhrase(normalized, 'chua vung');
 
   static bool _isStarVocabularyChoice(String normalized) =>
       _containsPhrase(normalized, 'ngoi sao') ||
       _containsPhrase(normalized, 'tu yeu thich') ||
+      _matchesFallbackIntent(normalized, 'INT-015') ||
       _containsPhrase(normalized, 'yeu thich');
 
   static bool _isTranslationChoice(String normalized) =>
-      _containsPhrase(normalized, 'dich sang tieng anh') ||
-      _containsPhrase(normalized, 'dich tieng anh') ||
-      _containsPhrase(normalized, 'dich');
+      !_matchesFallbackIntent(normalized, 'INT-018') &&
+      (_containsPhrase(normalized, 'dich sang tieng anh') ||
+          _containsPhrase(normalized, 'dich tieng anh') ||
+          _matchesFallbackIntent(normalized, 'INT-004') ||
+          _containsPhrase(normalized, 'dich'));
 
   static bool _isNextSentenceChoice(String normalized) =>
       _containsPhrase(normalized, 'tiep theo') ||
@@ -1039,47 +1178,149 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'dung hoc');
 
   static bool _isAffirmativeChoice(String normalized) =>
-      normalized == 'co' ||
-      normalized == 'co a' ||
-      normalized == 'da co' ||
-      _containsPhrase(normalized, 'con co') ||
-      _containsPhrase(normalized, 'muon hoc lai') ||
-      _containsPhrase(normalized, 'hoc lai') ||
-      _containsPhrase(normalized, 'tiep tuc') ||
-      _containsPhrase(normalized, 'hoc tiep');
+      const <String>{
+        'co',
+        'co a',
+        'da co',
+        'con co',
+        'con muon hoc lai',
+        'con hoc lai',
+        'muon hoc lai',
+        'hoc lai',
+        'tiep tuc',
+        'hoc tiep',
+      }.contains(normalized) ||
+      HomiFallbackCatalog.matchesChildPhrase('INT-019', normalized);
 
   static bool _isNegativeChoice(String normalized) =>
-      normalized == 'khong' ||
-      normalized == 'khong a' ||
-      normalized == 'da khong' ||
-      _containsPhrase(normalized, 'con khong') ||
-      _containsPhrase(normalized, 'khong dau') ||
-      _containsPhrase(normalized, 'khong muon') ||
-      _containsPhrase(normalized, 'khong hoc') ||
-      _containsPhrase(normalized, 'dung hoc');
+      const <String>{
+        'khong',
+        'khong a',
+        'da khong',
+        'con khong',
+        'khong dau',
+        'khong muon',
+        'khong hoc',
+        'dung hoc',
+      }.contains(normalized) ||
+      HomiFallbackCatalog.matchesChildPhrase('INT-020', normalized);
 
   static bool _isReplayLessonChoice(String normalized) =>
       _containsPhrase(normalized, 'hoc lai') ||
       _containsPhrase(normalized, 'lam lai') ||
+      _matchesFallbackIntent(normalized, 'INT-011') ||
       _containsPhrase(normalized, 'nghe lai');
 
   static bool _isContinueLessonChoice(String normalized) =>
       normalized == 'tiep' ||
       _containsPhrase(normalized, 'tiep tuc') ||
       _containsPhrase(normalized, 'hoc tiep') ||
+      _matchesFallbackIntent(normalized, 'INT-007') ||
+      _matchesFallbackIntent(normalized, 'INT-012') ||
       _containsPhrase(normalized, 'bai tiep theo');
+
+  static bool _matchesFallbackIntent(String normalized, String intentId) {
+    final phrases = HomiFallbackCatalog.childPhrasesByIntent[intentId];
+    return phrases != null &&
+        phrases.any(
+          (phrase) => _containsPhrase(
+            normalized,
+            HomiFallbackCatalog.normalizeVietnamese(phrase),
+          ),
+        );
+  }
 
   static bool _containsPhrase(String value, String phrase) =>
       ' $value '.contains(' $phrase ');
 
+  bool _hasSelectableTopicNumber(String normalized) {
+    final topicNumber = _extractSpokenNumber(normalized);
+    final catalog = _selectedCatalog;
+    return topicNumber != null &&
+        (catalog == null ||
+            (topicNumber >= 1 && topicNumber <= catalog.topics.length));
+  }
+
+  bool _hasSelectableLessonNumber(String normalized) {
+    final lessonNumber = _extractSpokenNumber(normalized);
+    final topicContent = _selectedTopicContent;
+    return lessonNumber != null &&
+        (topicContent == null ||
+            (lessonNumber >= 1 && lessonNumber <= topicContent.lessons.length));
+  }
+
+  bool get _isReplayConfirmationStage =>
+      _stage == MainVoiceAssistantStage.confirmReplayTopic ||
+      _stage == MainVoiceAssistantStage.confirmReplayLesson;
+
+  MainVoiceAssistantTurn _helpTurn() {
+    final promptText = switch (_stage) {
+      MainVoiceAssistantStage.chooseFeature => openingPrompt,
+      MainVoiceAssistantStage.chooseTranslationMode => translationModePrompt,
+      MainVoiceAssistantStage.chooseOtherLearning => otherLearningPrompt,
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        alternativeAfterLearningPrompt,
+      MainVoiceAssistantStage.chooseVocabularyCollection =>
+        'Bạn muốn luyện tập lại hay xem bộ sưu tập ngôi sao?',
+      MainVoiceAssistantStage.activeLearning => activeLearningPrompt,
+      MainVoiceAssistantStage.askAge => 'Bạn mấy tuổi? Ví dụ bạn nói: 6 tuổi.',
+      MainVoiceAssistantStage.chooseTopic ||
+      MainVoiceAssistantStage.chooseTopicAfterCompletion =>
+        _topicSelectionPrompt,
+      MainVoiceAssistantStage.confirmReplayTopic =>
+        'Bạn muốn học lại chủ đề này không? Nói “có” hoặc “không”.',
+      MainVoiceAssistantStage.chooseLesson => _lessonSelectionPrompt,
+      MainVoiceAssistantStage.confirmReplayLesson =>
+        'Bạn muốn học lại hay học bài tiếp theo?',
+      MainVoiceAssistantStage.idle => openingPrompt,
+    };
+    return MainVoiceAssistantTurn(
+      promptText: promptText,
+      continueListening: true,
+    );
+  }
+
+  MainVoiceAssistantTurn? _fallbackForUnrecognizedInput() {
+    final policyId = _fallbackPolicyIdByStage[_stage];
+    if (policyId == null) {
+      return null;
+    }
+    final policy = HomiFallbackCatalog.fallbackPolicyById[policyId];
+    if (policy == null) {
+      return null;
+    }
+    final attempts = (_fallbackAttempts[_stage] ?? 0) + 1;
+    _fallbackAttempts[_stage] = attempts;
+    if (attempts == 1) {
+      return MainVoiceAssistantTurn(
+        promptText: policy.firstPrompt,
+        continueListening: true,
+      );
+    }
+    _fallbackAttempts.remove(_stage);
+    return MainVoiceAssistantTurn(
+      promptText: policy.secondPrompt,
+      continueListening: false,
+    );
+  }
+
   bool _looksLikePromptEcho(String normalized) {
     return switch (_stage) {
       MainVoiceAssistantStage.chooseFeature =>
-        (_isSpeakingChoice(normalized) && _isTopicChoice(normalized)) ||
+        (_isTopicChoice(normalized) &&
+                _isVocabularyChoice(normalized) &&
+                _isTranslationChoice(normalized)) ||
+            (_isSpeakingChoice(normalized) && _isTopicChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc chu de ne') ||
             normalized == 'hoc chu de ne',
+      MainVoiceAssistantStage.chooseTranslationMode =>
+        normalized ==
+            HomiFallbackCatalog.normalizeVietnamese(translationModePrompt),
       MainVoiceAssistantStage.chooseOtherLearning =>
-        (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
+        (_isTopicChoice(normalized) &&
+                _isVocabularyChoice(normalized) &&
+                _isTranslationChoice(normalized)) ||
+            (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc tu vung ne') ||
             normalized == 'hoc tu vung ne',
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
@@ -1130,6 +1371,62 @@ class MainVoiceAssistantFlow {
   }
 
   static int? _extractSpokenNumber(String normalized) {
+    final configuredTemplateNumber = _extractConfiguredTemplateNumber(
+      normalized,
+    );
+    if (configuredTemplateNumber != null) {
+      return configuredTemplateNumber;
+    }
+
+    return _extractNumberToken(normalized);
+  }
+
+  /// The fallback workbook defines number templates separately from literal
+  /// child phrases. They are evaluated only by callers that are already asking
+  /// for an age, topic, or lesson number.
+  static int? _extractConfiguredTemplateNumber(String normalized) {
+    final numeric = _extractNumberToken(normalized);
+    if (numeric == null) {
+      return null;
+    }
+    final patterns =
+        HomiFallbackCatalog.numericChildPatternsByIntent['INT-021'] ??
+        const <HomiNumericPhrasePattern>[];
+    for (final pattern in patterns) {
+      if (_matchesNumericPattern(normalized, pattern)) {
+        return numeric;
+      }
+    }
+    return null;
+  }
+
+  static bool _matchesNumericPattern(
+    String normalized,
+    HomiNumericPhrasePattern pattern,
+  ) {
+    if (pattern.placeholderNames.length != 1 ||
+        pattern.literalSegments.length != 2) {
+      return false;
+    }
+    final prefix = HomiFallbackCatalog.normalizeVietnamese(
+      pattern.literalSegments.first,
+    );
+    final suffix = HomiFallbackCatalog.normalizeVietnamese(
+      pattern.literalSegments.last,
+    );
+    final prefixIndex = prefix.isEmpty
+        ? 0
+        : ' $normalized '.indexOf(' $prefix ');
+    if (prefixIndex < 0) {
+      return false;
+    }
+    final suffixIndex = suffix.isEmpty
+        ? normalized.length
+        : ' $normalized '.lastIndexOf(' $suffix ');
+    return suffixIndex >= 0 && suffixIndex >= prefixIndex;
+  }
+
+  static int? _extractNumberToken(String normalized) {
     final digitMatch = RegExp(r'(^| )(\d{1,2})( |$)').firstMatch(normalized);
     final numeric = int.tryParse(digitMatch?.group(2) ?? '');
     if (numeric != null) {
@@ -1165,25 +1462,8 @@ class MainVoiceAssistantFlow {
     return null;
   }
 
-  static String _normalize(String value) {
-    var normalized = value.trim().toLowerCase();
-    const replacements = <String, String>{
-      'a': 'àáạảãâầấậẩẫăằắặẳẵ',
-      'e': 'èéẹẻẽêềếệểễ',
-      'i': 'ìíịỉĩ',
-      'o': 'òóọỏõôồốộổỗơờớợởỡ',
-      'u': 'ùúụủũưừứựửữ',
-      'y': 'ỳýỵỷỹ',
-      'd': 'đ',
-    };
-    for (final entry in replacements.entries) {
-      normalized = normalized.replaceAll(RegExp('[${entry.value}]'), entry.key);
-    }
-    return normalized
-        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
+  static String _normalize(String value) =>
+      HomiFallbackCatalog.normalizeVietnamese(value);
 
   static Future<ListeningContentCatalog> _loadDefaultContent() =>
       AssetListeningContentRepository().load();

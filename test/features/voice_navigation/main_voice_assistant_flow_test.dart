@@ -3,6 +3,7 @@ import 'package:ai_speaking_flutter_app/features/listening/domain/listening_cont
 import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_intent_resolver.dart';
+import 'package:ai_speaking_flutter_app/features/voice_navigation/domain/homi_fallback_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,8 +14,7 @@ void main() {
     expect(flow.begin(), MainVoiceAssistantFlow.openingPrompt);
     final turn = await flow.handle('Con muốn luyện nói');
 
-    expect(turn.promptText, contains('nhấn MAIN'));
-    expect(turn.promptText, isNot(contains('nói dừng lại')));
+    expect(turn.promptText, MainVoiceAssistantFlow.continuousTranslationPrompt);
     expect(turn.continueListening, isFalse);
     expect(
       turn.navigationAfterPrompt?.destination,
@@ -24,7 +24,7 @@ void main() {
   });
 
   test('accepts short child-friendly continuous speaking choices', () async {
-    for (final choice in <String>['Nói', 'Con muốn nói', 'Dịch liên tục']) {
+    for (final choice in <String>['Nói', 'Con muốn nói']) {
       final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
       flow.begin();
 
@@ -37,6 +37,28 @@ void main() {
       );
       expect(turn.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
     }
+  });
+
+  test('uses the approved two-step translation-mode state', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    flow.begin();
+
+    final chooseTranslation = await flow.handle('Dịch sang tiếng Anh');
+    expect(chooseTranslation.continueListening, isTrue);
+    expect(
+      chooseTranslation.promptText,
+      MainVoiceAssistantFlow.translationModePrompt,
+    );
+    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
+
+    final continuous = await flow.handle('Dịch liên tục');
+    expect(
+      continuous.promptText,
+      MainVoiceAssistantFlow.continuousTranslationPrompt,
+    );
+    expect(continuous.continueListening, isFalse);
+    expect(continuous.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
+    expect(flow.stage, MainVoiceAssistantStage.idle);
   });
 
   test('offers all three top-level choices from Main', () async {
@@ -80,10 +102,20 @@ void main() {
 
     final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     translationFlow.begin();
-    final translation = await translationFlow.handle('Dịch sang tiếng Anh');
+    final chooseTranslation = await translationFlow.handle(
+      'Dịch sang tiếng Anh',
+    );
+    expect(chooseTranslation.continueListening, isTrue);
+    expect(
+      chooseTranslation.promptText,
+      MainVoiceAssistantFlow.translationModePrompt,
+    );
+    final translation = await translationFlow.handle('Dịch liên tục');
     expect(translation.continueListening, isFalse);
-    expect(translation.promptText, contains('Con nói từng câu nhé'));
-    expect(translation.promptText, contains('nhấn MAIN'));
+    expect(
+      translation.promptText,
+      MainVoiceAssistantFlow.continuousTranslationPrompt,
+    );
     expect(
       translation.navigationAfterPrompt?.destination,
       VoiceNavigationDestination.conversation,
@@ -211,7 +243,7 @@ void main() {
 
     expect(
       flow.beginActiveLearning(),
-      'Con muốn học câu tiếp theo, nghe câu trước, dừng lại hay không học nữa?',
+      MainVoiceAssistantFlow.activeLearningPrompt,
     );
   });
 
@@ -259,6 +291,20 @@ void main() {
   });
 
   test(
+    'routes the workbook phrase Học bài khác to the next lesson in an active course',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.beginActiveLearning(kind: ActiveLearningModuleKind.listeningLesson);
+
+      final turn = await flow.handle('Học bài khác');
+
+      expect(turn.activeLearningCommand, ActiveLearningCommand.nextLesson);
+      expect(turn.promptText, 'Mình chuyển sang bài tiếp theo nhé');
+      expect(turn.continueListening, isFalse);
+    },
+  );
+
+  test(
     'offers translation or vocabulary after leaving an active lesson',
     () async {
       final flow = MainVoiceAssistantFlow(
@@ -296,8 +342,15 @@ void main() {
     flow.beginActiveLearning();
     await flow.handle('Con không muốn học nữa');
 
-    final translationTurn = await flow.handle('Dịch sang tiếng Anh');
-    expect(translationTurn.promptText, contains('Con nói từng câu nhé'));
+    final chooseTranslation = await flow.handle('Dịch sang tiếng Anh');
+    expect(chooseTranslation.continueListening, isTrue);
+    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
+
+    final translationTurn = await flow.handle('Dịch liên tục');
+    expect(
+      translationTurn.promptText,
+      MainVoiceAssistantFlow.continuousTranslationPrompt,
+    );
     expect(translationTurn.continueListening, isFalse);
     expect(
       translationTurn.navigationAfterPrompt?.destination,
@@ -323,7 +376,7 @@ void main() {
     expect(flow.stage, MainVoiceAssistantStage.chooseTopic);
 
     final topicTurn = await flow.handle('Con muốn học chủ đề số 3');
-    expect(listeningCatalogs[1].topics[2].titleVi, 'Cặp sách và lớp học');
+    expect(listeningCatalogs[1].topics[2].titleVi, 'Động vật thú vị');
     expect(topicTurn.promptText, 'Có 2 bài học. Con muốn học bài số mấy');
     expect(topicTurn.navigationBeforePrompt?.childAge, 6);
     expect(topicTurn.navigationBeforePrompt?.topicNumber, 3);
@@ -399,7 +452,10 @@ void main() {
 
       final invalidTopic = await flow.handle('Con chọn chủ đề số mười lăm');
       expect(invalidTopic.continueListening, isTrue);
-      expect(invalidTopic.promptText, contains('từ số 1 đến số 10'));
+      expect(
+        invalidTopic.promptText,
+        HomiFallbackCatalog.fallbackPolicyById['FB-004']!.firstPrompt,
+      );
     },
   );
 
@@ -496,6 +552,133 @@ void main() {
       final replayTurn = await flow.handle('Con muốn học lại');
       expect(replayTurn.promptText, 'Có 2 bài học. Con muốn học bài số mấy');
       expect(replayTurn.navigationBeforePrompt?.topicNumber, 3);
+      expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
+    },
+  );
+
+  test(
+    'uses the FB-007 retry instead of treating Mình muốn bài khác as yes',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      final policy = HomiFallbackCatalog.fallbackPolicyById['FB-007']!;
+      flow.beginTopicSelectionAfterCompletion(
+        childAge: 6,
+        completedTopicNumbers: const <int>[3],
+      );
+      await flow.handle('Chủ đề số 3');
+
+      final retry = await flow.handle('Mình muốn bài khác');
+
+      expect(retry.promptText, policy.firstPrompt);
+      expect(retry.continueListening, isTrue);
+      expect(retry.navigationBeforePrompt, isNull);
+      expect(flow.stage, MainVoiceAssistantStage.confirmReplayTopic);
+    },
+  );
+
+  test('uses the FB-007 retry instead of treating Không biết as no', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+    final policy = HomiFallbackCatalog.fallbackPolicyById['FB-007']!;
+    flow.beginTopicSelectionAfterCompletion(
+      childAge: 6,
+      completedTopicNumbers: const <int>[3],
+    );
+    await flow.handle('Chủ đề số 3');
+
+    final retry = await flow.handle('Không biết');
+
+    expect(retry.promptText, policy.firstPrompt);
+    expect(retry.continueListening, isTrue);
+    expect(retry.navigationBeforePrompt, isNull);
+    expect(flow.stage, MainVoiceAssistantStage.confirmReplayTopic);
+  });
+
+  test(
+    'uses the first FB-004 source prompt for an invalid topic number',
+    () async {
+      final flow = MainVoiceAssistantFlow(
+        contentLoader: _loadContent,
+        childAge: 6,
+      );
+      final policy = HomiFallbackCatalog.fallbackPolicyById['FB-004']!;
+      flow.begin();
+      await flow.handle('Học chủ đề');
+
+      final retry = await flow.handle('Chủ đề số 15');
+
+      expect(retry.promptText, policy.firstPrompt);
+      expect(retry.continueListening, isTrue);
+      expect(flow.stage, MainVoiceAssistantStage.chooseTopic);
+    },
+  );
+
+  test(
+    'uses the second FB-004 source prompt for a repeated invalid topic',
+    () async {
+      final flow = MainVoiceAssistantFlow(
+        contentLoader: _loadContent,
+        childAge: 6,
+      );
+      final policy = HomiFallbackCatalog.fallbackPolicyById['FB-004']!;
+      flow.begin();
+      await flow.handle('Học chủ đề');
+      await flow.handle('Chủ đề số 15');
+
+      final retry = await flow.handle('Chủ đề số 0');
+
+      expect(retry.promptText, policy.secondPrompt);
+      expect(retry.continueListening, isFalse);
+      expect(flow.stage, MainVoiceAssistantStage.chooseTopic);
+    },
+  );
+
+  test(
+    'uses the first FB-005 source prompt for an invalid lesson number',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      final policy = HomiFallbackCatalog.fallbackPolicyById['FB-005']!;
+      final content = (await _loadContent()).topic(
+        startAge: 6,
+        endAge: 7,
+        topicNumber: 3,
+      );
+      flow.beginLessonSelectionForTopic(
+        childAge: 6,
+        topicNumber: 3,
+        topicContent: content,
+        completedLessonNumbers: const <int>[],
+      );
+
+      final retry = await flow.handle('Bài số 3');
+
+      expect(retry.promptText, policy.firstPrompt);
+      expect(retry.continueListening, isTrue);
+      expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
+    },
+  );
+
+  test(
+    'uses the second FB-005 source prompt for a repeated invalid lesson',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      final policy = HomiFallbackCatalog.fallbackPolicyById['FB-005']!;
+      final content = (await _loadContent()).topic(
+        startAge: 6,
+        endAge: 7,
+        topicNumber: 3,
+      );
+      flow.beginLessonSelectionForTopic(
+        childAge: 6,
+        topicNumber: 3,
+        topicContent: content,
+        completedLessonNumbers: const <int>[],
+      );
+      await flow.handle('Bài số 3');
+
+      final retry = await flow.handle('Bài số 0');
+
+      expect(retry.promptText, policy.secondPrompt);
+      expect(retry.continueListening, isFalse);
       expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
     },
   );

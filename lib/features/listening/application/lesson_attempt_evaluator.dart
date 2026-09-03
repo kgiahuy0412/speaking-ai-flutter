@@ -10,6 +10,7 @@ import '../../../core/auth/installation_authenticated_client.dart';
 import '../../../core/device/client_identity.dart';
 import '../../../core/network/multipart_audio_file.dart';
 import '../domain/lesson_guide_flow.dart';
+import '../domain/lesson_recognition.dart';
 
 class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
   factory BackendLessonAttemptEvaluator({
@@ -56,6 +57,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
   }) async {
     final clientId = await _clientIdProvider();
     Uint8List? webBytes;
@@ -77,6 +80,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
       recordingDuration: recordingDuration,
       attemptNumber: attemptNumber,
       childAge: childAge,
+      acceptedVariants: acceptedVariants,
+      requireAllExpectedTokens: requireAllExpectedTokens,
       clientId: clientId,
       webBytes: webBytes,
     );
@@ -88,6 +93,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
       return _evaluateWithAudioTranslationFallback(
         expectedEnglish: expectedEnglish,
         recordingPath: recordingPath,
+        acceptedVariants: acceptedVariants,
+        requireAllExpectedTokens: requireAllExpectedTokens,
         clientId: clientId,
         webBytes: webBytes,
       );
@@ -104,6 +111,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    required Iterable<String> acceptedVariants,
+    required bool requireAllExpectedTokens,
     required String clientId,
     required Uint8List? webBytes,
   }) async {
@@ -114,6 +123,9 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
             _config.resolve('/api/listening/evaluate-attempt'),
           )
           ..fields['expectedEnglish'] = expectedEnglish
+          ..fields['acceptedVariants'] = jsonEncode(acceptedVariants.toList())
+          ..fields['requireAllExpectedTokens'] = requireAllExpectedTokens
+              .toString()
           ..fields['lessonCode'] = lessonCode
           ..fields['sentenceId'] = sentenceId
           ..fields['attemptNumber'] = '$attemptNumber'
@@ -175,6 +187,8 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
   Future<LessonAttemptOutcome> _evaluateWithAudioTranslationFallback({
     required String expectedEnglish,
     required String recordingPath,
+    required Iterable<String> acceptedVariants,
+    required bool requireAllExpectedTokens,
     required String clientId,
     required Uint8List? webBytes,
   }) async {
@@ -229,7 +243,12 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     if (transcript is! String || transcript.trim().isEmpty) {
       return LessonAttemptOutcome.unclear;
     }
-    return matchesRecognizedLessonEnglish(expectedEnglish, transcript)
+    return matchesRecognizedLessonEnglish(
+          expectedEnglish,
+          transcript,
+          acceptedVariants: acceptedVariants,
+          requireAllExpectedTokens: requireAllExpectedTokens,
+        )
         ? LessonAttemptOutcome.good
         : LessonAttemptOutcome.retry;
   }
@@ -304,7 +323,27 @@ String _normalizeLessonEnglish(String value) {
 
 /// Performs the intentionally basic local pass/fail check used after Apple
 /// Speech produces an English transcript for a listening lesson.
-bool matchesRecognizedLessonEnglish(String expectedEnglish, String transcript) {
+/// Compares an on-device transcript with an authored target.
+///
+/// V4 supplies a deliberately small, authored recognition inventory for every
+/// target.  When a target requires every token (notably Alphabet/ABC), route
+/// it through [LessonRecognitionMatcher] rather than the more forgiving
+/// compatibility matcher kept for the old catalog.
+bool matchesRecognizedLessonEnglish(
+  String expectedEnglish,
+  String transcript, {
+  Iterable<String> acceptedVariants = const <String>[],
+  bool requireAllExpectedTokens = false,
+}) {
+  if (requireAllExpectedTokens || acceptedVariants.isNotEmpty) {
+    return const LessonRecognitionMatcher().matches(
+      expectedEnglish: expectedEnglish,
+      transcript: transcript,
+      acceptedVariants: acceptedVariants,
+      requireAllExpectedTokens: requireAllExpectedTokens,
+    );
+  }
+
   final expected = _normalizeLessonEnglish(expectedEnglish);
   final actual = _normalizeLessonEnglish(transcript);
   if (expected.isEmpty || actual.isEmpty) {

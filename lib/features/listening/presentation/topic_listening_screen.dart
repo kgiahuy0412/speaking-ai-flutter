@@ -73,6 +73,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   late final Future<ListeningContentCatalog> _contentFuture;
   ListeningContentCatalog? _contentCatalog;
   Map<String, int> _lessonProgress = const <String, int>{};
+  Set<String> _completedV4LessonActivities = const <String>{};
   late final LessonMediaService _historyMediaService;
   bool _initialVoiceTargetHandled = false;
 
@@ -351,22 +352,38 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       // The topic catalog remains usable while lesson content is unavailable.
     }
     try {
-      final progress = await widget.progressStore.readAll();
+      final progress = await _readProgressSnapshot();
       if (!mounted) {
         return;
       }
-      setState(() => _lessonProgress = progress);
+      setState(() {
+        _lessonProgress = progress.lessonProgress;
+        _completedV4LessonActivities = progress.completedV4LessonActivities;
+      });
     } catch (_) {
       // A fresh device simply starts without local lesson progress.
     }
   }
 
-  Future<Map<String, int>> _reloadProgress() async {
-    final progress = await widget.progressStore.readAll();
+  Future<_ListeningProgressSnapshot> _readProgressSnapshot() async {
+    final lessonProgress = await widget.progressStore.readAll();
+    final completedV4LessonActivities = await widget.progressStore
+        .readCompletedV4LessonActivities();
+    return _ListeningProgressSnapshot(
+      lessonProgress: lessonProgress,
+      completedV4LessonActivities: completedV4LessonActivities,
+    );
+  }
+
+  Future<_ListeningProgressSnapshot> _reloadProgress() async {
+    final progress = await _readProgressSnapshot();
     if (!mounted) {
       return progress;
     }
-    setState(() => _lessonProgress = progress);
+    setState(() {
+      _lessonProgress = progress.lessonProgress;
+      _completedV4LessonActivities = progress.completedV4LessonActivities;
+    });
     return progress;
   }
 
@@ -384,9 +401,15 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           total: topic.total,
         );
       }
-      final completed = content.lessons.where((lesson) {
-        return (_lessonProgress[lesson.id] ?? 0) >= lesson.sentences.length;
-      }).length;
+      final completed = content.lessons
+          .where(
+            (lesson) => _isLessonCompleted(
+              lesson,
+              _lessonProgress,
+              _completedV4LessonActivities,
+            ),
+          )
+          .length;
       return _TopicProgress(
         completed: completed,
         total: content.lessons.length,
@@ -442,6 +465,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         endAge: selectedAgeCatalog.endAge,
         topicNumber: topicIndex + 1,
       );
+      final contentGroup = catalog.groups.firstWhere(
+        (group) =>
+            group.startAge == selectedAgeCatalog.startAge &&
+            group.endAge == selectedAgeCatalog.endAge,
+      );
       var topicCompletedDuringVisit = false;
       final route = Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
@@ -451,6 +479,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             endAge: selectedAgeCatalog.endAge,
             topic: topic,
             content: content,
+            levelContent: contentGroup.level(content.levelNumber),
             controller: widget.controller,
             onVoiceNavigationPause: widget.onVoiceNavigationPause,
             onVoiceNavigationResume: widget.onVoiceNavigationResume,
@@ -520,18 +549,33 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   bool _isTopicCompleted(
     ListeningTopicContent content,
     Map<String, int> progress,
+    Set<String> completedV4LessonActivities,
   ) {
     return content.lessons.isNotEmpty &&
         content.lessons.every(
-          (lesson) => (progress[lesson.id] ?? 0) >= lesson.sentences.length,
+          (lesson) =>
+              _isLessonCompleted(lesson, progress, completedV4LessonActivities),
         );
+  }
+
+  bool _isLessonCompleted(
+    ListeningLessonContent lesson,
+    Map<String, int> progress,
+    Set<String> completedV4LessonActivities,
+  ) {
+    final completedCore = (progress[lesson.id] ?? 0) >= lesson.sentences.length;
+    return completedCore &&
+        (!lesson.usesV4Flow || completedV4LessonActivities.contains(lesson.id));
   }
 
   List<int> _completedLessonNumbers(ListeningTopicContent content) {
     return content.lessons
         .where(
-          (lesson) =>
-              (_lessonProgress[lesson.id] ?? 0) >= lesson.sentences.length,
+          (lesson) => _isLessonCompleted(
+            lesson,
+            _lessonProgress,
+            _completedV4LessonActivities,
+          ),
         )
         .map((lesson) => lesson.number)
         .toList(growable: false);
@@ -540,7 +584,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   List<int> _completedTopicNumbers(
     ListeningContentCatalog catalog,
     ListeningAgeCatalog ageCatalog,
-    Map<String, int> progress,
+    _ListeningProgressSnapshot progress,
   ) {
     final completed = <int>[];
     for (var index = 0; index < ageCatalog.topics.length; index += 1) {
@@ -550,7 +594,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           endAge: ageCatalog.endAge,
           topicNumber: index + 1,
         );
-        if (_isTopicCompleted(content, progress)) {
+        if (_isTopicCompleted(
+          content,
+          progress.lessonProgress,
+          progress.completedV4LessonActivities,
+        )) {
           completed.add(index + 1);
         }
       } catch (_) {
@@ -559,6 +607,16 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
     return completed;
   }
+}
+
+class _ListeningProgressSnapshot {
+  const _ListeningProgressSnapshot({
+    required this.lessonProgress,
+    required this.completedV4LessonActivities,
+  });
+
+  final Map<String, int> lessonProgress;
+  final Set<String> completedV4LessonActivities;
 }
 
 class _CenteredSection extends StatelessWidget {

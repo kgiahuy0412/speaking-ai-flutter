@@ -101,7 +101,8 @@ class StreamingSpeechCapture {
 
   /// Other transcripts returned by the recognizer, ordered by confidence.
   ///
-  /// Android can hear a wake phrase such as "Hey Pico" as "hay bi co" in
+  /// Android can hear a wake phrase such as "Hey HOMI" as a close phonetic
+  /// variant in
   /// the first result while keeping the intended phrase in a later result.
   final List<String> alternatives;
 

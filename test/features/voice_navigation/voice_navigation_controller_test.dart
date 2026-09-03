@@ -33,8 +33,8 @@ void main() {
       );
       expect(receivedIntent, isNull);
 
-      expect(await controller.dispatchRecognizedText('Hey Pico'), isTrue);
-      expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+      expect(await controller.dispatchRecognizedText('Hey HOMI'), isTrue);
+      expect(voicePrompt.spokenTexts, <String>['HOMI nghe đây.']);
       expect(voicePrompt.readyCueCount, 1);
       expect(controller.isAwaitingCommand, isTrue);
 
@@ -89,7 +89,7 @@ void main() {
     );
     expect(voicePrompt.spokenTexts, <String>[
       MainVoiceAssistantFlow.openingPrompt,
-      'Con nói từng câu nhé. Khi muốn dừng, con nhấn MAIN.',
+      MainVoiceAssistantFlow.continuousTranslationPrompt,
     ]);
     expect(
       receivedIntent?.destination,
@@ -798,9 +798,9 @@ void main() {
 
     controller.startContinuous();
     await Future<void>.delayed(const Duration(milliseconds: 5));
-    speechInput.emitPartial('Hey Pico');
+    speechInput.emitPartial('Hey HOMI');
     await Future<void>.delayed(const Duration(milliseconds: 140));
-    expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+    expect(voicePrompt.spokenTexts, <String>['HOMI nghe đây.']);
     expect(controller.isAwaitingCommand, isTrue);
     expect(controller.isListening, isTrue);
 
@@ -839,10 +839,10 @@ void main() {
 
     controller.startContinuous();
     await Future<void>.delayed(const Duration(milliseconds: 5));
-    speechInput.emitAlternatives(<String>['Thời tiết hôm nay', 'Hay Bi Cô']);
+    speechInput.emitAlternatives(<String>['Thời tiết hôm nay', 'Hay HO MIE']);
     await Future<void>.delayed(const Duration(milliseconds: 140));
 
-    expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+    expect(voicePrompt.spokenTexts, <String>['HOMI nghe đây.']);
     expect(controller.isAwaitingCommand, isTrue);
     await controller.pause();
     controller.dispose();
@@ -854,7 +854,7 @@ void main() {
     () async {
       final speechInput = _FakeNavigationSpeechInput(
         stopText: 'Thời tiết hôm nay',
-        stopAlternatives: const <String>['Thời tiết hôm nay', 'Hey Pico'],
+        stopAlternatives: const <String>['Thời tiết hôm nay', 'Hey HOMI'],
       );
       final voicePrompt = _FakeVoicePromptService();
       final controller = VoiceNavigationController(
@@ -868,7 +868,7 @@ void main() {
       speechInput.emitCompleted();
       await Future<void>.delayed(const Duration(milliseconds: 140));
 
-      expect(voicePrompt.spokenTexts, <String>['Pipo nghe đây']);
+      expect(voicePrompt.spokenTexts, <String>['HOMI nghe đây.']);
       expect(controller.isAwaitingCommand, isTrue);
       await controller.pause();
       controller.dispose();
@@ -887,7 +887,7 @@ void main() {
 
     controller.startContinuous();
     await Future<void>.delayed(const Duration(milliseconds: 5));
-    speechInput.emitPartial('Hey Pico');
+    speechInput.emitPartial('Hey HOMI');
     await Future<void>.delayed(const Duration(milliseconds: 115));
     expect(controller.isAwaitingCommand, isTrue);
     await Future<void>.delayed(const Duration(milliseconds: 35));
@@ -914,7 +914,7 @@ void main() {
 
       controller.startContinuous();
       await Future<void>.delayed(const Duration(milliseconds: 5));
-      speechInput.emitPartial('Hey Pico');
+      speechInput.emitPartial('Hey HOMI');
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(controller.isAcknowledgingWakeWord, isTrue);

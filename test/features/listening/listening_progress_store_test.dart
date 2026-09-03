@@ -75,6 +75,45 @@ void main() {
     await fixture.store.clearNeedsPracticeSentences('lesson-1');
     expect(await fixture.store.readNeedsPracticeSentences('lesson-1'), isEmpty);
   });
+
+  test('V4 level mission completion does not inflate lesson totals', () async {
+    final fixture = await _ProgressFixture.create();
+    addTearDown(fixture.dispose);
+
+    expect(await fixture.store.hasPassedLevelMission('C35-L1'), isFalse);
+    await fixture.store.markLevelMissionPassed('C35-L1');
+    await fixture.store.saveLesson('lesson-1', 2);
+
+    expect(await fixture.store.hasPassedLevelMission('C35-L1'), isTrue);
+    expect(await fixture.store.readAll(), <String, int>{'lesson-1': 2});
+  });
+
+  test(
+    'V4 lesson activity completion stays separate from core progress',
+    () async {
+      final fixture = await _ProgressFixture.create();
+      addTearDown(fixture.dispose);
+
+      await fixture.store.saveLesson('v4-lesson', 3);
+
+      expect(
+        await fixture.store.hasCompletedV4LessonActivity('v4-lesson'),
+        isFalse,
+      );
+      expect(await fixture.store.readCompletedV4LessonActivities(), isEmpty);
+
+      await fixture.store.markV4LessonActivityCompleted('v4-lesson');
+
+      expect(
+        await fixture.store.hasCompletedV4LessonActivity('v4-lesson'),
+        isTrue,
+      );
+      expect(await fixture.store.readCompletedV4LessonActivities(), <String>{
+        'v4-lesson',
+      });
+      expect(await fixture.store.readAll(), <String, int>{'v4-lesson': 3});
+    },
+  );
 }
 
 class _ProgressFixture {

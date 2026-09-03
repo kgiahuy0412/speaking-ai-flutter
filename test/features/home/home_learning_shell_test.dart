@@ -246,7 +246,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      await voiceNavigationController.dispatchRecognizedText('Hey Pico'),
+      await voiceNavigationController.dispatchRecognizedText('Hey HOMI'),
       isTrue,
     );
     final handled = await voiceNavigationController.dispatchRecognizedText(
@@ -264,7 +264,7 @@ void main() {
     expect(find.byType(TopicListeningScreen), findsOneWidget);
 
     expect(
-      await voiceNavigationController.dispatchRecognizedText('Hey Pico'),
+      await voiceNavigationController.dispatchRecognizedText('Hey HOMI'),
       isTrue,
     );
     final returnToVocabulary = voiceNavigationController.dispatchRecognizedText(
@@ -306,7 +306,7 @@ void main() {
     expect(voiceNavigationController.isListening, isTrue);
     expect(controller.isRecording, isFalse);
     expect(find.text('Bắt đầu nói'), findsOneWidget);
-    expect(find.textContaining('Hey Pico'), findsOneWidget);
+    expect(find.textContaining('Hey HOMI'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
     await tester.pumpAndSettle();
@@ -405,12 +405,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      await voiceNavigationController.dispatchRecognizedText('Hey Pico'),
+      await voiceNavigationController.dispatchRecognizedText('Hey HOMI'),
       isTrue,
     );
     expect(
       await voiceNavigationController.dispatchRecognizedText(
-        'Con muốn học bài 1 trong chủ đề Gia đình và ngôi nhà',
+        'Con muốn học bài 1 trong chủ đề Những con số quanh mình',
       ),
       isTrue,
     );
@@ -485,7 +485,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
 
-    expect(find.text('Cặp sách và lớp học'), findsWidgets);
+    expect(find.text('Động vật thú vị'), findsWidgets);
     expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
 
     final openLesson = voiceNavigationController.dispatchRecognizedText(
@@ -552,50 +552,60 @@ void main() {
     },
   );
 
-  testWidgets('translation choice enters continuous translation directly', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'translation choice enters continuous translation after mode selection',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final speechInput = _FakeStreamingSpeechInput();
-    final voiceNavigationController = VoiceNavigationController(
-      speechInput: speechInput,
-      ownsSpeechInput: true,
-    );
-    final controller = _controller();
-    var didStartContinuousMode = false;
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+        ownsSpeechInput: true,
+      );
+      final controller = _controller();
+      var didStartContinuousMode = false;
 
-    await tester.pumpWidget(
-      _app(
-        controller,
-        voiceNavigationController: voiceNavigationController,
-        onMainSpeakingModeStarted: () => didStartContinuousMode = true,
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _app(
+          controller,
+          voiceNavigationController: voiceNavigationController,
+          onMainSpeakingModeStarted: () => didStartContinuousMode = true,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(await voiceNavigationController.activateFromMainButton(), isTrue);
-    expect(
-      await voiceNavigationController.dispatchRecognizedText(
-        'Dịch sang tiếng Anh',
-      ),
-      isTrue,
-    );
-    await tester.pump(const Duration(milliseconds: 700));
-    await tester.pump();
+      expect(await voiceNavigationController.activateFromMainButton(), isTrue);
+      expect(
+        await voiceNavigationController.dispatchRecognizedText(
+          'Dịch sang tiếng Anh',
+        ),
+        isTrue,
+      );
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump();
 
-    expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
-    expect(didStartContinuousMode, isTrue);
-    expect(controller.isRecording, isFalse);
+      expect(didStartContinuousMode, isFalse);
 
-    controller.dispose();
-    voiceNavigationController.dispose();
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+      expect(
+        await voiceNavigationController.dispatchRecognizedText('Dịch liên tục'),
+        isTrue,
+      );
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump();
+
+      expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+      expect(didStartContinuousMode, isTrue);
+      expect(controller.isRecording, isFalse);
+
+      controller.dispose();
+      voiceNavigationController.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
 
 Widget _app(

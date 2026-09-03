@@ -9,7 +9,7 @@ void main() {
 
   test('matches a spoken Vietnamese topic title', () {
     const target = ListeningVoiceNavigationTarget(
-      recognizedText: 'Mở bài 2 trong chủ đề Gia đình và ngôi nhà',
+      recognizedText: 'Mở bài 2 trong chủ đề Những con số quanh mình',
       openLesson: true,
       lessonNumber: 2,
     );
@@ -28,19 +28,19 @@ void main() {
     expect(target.resolveTopicIndex(catalog), 2);
   });
 
-  test('matches a unique short topic name without guessing ambiguity', () {
-    const classroom = ListeningVoiceNavigationTarget(
-      recognizedText: 'Mở bài 1 trong chủ đề lớp học',
+  test('matches a V4 topic title without guessing shared terms', () {
+    const school = ListeningVoiceNavigationTarget(
+      recognizedText: 'Mở bài 1 trong chủ đề ở trường',
       openLesson: true,
       lessonNumber: 1,
     );
-    const ambiguousDay = ListeningVoiceNavigationTarget(
-      recognizedText: 'Mở chủ đề ngày',
+    const ambiguousMine = ListeningVoiceNavigationTarget(
+      recognizedText: 'Mở chủ đề mình',
       openLesson: false,
     );
 
-    expect(classroom.resolveTopicIndex(catalog), 2);
-    expect(ambiguousDay.resolveTopicIndex(catalog), isNull);
+    expect(school.resolveTopicIndex(catalog), 6);
+    expect(ambiguousMine.resolveTopicIndex(catalog), isNull);
   });
 
   test('uses the current topic for a contextual lesson command', () {

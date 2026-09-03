@@ -4,15 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const lexicon = ControlledSpeechLexicon();
 
-  test('contains all 133 child-spoken rows from controlled V0.1', () {
-    final phraseCount = ControlledSpeechLexicon.rules.fold<int>(
-      0,
-      (count, rule) => count + rule.phrases.length,
-    );
+  test(
+    'contains the approved HOMI fallback expansion of the controlled grammar',
+    () {
+      final phraseCount = ControlledSpeechLexicon.rules.fold<int>(
+        0,
+        (count, rule) => count + rule.phrases.length,
+      );
 
-    expect(ControlledSpeechLexicon.version, 'V0.1');
-    expect(phraseCount, 133);
-  });
+      expect(ControlledSpeechLexicon.version, 'V0.2-homi-fallback');
+      expect(phraseCount, 377);
+    },
+  );
 
   test('every controlled phrase resolves to its declared intent', () {
     for (final rule in ControlledSpeechLexicon.rules) {

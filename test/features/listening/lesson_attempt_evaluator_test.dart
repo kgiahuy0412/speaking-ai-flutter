@@ -159,6 +159,31 @@ void main() {
     },
   );
 
+  test('V4 fallback requires the complete Alphabet target', () async {
+    final evaluator = BackendLessonAttemptEvaluator(
+      config: _config,
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response.bytes(<int>[1, 2, 3], 200);
+        }
+        if (request.url.path == '/api/listening/evaluate-attempt') {
+          return http.Response('<html>Not Found</html>', 404);
+        }
+        return _jsonResponse(<String, Object?>{'englishText': 'Apple.'}, 200);
+      }),
+    );
+
+    expect(
+      await _evaluate(
+        evaluator,
+        expectedEnglish: 'A. Apple.',
+        requireAllExpectedTokens: true,
+      ),
+      LessonAttemptOutcome.retry,
+    );
+    evaluator.dispose();
+  });
+
   test('fallback keeps an ASR failure separate from a wrong answer', () async {
     final evaluator = BackendLessonAttemptEvaluator(
       config: _config,
@@ -230,16 +255,19 @@ void main() {
 }
 
 Future<LessonAttemptOutcome> _evaluate(
-  BackendLessonAttemptEvaluator evaluator,
-) {
+  BackendLessonAttemptEvaluator evaluator, {
+  String expectedEnglish = "I'm An",
+  bool requireAllExpectedTokens = false,
+}) {
   return evaluator.evaluate(
     lessonCode: 'A035_T01_L01',
     sentenceId: 'A035_T01_L01_S01',
-    expectedEnglish: "I'm An",
+    expectedEnglish: expectedEnglish,
     recordingPath: 'blob:https://example.test/attempt',
     recordingDuration: const Duration(seconds: 2),
     attemptNumber: 1,
     childAge: 4,
+    requireAllExpectedTokens: requireAllExpectedTokens,
   );
 }
 

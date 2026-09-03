@@ -5,17 +5,18 @@ void main() {
   const resolver = VoiceNavigationIntentResolver();
 
   group('VoiceNavigationIntentResolver', () {
-    test('recognizes the Hey Pico wake phrase and common ASR variants', () {
-      expect(resolver.containsWakeWord('Hey Pico'), isTrue);
-      expect(resolver.containsWakeWord('hay pico'), isTrue);
-      expect(resolver.containsWakeWord('Hey Piko'), isTrue);
-      expect(resolver.containsWakeWord('Hey Pi Cô'), isTrue);
-      expect(resolver.containsWakeWord('Hay Bi Cô'), isTrue);
-      expect(resolver.containsWakeWord('Ê Pi Cô'), isTrue);
-      expect(resolver.containsWakeWord('Hey Bigo'), isTrue);
+    test('recognizes approved INT-022 HOMI wake phrases and ASR variants', () {
+      expect(resolver.containsWakeWord('Hey HOMI'), isTrue);
+      expect(resolver.containsWakeWord('Hay HOMIE'), isTrue);
+      expect(resolver.containsWakeWord('Hey HAMI'), isTrue);
+      expect(resolver.containsWakeWord('Ê HOMPI'), isTrue);
+      expect(resolver.containsWakeWord('Hôm-mi ơi'), isTrue);
+      expect(resolver.containsWakeWord('HOMI nghe mình nói không?'), isTrue);
+      expect(resolver.containsWakeWord('HOMI'), isFalse);
       expect(resolver.containsWakeWord('Pico'), isFalse);
+      expect(resolver.containsWakeWord('Bạn ơi'), isFalse);
+      expect(resolver.containsWakeWord('Mình thích HOMI'), isFalse);
       expect(resolver.containsWakeWord('Hãy đi coi bài tập'), isFalse);
-      expect(resolver.containsWakeWord('Em biết cô giáo'), isFalse);
     });
 
     test('recognizes vocabulary commands with and without accents', () {
@@ -99,11 +100,20 @@ void main() {
       );
     });
 
+    test('routes an approved workbook phrase in a longer utterance', () {
+      expect(
+        resolver
+            .resolve('Bài học hôm nay có phần từ vựng rất khó')
+            ?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+    });
+
     test(
-      'does not redirect a normal sentence that only mentions a feature',
+      'does not redirect a normal sentence without an approved command phrase',
       () {
         expect(
-          resolver.resolve('Bài học hôm nay có phần từ vựng rất khó'),
+          resolver.resolve('Bài học hôm nay có phần bài tập rất khó'),
           isNull,
         );
         expect(

@@ -16,6 +16,7 @@ import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import '../domain/lesson_guide_flow.dart';
+import 'lesson_overview_screen.dart';
 import 'lesson_practice_screen.dart';
 import 'song_karaoke_screen.dart';
 
@@ -30,6 +31,7 @@ class LessonIntroScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.topicContent,
+    this.levelContent,
     this.guideAudioLibrary,
     this.voicePromptService,
     this.autoAdvance = true,
@@ -44,6 +46,7 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningLessonContent lesson;
   final ConversationController? controller;
   final ListeningTopicContent? topicContent;
+  final ListeningLevelContent? levelContent;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
@@ -187,6 +190,39 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     final opened = await widget.progressStore.hasOpenedLearningGuide();
     final isInProgress =
         currentSentence > 0 && completed < widget.lesson.sentences.length;
+    if (widget.lesson.usesV4Flow) {
+      final lesson = widget.lesson;
+      final topicContent = widget.topicContent;
+      final String text;
+      if (isInProgress) {
+        text = 'Mình học tiếp bài ${lesson.titleEn} nhé.';
+      } else if (completed >= lesson.sentences.length &&
+          lesson.sentences.isNotEmpty) {
+        // V4 does not replay a Hook/Micro-objective during relearn.
+        text = 'Mình học lại bài ${lesson.titleEn} nhé.';
+      } else {
+        final isFirstLessonInTopic = lesson.number == 1;
+        final isFirstTopicInLevel =
+            topicContent != null &&
+            isFirstLessonInTopic &&
+            const <int>{1, 4, 7}.contains(topicContent.number);
+        final levelLead = isFirstTopicInLevel
+            ? 'Bắt đầu Level ${topicContent.levelNumber} nhé. '
+            : '';
+        final topicLead = isFirstLessonInTopic && topicContent != null
+            ? 'Chủ đề ${topicContent.number}: ${topicContent.titleEn}. '
+            : '';
+        final lessonLead = isFirstLessonInTopic
+            ? 'Bài đầu tiên là ${lesson.titleEn}. '
+            : 'Bài này là ${lesson.titleEn}. ';
+        text = '$levelLead$topicLead$lessonLead${lesson.entry?.text ?? ''}'
+            .trim();
+      }
+      if (mounted && !_pausedForMainAssistant) {
+        setState(() => _guideText = text);
+      }
+      return;
+    }
     final prompt = LessonGuideFlowV2.entry(
       lessonCode: widget.lesson.code,
       lessonTitleEn: widget.lesson.titleEn,
@@ -471,6 +507,10 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   }
 
   Future<void> _openOverview() async {
+    if (widget.lesson.usesV4Flow) {
+      await _openV4Overview();
+      return;
+    }
     if (_usesSongKaraoke) {
       await _openSongKaraoke();
       return;
@@ -494,6 +534,37 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           lesson: widget.lesson,
           controller: widget.controller,
           topicContent: widget.topicContent,
+          levelContent: widget.levelContent,
+          progressStore: widget.progressStore,
+          mediaService: widget.mediaService,
+          guideAudioLibrary: _guideAudioLibrary,
+          onTopicCompleted: widget.onTopicCompleted,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openV4Overview() async {
+    if (_movingForward || !mounted) {
+      return;
+    }
+    _movingForward = true;
+    await widget.mediaService.stopPlayback();
+    if (!mounted || _pausedForMainAssistant) {
+      _movingForward = false;
+      return;
+    }
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => LessonOverviewScreen(
+          language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
+          topic: widget.topic,
+          lesson: widget.lesson,
+          controller: widget.controller,
+          topicContent: widget.topicContent,
+          levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: _guideAudioLibrary,
@@ -553,6 +624,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     lesson: widget.lesson,
     controller: widget.controller,
     topicContent: widget.topicContent,
+    levelContent: widget.levelContent,
     progressStore: widget.progressStore,
     mediaService: widget.mediaService,
     guideAudioLibrary: _guideAudioLibrary,

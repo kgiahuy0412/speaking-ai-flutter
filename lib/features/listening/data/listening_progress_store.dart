@@ -10,6 +10,9 @@ class ListeningProgressStore {
   static const String _learningGuideOpenedKey =
       '__listening-learning-guide-opened-v2';
   static const String _needsPracticeMarker = '::needs-practice::';
+  static const String _levelMissionPassedMarker = '::level-mission-passed';
+  static const String _v4LessonActivityPassedMarker =
+      '::v4-lesson-activity-passed';
 
   final String? progressFilePath;
   ListeningProgressPersistence get _persistence =>
@@ -22,7 +25,9 @@ class ListeningProgressStore {
           key.endsWith(_resumeSuffix) ||
           key == _learningGuideOpenedKey ||
           key.contains(_skippedMarker) ||
-          key.contains(_needsPracticeMarker),
+          key.contains(_needsPracticeMarker) ||
+          key.endsWith(_levelMissionPassedMarker) ||
+          key.endsWith(_v4LessonActivityPassedMarker),
     );
     return progress;
   }
@@ -134,6 +139,53 @@ class ListeningProgressStore {
     final progress = await _readRaw();
     final prefix = '$lessonId$_needsPracticeMarker';
     progress.removeWhere((key, _) => key.startsWith(prefix));
+    await _writeRaw(progress);
+  }
+
+  /// A level becomes complete only after its authored four-question mission
+  /// reaches the V4 pass threshold. This marker is intentionally separate
+  /// from per-lesson sentence progress so topic totals remain accurate.
+  Future<bool> hasPassedLevelMission(String levelId) async {
+    final progress = await _readRaw();
+    return progress['$levelId$_levelMissionPassedMarker'] == 1;
+  }
+
+  Future<void> markLevelMissionPassed(String levelId) async {
+    final progress = await _readRaw();
+    progress['$levelId$_levelMissionPassedMarker'] = 1;
+    await _writeRaw(progress);
+  }
+
+  /// V4 lessons are complete only after the learner finishes both authored
+  /// end-of-lesson challenges. Core sentence progress remains separate so a
+  /// learner who leaves during the challenge resumes at the final sentence
+  /// instead of being shown as having completed the lesson or topic.
+  Future<Set<String>> readCompletedV4LessonActivities() async {
+    final progress = await _readRaw();
+    return progress.entries
+        .where(
+          (entry) =>
+              entry.value == 1 &&
+              entry.key.endsWith(_v4LessonActivityPassedMarker),
+        )
+        .map(
+          (entry) => entry.key.substring(
+            0,
+            entry.key.length - _v4LessonActivityPassedMarker.length,
+          ),
+        )
+        .where((lessonId) => lessonId.isNotEmpty)
+        .toSet();
+  }
+
+  Future<bool> hasCompletedV4LessonActivity(String lessonId) async {
+    final progress = await _readRaw();
+    return progress['$lessonId$_v4LessonActivityPassedMarker'] == 1;
+  }
+
+  Future<void> markV4LessonActivityCompleted(String lessonId) async {
+    final progress = await _readRaw();
+    progress['$lessonId$_v4LessonActivityPassedMarker'] = 1;
     await _writeRaw(progress);
   }
 

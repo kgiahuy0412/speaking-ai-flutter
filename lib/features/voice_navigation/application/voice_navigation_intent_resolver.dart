@@ -1,3 +1,5 @@
+import '../domain/homi_fallback_catalog.dart';
+
 enum VoiceNavigationDestination {
   conversation,
   vocabulary,
@@ -31,28 +33,34 @@ class VoiceNavigationIntent {
 class VoiceNavigationIntentResolver {
   const VoiceNavigationIntentResolver();
 
-  static const List<String> _wakePhrases = <String>[
-    'hey pico',
-    'hey piko',
-    'hay pico',
-    'hey pipo',
-    'hey pi co',
-    'hay pi co',
-    'hey bi co',
-    'hay bi co',
-    'hey bico',
-    'hay bico',
-    'hey bigo',
-    'hay bigo',
-    'e pico',
-    'e pi co',
-  ];
+  /// HOMI wake aliases approved in the fallback workbook. "Bạn ơi" is
+  /// intentionally excluded: without a brand word it is too broad to use as
+  /// an app-wide wake trigger.
+  static final List<String> _wakePhrases =
+      (HomiFallbackCatalog.childPhrasesByIntent['INT-022'] ?? const <String>[])
+          .map(HomiFallbackCatalog.normalizeVietnamese)
+          .where((phrase) => phrase != 'ban oi')
+          .toSet()
+          .toList(growable: false);
+
+  static final Set<String> _compactWakePhrases = _wakePhrases
+      .where(
+        (phrase) =>
+            phrase.startsWith('hey ') ||
+            phrase.startsWith('hay ') ||
+            phrase.startsWith('hei ') ||
+            phrase.startsWith('e '),
+      )
+      .map((phrase) => phrase.replaceAll(' ', ''))
+      .toSet();
 
   static const List<String> _commandCues = <String>[
     'con muon',
     'cho con',
     'giup con',
     'toi muon',
+    'minh muon',
+    'cho minh',
     'hay mo',
     'di den',
     'chuyen den',
@@ -80,13 +88,13 @@ class VoiceNavigationIntentResolver {
     'tro ve',
   ];
 
-  static const List<
+  static final List<
     ({VoiceNavigationDestination destination, List<String> phrases})
   >
   _rules = <({VoiceNavigationDestination destination, List<String> phrases})>[
     (
       destination: VoiceNavigationDestination.vocabulary,
-      phrases: <String>[
+      phrases: _mergePhrases(<String>[
         'hoc tu vung',
         'on tu vung',
         'hoc tu moi',
@@ -97,11 +105,11 @@ class VoiceNavigationIntentResolver {
         'tu moi',
         '词汇',
         '生词',
-      ],
+      ], 'INT-003'),
     ),
     (
       destination: VoiceNavigationDestination.topics,
-      phrases: <String>[
+      phrases: _mergePhrases(<String>[
         'luyen nghe theo chu de',
         'bat dau bai hoc',
         'hoc khoa hoc',
@@ -111,7 +119,7 @@ class VoiceNavigationIntentResolver {
         'chu de',
         '主题听力',
         '主题',
-      ],
+      ], 'INT-002'),
     ),
     (
       destination: VoiceNavigationDestination.conversation,
@@ -176,6 +184,7 @@ class VoiceNavigationIntentResolver {
         openLesson: true,
       );
     }
+
     VoiceNavigationIntent? bestMatch;
     var bestScore = -1;
 
@@ -192,7 +201,15 @@ class VoiceNavigationIntentResolver {
             allowShortDirectCommand &&
             (normalized == phrase ||
                 (wordCount <= 4 && normalized.endsWith(phrase)));
-        if (!hasCommandCue && !isShortDirectCommand) {
+        // Catalog variants without a command cue are useful after a final ASR
+        // result, but a partial "từ vựng" may still grow into a normal
+        // sentence. Keep those broad variants out of the fast path.
+        final isApprovedFallbackPhrase =
+            allowShortDirectCommand &&
+            _isFallbackDestinationPhrase(normalized, rule.destination);
+        if (!hasCommandCue &&
+            !isShortDirectCommand &&
+            !isApprovedFallbackPhrase) {
           continue;
         }
 
@@ -221,13 +238,11 @@ class VoiceNavigationIntentResolver {
       return true;
     }
 
-    // Vietnamese ASR commonly turns the English brand name into variants such
-    // as "hay bi co" or "ê pi cô". Only allow fuzzy matching after an
-    // explicit wake-like first word so ordinary speech containing "Pico" does
-    // not open a page accidentally.
+    // Vietnamese ASR commonly changes the HOMI syllables. Only allow fuzzy
+    // matching after an explicit wake-like first word so an incidental brand
+    // mention does not open a page accidentally.
     final words = normalized.split(' ');
     const wakeStarts = <String>{'hey', 'hay', 'hei', 'e'};
-    const compactWakePhrases = <String>{'heypico', 'haypico', 'epico'};
     for (var start = 0; start < words.length; start += 1) {
       if (!wakeStarts.contains(words[start])) {
         continue;
@@ -236,7 +251,7 @@ class VoiceNavigationIntentResolver {
       final endLimit = (start + 3).clamp(0, words.length - 1);
       for (var end = start; end <= endLimit; end += 1) {
         candidate += words[end];
-        if (compactWakePhrases.any(
+        if (_compactWakePhrases.any(
           (phrase) => _editDistanceAtMost(candidate, phrase, 1),
         )) {
           return true;
@@ -287,6 +302,52 @@ class VoiceNavigationIntentResolver {
       return value.contains(phrase);
     }
     return ' $value '.contains(' $phrase ');
+  }
+
+  static List<String> _mergePhrases(
+    List<String> existingPhrases,
+    String fallbackIntentId,
+  ) {
+    return <String>{
+      ...existingPhrases,
+      ...?HomiFallbackCatalog.childPhrasesByIntent[fallbackIntentId]?.map(
+        HomiFallbackCatalog.normalizeVietnamese,
+      ),
+    }.toList(growable: false);
+  }
+
+  static bool _isFallbackDestinationPhrase(
+    String normalized,
+    VoiceNavigationDestination destination,
+  ) {
+    final intentId = switch (destination) {
+      VoiceNavigationDestination.vocabulary => 'INT-003',
+      VoiceNavigationDestination.topics => 'INT-002',
+      _ => null,
+    };
+    return intentId != null &&
+        _bestFallbackPhrase(normalized, <String>[intentId]) != null;
+  }
+
+  static String? _bestFallbackPhrase(
+    String normalized,
+    Iterable<String> intentIds,
+  ) {
+    String? bestMatch;
+    for (final intentId in intentIds) {
+      for (final phrase
+          in HomiFallbackCatalog.childPhrasesByIntent[intentId] ??
+              const <String>[]) {
+        final normalizedPhrase = HomiFallbackCatalog.normalizeVietnamese(
+          phrase,
+        );
+        if (_containsPhrase(normalized, normalizedPhrase) &&
+            (bestMatch == null || normalizedPhrase.length > bestMatch.length)) {
+          bestMatch = normalizedPhrase;
+        }
+      }
+    }
+    return bestMatch;
   }
 
   static bool _hasCommandCue(String value) {

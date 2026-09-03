@@ -20,12 +20,16 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/authored_question_selector.dart';
 import '../domain/lesson_guide_flow.dart';
+import 'lesson_challenge_screen.dart';
+import 'lesson_mission_screen.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'lesson_review_screen.dart';
 import 'listening_navigation_bar.dart';
 import 'listening_route_names.dart';
+import 'v4_song_stage_screen.dart';
 
 class LessonPracticeScreen extends StatefulWidget {
   const LessonPracticeScreen({
@@ -43,6 +47,7 @@ class LessonPracticeScreen extends StatefulWidget {
     this.completionChoiceRecognizer,
     this.voicePromptService,
     this.topicContent,
+    this.levelContent,
     this.onTopicCompleted,
     super.key,
   });
@@ -61,6 +66,7 @@ class LessonPracticeScreen extends StatefulWidget {
   final LessonCompletionChoiceRecognizer? completionChoiceRecognizer;
   final VoicePromptService? voicePromptService;
   final ListeningTopicContent? topicContent;
+  final ListeningLevelContent? levelContent;
   final VoidCallback? onTopicCompleted;
 
   @override
@@ -70,6 +76,10 @@ class LessonPracticeScreen extends StatefulWidget {
 class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     implements ActiveLearningModuleController {
   static const Duration _mainPauseCleanupTimeout = Duration(seconds: 2);
+  static int _v4ChallengeCounter = 0;
+  static int _v4MissionCounter = 0;
+  static final Map<String, List<String>> _previousV4ChallengeIds =
+      <String, List<String>>{};
   int _sentenceIndex = 0;
   bool _recording = false;
   bool _mediaBusy = false;
@@ -934,8 +944,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       };
       outcome =
           recognizedCandidates.any(
-            (candidate) =>
-                matchesRecognizedLessonEnglish(_sentence.english, candidate),
+            (candidate) => matchesRecognizedLessonEnglish(
+              _sentence.english,
+              candidate,
+              acceptedVariants: _sentence.recognitionVariants,
+              requireAllExpectedTokens: _sentence.requiresAllExpectedTokens,
+            ),
           )
           ? LessonAttemptOutcome.good
           : LessonAttemptOutcome.retry;
@@ -1007,6 +1021,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       recordingDuration: recording.duration,
       attemptNumber: attemptNumber,
       childAge: widget.startAge,
+      acceptedVariants: sentence.recognitionVariants,
+      requireAllExpectedTokens: sentence.requiresAllExpectedTokens,
     );
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
       return;
@@ -1249,6 +1265,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         widget.lesson.id,
         _sentenceIndex,
       );
+      // V4 ends the core practice with its authored role-play/challenge
+      // activity, not the legacy spoken "restart or next lesson" prompt.
+      if (widget.lesson.usesV4Flow) {
+        await _openReview();
+        return;
+      }
       if (_usesGuideV2) {
         if (mounted) {
           setState(() => _mediaBusy = true);
@@ -1363,6 +1385,64 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   Future<void> _openReview() async {
     _cancelIdleReminder();
     _hideCoachPopup();
+    if (widget.lesson.usesV4Flow) {
+      if (widget.lesson.hasV4SongStage) {
+        await _voicePromptService.speakAndWait(
+          v4SongPrealert(widget.lesson.songTitle!),
+        );
+        if (!mounted) {
+          return;
+        }
+      }
+      final selectedChallenges = const AuthoredQuestionSelector()
+          .selectChallengesForLesson(
+            widget.lesson,
+            seed: _stableChallengeSeed(widget.lesson.id),
+            counter: _v4ChallengeCounter++,
+            previousChallengeIds:
+                _previousV4ChallengeIds[widget.lesson.id] ?? const <String>[],
+          );
+      if (selectedChallenges.length == 2) {
+        _previousV4ChallengeIds[widget.lesson.id] = selectedChallenges
+            .map((challenge) => challenge.id)
+            .toList(growable: false);
+        final completed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => LessonChallengeScreen(
+              language: widget.language,
+              startAge: widget.startAge,
+              lesson: widget.lesson,
+              challenges: selectedChallenges,
+              mediaService: widget.mediaService,
+              attemptEvaluator: _attemptEvaluator,
+            ),
+          ),
+        );
+        if (!mounted || completed != true) {
+          return;
+        }
+        await widget.progressStore.markV4LessonActivityCompleted(
+          widget.lesson.id,
+        );
+        if (!mounted) {
+          return;
+        }
+        await _announceV4ActivityMilestone();
+        if (!mounted) {
+          return;
+        }
+        // V4 song placements sit after the completed two-question challenge
+        // and before a possible Level Mission. They never use a legacy song
+        // lesson's full-audio field.
+        if (!await _openV4SongStageIfNeeded()) {
+          return;
+        }
+      }
+      final missionCompleted = await _runV4LevelMissionIfNeeded();
+      if (!mounted || !missionCompleted) {
+        return;
+      }
+    }
     final unrecordedSentenceIndexes = await _readUnrecordedSentenceIndexes();
     if (!mounted) {
       return;
@@ -1397,6 +1477,165 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       case LessonReviewAction.returnToListening:
         _returnToListening();
         return;
+    }
+  }
+
+  Future<void> _announceV4ActivityMilestone() async {
+    final topic = widget.topicContent;
+    if (topic == null || _nextLessonInTopic != null) {
+      await _voicePromptService.speakAndWait(
+        'Giỏi lắm! Bạn đã hoàn thành bài học rồi.',
+      );
+      return;
+    }
+    if (_isLastLessonInLevel) {
+      await _voicePromptService.speakAndWait(
+        'Tuyệt lắm! Bạn đã hoàn thành chủ đề cuối của Level này rồi!',
+      );
+      return;
+    }
+    await _voicePromptService.speakAndWait(
+      'Tuyệt lắm! Bạn đã hoàn thành chủ đề ${topic.titleEn} rồi!',
+    );
+  }
+
+  Future<bool> _openV4SongStageIfNeeded() async {
+    if (!widget.lesson.hasV4SongStage) {
+      return true;
+    }
+    final songTitle = widget.lesson.songTitle!.trim();
+    final action = await Navigator.of(context).push<V4SongStageAction>(
+      MaterialPageRoute<V4SongStageAction>(
+        builder: (_) => V4SongStageScreen(
+          language: widget.language,
+          songTitle: songTitle,
+          songAudioId: widget.lesson.songAudioId,
+          songAudioUri: widget.lesson.songAudioUri,
+          mediaService: widget.mediaService,
+          voicePromptService: _voicePromptService,
+        ),
+      ),
+    );
+    return mounted && action != null;
+  }
+
+  static int _stableChallengeSeed(String value) {
+    return value.codeUnits.fold<int>(0, (seed, unit) => seed * 31 + unit);
+  }
+
+  bool get _isLastLessonInLevel {
+    final topic = widget.topicContent;
+    final level = widget.levelContent;
+    return widget.lesson.usesV4Flow &&
+        topic != null &&
+        level != null &&
+        level.topicNumbers.isNotEmpty &&
+        level.topicNumbers.last == topic.number &&
+        topic.lessons.isNotEmpty &&
+        topic.lessons.last.id == widget.lesson.id;
+  }
+
+  Future<bool> _runV4LevelMissionIfNeeded() async {
+    final level = widget.levelContent;
+    if (!_isLastLessonInLevel || level == null || level.missionBank.isEmpty) {
+      return true;
+    }
+    if (await widget.progressStore.hasPassedLevelMission(level.id)) {
+      return true;
+    }
+
+    final selector = const AuthoredQuestionSelector();
+    final excludedQuestionIds = <String>{};
+    final weakTargetIds = <String>{};
+    final seed = _stableChallengeSeed(level.id);
+
+    while (mounted) {
+      var missions = selector.selectMissionsForLevel(
+        level,
+        seed: seed,
+        counter: _v4MissionCounter++,
+        excludedQuestionIds: excludedQuestionIds,
+        weakTargetIds: weakTargetIds,
+      );
+      // Once every authored prompt has been used, begin a new rotation rather
+      // than inventing a question or silently treating an incomplete mission
+      // as a pass.
+      if (missions.length != LessonMissionResult.requiredQuestionCount) {
+        excludedQuestionIds.clear();
+        missions = selector.selectMissionsForLevel(
+          level,
+          seed: seed,
+          counter: _v4MissionCounter++,
+          weakTargetIds: weakTargetIds,
+        );
+      }
+      if (missions.length != LessonMissionResult.requiredQuestionCount) {
+        return true;
+      }
+      if (!mounted) {
+        return false;
+      }
+
+      final result = await Navigator.of(context).push<LessonMissionResult>(
+        MaterialPageRoute<LessonMissionResult>(
+          builder: (_) => LessonMissionScreen(
+            language: widget.language,
+            startAge: widget.startAge,
+            lesson: widget.lesson,
+            missions: missions,
+            mediaService: widget.mediaService,
+            attemptEvaluator: _attemptEvaluator,
+            levelTitle: 'Level ${level.number}: ${level.titleVi}',
+          ),
+        ),
+      );
+      if (!mounted || result == null) {
+        return false;
+      }
+      if (result.passed) {
+        await widget.progressStore.markLevelMissionPassed(level.id);
+        if (mounted) {
+          await _voicePromptService.speakAndWait(
+            'Bạn đã hoàn thành Level ${level.number} nhé.',
+          );
+        }
+        return mounted;
+      }
+
+      excludedQuestionIds.addAll(missions.map((mission) => mission.id));
+      weakTargetIds.addAll(result.weakTargetIds);
+      if (!mounted) {
+        return false;
+      }
+      await _playMissionRemediation(missions, result);
+      if (!mounted) {
+        return false;
+      }
+      // V4 retests weak coverage with another authored mission set. The screen
+      // never generates a replacement question or accepts an A/B label.
+      await _voicePromptService.speakAndWait(
+        'Mình luyện nhanh vài phần rồi thử lại Nhiệm vụ cuối Level nhé.',
+      );
+    }
+    return false;
+  }
+
+  Future<void> _playMissionRemediation(
+    List<ListeningMissionContent> missions,
+    LessonMissionResult result,
+  ) async {
+    final weakTargets = result.weakTargetIds.toSet();
+    final reviewedTargets = <String>{};
+    for (final mission in missions) {
+      if (!weakTargets.contains(mission.coverageTargetId) ||
+          !reviewedTargets.add(mission.coverageTargetId)) {
+        continue;
+      }
+      await _voicePromptService.speakAndWait(
+        mission.correctAnswer,
+        locale: 'en-US',
+      );
+      if (!mounted) return;
     }
   }
 
@@ -1460,6 +1699,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           lesson: lesson,
           controller: widget.controller,
           topicContent: widget.topicContent,
+          levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           onTopicCompleted: widget.onTopicCompleted,

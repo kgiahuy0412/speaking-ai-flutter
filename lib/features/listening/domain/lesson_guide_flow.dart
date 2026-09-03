@@ -2,6 +2,20 @@ enum LessonEntryGuideKind { first, newLesson, resume }
 
 enum LessonAttemptOutcome { good, unclear, retry, needsPractice }
 
+/// V4 content supplies these cues as audio sources. Keep their text centralized
+/// so the runtime and future recorded assets always use the same wording.
+const String v4SongPrealertAudioId = 'SONG_PREALERT';
+const String v4SongPrealertTemplate =
+    'Tiếp theo là hai câu thử thách. Xong rồi mình nghe bài hát [SONG_TITLE] nhé.';
+const String v4SongStartCueAudioId = 'SONG_START_CUE';
+const String v4SongStartCueTemplate = 'Bây giờ cùng nghe [SONG_TITLE] nhé.';
+
+String v4SongPrealert(String songTitle) =>
+    v4SongPrealertTemplate.replaceAll('[SONG_TITLE]', songTitle.trim());
+
+String v4SongStartCue(String songTitle) =>
+    v4SongStartCueTemplate.replaceAll('[SONG_TITLE]', songTitle.trim());
+
 class LessonGuidePrompt {
   const LessonGuidePrompt({required this.audioCode, required this.text});
 
@@ -18,6 +32,8 @@ abstract interface class LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
   });
 }
 
@@ -35,6 +51,8 @@ class RecordedAttemptEvaluator implements LessonAttemptEvaluator {
     required Duration recordingDuration,
     required int attemptNumber,
     required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
   }) async => LessonAttemptOutcome.good;
 }
 

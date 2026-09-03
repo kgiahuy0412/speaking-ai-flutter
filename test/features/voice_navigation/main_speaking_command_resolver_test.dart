@@ -16,21 +16,26 @@ void main() {
     }
   });
 
-  test('keeps spoken stop phrases in the normal translation flow', () {
+  test(
+    'routes approved INT-018 stop phrases out of continuous translation',
+    () {
+      for (final text in <String>[
+        'Dừng lại',
+        'Mình muốn dừng',
+        'Dừng dịch liên tục',
+        'Ngừng dịch',
+        'Không dịch nữa',
+        'Thoát dịch',
+        'Hổng dịch nữa',
+        'Dừng dịch giúp mình',
+      ]) {
+        expect(resolver.resolve(text), MainSpeakingCommand.stopTranslation);
+      }
+    },
+  );
+
+  test('keeps unapproved non-translation stop requests out of this flow', () {
     for (final text in <String>[
-      'Dừng lại',
-      'Con muốn dừng lại',
-      'Dừng dịch liên tục',
-      'Ngừng lại',
-      'Con muốn ngừng lại',
-      'Con không dịch nữa',
-      'Thoát dịch',
-      'Dừng dịch liên tục nhé',
-      'Con muốn dừng lại ạ',
-      'Hãy dừng lại',
-      'Làm ơn ngừng lại nhé ạ',
-      'Dừng lại đi ạ',
-      'Dừng luyện nói',
       'Thoát luyện nói',
       'Con không muốn luyện nói nữa',
     ]) {
@@ -43,6 +48,7 @@ void main() {
       'Con muốn ăn cơm',
       'Hôm nay con học ở trường',
       'Con thích một bài hát khác',
+      'Tôi muốn học bài khác bằng tiếng Anh',
     ]) {
       expect(resolver.resolve(text), isNull);
     }

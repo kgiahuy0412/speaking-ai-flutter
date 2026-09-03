@@ -165,6 +165,47 @@ void main() {
     expect(store.completedSentences, 1);
   });
 
+  testWidgets(
+    'V4 marks the lesson complete only after its authored challenge finishes',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final store = _MemoryProgressStore();
+      final mediaService = _SilentMediaService(
+        existingRecordingPath: 'C:\\recordings\\saved-v4-attempt.m4a',
+      );
+      final lesson = _v4Lesson();
+
+      await tester.pumpWidget(
+        _subject(
+          lesson,
+          store,
+          const Key('v4-activity-completion'),
+          mediaService: mediaService,
+          voicePromptService: _SilentVoicePromptService(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(await store.hasCompletedV4LessonActivity(lesson.id), isFalse);
+      final continueButton = find.byKey(const Key('continue-lesson-sentence'));
+      await tester.ensureVisible(continueButton);
+      await tester.tap(continueButton);
+      await tester.pump();
+      await tester.pump();
+
+      final challenge = find.byKey(const Key('lesson-challenge-screen'));
+      expect(challenge, findsOneWidget);
+      expect(await store.hasCompletedV4LessonActivity(lesson.id), isFalse);
+
+      Navigator.of(tester.element(challenge)).pop(true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(await store.hasCompletedV4LessonActivity(lesson.id), isTrue);
+      expect(store.completedSentences, lesson.sentences.length);
+    },
+  );
+
   testWidgets('completion remains usable on a compact phone', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     tester.platformDispatcher.textScaleFactorTestValue = 1.3;
@@ -332,11 +373,57 @@ ListeningLessonContent _lessonWithSentences(int count) {
   );
 }
 
+ListeningLessonContent _v4Lesson() {
+  return const ListeningLessonContent(
+    id: 'navigation-test-lesson',
+    code: 'C35-L1-T01-B01',
+    number: 1,
+    titleVi: 'Bài V4',
+    titleEn: 'V4 lesson',
+    intro: '',
+    outro: '',
+    estimatedMinutes: 1,
+    entry: ListeningLessonEntry(
+      kind: ListeningLessonEntryKind.microObjective,
+      text: 'Mình cùng học nhé.',
+    ),
+    challengeBank: <ListeningChallengeContent>[
+      ListeningChallengeContent(
+        id: 'v4-challenge-1',
+        format: 'VI_TO_EN',
+        prompt: 'Chào buổi sáng.',
+        choices: <String>['Good morning.', 'Good night.'],
+        correctAnswer: 'Good morning.',
+        correctVietnamese: 'Chào buổi sáng.',
+        targetId: 'v4-target-1',
+      ),
+      ListeningChallengeContent(
+        id: 'v4-challenge-2',
+        format: 'VI_TO_EN',
+        prompt: 'Chào buổi tối.',
+        choices: <String>['Good night.', 'Good morning.'],
+        correctAnswer: 'Good night.',
+        correctVietnamese: 'Chào buổi tối.',
+        targetId: 'v4-target-2',
+      ),
+    ],
+    sentences: <ListeningSentenceContent>[
+      ListeningSentenceContent(
+        id: 'v4-target-1',
+        number: 1,
+        english: 'Good morning.',
+        vietnamese: 'Chào buổi sáng.',
+      ),
+    ],
+  );
+}
+
 class _MemoryProgressStore extends ListeningProgressStore {
   _MemoryProgressStore({this.currentSentence = 0});
 
   int currentSentence;
   int completedSentences = 0;
+  final Set<String> completedV4LessonActivities = <String>{};
 
   @override
   Future<Map<String, int>> readAll() async => <String, int>{
@@ -354,6 +441,14 @@ class _MemoryProgressStore extends ListeningProgressStore {
 
   @override
   Future<Set<int>> readNeedsPracticeSentences(String lessonId) async => <int>{};
+
+  @override
+  Future<bool> hasCompletedV4LessonActivity(String lessonId) async =>
+      completedV4LessonActivities.contains(lessonId);
+
+  @override
+  Future<Set<String>> readCompletedV4LessonActivities() async =>
+      Set<String>.of(completedV4LessonActivities);
 
   @override
   Future<void> saveSkippedSentence(String lessonId, int sentenceIndex) async {}
@@ -383,6 +478,11 @@ class _MemoryProgressStore extends ListeningProgressStore {
   @override
   Future<void> saveCurrentSentence(String lessonId, int sentenceIndex) async {
     currentSentence = sentenceIndex;
+  }
+
+  @override
+  Future<void> markV4LessonActivityCompleted(String lessonId) async {
+    completedV4LessonActivities.add(lessonId);
   }
 }
 

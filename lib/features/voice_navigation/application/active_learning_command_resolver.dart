@@ -10,11 +10,11 @@ class ActiveLearningCommandResolver {
   static const ControlledSpeechLexicon _controlledLexicon =
       ControlledSpeechLexicon();
 
-  ActiveLearningCommand? resolve(String transcript) {
-    final controlled = _controlledLexicon.resolve(
-      transcript,
-      state: ControlledSpeechState.course,
-    );
+  ActiveLearningCommand? resolve(
+    String transcript, {
+    ControlledSpeechState state = ControlledSpeechState.course,
+  }) {
+    final controlled = _controlledLexicon.resolve(transcript, state: state);
     final controlledCommand = switch (controlled?.intent) {
       ControlledSpeechIntent.globalStop => ActiveLearningCommand.stop,
       ControlledSpeechIntent.courseContinue => ActiveLearningCommand.resume,
@@ -30,6 +30,10 @@ class ActiveLearningCommandResolver {
         ActiveLearningCommand.nextLesson,
       ControlledSpeechIntent.coursePreviousLesson =>
         ActiveLearningCommand.previousLesson,
+      ControlledSpeechIntent.vocabularyPracticeAgain =>
+        ActiveLearningCommand.vocabularyPracticeAgain,
+      ControlledSpeechIntent.vocabularyStars =>
+        ActiveLearningCommand.vocabularyStars,
       _ => null,
     };
     if (controlledCommand != null) {

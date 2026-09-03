@@ -6,6 +6,7 @@ import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_content.dart';
+import '../domain/homi_fallback_catalog.dart';
 import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
 
@@ -191,7 +192,8 @@ class VoiceNavigationController extends ChangeNotifier {
   }) async {
     return _activateMainAssistantFlow(
       activeLearning
-          ? _mainAssistantFlow.beginActiveLearning
+          ? () =>
+                _mainAssistantFlow.beginActiveLearning(kind: activeLearningKind)
           : _mainAssistantFlow.begin,
       inputLabelOverride: inputLabelOverride,
     );
@@ -464,7 +466,7 @@ class VoiceNavigationController extends ChangeNotifier {
 
   Future<bool> _acknowledgeWakeWord(
     int generation, {
-    String promptText = 'Pipo nghe đây',
+    String? promptText,
     List<MainVoiceAssistantUtterance> promptSequence =
         const <MainVoiceAssistantUtterance>[],
     bool openCommandWindow = true,
@@ -480,9 +482,11 @@ class VoiceNavigationController extends ChangeNotifier {
     try {
       final promptService = _voicePromptService;
       if (promptService != null) {
+        final resolvedPromptText =
+            promptText ?? HomiFallbackCatalog.assistantPromptById['AI-069']!;
         final utterances = promptSequence.isEmpty
             ? <MainVoiceAssistantUtterance>[
-                MainVoiceAssistantUtterance(promptText),
+                MainVoiceAssistantUtterance(resolvedPromptText),
               ]
             : promptSequence;
         for (final utterance in utterances) {
@@ -862,12 +866,12 @@ class VoiceNavigationController extends ChangeNotifier {
     }
     _markSpeechActivity();
 
-    // A wake phrase can react from a partial result. Once awake, only explicit
-    // action phrases use this fast path; short destination names still wait for
-    // Android's final result to avoid redirecting a longer normal sentence.
+    // A wake phrase can react from a partial result. MAIN's approved corpus
+    // contains broad child-friendly wording, so its routes deliberately wait
+    // for Android's final result rather than committing a partial sentence.
     final shouldHandle = _awaitingCommand
         ? _buttonCommandSession
-              ? _mainAssistantFlow.canHandle(text)
+              ? _mainAssistantFlow.canHandlePartial(text)
               : _resolver.resolve(text, allowShortDirectCommand: false) != null
         : _resolver.containsWakeWord(text);
     _partialIntentTimer?.cancel();
@@ -919,7 +923,7 @@ class VoiceNavigationController extends ChangeNotifier {
     for (final candidate in candidates.skip(1)) {
       final shouldHandle = _awaitingCommand
           ? _buttonCommandSession
-                ? _mainAssistantFlow.canHandle(candidate)
+                ? _mainAssistantFlow.canHandlePartial(candidate)
                 : _resolver.resolve(
                         candidate,
                         allowShortDirectCommand: false,

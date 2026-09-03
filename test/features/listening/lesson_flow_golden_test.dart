@@ -8,6 +8,7 @@ import 'package:ai_speaking_flutter_app/features/listening/domain/listening_cont
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_practice_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_review_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/lesson_challenge_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_lesson_list_screen.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
@@ -52,7 +53,7 @@ void main() {
     await _precache(
       tester,
       find.byType(TopicLessonListScreen),
-      const <AssetImage>[AssetImage('assets/images/topics/hello-goodbye.jpg')],
+      const <AssetImage>[AssetImage('assets/images/topics/fun-alphabet.jpg')],
     );
     await tester.pumpAndSettle();
 
@@ -69,6 +70,7 @@ void main() {
     final lesson = topicContent.lessons.first;
     progressStore = _GoldenProgressStore(
       progress: <String, int>{lesson.id: lesson.sentences.length},
+      completedV4LessonActivities: <String>{lesson.id},
     );
     await tester.pumpWidget(
       _GoldenApp(
@@ -291,12 +293,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('lesson completion choice matches the approved direction', (
+  testWidgets('V4 completion opens an authored voice challenge', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
     final lesson = topicContent.lessons.first;
-    mediaService.recordedSentenceNumbers = const <int>{1, 3, 5};
+    expect(lesson.usesV4Flow, isTrue);
+    mediaService.recordedSentenceNumbers = lesson.sentences
+        .map((sentence) => sentence.number)
+        .toSet();
     progressStore = _GoldenProgressStore(
       currentSentence: lesson.sentences.length - 1,
     );
@@ -325,18 +330,27 @@ void main() {
 
     await tester.tap(find.byKey(const Key('continue-lesson-sentence')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const Key('lesson-practice-screen')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(LessonChallengeScreen), findsOneWidget);
+    await _precache(
+      tester,
+      find.byType(LessonChallengeScreen),
+      const <AssetImage>[
+        AssetImage('assets/images/learning-minimal-sky-background.png'),
+        AssetImage('assets/images/mascot/penguin-listen.png'),
+      ],
+    );
+    await tester.pump(const Duration(milliseconds: 350));
     expect(find.byKey(const Key('lesson-review-screen')), findsNothing);
+    expect(find.text('Thử thách nghe'), findsOneWidget);
     expect(
-      find.text('Con nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.'),
+      find.byKey(const Key('lesson-challenge-record-button')),
       findsOneWidget,
     );
-    expect(mediaService.recording, isTrue);
 
     await expectLater(
       find.byType(MaterialApp),
-      matchesGoldenFile('goldens/lesson-completion-390x844.png'),
+      matchesGoldenFile('goldens/lesson-v4-challenge-390x844.png'),
     );
   });
 
@@ -498,13 +512,19 @@ class _GoldenProgressStore extends ListeningProgressStore {
   const _GoldenProgressStore({
     this.currentSentence = 0,
     this.progress = const <String, int>{},
+    this.completedV4LessonActivities = const <String>{},
   });
 
   final int currentSentence;
   final Map<String, int> progress;
+  final Set<String> completedV4LessonActivities;
 
   @override
   Future<Map<String, int>> readAll() async => progress;
+
+  @override
+  Future<Set<String>> readCompletedV4LessonActivities() async =>
+      completedV4LessonActivities;
 
   @override
   Future<int> readLesson(String lessonId) async => progress[lessonId] ?? 0;

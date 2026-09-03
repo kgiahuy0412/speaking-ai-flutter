@@ -22,6 +22,7 @@ class TopicLessonListScreen extends StatefulWidget {
     required this.endAge,
     required this.topic,
     required this.content,
+    this.levelContent,
     this.controller,
     this.onVoiceNavigationPause,
     this.onVoiceNavigationResume,
@@ -37,6 +38,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final int endAge;
   final ListeningTopic topic;
   final ListeningTopicContent content;
+  final ListeningLevelContent? levelContent;
   final ConversationController? controller;
   final Future<void> Function()? onVoiceNavigationPause;
   final VoidCallback? onVoiceNavigationResume;
@@ -53,7 +55,7 @@ class TopicLessonListScreen extends StatefulWidget {
 
 class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
   late final LessonMediaService _mediaService;
-  late Future<Map<String, int>> _progressFuture;
+  late Future<_TopicLessonProgressSnapshot> _progressFuture;
   late final bool _ownsMediaService;
   bool _initialLessonOpened = false;
 
@@ -66,7 +68,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         LessonMediaService(
           hfpAudioControl: widget.controller?.learningAudioRouteControl,
         );
-    _progressFuture = widget.progressStore.readAll();
+    _progressFuture = _loadProgress();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_openInitialLesson());
     });
@@ -80,6 +82,28 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     super.dispose();
   }
 
+  Future<_TopicLessonProgressSnapshot> _loadProgress() async {
+    final lessonProgress = await widget.progressStore.readAll();
+    final completedV4LessonActivities = await widget.progressStore
+        .readCompletedV4LessonActivities();
+    return _TopicLessonProgressSnapshot(
+      lessonProgress: lessonProgress,
+      completedV4LessonActivities: completedV4LessonActivities,
+    );
+  }
+
+  bool _isLessonCompleted(
+    ListeningLessonContent lesson,
+    int completedSentences,
+    Set<String> completedV4LessonActivities,
+  ) {
+    final completedCore =
+        completedSentences >= lesson.sentences.length &&
+        lesson.sentences.isNotEmpty;
+    return completedCore &&
+        (!lesson.usesV4Flow || completedV4LessonActivities.contains(lesson.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     return DisplayLanguageScope(
@@ -90,10 +114,11 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         body: LearningScenery(
           child: SafeArea(
             bottom: false,
-            child: FutureBuilder<Map<String, int>>(
+            child: FutureBuilder<_TopicLessonProgressSnapshot>(
               future: _progressFuture,
               builder: (context, snapshot) {
-                final progress = snapshot.data ?? const <String, int>{};
+                final progress =
+                    snapshot.data ?? const _TopicLessonProgressSnapshot.empty();
                 return CustomScrollView(
                   slivers: <Widget>[
                     SliverPadding(
@@ -141,20 +166,31 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                         separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final lesson = widget.content.lessons[index];
-                          final completed = (progress[lesson.id] ?? 0).clamp(
-                            0,
-                            lesson.sentences.length,
+                          final completed =
+                              (progress.lessonProgress[lesson.id] ?? 0).clamp(
+                                0,
+                                lesson.sentences.length,
+                              );
+                          final lessonCompleted = _isLessonCompleted(
+                            lesson,
+                            completed,
+                            progress.completedV4LessonActivities,
                           );
                           return _LessonPathCard(
                             key: ValueKey('lesson-${lesson.id}'),
                             lesson: lesson,
                             completedSentences: completed,
+                            isCompleted: lessonCompleted,
+                            needsV4Challenge:
+                                lesson.usesV4Flow &&
+                                completed >= lesson.sentences.length &&
+                                !lessonCompleted,
                             isLast: index == widget.content.lessons.length - 1,
                             onPressed: () => _startLesson(
                               lesson,
                               reviewFromBeginning:
                                   lesson.sentences.isNotEmpty &&
-                                  completed >= lesson.sentences.length,
+                                  lessonCompleted,
                             ),
                           );
                         },
@@ -197,20 +233,31 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final song = widget.content.songs[index];
-                            final completed = (progress[song.id] ?? 0).clamp(
-                              0,
-                              song.sentences.length,
+                            final completed =
+                                (progress.lessonProgress[song.id] ?? 0).clamp(
+                                  0,
+                                  song.sentences.length,
+                                );
+                            final lessonCompleted = _isLessonCompleted(
+                              song,
+                              completed,
+                              progress.completedV4LessonActivities,
                             );
                             return _LessonPathCard(
                               key: ValueKey('song-${song.id}'),
                               lesson: song,
                               completedSentences: completed,
+                              isCompleted: lessonCompleted,
+                              needsV4Challenge:
+                                  song.usesV4Flow &&
+                                  completed >= song.sentences.length &&
+                                  !lessonCompleted,
                               isLast: index == widget.content.songs.length - 1,
                               onPressed: () => _startLesson(
                                 song,
                                 reviewFromBeginning:
                                     song.sentences.isNotEmpty &&
-                                    completed >= song.sentences.length,
+                                    lessonCompleted,
                               ),
                             );
                           },
@@ -296,6 +343,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
             lesson: lesson,
             controller: widget.controller,
             topicContent: widget.content,
+            levelContent: widget.levelContent,
             progressStore: widget.progressStore,
             mediaService: _mediaService,
             onTopicCompleted: widget.onTopicCompleted,
@@ -311,7 +359,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       return;
     }
     setState(() {
-      _progressFuture = widget.progressStore.readAll();
+      _progressFuture = _loadProgress();
     });
   }
 
@@ -373,6 +421,20 @@ class _Header extends StatelessWidget {
       ],
     );
   }
+}
+
+class _TopicLessonProgressSnapshot {
+  const _TopicLessonProgressSnapshot({
+    required this.lessonProgress,
+    required this.completedV4LessonActivities,
+  });
+
+  const _TopicLessonProgressSnapshot.empty()
+    : lessonProgress = const <String, int>{},
+      completedV4LessonActivities = const <String>{};
+
+  final Map<String, int> lessonProgress;
+  final Set<String> completedV4LessonActivities;
 }
 
 class _TopicHero extends StatelessWidget {
@@ -522,6 +584,8 @@ class _LessonPathCard extends StatelessWidget {
   const _LessonPathCard({
     required this.lesson,
     required this.completedSentences,
+    required this.isCompleted,
+    required this.needsV4Challenge,
     required this.isLast,
     required this.onPressed,
     super.key,
@@ -529,6 +593,8 @@ class _LessonPathCard extends StatelessWidget {
 
   final ListeningLessonContent lesson;
   final int completedSentences;
+  final bool isCompleted;
+  final bool needsV4Challenge;
   final bool isLast;
   final VoidCallback onPressed;
 
@@ -538,7 +604,7 @@ class _LessonPathCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final total = lesson.sentences.length;
     final progress = total == 0 ? 0.0 : completedSentences / total;
-    final completed = total > 0 && completedSentences >= total;
+    final completed = isCompleted;
     return Semantics(
       button: true,
       label: 'Bài ${lesson.number}, ${lesson.titleVi}',
@@ -679,11 +745,15 @@ class _LessonPathCard extends StatelessWidget {
                             context.tr(
                               completedSentences == 0
                                   ? 'Học ngay'
+                                  : needsV4Challenge
+                                  ? 'Hoàn thành thử thách'
                                   : completed
                                   ? 'Ôn lại'
                                   : 'Học tiếp',
                               completedSentences == 0
                                   ? '立即学习'
+                                  : needsV4Challenge
+                                  ? '完成挑战'
                                   : completed
                                   ? '复习'
                                   : '继续学习',

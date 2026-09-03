@@ -35,10 +35,11 @@ import '../features/onboarding/presentation/startup_setup_screen.dart';
 import '../features/onboarding/application/parent_setup_progress_store.dart';
 import '../features/privacy/data/privacy_consent_store.dart';
 import '../features/settings/data/child_age_store.dart';
+import '../features/voice_navigation/application/main_speaking_fallback_flow.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
-import '../features/voice_navigation/application/main_speaking_command_resolver.dart';
 import '../features/voice_navigation/application/voice_navigation_controller.dart';
 import '../features/voice_navigation/data/web_batch_streaming_speech_input.dart';
+import '../features/voice_navigation/domain/homi_fallback_catalog.dart';
 import '../features/voice_navigation/presentation/main_voice_assistant_button.dart';
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
@@ -75,8 +76,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       ActiveLearningModuleRegistry();
   late final MainSpeakingSessionController _mainSpeakingSessionController;
   late final MainButtonCoordinator _mainButtonCoordinator;
-  final MainSpeakingCommandResolver _mainSpeakingCommandResolver =
-      const MainSpeakingCommandResolver();
+  final MainSpeakingFallbackFlow _mainSpeakingFallbackFlow =
+      MainSpeakingFallbackFlow();
   DeviceRegistrationService? _deviceRegistrationService;
   ThemeMode _themeMode = ThemeMode.system;
   bool _themeModeChangedByUser = false;
@@ -888,6 +889,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
+    _mainSpeakingFallbackFlow.reset();
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
     }
@@ -1103,6 +1105,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final endedMainSpeakingSession = _mainSpeakingSessionController.isActive;
     if (endedMainSpeakingSession) {
       _hasMainSpeakingTurnStarted = false;
+      _mainSpeakingFallbackFlow.reset();
       _mainSpeakingSessionController.exit();
       _invalidateMainSpeakingHfpPreparation();
     }
@@ -1182,6 +1185,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     _hasMainSpeakingTurnStarted = false;
     _isHandlingMainSpeakingNoSpeech = false;
+    // A prior confirmation may have been interrupted by MAIN, a long press,
+    // or the idle timeout. Never let it consume the first sentence of a new
+    // continuous-translation session.
+    _mainSpeakingFallbackFlow.reset();
     _mainSpeakingSessionController.enter();
     if (!_usesIosHfpLifecycle) {
       // Preserve the established Android lifecycle from main. Android opens
@@ -1325,14 +1332,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       if (action == MainSpeakingNoSpeechAction.retry) {
         controller.clearMessage();
         await controller.speakAssistantPrompt(
-          'Cô chưa nghe thấy con nói. Con nói lại nhé.',
+          HomiFallbackCatalog.silencePromptById['SIL-003']!,
         );
         retry = true;
       } else {
         await _finishMainSpeakingMode(
           sayGoodbye: true,
-          goodbyeText:
-              'Tạm biệt con nhé, khi nào con cần gì hãy nhấn MAIN nhé.',
+          goodbyeText: HomiFallbackCatalog.silencePromptById['SIL-004']!,
         );
       }
     } finally {
@@ -1349,7 +1355,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   Future<void> _finishMainSpeakingMode({
     required bool sayGoodbye,
-    String goodbyeText = 'Tạm biệt con nhé.',
+    String? goodbyeText,
   }) async {
     final controller = _controller;
     if (!_mainSpeakingSessionController.isActive ||
@@ -1358,6 +1364,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
+    _mainSpeakingFallbackFlow.reset();
     if (mounted) {
       setState(() => _isActivatingMainAssistant = true);
     }
@@ -1367,7 +1374,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       await controller?.endContinuousHfpSession();
       if (sayGoodbye && controller != null) {
         controller.clearMessage();
-        await controller.speakAssistantPrompt(goodbyeText);
+        await controller.speakAssistantPrompt(
+          goodbyeText ?? HomiFallbackCatalog.silencePromptById['SIL-004']!,
+        );
       }
     } finally {
       _isFinishingMainSpeakingMode = false;
@@ -1381,11 +1390,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   bool _matchesMainSpeakingCommand(String recognizedText) {
-    // ConversationController owns every Vietnamese -> English recording flow.
-    // Listening pronunciation recordings use their own controller, so this can
-    // safely stay enabled for every conversation mode without swallowing an
-    // English lesson answer.
-    return _mainSpeakingCommandResolver.resolve(recognizedText) != null;
+    // Stop/leave translation belongs only to the automatic continuous session.
+    // A one-shot Vietnamese sentence may naturally contain the same words and
+    // must keep flowing through normal translation.
+    return _mainSpeakingSessionController.isActive &&
+        _mainSpeakingFallbackFlow.canHandle(recognizedText);
   }
 
   Future<void> _handleMainSpeakingCommand(String recognizedText) async {
@@ -1393,17 +1402,33 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final controller = _controller;
     if (voiceController == null ||
         controller == null ||
+        !_mainSpeakingSessionController.isActive ||
         _isFinishingMainSpeakingMode) {
       return;
     }
 
-    final command = _mainSpeakingCommandResolver.resolve(recognizedText);
-    if (command == null) {
+    final turn = _mainSpeakingFallbackFlow.handle(recognizedText);
+    if (turn == null) {
+      return;
+    }
+
+    if (turn.action == MainSpeakingFallbackAction.resumeTranslation) {
+      _hasMainSpeakingTurnStarted = false;
+      final promptText = turn.promptText;
+      if (promptText != null) {
+        controller.clearMessage();
+        await controller.speakAssistantPrompt(promptText);
+      }
+      if (_mainSpeakingSessionController.isActive &&
+          !_isFinishingMainSpeakingMode) {
+        await _startNextMainSpeakingTurn();
+      }
       return;
     }
 
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
+    _mainSpeakingFallbackFlow.reset();
     if (_mainSpeakingSessionController.isActive) {
       _mainSpeakingSessionController.exit();
     }
@@ -1416,11 +1441,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     try {
       // Leave continuous translation before any English result is shown or
-      // played, then open the normal MAIN assistant routing menu.
+      // played. The preceding FB-009 confirmation has made this transition
+      // explicit, so an ordinary sentence never becomes a navigation action.
       if (_usesIosHfpLifecycle) {
         await controller.endContinuousHfpSession();
       }
-      await voiceController.activateOtherLearningFromSpeaking();
+      switch (turn.action) {
+        case MainSpeakingFallbackAction.openOtherLearning:
+          await voiceController.activateOtherLearningFromSpeaking();
+        case MainSpeakingFallbackAction.openMainAssistant:
+          await voiceController.activateFromMainButton();
+        case MainSpeakingFallbackAction.resumeTranslation:
+          return;
+      }
     } finally {
       _isFinishingMainSpeakingMode = false;
       if (mounted) {

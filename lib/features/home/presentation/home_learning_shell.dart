@@ -413,8 +413,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       _voiceNavigationHelpShown = true;
       _showVoiceNavigationMessage(
         widget.controller.displayLanguage == DisplayLanguage.simplifiedChinese
-            ? '请先说：“Hey Pico”，听到回应后再说想打开的功能。'
-            : 'Hãy nói “Hey Pico”. Khi Pipo trả lời, con hãy nói chức năng muốn mở.',
+            ? '请先说：“Hey HOMI”，听到回应后再说想打开的功能。'
+            : 'Hãy nói “Hey HOMI”. Khi HOMI trả lời, bạn hãy nói chức năng muốn mở.',
       );
     }
     widget.voiceNavigationController?.startContinuous();
