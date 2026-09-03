@@ -368,23 +368,20 @@ class JustAudioPlaybackService
           .where((playing) => !playing)
           .map((_) {});
     }
-    final expectedDuration = _player.duration;
-    var currentPlaybackStarted =
-        _player.processingState != ProcessingState.completed &&
-        (_player.playing || _player.position > Duration.zero);
+    final tracker = PlaybackCompletionTracker(
+      processingState: _player.processingState,
+      playing: _player.playing,
+      duration: _player.duration,
+    );
     return _player.playerStateStream
-        .where((state) {
-          if (state.playing &&
-              state.processingState != ProcessingState.completed) {
-            currentPlaybackStarted = true;
-          }
-          return isPlaybackAtSourceEnd(
+        .where(
+          (state) => tracker.observe(
             processingState: state.processingState,
+            playing: state.playing,
             position: _player.position,
-            duration: expectedDuration ?? _player.duration,
-            currentPlaybackStarted: currentPlaybackStarted,
-          );
-        })
+            duration: _player.duration,
+          ),
+        )
         .map((_) {});
   }
 
@@ -569,6 +566,60 @@ bool isPlaybackAtSourceEnd({
   }
   const tolerance = Duration(milliseconds: 200);
   return position >= duration - tolerance;
+}
+
+/// Tracks completion for the playback source that starts after a listener is
+/// attached.
+///
+/// A listener is intentionally armed before [play] so a very short cached clip
+/// cannot finish before the subscription exists. At that moment just_audio can
+/// still expose the duration of the *previous* completed source. Keeping that
+/// stale duration makes a shorter following sentence play normally but never
+/// satisfy the completion predicate, leaving continuous translation in
+/// "preparing audio" until its 30-second safety timeout. This tracker accepts a
+/// duration only after the new playback has actually started.
+class PlaybackCompletionTracker {
+  PlaybackCompletionTracker({
+    required ProcessingState processingState,
+    required bool playing,
+    required Duration? duration,
+  }) : _currentPlaybackStarted =
+           playing && processingState != ProcessingState.completed,
+       _activeDuration = playing && processingState != ProcessingState.completed
+           ? duration
+           : null;
+
+  bool _currentPlaybackStarted;
+  Duration? _activeDuration;
+
+  bool observe({
+    required ProcessingState processingState,
+    required bool playing,
+    required Duration position,
+    required Duration? duration,
+  }) {
+    if (processingState == ProcessingState.loading &&
+        position == Duration.zero) {
+      // A new source invalidates every duration observed for an older source.
+      _activeDuration = null;
+    }
+    if (playing && processingState != ProcessingState.completed) {
+      _currentPlaybackStarted = true;
+    }
+    if (_currentPlaybackStarted &&
+        duration != null &&
+        duration > Duration.zero &&
+        (processingState == ProcessingState.ready ||
+            processingState == ProcessingState.completed)) {
+      _activeDuration = duration;
+    }
+    return isPlaybackAtSourceEnd(
+      processingState: processingState,
+      position: position,
+      duration: _activeDuration,
+      currentPlaybackStarted: _currentPlaybackStarted,
+    );
+  }
 }
 
 class PlaybackException implements Exception {
