@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
@@ -23,6 +24,7 @@ class LessonReviewScreen extends StatefulWidget {
     this.learnNowBuilder,
     this.mode = LessonReviewMode.overview,
     this.hasNextLesson = false,
+    this.voicePromptService,
     super.key,
   });
 
@@ -33,6 +35,7 @@ class LessonReviewScreen extends StatefulWidget {
   final WidgetBuilder? learnNowBuilder;
   final LessonReviewMode mode;
   final bool hasNextLesson;
+  final VoicePromptService? voicePromptService;
 
   @override
   State<LessonReviewScreen> createState() => _LessonReviewScreenState();
@@ -53,6 +56,8 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
   bool _handingOffMediaPlayback = false;
   bool _pausedForMainAssistant = false;
   bool _resumeAutoReviewAfterMain = false;
+  VoicePromptService? _voicePromptService;
+  bool _ownsVoicePromptService = false;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -63,13 +68,24 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
   @override
   bool get isPausedForMain => _pausedForMainAssistant;
 
+  VoicePromptService get _prompt {
+    final current = _voicePromptService;
+    if (current != null) return current;
+    _ownsVoicePromptService = true;
+    return _voicePromptService = createVoicePromptService();
+  }
+
   @override
   void initState() {
     super.initState();
+    _voicePromptService = widget.voicePromptService;
     if (widget.mode == LessonReviewMode.overview) {
       _startCompletionUnlockTimer();
     } else {
       _completionUnlockSeconds = 0;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_announceLearnedReview()),
+      );
     }
   }
 
@@ -100,6 +116,14 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
     _completionUnlockTimer?.cancel();
     if (!_handingOffMediaPlayback) {
       widget.mediaService.stopPlayback();
+    }
+    final prompt = _voicePromptService;
+    if (prompt != null) {
+      if (_ownsVoicePromptService) {
+        unawaited(prompt.dispose());
+      } else {
+        unawaited(prompt.stop());
+      }
     }
     super.dispose();
   }
@@ -493,6 +517,26 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
     // so dispose must not stop the newly started audio on the shared service.
     _handingOffMediaPlayback = true;
     Navigator.of(context).pop(action);
+  }
+
+  Future<void> _announceLearnedReview() async {
+    if (!mounted ||
+        _pausedForMainAssistant ||
+        widget.mode != LessonReviewMode.learned) {
+      return;
+    }
+    final prompt = widget.hasNextLesson
+        ? 'Giỏi lắm! Con đã hoàn thành bài học. Bấm nút Main rồi nói “Bài tiếp theo” để học tiếp, hoặc nói “Luyện lại” để học lại từ đầu nhé.'
+        : 'Giỏi lắm! Con đã hoàn thành bài học. Bấm nút Main rồi nói “Luyện nghe” để chọn bài khác, hoặc nói “Luyện lại” để học lại từ đầu nhé.';
+    setState(() => _message = prompt);
+    try {
+      await widget.mediaService.prepareSelectedLessonOutput();
+      if (!mounted || _pausedForMainAssistant) return;
+      await _prompt.speakAndWait(prompt);
+    } catch (_) {
+      // The on-screen instruction and physical MAIN path still work if a
+      // transient audio route or TTS failure prevents the announcement.
+    }
   }
 
   Future<void> _startLearning() async {

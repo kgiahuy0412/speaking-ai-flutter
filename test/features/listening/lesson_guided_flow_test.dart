@@ -1266,6 +1266,39 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('learned review announces the next H20 action', (tester) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final voicePrompt = _FakeVoicePromptService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonReviewScreen(
+          language: DisplayLanguage.vietnamese,
+          lesson: _lesson(sentenceCount: 2),
+          mediaService: mediaService,
+          mode: LessonReviewMode.learned,
+          hasNextLesson: true,
+          voicePromptService: voicePrompt,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      voicePrompt.spoken,
+      contains(
+        'vi-VN|Giỏi lắm! Con đã hoàn thành bài học. Bấm nút Main rồi nói “Bài tiếp theo” để học tiếp, hoặc nói “Luyện lại” để học lại từ đầu nhé.',
+      ),
+    );
+    expect(find.textContaining('Bấm nút Main rồi nói'), findsOneWidget);
+    expect(mediaService.selectedOutputPreparationCount, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets('review only auto-plays after the toggle is activated', (
     tester,
   ) async {
