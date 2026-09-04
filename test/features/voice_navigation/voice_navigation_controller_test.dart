@@ -102,6 +102,34 @@ void main() {
     await speechInput.dispose();
   });
 
+  test(
+    'MAIN handles an unambiguous fallback phrase from a stable partial',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput();
+      final voicePrompt = _FakeVoicePromptService();
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: voicePrompt,
+        partialIntentDebounce: const Duration(milliseconds: 1),
+      );
+      VoiceNavigationIntent? receivedIntent;
+      controller.setIntentHandler((intent) => receivedIntent = intent);
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      await _waitUntil(() => controller.isListening);
+      speechInput.emitPartial('Con muốn học từ vựng');
+      await _waitUntil(() => receivedIntent != null);
+
+      expect(
+        receivedIntent?.destination,
+        VoiceNavigationDestination.vocabulary,
+      );
+      expect(speechInput.events, contains('cancel'));
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
   test('iOS MAIN prompts use the selected H20 media output', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);

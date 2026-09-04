@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.StatFs
-import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -20,6 +19,12 @@ class MainActivity : FlutterActivity() {
     private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
     private var voicePromptBridge: VoicePromptBridge? = null
+    private val installationCredentialStore by lazy {
+        AndroidInstallationCredentialStore(applicationContext)
+    }
+    private val clientIdentityStore by lazy {
+        AndroidClientIdentityStore(applicationContext)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -58,7 +63,22 @@ class MainActivity : FlutterActivity() {
             methodChannelName,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "device.clientId" -> result.success(clientId())
+                "device.clientId" -> result.success(clientIdentityStore.getOrCreate())
+                "device.resetClientId" -> result.success(clientIdentityStore.reset())
+                "auth.credentials.read" -> result.success(installationCredentialStore.read())
+                "auth.credentials.write" -> {
+                    val encoded = call.arguments as? String
+                    if (encoded.isNullOrBlank()) {
+                        result.error(
+                            "invalid_credentials",
+                            "Installation credential không hợp lệ.",
+                            null,
+                        )
+                    } else {
+                        result.success(installationCredentialStore.write(encoded))
+                    }
+                }
+                "auth.credentials.clear" -> result.success(installationCredentialStore.clear())
                 "device.hardwareInfo" -> result.success(hardwareInfo())
                 "device.protocolInfo" -> result.success(protocolInfo())
                 "ble.isSupported" ->
@@ -155,15 +175,6 @@ class MainActivity : FlutterActivity() {
             permissions,
             grantResults,
         )
-    }
-
-    private fun clientId(): String {
-        val androidId =
-            Settings.Secure.getString(
-                contentResolver,
-                Settings.Secure.ANDROID_ID,
-            )
-        return "android_$androidId"
     }
 
     private fun hardwareInfo(): Map<String, Any> {

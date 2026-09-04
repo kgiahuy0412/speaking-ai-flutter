@@ -299,7 +299,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(mediaService.recording, isTrue);
       expect(find.text('Sentence 1'), findsOneWidget);
-      expect(voicePrompts.spoken, contains('vi-VN|Con tập trung học đi'));
+      expect(
+        voicePrompts.spoken,
+        contains('vi-VN|Gần được rồi! Con nghe lại câu này nhé.'),
+      );
       expect(progressStore.needsPractice, contains(0));
       expect(vocabularyStore.entries, hasLength(1));
       expect(
@@ -311,17 +314,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(mediaService.recording, isTrue);
-      expect(find.text('Sentence 2'), findsOneWidget);
+      expect(find.text('Sentence 1'), findsOneWidget);
       expect(progressStore.needsPractice, contains(0));
       expect(
         voicePrompts.spoken.where(
-          (message) => message == 'vi-VN|Con tập trung học đi',
+          (message) =>
+              message == 'vi-VN|Gần được rồi! Con nghe lại câu này nhé.',
         ),
         hasLength(1),
       );
       expect(
         voicePrompts.spoken,
-        contains('vi-VN|Mình cùng học câu khác nhé!'),
+        contains('vi-VN|Bây giờ con thử nói lại lần nữa nhé.'),
+      );
+      expect(
+        voicePrompts.spoken,
+        isNot(contains('vi-VN|Mình cùng học câu khác nhé!')),
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -374,7 +382,7 @@ void main() {
     },
   );
 
-  testWidgets('V2 moves to the next sentence after two unclear recordings', (
+  testWidgets('V2 keeps the same sentence after two unclear recordings', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -407,7 +415,7 @@ void main() {
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sentence 2'), findsOneWidget);
+    expect(find.text('Sentence 1'), findsOneWidget);
     expect(mediaService.recording, isTrue);
     expect(progressStore.needsPractice, contains(0));
     expect(
@@ -416,7 +424,14 @@ void main() {
       ),
       hasLength(1),
     );
-    expect(voicePrompts.spoken, contains('vi-VN|Mình cùng học câu khác nhé!'));
+    expect(
+      voicePrompts.spoken,
+      contains('vi-VN|Bây giờ con thử nói lại lần nữa nhé.'),
+    );
+    expect(
+      voicePrompts.spoken,
+      isNot(contains('vi-VN|Mình cùng học câu khác nhé!')),
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

@@ -36,6 +36,7 @@ class AndroidSpeechRecognizerBridge(
     private var listening = false
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingPermissionCommandMode = false
+    private var pendingPermissionPreferOnDevice = false
     private var capturedPcm = ByteArrayOutputStream()
     private var capturedAudioFile: File? = null
     private var injectedAudioRead: ParcelFileDescriptor? = null
@@ -79,6 +80,7 @@ class AndroidSpeechRecognizerBridge(
         result: MethodChannel.Result,
     ) {
         val commandMode = call.argument<Boolean>("commandMode") == true
+        val preferOnDevice = call.argument<Boolean>("preferOnDevice") == true
         if (
             activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED
@@ -94,6 +96,7 @@ class AndroidSpeechRecognizerBridge(
 
             pendingPermissionResult = result
             pendingPermissionCommandMode = commandMode
+            pendingPermissionPreferOnDevice = preferOnDevice
             activity.requestPermissions(
                 arrayOf(Manifest.permission.RECORD_AUDIO),
                 microphonePermissionRequestCode,
@@ -101,12 +104,13 @@ class AndroidSpeechRecognizerBridge(
             return
         }
 
-        startRecognizer(result, commandMode)
+        startRecognizer(result, commandMode, preferOnDevice)
     }
 
     private fun startRecognizer(
         result: MethodChannel.Result,
         commandMode: Boolean = false,
+        preferOnDevice: Boolean = false,
     ) {
         if (!ensureRecognizer()) {
             result.error(
@@ -124,11 +128,14 @@ class AndroidSpeechRecognizerBridge(
         resetCapturedAudio()
 
         listening = true
-        recognizer?.startListening(createRecognizerIntent(commandMode))
+        recognizer?.startListening(createRecognizerIntent(commandMode, preferOnDevice))
         result.success(true)
     }
 
-    private fun createRecognizerIntent(commandMode: Boolean = false): Intent =
+    private fun createRecognizerIntent(
+        commandMode: Boolean = false,
+        preferOnDevice: Boolean = false,
+    ): Intent =
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -136,6 +143,13 @@ class AndroidSpeechRecognizerBridge(
                 )
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+                // MAIN commands come from a fixed local corpus. Prefer the
+                // installed Android recognition model so short navigation
+                // phrases do not wait for a remote recognizer when offline
+                // Vietnamese support is available on the device.
+                if (preferOnDevice) {
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                }
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(
@@ -275,6 +289,8 @@ class AndroidSpeechRecognizerBridge(
         pendingPermissionResult = null
         val commandMode = pendingPermissionCommandMode
         pendingPermissionCommandMode = false
+        val preferOnDevice = pendingPermissionPreferOnDevice
+        pendingPermissionPreferOnDevice = false
 
         if (pendingResult == null) {
             return true
@@ -284,7 +300,7 @@ class AndroidSpeechRecognizerBridge(
             grantResults.firstOrNull() ==
                 PackageManager.PERMISSION_GRANTED
         ) {
-            startRecognizer(pendingResult, commandMode)
+            startRecognizer(pendingResult, commandMode, preferOnDevice)
         } else {
             pendingResult.error(
                 "MICROPHONE_PERMISSION_DENIED",
@@ -512,6 +528,7 @@ class AndroidSpeechRecognizerBridge(
         )
         pendingPermissionResult = null
         pendingPermissionCommandMode = false
+        pendingPermissionPreferOnDevice = false
         recognizer?.cancel()
         closeInjectedAudio()
         recognizer?.destroy()

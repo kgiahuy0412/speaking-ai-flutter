@@ -7,6 +7,7 @@ import '../auth/installation_authenticated_client.dart';
 import 'android_device_hardware.dart';
 
 typedef ClientIdProvider = Future<String> Function();
+typedef ClientIdResetter = Future<void> Function();
 typedef AndroidHardwareProvider = Future<AndroidDeviceHardware> Function();
 
 class DeviceRegistrationService {
@@ -14,6 +15,7 @@ class DeviceRegistrationService {
     required AppConfig config,
     required ClientIdProvider clientIdProvider,
     required AndroidHardwareProvider hardwareProvider,
+    ClientIdResetter? clientIdResetter,
     http.Client? client,
   }) : _config = config,
        _clientIdProvider = clientIdProvider,
@@ -23,6 +25,7 @@ class DeviceRegistrationService {
            InstallationAuthenticatedClient(
              config: config,
              clientIdProvider: clientIdProvider,
+             clientIdResetter: clientIdResetter,
            ),
        _ownsClient = client == null;
 
@@ -33,6 +36,10 @@ class DeviceRegistrationService {
   final bool _ownsClient;
 
   Future<void> register() async {
+    final client = _client;
+    if (client is InstallationAuthenticatedClient) {
+      await client.ensureAuthenticated();
+    }
     final clientId = await _clientIdProvider();
     final hardware = await _hardwareProvider();
     final response = await _client

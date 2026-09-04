@@ -594,7 +594,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     final AndroidStreamingSpeechInput? streamingSpeechInput =
         supportsAndroidNativeSpeech
-        ? AndroidStreamingSpeechInput()
+        ? AndroidStreamingSpeechInput(preferOnDevice: true)
         : supportsAppleNativeSpeech
         ? IOSStreamingSpeechInput(audioRouteControl: hfpAudioControl)
         : null;
@@ -715,6 +715,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       final registrationService = DeviceRegistrationService(
         config: _config,
         clientIdProvider: _clientIdentity.getClientId,
+        clientIdResetter: _clientIdentity.resetClientId,
         hardwareProvider: const AndroidDeviceHardwareReader().read,
       );
       _deviceRegistrationService = registrationService;

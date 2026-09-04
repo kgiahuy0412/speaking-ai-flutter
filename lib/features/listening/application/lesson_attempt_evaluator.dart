@@ -17,13 +17,21 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     AppConfig? config,
     http.Client? client,
     Future<String> Function()? clientIdProvider,
+    Future<void> Function()? clientIdResetter,
   }) {
     final resolvedConfig = config ?? AppConfig.fromEnvironment();
+    // Keep the provider and resetter on the same identity instance. A stale
+    // server registration then rotates both the native id and this object's
+    // cached value before the authenticated client retries the request.
+    final clientIdentity = client == null && clientIdProvider == null
+        ? ClientIdentity()
+        : null;
     final resolvedClientIdProvider =
         clientIdProvider ??
-        (client == null
-            ? ClientIdentity().getClientId
-            : () async => 'android_test-installation');
+        (clientIdentity?.getClientId ??
+            () async => 'android_test-installation');
+    final resolvedClientIdResetter =
+        clientIdResetter ?? clientIdentity?.resetClientId;
     return BackendLessonAttemptEvaluator._(
       config: resolvedConfig,
       clientIdProvider: resolvedClientIdProvider,
@@ -32,6 +40,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
           InstallationAuthenticatedClient(
             config: resolvedConfig,
             clientIdProvider: resolvedClientIdProvider,
+            clientIdResetter: resolvedClientIdResetter,
           ),
     );
   }
@@ -60,6 +69,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     Iterable<String> acceptedVariants = const <String>[],
     bool requireAllExpectedTokens = false,
   }) async {
+    await _ensureInstallationAuthenticated();
     final clientId = await _clientIdProvider();
     Uint8List? webBytes;
     if (recordingPath.startsWith('blob:')) {
@@ -100,7 +110,12 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
       );
     }
 
-    return _parseLessonAttemptResponse(response);
+    return _parseLessonAttemptResponse(
+      response,
+      expectedEnglish: expectedEnglish,
+      acceptedVariants: acceptedVariants,
+      requireAllExpectedTokens: requireAllExpectedTokens,
+    );
   }
 
   Future<http.Response> _postLessonAttempt({
@@ -144,7 +159,12 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     return http.Response.fromStream(await _send(request));
   }
 
-  LessonAttemptOutcome _parseLessonAttemptResponse(http.Response response) {
+  LessonAttemptOutcome _parseLessonAttemptResponse(
+    http.Response response, {
+    required String expectedEnglish,
+    required Iterable<String> acceptedVariants,
+    required bool requireAllExpectedTokens,
+  }) {
     Object? decoded;
     try {
       decoded = jsonDecode(response.body);
@@ -181,7 +201,42 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
         'Kết quả kiểm tra câu nói không hợp lệ. Con thử lại sau nhé.',
       );
     }
-    return matched ? LessonAttemptOutcome.good : LessonAttemptOutcome.retry;
+    if (matched) {
+      return LessonAttemptOutcome.good;
+    }
+
+    // Some deployed evaluators use a stricter server-side matcher than the V4
+    // authored recognition inventory. When they already return an English
+    // transcript, apply that inventory locally before telling a child they are
+    // wrong. This does not accept arbitrary audio: every expected token and
+    // authored variant is still checked by the lesson matcher.
+    final transcript = _recognizedEnglishFrom(decoded);
+    if (transcript != null &&
+        matchesRecognizedLessonEnglish(
+          expectedEnglish,
+          transcript,
+          acceptedVariants: acceptedVariants,
+          requireAllExpectedTokens: requireAllExpectedTokens,
+        )) {
+      return LessonAttemptOutcome.good;
+    }
+    return LessonAttemptOutcome.retry;
+  }
+
+  String? _recognizedEnglishFrom(Object? decoded) {
+    if (decoded is! Map<String, dynamic>) return null;
+    for (final field in const <String>[
+      'englishText',
+      'transcript',
+      'recognizedText',
+      'text',
+    ]) {
+      final value = decoded[field];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 
   Future<LessonAttemptOutcome> _evaluateWithAudioTranslationFallback({
@@ -254,6 +309,13 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
   }
 
   void dispose() => _client.close();
+
+  Future<void> _ensureInstallationAuthenticated() async {
+    final client = _client;
+    if (client is InstallationAuthenticatedClient) {
+      await client.ensureAuthenticated();
+    }
+  }
 
   Future<http.Response> _get(Uri uri) async {
     try {

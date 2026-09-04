@@ -41,6 +41,22 @@ void main() {
     },
   );
 
+  test(
+    'accepts a matching recognizer transcript after a stale backend false negative',
+    () async {
+      final evaluator = BackendLessonAttemptEvaluator(
+        config: _config,
+        client: _lessonAttemptClient(matched: false, transcript: 'Make calls.'),
+      );
+
+      expect(
+        await _evaluate(evaluator, expectedEnglish: 'Make calls.'),
+        LessonAttemptOutcome.good,
+      );
+      evaluator.dispose();
+    },
+  );
+
   test('keeps unclear or silent audio separate from a wrong answer', () async {
     final evaluator = BackendLessonAttemptEvaluator(
       config: _config,

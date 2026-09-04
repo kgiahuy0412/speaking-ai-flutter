@@ -15,8 +15,8 @@ import '../domain/listening_content.dart';
 /// Runs the authored V4 end-of-lesson activity.
 ///
 /// Each challenge keeps the two options written by the curriculum team, but
-/// the microphone is the answer control: a child must say the entire English
-/// answer, rather than selecting A/B.  When V4 supplies a role-play, it is
+/// the microphone is the answer control: a child must say the English answer,
+/// rather than selecting A/B.  When V4 supplies a role-play, it is
 /// completed immediately before the two challenges and only the child's turns
 /// are recorded and scored.
 class LessonChallengeScreen extends StatefulWidget {
@@ -27,6 +27,7 @@ class LessonChallengeScreen extends StatefulWidget {
     required this.challenges,
     required this.mediaService,
     this.attemptEvaluator,
+    this.voicePromptService,
     super.key,
   });
 
@@ -36,12 +37,15 @@ class LessonChallengeScreen extends StatefulWidget {
   final List<ListeningChallengeContent> challenges;
   final LessonMediaService mediaService;
   final LessonAttemptEvaluator? attemptEvaluator;
+  final VoicePromptService? voicePromptService;
 
   @override
   State<LessonChallengeScreen> createState() => _LessonChallengeScreenState();
 }
 
 class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
+  static const Duration _automaticAnswerWindow = Duration(seconds: 6);
+
   late final LessonAttemptEvaluator _attemptEvaluator;
   late final bool _ownsAttemptEvaluator;
 
@@ -56,6 +60,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   bool _busy = false;
   String? _message;
   int _request = 0;
+  Timer? _recordingAutoStopTimer;
 
   bool get _hasRolePlay {
     final rolePlay = widget.lesson.rolePlay;
@@ -76,6 +81,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   ListeningChallengeContent get _challenge =>
       widget.challenges[_challengeIndex];
 
+  /// A HOMI line is playback-only. Every challenge and child role-play line
+  /// opens the selected H20 microphone as soon as the coach prompt ends.
+  bool get _shouldAutomaticallyRecord =>
+      !_inRolePlay || _rolePlayTurn?.speaker == ListeningRolePlaySpeaker.child;
+
   VoicePromptService get _prompt {
     final current = _voicePromptService;
     if (current != null) return current;
@@ -89,6 +99,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
         widget.attemptEvaluator ?? BackendLessonAttemptEvaluator();
+    _voicePromptService = widget.voicePromptService;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_playCurrentPrompt()),
     );
@@ -97,6 +108,8 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   @override
   void dispose() {
     _request += 1;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
     unawaited(widget.mediaService.stopPlayback());
     if (_recording) {
       unawaited(widget.mediaService.cancelRecording());
@@ -134,7 +147,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
       } else {
         await _prompt.speakAndWait(_challenge.prompt);
         if (!mounted || request != _request) return;
-        await _prompt.speakAndWait('Bạn nói đầy đủ câu tiếng Anh nhé.');
+        await _prompt.speakAndWait('Bạn nói đáp án bằng tiếng Anh nhé.');
       }
     } catch (_) {
       // The written prompt and recording controls stay available when TTS is
@@ -144,6 +157,14 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         setState(() => _playingPrompt = false);
       }
     }
+    if (!mounted ||
+        request != _request ||
+        !_shouldAutomaticallyRecord ||
+        _recording ||
+        _busy) {
+      return;
+    }
+    await _startRecording();
   }
 
   Future<void> _startRecording() async {
@@ -170,6 +191,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         _recording = true;
         _busy = false;
       });
+      _recordingAutoStopTimer?.cancel();
+      _recordingAutoStopTimer = Timer(
+        _automaticAnswerWindow,
+        () => unawaited(_stopRecording()),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -181,7 +207,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
 
   Future<void> _stopRecording() async {
     if (!_recording || _busy || !mounted) return;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
     setState(() => _busy = true);
+    var shouldOpenMicrophoneAgain = false;
     try {
       final recording = await widget.mediaService.stopRecording();
       if (!mounted) return;
@@ -197,7 +226,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         requireAllExpectedTokens: true,
       );
       if (!mounted) return;
-      await _applyOutcome(outcome);
+      shouldOpenMicrophoneAgain = await _applyOutcome(outcome);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -207,23 +236,37 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    // `_advance` has already finished the next coach prompt by this point.
+    // Wait until the scoring state is released before claiming the H20 route;
+    // otherwise the second challenge silently leaves its microphone closed.
+    if (shouldOpenMicrophoneAgain && mounted && !_recording) {
+      await _startRecording();
+    }
   }
 
-  Future<void> _applyOutcome(LessonAttemptOutcome outcome) async {
+  Future<bool> _applyOutcome(LessonAttemptOutcome outcome) async {
     if (outcome == LessonAttemptOutcome.good) {
-      await _advance();
-      return;
+      return _advance();
     }
     final message = switch (outcome) {
       LessonAttemptOutcome.unclear => 'Cô chưa nghe rõ. Bạn nói lại nhé.',
       LessonAttemptOutcome.retry || LessonAttemptOutcome.needsPractice =>
-        'Bạn nói đầy đủ cả câu tiếng Anh nhé.',
+        _inRolePlay
+            ? 'Bạn nói đầy đủ cả câu tiếng Anh nhé.'
+            : 'Bạn nói lại đáp án bằng tiếng Anh nhé.',
       LessonAttemptOutcome.good => '',
     };
     if (mounted) setState(() => _message = message);
+    try {
+      await _prompt.speakAndWait(message);
+    } catch (_) {
+      // The written feedback remains visible; recording still resumes so a
+      // temporary TTS outage never forces the child to use the phone.
+    }
+    return mounted;
   }
 
-  Future<void> _advance() async {
+  Future<bool> _advance() async {
     if (_inRolePlay) {
       final nextIndex = _rolePlayTurnIndex + 1;
       if (nextIndex < widget.lesson.rolePlay!.turns.length) {
@@ -233,7 +276,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
           _message = null;
         });
         await _playCurrentPrompt(allowBusy: true);
-        return;
+        return true;
       }
       setState(() {
         _rolePlayCompleted = true;
@@ -241,7 +284,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         _message = null;
       });
       await _playCurrentPrompt(allowBusy: true);
-      return;
+      return true;
     }
 
     if (_challengeIndex < widget.challenges.length - 1) {
@@ -251,9 +294,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         _message = null;
       });
       await _playCurrentPrompt(allowBusy: true);
-      return;
+      return true;
     }
     if (mounted) Navigator.of(context).pop(true);
+    return false;
   }
 
   Future<void> _restartRolePlay() async {
@@ -523,7 +567,7 @@ class _ChallengeCard extends StatelessWidget {
           ],
           const SizedBox(height: 4),
           Text(
-            'Hãy nói cả câu tiếng Anh đúng, không nói A hoặc B.',
+            'Hãy nói đáp án bằng tiếng Anh, không nói A hoặc B.',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),

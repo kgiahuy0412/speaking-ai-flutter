@@ -1076,6 +1076,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         }
         _needsPracticeSentenceIndexes.remove(sentenceIndex);
         _showPraiseFireworks();
+        setState(() => _message = LessonGuideFlowV2.good.text);
         await _playPrompt(LessonGuideFlowV2.good);
         if (!_isCurrentEvaluation(
           evaluationRequest,
@@ -1096,29 +1097,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           )) {
             return;
           }
-          setState(() {
-            _recordingPath = null;
-            _recordingDuration = null;
-            _message = LessonGuideFlowV2.moveToNext.text;
-          });
-          await _playPrompt(LessonGuideFlowV2.moveToNext);
-          if (!_isCurrentEvaluation(
-            evaluationRequest,
-            sentenceIndex,
-            sentence.id,
-          )) {
-            return;
-          }
-          await _advanceToNext(autoPlaySentence: true);
-          return;
         }
+        final prompt = attemptNumber == 1
+            ? LessonGuideFlowV2.unclear
+            : LessonGuideFlowV2.retrySecond;
         setState(() {
           _attemptNumber += 1;
           _recordingPath = null;
           _recordingDuration = null;
-          _message = LessonGuideFlowV2.unclear.text;
+          _message = prompt.text;
         });
-        await _playPrompt(LessonGuideFlowV2.unclear);
+        await _playPrompt(prompt);
         if (!_isCurrentEvaluation(
           evaluationRequest,
           sentenceIndex,
@@ -1137,30 +1126,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         )) {
           return;
         }
-        if (attemptNumber >= 2) {
-          setState(() {
-            _recordingPath = null;
-            _recordingDuration = null;
-            _message = LessonGuideFlowV2.moveToNext.text;
-          });
-          await _playPrompt(LessonGuideFlowV2.moveToNext);
-          if (!_isCurrentEvaluation(
-            evaluationRequest,
-            sentenceIndex,
-            sentence.id,
-          )) {
-            return;
-          }
-          await _advanceToNext(autoPlaySentence: true);
-          return;
-        }
+        final prompt = attemptNumber == 1
+            ? LessonGuideFlowV2.retryFirst
+            : LessonGuideFlowV2.retrySecond;
         setState(() {
           _attemptNumber += 1;
           _recordingPath = null;
           _recordingDuration = null;
-          _message = LessonGuideFlowV2.focusAndRetry.text;
+          _message = prompt.text;
         });
-        await _playPrompt(LessonGuideFlowV2.focusAndRetry);
+        await _playPrompt(prompt);
         if (!_isCurrentEvaluation(
           evaluationRequest,
           sentenceIndex,
@@ -2314,7 +2289,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted) {
       return;
     }
-    setState(() => _message = message);
+    setState(() => _message = _childFriendlyMessage(message));
+  }
+
+  String _childFriendlyMessage(String message) {
+    final normalized = message.toLowerCase();
+    if (normalized.contains('credential') ||
+        normalized.contains('installation') ||
+        normalized.contains('xác thực')) {
+      return 'HOMI đang làm mới kết nối. Con nhấn ghi âm lại nhé.';
+    }
+    return message;
   }
 }
 

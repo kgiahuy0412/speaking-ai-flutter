@@ -401,8 +401,9 @@ def add_title_page(doc: Document) -> None:
     doc.add_page_break()
 
 
-def add_vietnamese(doc: Document, bullet_num: int) -> None:
-    add_heading(doc, "PHẦN A - BẢN TIẾNG VIỆT", 1)
+def add_vietnamese(doc: Document, bullet_num: int, *, include_part_heading: bool = True) -> None:
+    if include_part_heading:
+        add_heading(doc, "PHẦN A - BẢN TIẾNG VIỆT", 1)
     add_heading(doc, "1. Kết luận từ hai tài liệu ODM cung cấp", 2)
     add_table(
         doc,
@@ -414,7 +415,7 @@ def add_vietnamese(doc: Document, bullet_num: int) -> None:
                 "Không ghi rõ Bluetooth Classic, HFP, BLE GATT, A2DP/AVRCP hoặc OTA. Không được dùng tài liệu này làm bằng chứng rằng điện thoại có thể kết nối HFP + BLE.",
             ],
             [
-                "天地盖.pdf - bản vẽ hộp nắp/đáy",
+                "Bản vẽ hộp nắp/đáy do ODM cung cấp",
                 "Nắp trên khoảng 120 x 90 x 18 mm; đáy dưới khoảng 116 x 86 x 26 mm.",
                 "Chưa có vật liệu, độ dày, dung sai, khay giữ thiết bị, phụ kiện, vùng in và đường bleed.",
             ],

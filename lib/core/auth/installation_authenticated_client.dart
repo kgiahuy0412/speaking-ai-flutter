@@ -24,6 +24,11 @@ class InstallationAuthenticatedClient extends http.BaseClient {
   final http.Client _inner;
   final InstallationAuthSession _session;
 
+  /// Ensures an installation credential is valid before a caller serializes
+  /// a request body containing its client id. A registration conflict can
+  /// rotate the native id, so this must happen before that id is read.
+  Future<void> ensureAuthenticated() => _session.accessToken();
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     var attachedInstallationToken = false;

@@ -633,7 +633,11 @@ class AndroidStreamingSpeechInput
       await _methodChannel
           .invokeMethod<void>('speech.start', {
             'commandMode': commandMode,
-            'preferOnDevice': _preferOnDevice,
+            // Navigation commands use a fixed local corpus. Keep the wider
+            // conversation/translation flow eligible for Android's normal
+            // recognition service, but prefer an installed on-device model
+            // for the short MAIN command turn.
+            'preferOnDevice': commandMode && _preferOnDevice,
             'audioSource': audioSource.channelValue,
             'locale': ?localeIdentifier,
           })

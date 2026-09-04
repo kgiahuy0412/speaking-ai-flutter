@@ -8,6 +8,23 @@ import 'package:ai_speaking_flutter_app/features/vocabulary/domain/vocabulary_en
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'fast path accepts unambiguous fallback phrases but defers broad input',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+      flow.begin();
+
+      expect(flow.canHandlePartial('Con muốn học từ vựng'), isTrue);
+      expect(flow.canHandlePartial('Học theo chủ đề'), isTrue);
+      expect(flow.canHandlePartial('Mình muốn học'), isFalse);
+      expect(flow.canHandlePartial('Dừng lại'), isTrue);
+
+      await flow.handle('Học theo chủ đề');
+      expect(flow.stage, MainVoiceAssistantStage.askAge);
+      expect(flow.canHandlePartial('Con 6 tuổi'), isFalse);
+    },
+  );
+
   test('chooses continuous translation after the Main menu', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
 

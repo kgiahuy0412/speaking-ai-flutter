@@ -237,11 +237,52 @@ class MainVoiceAssistantFlow {
         (_stage != MainVoiceAssistantStage.idle && _isHelpChoice(normalized));
   }
 
-  /// MAIN commands wait for the final ASR result. The approved corpus includes
-  /// useful but deliberately broad phrases such as "mình muốn học"; treating
-  /// a partial transcript as final could send "mình muốn học từ mới" to the
-  /// topic flow before the word "từ" arrives.
-  bool canHandlePartial(String recognizedText) => false;
+  /// Returns true only for a complete, unambiguous local command. The 500
+  /// fallback phrases are resolved on-device once Android produces a stable
+  /// partial transcript; number choices and broad phrases still wait for the
+  /// final ASR result so "mình muốn học từ mới" never becomes a topic request
+  /// before the final words arrive.
+  bool canHandlePartial(String recognizedText) {
+    final normalized = _normalize(recognizedText);
+    if (normalized.isEmpty || _looksLikePromptEcho(normalized)) {
+      return false;
+    }
+    if (_isStopChoice(normalized)) {
+      return _stage != MainVoiceAssistantStage.idle;
+    }
+    return switch (_stage) {
+      MainVoiceAssistantStage.chooseFeature ||
+      MainVoiceAssistantStage.chooseOtherLearning ||
+      MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
+        _isUnambiguousFeatureChoice(normalized),
+      MainVoiceAssistantStage.chooseTranslationMode =>
+        _isContinuousTranslationChoice(normalized),
+      MainVoiceAssistantStage.chooseVocabularyCollection =>
+        _isReviewVocabularyChoice(normalized) ||
+            _isStarVocabularyChoice(normalized),
+      MainVoiceAssistantStage.activeLearning =>
+        _activeLearningCommandResolver.resolve(
+                  normalized,
+                  state: _activeLearningSpeechState,
+                ) !=
+                null ||
+            _isLeaveActiveLearningChoice(normalized),
+      MainVoiceAssistantStage.confirmReplayTopic =>
+        _isAffirmativeChoice(normalized) || _isNegativeChoice(normalized),
+      MainVoiceAssistantStage.confirmReplayLesson =>
+        _isReplayLessonChoice(normalized) ||
+            _isContinueLessonChoice(normalized) ||
+            _isAffirmativeChoice(normalized) ||
+            _isNegativeChoice(normalized),
+      // A number can arrive after a partial prefix ("chủ đề số ..."), so
+      // selecting age, topic, or lesson always waits for the final transcript.
+      MainVoiceAssistantStage.askAge ||
+      MainVoiceAssistantStage.chooseTopic ||
+      MainVoiceAssistantStage.chooseTopicAfterCompletion ||
+      MainVoiceAssistantStage.chooseLesson ||
+      MainVoiceAssistantStage.idle => false,
+    };
+  }
 
   bool _hasStageSpecificIntent(String normalized) => switch (_stage) {
     MainVoiceAssistantStage.chooseFeature =>
@@ -1099,6 +1140,21 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'noi chuyen') ||
       _containsPhrase(normalized, 'con muon noi') ||
       normalized == 'noi';
+
+  static bool _isUnambiguousFeatureChoice(String normalized) =>
+      _containsPhrase(normalized, 'hoc tu vung') ||
+      _containsPhrase(normalized, 'hoc tu moi') ||
+      _containsPhrase(normalized, 'luyen tu') ||
+      _containsPhrase(normalized, 'tu vung') ||
+      _containsPhrase(normalized, 'tu moi') ||
+      _containsPhrase(normalized, 'hoc theo chu de') ||
+      _containsPhrase(normalized, 'hoc chu de') ||
+      _containsPhrase(normalized, 'hoc tinh huong') ||
+      _containsPhrase(normalized, 'dich tieng anh') ||
+      _containsPhrase(normalized, 'dich sang tieng anh') ||
+      _containsPhrase(normalized, 'luyen noi') ||
+      _containsPhrase(normalized, 'luyen giao tiep') ||
+      _containsPhrase(normalized, 'noi chuyen');
 
   static bool _isContinuousTranslationChoice(String normalized) =>
       _controlledSpeechLexicon

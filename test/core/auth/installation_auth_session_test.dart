@@ -47,6 +47,7 @@ void main() {
       }),
     );
 
+    await apiClient.ensureAuthenticated();
     await apiClient.get(config.resolve('/api/history'));
     await apiClient.get(config.resolve('/api/history'));
 
