@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
@@ -11,8 +12,225 @@ import '../../../core/device/client_identity.dart';
 import '../../../core/network/multipart_audio_file.dart';
 import '../domain/lesson_guide_flow.dart';
 import '../domain/lesson_recognition.dart';
+import 'lesson_audio_format.dart';
 
-class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
+abstract interface class DisposableLessonAttemptEvaluator {
+  void dispose();
+}
+
+class LessonRecordedSpeechRecognition {
+  const LessonRecordedSpeechRecognition({
+    required this.transcript,
+    this.alternatives = const <String>[],
+  });
+
+  final String transcript;
+  final List<String> alternatives;
+}
+
+class LessonRecordedSpeechRecognitionException implements Exception {
+  const LessonRecordedSpeechRecognitionException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+abstract interface class LessonRecordedSpeechRecognizer {
+  Future<LessonRecordedSpeechRecognition> recognizeFile({
+    required String path,
+    String locale = 'vi-VN',
+    bool preferOnDevice = false,
+    bool requireOnDevice = false,
+  });
+}
+
+class MethodChannelLessonRecordedSpeechRecognizer
+    implements LessonRecordedSpeechRecognizer {
+  const MethodChannelLessonRecordedSpeechRecognizer({
+    MethodChannel channel = const MethodChannel('ailingo_speech'),
+    Duration timeout = const Duration(seconds: 15),
+  }) : _channel = channel,
+       _timeout = timeout;
+
+  final MethodChannel _channel;
+  final Duration _timeout;
+
+  @override
+  Future<LessonRecordedSpeechRecognition> recognizeFile({
+    required String path,
+    String locale = 'vi-VN',
+    bool preferOnDevice = false,
+    bool requireOnDevice = false,
+  }) async {
+    try {
+      final payload = await _channel
+          .invokeMethod<Object?>('speech.recognizeFileOnce', <String, Object?>{
+            'path': path,
+            'sampleRate': 16000,
+            'locale': locale,
+            'preferOnDevice': preferOnDevice,
+            'requireOnDevice': requireOnDevice,
+          })
+          .timeout(_timeout);
+      if (payload is! Map<Object?, Object?>) {
+        throw const LessonRecordedSpeechRecognitionException(
+          'RECORDED_AUDIO_RESULT_INVALID',
+          'Kết quả nhận diện Android không hợp lệ.',
+        );
+      }
+      final transcript = payload['text'];
+      final alternatives = payload['alternatives'];
+      return LessonRecordedSpeechRecognition(
+        transcript: transcript is String ? transcript.trim() : '',
+        alternatives: alternatives is List<Object?>
+            ? alternatives
+                  .whereType<String>()
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty)
+                  .toList(growable: false)
+            : const <String>[],
+      );
+    } on TimeoutException {
+      try {
+        await _channel
+            .invokeMethod<void>('speech.cancel')
+            .timeout(const Duration(seconds: 2));
+      } catch (_) {
+        // Native cleanup is best-effort after a bounded recognition timeout.
+      }
+      throw const LessonRecordedSpeechRecognitionException(
+        'SPEECH_TIMEOUT',
+        'Nhận diện bản ghi âm mất quá nhiều thời gian.',
+      );
+    } on MissingPluginException {
+      throw const LessonRecordedSpeechRecognitionException(
+        'ON_DEVICE_SPEECH_UNAVAILABLE',
+        'Thiết bị chưa có bộ nhận diện giọng nói offline.',
+      );
+    } on PlatformException catch (error) {
+      throw LessonRecordedSpeechRecognitionException(
+        error.code,
+        error.message ?? 'Không thể nhận diện bản ghi âm.',
+      );
+    }
+  }
+}
+
+/// Keeps normal online lesson scoring unchanged. Only a backend connectivity
+/// failure activates strict English recognition with the installed Android
+/// on-device model.
+class BackendFirstLessonAttemptEvaluator
+    implements LessonAttemptEvaluator, DisposableLessonAttemptEvaluator {
+  BackendFirstLessonAttemptEvaluator({
+    required LessonAttemptEvaluator backendEvaluator,
+    LessonRecordedSpeechRecognizer recognizer =
+        const MethodChannelLessonRecordedSpeechRecognizer(),
+  }) : _backendEvaluator = backendEvaluator,
+       _recognizer = recognizer;
+
+  final LessonAttemptEvaluator _backendEvaluator;
+  final LessonRecordedSpeechRecognizer _recognizer;
+
+  @override
+  Future<LessonAttemptOutcome> evaluate({
+    required String lessonCode,
+    required String sentenceId,
+    required String expectedEnglish,
+    required String recordingPath,
+    required Duration recordingDuration,
+    required int attemptNumber,
+    required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
+  }) async {
+    LessonAttemptEvaluationException backendFailure;
+    try {
+      return await _backendEvaluator.evaluate(
+        lessonCode: lessonCode,
+        sentenceId: sentenceId,
+        expectedEnglish: expectedEnglish,
+        recordingPath: recordingPath,
+        recordingDuration: recordingDuration,
+        attemptNumber: attemptNumber,
+        childAge: childAge,
+        acceptedVariants: acceptedVariants,
+        requireAllExpectedTokens: requireAllExpectedTokens,
+      );
+    } on LessonAttemptEvaluationException catch (error) {
+      if (!error.backendUnavailable) rethrow;
+      backendFailure = error;
+    } on TimeoutException {
+      backendFailure = const LessonAttemptEvaluationException(
+        'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
+      );
+    } on http.ClientException {
+      backendFailure = const LessonAttemptEvaluationException(
+        'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
+      );
+    }
+
+    try {
+      final recognition = await _recognizer.recognizeFile(
+        path: recordingPath,
+        locale: 'en-US',
+        preferOnDevice: true,
+        requireOnDevice: true,
+      );
+      final candidates = <String>{
+        recognition.transcript,
+        ...recognition.alternatives,
+      }.where((candidate) => candidate.trim().isNotEmpty);
+      if (candidates.isEmpty) return LessonAttemptOutcome.unclear;
+      return candidates.any(
+            (candidate) => matchesRecognizedLessonEnglish(
+              expectedEnglish,
+              candidate,
+              acceptedVariants: acceptedVariants,
+              requireAllExpectedTokens: requireAllExpectedTokens,
+            ),
+          )
+          ? LessonAttemptOutcome.good
+          : LessonAttemptOutcome.retry;
+    } on LessonRecordedSpeechRecognitionException catch (error) {
+      if (_isUnclearRecognitionFailure(error.code)) {
+        return LessonAttemptOutcome.unclear;
+      }
+      throw backendFailure;
+    }
+  }
+
+  bool _isUnclearRecognitionFailure(String code) =>
+      code == 'SPEECH_NO_MATCH' ||
+      code == 'SPEECH_TIMEOUT' ||
+      code == 'RECORDED_AUDIO_UNCLEAR' ||
+      code == 'RECORDED_AUDIO_RECOGNITION_TIMEOUT';
+
+  @override
+  void dispose() {
+    final backendEvaluator = _backendEvaluator;
+    if (backendEvaluator is DisposableLessonAttemptEvaluator) {
+      (backendEvaluator as DisposableLessonAttemptEvaluator).dispose();
+    }
+  }
+}
+
+LessonAttemptEvaluator createDefaultLessonAttemptEvaluator() {
+  final backendEvaluator = BackendLessonAttemptEvaluator();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return BackendFirstLessonAttemptEvaluator(
+      backendEvaluator: backendEvaluator,
+    );
+  }
+  return backendEvaluator;
+}
+
+class BackendLessonAttemptEvaluator
+    implements LessonAttemptEvaluator, DisposableLessonAttemptEvaluator {
   factory BackendLessonAttemptEvaluator({
     AppConfig? config,
     http.Client? client,
@@ -131,7 +349,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required String clientId,
     required Uint8List? webBytes,
   }) async {
-    final extension = recordingPath.startsWith('blob:') ? 'webm' : 'm4a';
+    final extension = lessonAudioExtensionForPath(recordingPath);
     final request =
         http.MultipartRequest(
             'POST',
@@ -247,7 +465,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     required String clientId,
     required Uint8List? webBytes,
   }) async {
-    final extension = recordingPath.startsWith('blob:') ? 'webm' : 'm4a';
+    final extension = lessonAudioExtensionForPath(recordingPath);
     final request =
         http.MultipartRequest('POST', _config.resolve('/api/audio/translate'))
           ..fields['sourceLanguage'] = 'en'
@@ -308,6 +526,7 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
         : LessonAttemptOutcome.retry;
   }
 
+  @override
   void dispose() => _client.close();
 
   Future<void> _ensureInstallationAuthenticated() async {
@@ -323,10 +542,12 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     } on TimeoutException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
       );
     } on http.ClientException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
       );
     }
   }
@@ -337,10 +558,12 @@ class BackendLessonAttemptEvaluator implements LessonAttemptEvaluator {
     } on TimeoutException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
       );
     } on http.ClientException {
       throw const LessonAttemptEvaluationException(
         'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+        backendUnavailable: true,
       );
     }
   }
@@ -467,9 +690,13 @@ extension on String {
 }
 
 class LessonAttemptEvaluationException implements Exception {
-  const LessonAttemptEvaluationException(this.message);
+  const LessonAttemptEvaluationException(
+    this.message, {
+    this.backendUnavailable = false,
+  });
 
   final String message;
+  final bool backendUnavailable;
 
   @override
   String toString() => message;

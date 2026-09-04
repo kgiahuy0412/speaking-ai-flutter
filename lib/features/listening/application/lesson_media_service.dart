@@ -209,6 +209,13 @@ class LessonMediaService {
   Future<void> prepareSelectedLessonOutput() =>
       _preparePlaybackRoute(LessonPlaybackRoute.selectedLessonDevice);
 
+  /// Transfers the live HFP lease to Apple Speech after its native audio engine
+  /// has started successfully. The native recognizer now owns and will release
+  /// the same route, so this service must not retain a stale ownership flag.
+  void handoffSelectedLessonOutputToNativeCapture() {
+    _ownsActiveHfpRoute = false;
+  }
+
   Future<void> _stopPlayback({required bool releaseAudioRoute}) async {
     final completion = _activePlaybackCompletion;
     if (completion != null && !completion.isCompleted) {
@@ -334,12 +341,12 @@ class LessonMediaService {
     final selectedHfp =
         route == LessonPlaybackRoute.selectedLessonDevice &&
         _shouldUseSelectedHfp;
-    // On iOS, ordinary lesson output belongs on A2DP. Apple's playback
-    // category automatically selects the paired A2DP route, so sound still
-    // comes from H20 while its independent BLE MAIN link remains available.
-    // HFP/SCO is opened only when the H20 microphone is actually required.
-    final useSelectedHfp =
-        selectedHfp && (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS);
+    // Keep both the lesson audio and assistant speech on the H20 selected for
+    // the lesson. Relying on iOS to pick an A2DP route is unreliable for H20:
+    // when its media profile is not active, iOS silently falls back to the
+    // phone speaker. Holding the selected HFP/SCO route prevents that split
+    // until the lesson explicitly releases the route.
+    final useSelectedHfp = selectedHfp;
     if (playback is CommunicationRouteAwareAudioPlaybackService) {
       (playback as CommunicationRouteAwareAudioPlaybackService)
           .setCommunicationRouteActive(useSelectedHfp);
@@ -383,7 +390,9 @@ class LessonMediaService {
     required bool useSelectedHfp,
     InputDevice? inputDevice,
   }) => RecordConfig(
-    encoder: AudioEncoder.aacLc,
+    encoder: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? AudioEncoder.pcm16bits
+        : AudioEncoder.aacLc,
     sampleRate: 16000,
     bitRate: 64000,
     numChannels: 1,

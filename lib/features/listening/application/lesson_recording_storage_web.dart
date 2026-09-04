@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
 final Set<String> _availableRecordingPaths = <String>{};
+
+String lessonRecordingFileExtension({TargetPlatform? platform}) => 'webm';
 
 Future<String> createLessonRecordingPath(
   String lessonId,

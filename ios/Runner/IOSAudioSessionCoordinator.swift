@@ -62,6 +62,8 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var sequence = 0
   private var turnTimeout: DispatchWorkItem?
   private var ownership = IOSAudioSessionOwnershipState()
+  private var preferredHfpInputUID: String?
+  private var preferredHfpInputName: String?
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
@@ -301,7 +303,10 @@ final class IOSAudioSessionCoordinator: NSObject {
     acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "prompt_audio_prepare", caller: caller)
     do {
-      if hasTwoWayHfpRoute() {
+      let currentRouteUsesPreferredHfp = preferredHfpInput.map { preferredInput in
+        session.currentRoute.inputs.contains { $0.uid == preferredInput.uid }
+      } ?? true
+      if hasTwoWayHfpRoute(), currentRouteUsesPreferredHfp {
         trace(stage: "prompt_audio_route_reused", caller: caller)
         return true
       }
@@ -367,9 +372,10 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
   }
 
-  /// Uses the output-only playback category so iOS keeps the selected H20 on
-  /// A2DP instead of opening its HFP microphone for a coach prompt. Apple
-  /// automatically routes playback-category audio to a paired A2DP device.
+  /// Uses iOS media playback only when the selected H20 HFP route is not
+  /// available. Callers that have an H20 input must use `preparePrompt` so
+  /// assistant speech stays on that device instead of falling back to the
+  /// iPhone speaker.
   func prepareMediaPlayback(caller: String) throws {
     acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "media_prompt_audio_prepare", caller: caller)
@@ -449,6 +455,40 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func clearPreferredInput(caller: String) throws {
     try ensurePreferredInput(nil, caller: caller)
+  }
+
+  /// Remembers the HFP device explicitly selected by the user. iOS can expose
+  /// several Bluetooth inputs at once, so picking the first available device
+  /// can send assistant speech to an unrelated headset.
+  func rememberPreferredHfpInput(uid: String?, name: String?) {
+    preferredHfpInputUID = normalizedPreferredHfpValue(uid)
+    preferredHfpInputName = normalizedPreferredHfpValue(name)
+  }
+
+  /// Returns the selected HFP input when it remains available. If no H20 has
+  /// been selected yet, keep the existing first-HFP behaviour. Once a device
+  /// is selected, never silently replace it with a different Bluetooth device.
+  func selectedOrAvailableHfpInput() -> AVAudioSessionPortDescription? {
+    let currentInputs = session.currentRoute.inputs.filter {
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
+    }
+    let availableInputs = (session.availableInputs ?? []).filter {
+      IOSHfpRoutePolicy.isHfpInput($0.portType)
+    }
+    let candidates = currentInputs + availableInputs
+
+    if let uid = preferredHfpInputUID,
+       let selected = candidates.first(where: { $0.uid == uid }) {
+      return selected
+    }
+    if let name = preferredHfpInputName,
+       let selected = candidates.first(where: { $0.portName == name }) {
+      return selected
+    }
+    if preferredHfpInputUID != nil || preferredHfpInputName != nil {
+      return nil
+    }
+    return candidates.first
   }
 
   func prepareCapture(target: IOSAudioInputTarget, caller: String) throws {
@@ -544,6 +584,12 @@ final class IOSAudioSessionCoordinator: NSObject {
   private func currentOrAvailableInput(portType: AVAudioSession.Port) -> AVAudioSessionPortDescription? {
     session.currentRoute.inputs.first { $0.portType == portType }
       ?? session.availableInputs?.first { $0.portType == portType }
+  }
+
+  private func normalizedPreferredHfpValue(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return normalized.isEmpty ? nil : normalized
   }
 
   private func ensureCategory(

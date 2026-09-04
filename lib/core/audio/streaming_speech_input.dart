@@ -170,6 +170,17 @@ enum NativeSpeechAudioSource {
   final String channelValue;
 }
 
+/// Minimal contract used by listening lessons that recognize an English
+/// answer live on the device. The iOS implementation uses Apple Speech with
+/// `requiresOnDeviceRecognition`, so matching can finish without a backend.
+abstract interface class LessonEnglishSpeechInput {
+  Future<void> startLessonEnglishRecognition();
+
+  Future<StreamingSpeechCapture> stop();
+
+  Future<void> cancel();
+}
+
 /// Lets the caller pin the next native recognition turn to a verified input.
 ///
 /// This is intentionally one-shot: a physical H20 MAIN press can force the
@@ -1143,7 +1154,8 @@ class AndroidStreamingSpeechInput
 class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     implements
         HfpRouteOwningStreamingSpeechInput,
-        ContinuousHfpSessionStreamingSpeechInput {
+        ContinuousHfpSessionStreamingSpeechInput,
+        LessonEnglishSpeechInput {
   IOSStreamingSpeechInput({
     super.methodChannel = const MethodChannel('ailingo_speech'),
     super.eventChannel = const EventChannel('ailingo_speech/events'),
@@ -1241,6 +1253,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
       _startWithAudioRoute(commandMode: true);
 
   /// Reuses the verified iOS/H20 native pipeline for an English lesson turn.
+  @override
   Future<void> startLessonEnglishRecognition() =>
       _startWithAudioRoute(commandMode: false, localeIdentifier: 'en-US');
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:ai_speaking_flutter_app/config/app_config.dart';
@@ -46,7 +47,7 @@ void main() {
 
   test('falls back to the legacy audio API when the route is missing', () async {
     final audio = File(
-      '${Directory.systemTemp.path}${Platform.pathSeparator}lesson-choice-fallback-test.m4a',
+      '${Directory.systemTemp.path}${Platform.pathSeparator}lesson-choice-fallback-test.wav',
     );
     await audio.writeAsBytes(<int>[1, 2, 3, 4]);
     addTearDown(() async {
@@ -63,6 +64,10 @@ void main() {
       ),
       client: MockClient((request) async {
         requestedPaths.add(request.url.path);
+        expect(
+          latin1.decode(request.bodyBytes),
+          contains('filename="lesson-choice.wav"'),
+        );
         if (request.url.path == '/api/listening/recognize-choice') {
           return http.Response('<html>Not found</html>', 404);
         }

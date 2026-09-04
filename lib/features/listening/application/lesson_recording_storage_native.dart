@@ -1,6 +1,12 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+
+String lessonRecordingFileExtension({TargetPlatform? platform}) =>
+    (platform ?? defaultTargetPlatform) == TargetPlatform.android
+    ? 'wav'
+    : 'm4a';
 
 Future<String> createLessonRecordingPath(
   String lessonId,
@@ -12,8 +18,9 @@ Future<String> createLessonRecordingPath(
   );
   await recordings.create(recursive: true);
   final timestamp = DateTime.now().microsecondsSinceEpoch;
+  final extension = lessonRecordingFileExtension();
   return '${recordings.path}${Platform.pathSeparator}'
-      '$lessonId-sentence-$sentenceNumber-$timestamp.m4a';
+      '$lessonId-sentence-$sentenceNumber-$timestamp.$extension';
 }
 
 Future<String?> findLessonRecording(String path) async =>

@@ -123,40 +123,42 @@ void main() {
     },
   );
 
-  test(
-    'iOS selected H20 lesson playback uses A2DP without opening HFP',
-    () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      addTearDown(() => debugDefaultTargetPlatformOverride = null);
-      final events = <String>[];
-      final playback = _RouteAwareControlledPlaybackService(events);
-      final hfp = _FakeHfpAudioControl(
-        events,
-        status: const BluetoothAudioStatus(
-          phase: BluetoothAudioConnectionPhase.ready,
-          deviceId: 'h20-uid',
-          deviceName: 'H20',
-          sampleRate: 16000,
-        ),
-      );
-      final mediaService = LessonMediaService(
-        playbackService: playback,
-        hfpAudioControl: hfp,
-      );
+  test('iOS selected H20 lesson playback holds HFP for output', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final events = <String>[];
+    final playback = _RouteAwareControlledPlaybackService(events);
+    final hfp = _FakeHfpAudioControl(
+      events,
+      status: const BluetoothAudioStatus(
+        phase: BluetoothAudioConnectionPhase.ready,
+        deviceId: 'h20-uid',
+        deviceName: 'H20',
+        sampleRate: 16000,
+      ),
+    );
+    final mediaService = LessonMediaService(
+      playbackService: playback,
+      hfpAudioControl: hfp,
+    );
 
-      final playing = mediaService.playToCompletion(
-        Uri.parse('https://example.test/guide.mp3'),
-      );
-      await Future<void>.delayed(Duration.zero);
+    final playing = mediaService.playToCompletion(
+      Uri.parse('https://example.test/guide.mp3'),
+    );
+    await Future<void>.delayed(Duration.zero);
 
-      expect(events, <String>['communication:false', 'prepare', 'play']);
-      expect(hfp.startCalls, 0);
+    expect(events, <String>[
+      'communication:true',
+      'prepare',
+      'hfp:start',
+      'play',
+    ]);
+    expect(hfp.startCalls, 1);
 
-      playback.finish();
-      await playing;
-      await mediaService.dispose();
-    },
-  );
+    playback.finish();
+    await playing;
+    await mediaService.dispose();
+  });
 
   test('phone playback does not activate an unselected HFP route', () async {
     final events = <String>[];
@@ -266,6 +268,8 @@ void main() {
   });
 
   test('iOS lesson recording configuration is input-capable', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final hfpSession = lessonRecordingAudioSessionConfiguration(
       useSelectedHfp: true,
     );
@@ -313,6 +317,20 @@ void main() {
       phoneRecord.androidConfig.audioManagerMode,
       AudioManagerMode.modeNormal,
     );
+    expect(hfpRecord.encoder, AudioEncoder.aacLc);
+  });
+
+  test('Android lesson recording is 16 kHz mono PCM WAV', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final recordConfig = LessonMediaService.lessonRecordConfig(
+      useSelectedHfp: false,
+    );
+
+    expect(recordConfig.encoder, AudioEncoder.pcm16bits);
+    expect(recordConfig.sampleRate, 16000);
+    expect(recordConfig.numChannels, 1);
   });
 
   test('iOS recording input selects exact H20 UID and built-in phone mic', () {

@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import 'package:ai_speaking_flutter_app/config/app_config.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_audio_format.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_attempt_evaluator.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_recording_storage.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/lesson_guide_flow.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -91,11 +94,17 @@ void main() {
     await expectLater(
       _evaluate(evaluator),
       throwsA(
-        isA<LessonAttemptEvaluationException>().having(
-          (error) => error.toString(),
-          'message',
-          'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        ),
+        isA<LessonAttemptEvaluationException>()
+            .having(
+              (error) => error.toString(),
+              'message',
+              'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+            )
+            .having(
+              (error) => error.backendUnavailable,
+              'backend unavailable',
+              isTrue,
+            ),
       ),
     );
     evaluator.dispose();
@@ -268,7 +277,200 @@ void main() {
       );
     });
   });
+
+  group('Android backend-first offline fallback', () {
+    test(
+      'keeps the normal backend result without calling on-device ASR',
+      () async {
+        final backend = _FakeAttemptEvaluator.outcome(
+          LessonAttemptOutcome.good,
+        );
+        final recognizer = _FakeLessonRecordedSpeechRecognizer(
+          const LessonRecordedSpeechRecognition(transcript: 'wrong answer'),
+        );
+        final evaluator = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: backend,
+          recognizer: recognizer,
+        );
+
+        expect(
+          await _evaluateBackendFirst(evaluator),
+          LessonAttemptOutcome.good,
+        );
+        expect(backend.calls, 1);
+        expect(recognizer.calls, 0);
+      },
+    );
+
+    test(
+      'uses strict English on-device ASR only after connectivity failure',
+      () async {
+        final backend = _FakeAttemptEvaluator.error(
+          const LessonAttemptEvaluationException(
+            'offline',
+            backendUnavailable: true,
+          ),
+        );
+        final recognizer = _FakeLessonRecordedSpeechRecognizer(
+          const LessonRecordedSpeechRecognition(transcript: "I'm ready!"),
+        );
+        final evaluator = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: backend,
+          recognizer: recognizer,
+        );
+
+        expect(
+          await _evaluateBackendFirst(
+            evaluator,
+            expectedEnglish: 'I am ready.',
+          ),
+          LessonAttemptOutcome.good,
+        );
+        expect(recognizer.calls, 1);
+        expect(recognizer.lastPath, endsWith('.wav'));
+        expect(recognizer.lastLocale, 'en-US');
+        expect(recognizer.lastPreferOnDevice, isTrue);
+        expect(recognizer.lastRequireOnDevice, isTrue);
+      },
+    );
+
+    test(
+      'accepts alternatives and returns retry for different speech',
+      () async {
+        final matching = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: _offlineBackend(),
+          recognizer: _FakeLessonRecordedSpeechRecognizer(
+            const LessonRecordedSpeechRecognition(
+              transcript: 'I want rice',
+              alternatives: <String>['I am ready'],
+            ),
+          ),
+        );
+        expect(
+          await _evaluateBackendFirst(matching, expectedEnglish: "I'm ready"),
+          LessonAttemptOutcome.good,
+        );
+
+        final different = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: _offlineBackend(),
+          recognizer: _FakeLessonRecordedSpeechRecognizer(
+            const LessonRecordedSpeechRecognition(transcript: 'I want rice'),
+          ),
+        );
+        expect(
+          await _evaluateBackendFirst(different, expectedEnglish: 'I am ready'),
+          LessonAttemptOutcome.retry,
+        );
+      },
+    );
+
+    test('maps silence, no match, and timeout to unclear', () async {
+      final empty = BackendFirstLessonAttemptEvaluator(
+        backendEvaluator: _offlineBackend(),
+        recognizer: _FakeLessonRecordedSpeechRecognizer(
+          const LessonRecordedSpeechRecognition(transcript: ''),
+        ),
+      );
+      expect(await _evaluateBackendFirst(empty), LessonAttemptOutcome.unclear);
+
+      for (final code in <String>['SPEECH_NO_MATCH', 'SPEECH_TIMEOUT']) {
+        final evaluator = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: _offlineBackend(),
+          recognizer: _FakeLessonRecordedSpeechRecognizer.error(code),
+        );
+        expect(
+          await _evaluateBackendFirst(evaluator),
+          LessonAttemptOutcome.unclear,
+        );
+      }
+    });
+
+    test(
+      'preserves backend error when local model or WAV is unavailable',
+      () async {
+        for (final code in <String>[
+          'ON_DEVICE_SPEECH_UNAVAILABLE',
+          'RECORDED_AUDIO_FILE_INVALID',
+        ]) {
+          final backendError = const LessonAttemptEvaluationException(
+            'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+            backendUnavailable: true,
+          );
+          final evaluator = BackendFirstLessonAttemptEvaluator(
+            backendEvaluator: _FakeAttemptEvaluator.error(backendError),
+            recognizer: _FakeLessonRecordedSpeechRecognizer.error(code),
+          );
+          await expectLater(
+            _evaluateBackendFirst(evaluator),
+            throwsA(
+              isA<LessonAttemptEvaluationException>().having(
+                (error) => error.message,
+                'message',
+                backendError.message,
+              ),
+            ),
+          );
+        }
+      },
+    );
+
+    test(
+      'does not use local ASR for a non-connectivity backend failure',
+      () async {
+        final recognizer = _FakeLessonRecordedSpeechRecognizer(
+          const LessonRecordedSpeechRecognition(transcript: 'I am ready'),
+        );
+        final evaluator = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: _FakeAttemptEvaluator.error(
+            const LessonAttemptEvaluationException('server rejected request'),
+          ),
+          recognizer: recognizer,
+        );
+
+        await expectLater(
+          _evaluateBackendFirst(evaluator),
+          throwsA(isA<LessonAttemptEvaluationException>()),
+        );
+        expect(recognizer.calls, 0);
+      },
+    );
+  });
+
+  test('uses WAV on Android and preserves existing backend extensions', () {
+    expect(
+      lessonRecordingFileExtension(platform: TargetPlatform.android),
+      'wav',
+    );
+    expect(lessonRecordingFileExtension(platform: TargetPlatform.iOS), 'm4a');
+    expect(lessonAudioExtensionForPath(r'C:\recordings\answer.WAV'), 'wav');
+    expect(lessonAudioExtensionForPath('/recordings/legacy.m4a'), 'm4a');
+    expect(
+      lessonAudioExtensionForPath('blob:https://example.test/attempt'),
+      'webm',
+    );
+  });
+
+  test('default Android evaluator is backend-first with offline fallback', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final evaluator = createDefaultLessonAttemptEvaluator();
+    expect(evaluator, isA<BackendFirstLessonAttemptEvaluator>());
+    (evaluator as DisposableLessonAttemptEvaluator).dispose();
+  });
 }
+
+Future<LessonAttemptOutcome> _evaluateBackendFirst(
+  LessonAttemptEvaluator evaluator, {
+  String expectedEnglish = 'I am ready',
+}) => evaluator.evaluate(
+  lessonCode: 'A035_T01_L01',
+  sentenceId: 'A035_T01_L01_S01',
+  expectedEnglish: expectedEnglish,
+  recordingPath: r'C:\recordings\attempt.wav',
+  recordingDuration: const Duration(seconds: 2),
+  attemptNumber: 1,
+  childAge: 4,
+);
 
 Future<LessonAttemptOutcome> _evaluate(
   BackendLessonAttemptEvaluator evaluator, {
@@ -322,3 +524,69 @@ final AppConfig _config = AppConfig(
   useDemoBackend: false,
   childAge: 4,
 );
+
+_FakeAttemptEvaluator _offlineBackend() => _FakeAttemptEvaluator.error(
+  const LessonAttemptEvaluationException('offline', backendUnavailable: true),
+);
+
+class _FakeLessonRecordedSpeechRecognizer
+    implements LessonRecordedSpeechRecognizer {
+  _FakeLessonRecordedSpeechRecognizer(this.result) : errorCode = null;
+
+  _FakeLessonRecordedSpeechRecognizer.error(this.errorCode) : result = null;
+
+  final LessonRecordedSpeechRecognition? result;
+  final String? errorCode;
+  int calls = 0;
+  String? lastPath;
+  String? lastLocale;
+  bool? lastPreferOnDevice;
+  bool? lastRequireOnDevice;
+
+  @override
+  Future<LessonRecordedSpeechRecognition> recognizeFile({
+    required String path,
+    String locale = 'vi-VN',
+    bool preferOnDevice = false,
+    bool requireOnDevice = false,
+  }) async {
+    calls += 1;
+    lastPath = path;
+    lastLocale = locale;
+    lastPreferOnDevice = preferOnDevice;
+    lastRequireOnDevice = requireOnDevice;
+    final code = errorCode;
+    if (code != null) {
+      throw LessonRecordedSpeechRecognitionException(code, code);
+    }
+    return result!;
+  }
+}
+
+class _FakeAttemptEvaluator implements LessonAttemptEvaluator {
+  _FakeAttemptEvaluator.outcome(this.result) : error = null;
+
+  _FakeAttemptEvaluator.error(this.error) : result = null;
+
+  final LessonAttemptOutcome? result;
+  final Object? error;
+  int calls = 0;
+
+  @override
+  Future<LessonAttemptOutcome> evaluate({
+    required String lessonCode,
+    required String sentenceId,
+    required String expectedEnglish,
+    required String recordingPath,
+    required Duration recordingDuration,
+    required int attemptNumber,
+    required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
+  }) async {
+    calls += 1;
+    final failure = error;
+    if (failure != null) throw failure;
+    return result!;
+  }
+}

@@ -148,7 +148,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
-        widget.attemptEvaluator ?? BackendLessonAttemptEvaluator();
+        widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
         widget.voicePromptService ?? createVoicePromptService();
@@ -207,8 +207,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     final attemptEvaluator = _attemptEvaluator;
     if (_ownsAttemptEvaluator &&
-        attemptEvaluator is BackendLessonAttemptEvaluator) {
-      attemptEvaluator.dispose();
+        attemptEvaluator is DisposableLessonAttemptEvaluator) {
+      (attemptEvaluator as DisposableLessonAttemptEvaluator).dispose();
     }
     super.dispose();
   }
@@ -1390,6 +1390,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
               challenges: selectedChallenges,
               mediaService: widget.mediaService,
               attemptEvaluator: _attemptEvaluator,
+              iosSpeechInput: _usesIosNativeLessonRecognition
+                  ? _iosLessonSpeechInput
+                  : null,
             ),
           ),
         );

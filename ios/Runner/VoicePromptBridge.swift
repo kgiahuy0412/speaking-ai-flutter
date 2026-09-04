@@ -135,9 +135,12 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     forcePhoneSpeaker: Bool = false,
     forceMediaPlayback: Bool = false
   ) -> UUID? {
-    let session = audioSessionCoordinator.session
     let audioToken = UUID()
-    if forcePhoneSpeaker {
+    let preferredHfpInput = audioSessionCoordinator.selectedOrAvailableHfpInput()
+    // While H20 is selected and available, assistant speech must not be
+    // forced back to the handset by a legacy phone-speaker request. The
+    // handset remains the fallback only after H20 has actually lost its route.
+    if forcePhoneSpeaker, preferredHfpInput == nil {
       do {
         try audioSessionCoordinator.preparePhoneSpeaker(
           caller: "VoicePromptBridge.configurePromptAudioSession"
@@ -154,7 +157,10 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         return nil
       }
     }
-    if forceMediaPlayback {
+    // A selected H20 must keep assistant speech on its HFP route. Media
+    // playback is only used if that route is genuinely unavailable, such as
+    // after the H20 has been disconnected.
+    if forceMediaPlayback, preferredHfpInput == nil {
       do {
         try audioSessionCoordinator.prepareMediaPlayback(
           caller: "VoicePromptBridge.configurePromptAudioSession"
@@ -170,14 +176,6 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         )
         return nil
       }
-    }
-    // Capture the HFP port before changing the shared session. HfpAudioBridge
-    // activates and selects it; the prompt bridge must preserve that choice
-    // instead of forcing every assistant utterance back to the iPhone speaker.
-    let preferredHfpInput = session.currentRoute.inputs.first {
-      IOSHfpRoutePolicy.isHfpInput($0.portType)
-    } ?? session.availableInputs?.first {
-      IOSHfpRoutePolicy.isHfpInput($0.portType)
     }
     do {
       _ = try audioSessionCoordinator.preparePrompt(

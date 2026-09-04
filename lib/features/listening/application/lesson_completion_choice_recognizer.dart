@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../config/app_config.dart';
 import '../../../core/network/multipart_audio_file.dart';
+import 'lesson_audio_format.dart';
 import 'lesson_media_service.dart';
 
 enum LessonCompletionChoice { restartLesson, nextLesson }
@@ -164,7 +165,7 @@ class BackendLessonCompletionChoiceRecognizer
     required Uint8List? webBytes,
     String? sourceLanguage,
   }) async {
-    final extension = recordingPath.startsWith('blob:') ? 'webm' : 'm4a';
+    final extension = lessonAudioExtensionForPath(recordingPath);
     final request = http.MultipartRequest('POST', _config.resolve(route));
     if (sourceLanguage != null) {
       request.fields['sourceLanguage'] = sourceLanguage;

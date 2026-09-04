@@ -86,7 +86,7 @@ void main() {
     });
   });
 
-  test('marks lesson speech for selected A2DP media output', () async {
+  test('marks lesson speech for selected H20 output', () async {
     const channel = MethodChannel('test_media_output_prompt');
     MethodCall? receivedCall;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

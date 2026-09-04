@@ -802,6 +802,10 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
   }
 
   private func snapshot() -> [String: Any] {
+    audioSessionCoordinator.rememberPreferredHfpInput(
+      uid: selectedInputId,
+      name: selectedInputName
+    )
     var value: [String: Any] = [
       "type": "status",
       "phase": phase,

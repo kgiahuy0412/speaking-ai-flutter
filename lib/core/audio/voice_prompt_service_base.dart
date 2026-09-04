@@ -25,11 +25,10 @@ abstract interface class PhoneSpeakerVoicePromptService {
   });
 }
 
-/// Plays a lesson prompt through the currently selected media output.
+/// Plays a lesson prompt through the currently selected H20 output.
 ///
-/// On iOS this uses the output-only playback/A2DP route instead of opening the
-/// HFP microphone. H20 remains the speaker, while BLE stays able to receive the
-/// physical MAIN button during coach speech.
+/// On iOS the native bridge keeps the selected HFP route when it is available;
+/// ordinary media playback is only the disconnected-device fallback.
 abstract interface class SelectedMediaOutputVoicePromptService {
   Future<void> speakAndWaitOnSelectedMediaOutput(
     String text, {

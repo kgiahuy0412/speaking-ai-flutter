@@ -130,7 +130,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
     super.initState();
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
-        widget.attemptEvaluator ?? BackendLessonAttemptEvaluator();
+        widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_playCurrentPrompt()),
     );
@@ -152,8 +152,8 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
       }
     }
     if (_ownsAttemptEvaluator &&
-        _attemptEvaluator is BackendLessonAttemptEvaluator) {
-      _attemptEvaluator.dispose();
+        _attemptEvaluator is DisposableLessonAttemptEvaluator) {
+      (_attemptEvaluator as DisposableLessonAttemptEvaluator).dispose();
     }
     super.dispose();
   }
