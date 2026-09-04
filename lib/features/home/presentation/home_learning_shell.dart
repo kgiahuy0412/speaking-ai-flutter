@@ -7,6 +7,7 @@ import '../../../app/app_theme.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../../core/platform/background_learning_session.dart';
+import '../../../core/platform/platform_access_policy.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
@@ -816,11 +817,25 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   Future<void> _openParentSettings() async {
-    if (!await _requestParentAccess()) {
+    if (!await _requestSettingsAccess()) {
       return;
     }
     await _pauseVoiceNavigation('settings_opened');
     await _openSettingsSheet();
+  }
+
+  Future<bool> _requestSettingsAccess() {
+    final gate = widget.parentAccessGate;
+    if (gate != null) {
+      return gate(context);
+    }
+    if (PlatformAccessPolicy.bypassesSettingsAuthentication(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    )) {
+      return Future<bool>.value(true);
+    }
+    return showParentalGate(context);
   }
 
   Future<void> _openSettingsSheet() async {

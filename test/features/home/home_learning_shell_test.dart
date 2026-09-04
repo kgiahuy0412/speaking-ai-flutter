@@ -103,6 +103,31 @@ void main() {
     expect(find.text('Cài đặt lượt nói'), findsNothing);
   });
 
+  testWidgets('Android opens settings directly when no gate is injected', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = _controller();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(_app(controller, useDefaultParentAccessGate: true));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cài đặt lượt nói'), findsOneWidget);
+    expect(find.text('Không thể xác thực'), findsNothing);
+    Navigator.of(tester.element(find.text('Cài đặt lượt nói'))).pop();
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('reports settings modal visibility until the sheet closes', (
     tester,
   ) async {
@@ -618,6 +643,7 @@ Widget _app(
   VoidCallback? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
   Future<bool> Function(BuildContext)? parentAccessGate,
+  bool useDefaultParentAccessGate = false,
   BackgroundLearningSessionControl? backgroundLearningSession,
 }) {
   final home = HomeLearningShell(
@@ -626,7 +652,9 @@ Widget _app(
     listeningContentFuture: listeningContentFuture,
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
     onModalVisibilityChanged: onModalVisibilityChanged,
-    parentAccessGate: parentAccessGate ?? (_) async => true,
+    parentAccessGate: useDefaultParentAccessGate
+        ? null
+        : parentAccessGate ?? (_) async => true,
     backgroundLearningSession: backgroundLearningSession,
     config: AppConfig(
       backendBaseUri: Uri.parse('https://example.com'),
