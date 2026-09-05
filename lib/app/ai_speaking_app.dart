@@ -25,10 +25,13 @@ import '../core/pwa/pwa_install_gate.dart';
 import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
+import '../features/conversation/application/offline_language_service.dart';
 import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
 import '../features/home/presentation/home_learning_shell.dart';
+import '../features/listening/application/android_offline_speech_model_service.dart';
+import '../features/listening/application/android_runtime_platform.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
 import '../features/onboarding/presentation/startup_setup_screen.dart';
@@ -71,6 +74,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   final PrivacyConsentStore _privacyConsentStore = const PrivacyConsentStore();
   final ParentSetupProgressStore _parentSetupProgressStore =
       const ParentSetupProgressStore();
+  final AndroidOfflineSpeechModelConsentStore _offlineSpeechModelConsentStore =
+      const SharedPreferencesAndroidOfflineSpeechModelConsentStore();
+  late final AndroidOfflineSpeechModelCoordinator
+  _offlineSpeechModelCoordinator = AndroidOfflineSpeechModelCoordinator(
+    consentStore: _offlineSpeechModelConsentStore,
+  );
+  final OfflineVietnameseEnglishTranslator _offlineTranslator =
+      MlKitOfflineVietnameseEnglishTranslator();
+  final AppleOfflineSpeechAssetService _appleOfflineSpeechAssetService =
+      const AppleOfflineSpeechAssetService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
@@ -107,6 +120,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   DateTime? _suppressH20AutoConnectUntil;
   bool _restoreHfpAfterPhysicalMain = false;
   bool _isRestoringHfpAfterPhysicalMain = false;
+  bool _offlineSpeechModelPreparationRunning = false;
+  bool _offlineSpeechModelPreparationFinished = false;
+  AndroidOfflineSpeechModelConsent _offlineSpeechModelConsent =
+      AndroidOfflineSpeechModelConsent.undecided;
+  Timer? _offlineSpeechModelTimer;
+
+  bool get _supportsOfflineLanguagePacks =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   bool get _usesIosHfpLifecycle =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
@@ -142,6 +165,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startBackgroundStartup();
       unawaited(_initializeStartupSetup());
+      if (_supportsOfflineLanguagePacks) {
+        unawaited(_prepareOfflineLanguageModels());
+        _offlineSpeechModelTimer = Timer.periodic(
+          const Duration(seconds: 30),
+          (_) => unawaited(_prepareOfflineLanguageModels()),
+        );
+      }
     });
   }
 
@@ -150,6 +180,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (state != AppLifecycleState.resumed) {
       return;
     }
+    unawaited(_prepareOfflineLanguageModels());
     // Flutter state is recreated after a cold launch/TestFlight update, while
     // iOS keeps the system permission grants. Refresh them whenever the app
     // returns to the foreground so MAIN does not stay hidden after the user
@@ -159,6 +190,80 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       unawaited(_requestStartupPermissions());
     } else if (_bluetoothPermissionGranted) {
       unawaited(_autoConnectH20Ble());
+    }
+  }
+
+  Future<void> _prepareOfflineLanguageModels() async {
+    if (!_supportsOfflineLanguagePacks ||
+        _offlineSpeechModelPreparationRunning ||
+        _offlineSpeechModelPreparationFinished) {
+      return;
+    }
+    if (_offlineSpeechModelConsent !=
+        AndroidOfflineSpeechModelConsent.allowed) {
+      return;
+    }
+    _offlineSpeechModelPreparationRunning = true;
+    try {
+      var speechReady = true;
+      if (isAndroidRuntime) {
+        final speechResults =
+            await Future.wait<AndroidOfflineSpeechModelPreparationResult>([
+              _offlineSpeechModelCoordinator.prepare(locale: 'en-US'),
+              _offlineSpeechModelCoordinator.prepare(locale: 'vi-VN'),
+            ]);
+        speechReady = speechResults.every(
+          (result) =>
+              result == AndroidOfflineSpeechModelPreparationResult.ready,
+        );
+      } else {
+        for (final locale in const <String>['vi-VN', 'en-US']) {
+          speechReady =
+              await _appleOfflineSpeechAssetService.prepareLocale(locale) &&
+              speechReady;
+        }
+      }
+
+      var translationReady = await _offlineTranslator.modelsReady();
+      if (!translationReady) {
+        translationReady = await _offlineTranslator.downloadModels(
+          wifiOnly: true,
+        );
+      }
+      if (speechReady && translationReady) {
+        _offlineSpeechModelPreparationFinished = true;
+        _offlineSpeechModelTimer?.cancel();
+        _offlineSpeechModelTimer = null;
+      }
+    } catch (error) {
+      debugPrint('Offline language pack background setup skipped: $error');
+    } finally {
+      _offlineSpeechModelPreparationRunning = false;
+    }
+  }
+
+  Future<void> _setAndroidOfflineSpeechModelDownload(bool enabled) async {
+    final consent = enabled
+        ? AndroidOfflineSpeechModelConsent.allowed
+        : AndroidOfflineSpeechModelConsent.declined;
+    await _offlineSpeechModelConsentStore.write(consent);
+    if (mounted) {
+      setState(() => _offlineSpeechModelConsent = consent);
+    }
+    if (enabled) {
+      _offlineSpeechModelPreparationFinished = false;
+      _offlineSpeechModelTimer ??= Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => unawaited(_prepareOfflineLanguageModels()),
+      );
+      // Return to the setup UI immediately. Model downloads continue in the
+      // background and never open Google's separate language-pack screen.
+      unawaited(_prepareOfflineLanguageModels());
+    } else {
+      _offlineSpeechModelPreparationFinished = false;
+      if (isAndroidRuntime) {
+        await _offlineSpeechModelCoordinator.cancelDownload();
+      }
     }
   }
 
@@ -180,17 +285,26 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     var storedConsent = false;
     var storedLimitedMode = false;
     var storedParentSetupComplete = false;
+    var storedOfflineSpeechModelConsent =
+        AndroidOfflineSpeechModelConsent.undecided;
     try {
       final values = await Future.wait<Object?>(<Future<Object?>>[
         _childAgeStore.read(),
         _privacyConsentStore.readGranted(),
         _privacyConsentStore.readLimitedMode(),
         _parentSetupProgressStore.isComplete(),
+        _supportsOfflineLanguagePacks
+            ? _offlineSpeechModelConsentStore.read()
+            : Future<AndroidOfflineSpeechModelConsent>.value(
+                AndroidOfflineSpeechModelConsent.undecided,
+              ),
       ]);
       storedAge = _validChildAge(values[0] as int?);
       storedConsent = values[1] as bool;
       storedLimitedMode = values[2] as bool;
       storedParentSetupComplete = values[3] as bool;
+      storedOfflineSpeechModelConsent =
+          values[4] as AndroidOfflineSpeechModelConsent;
     } catch (error) {
       debugPrint('Could not load startup privacy/profile state: $error');
     }
@@ -210,6 +324,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           storedParentSetupComplete &&
           storedAge != null &&
           (_privacyConsentGranted || _limitedModeSelected);
+      _offlineSpeechModelConsent = storedOfflineSpeechModelConsent;
       _startupProfileLoading = false;
     });
     if (_privacyConsentGranted && _parentSetupCompleted) {
@@ -219,6 +334,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       // every cold launch even though iOS already authorized the app, hiding
       // both the virtual MAIN entry point and the physical MAIN action.
       unawaited(_requestStartupPermissions());
+    }
+    if (storedOfflineSpeechModelConsent ==
+        AndroidOfflineSpeechModelConsent.allowed) {
+      unawaited(_prepareOfflineLanguageModels());
     }
   }
 
@@ -650,6 +769,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       repository: repository,
       offlineIntentRecognizer: supportsAndroidNativeSpeech
           ? MethodChannelOfflineIntentRecognizer()
+          : null,
+      offlineVietnameseSpeechRecognizer: supportsAndroidNativeSpeech
+          ? const AndroidVoskVietnameseSpeechRecognizer()
+          : null,
+      offlineVietnameseEnglishTranslator: supportsNativeSpeech
+          ? _offlineTranslator
           : null,
       displayLanguageStore: const DisplayLanguageStore(),
       childAge: _config.childAge,
@@ -1538,6 +1663,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _offlineSpeechModelTimer?.cancel();
+    unawaited(_offlineTranslator.close());
     _controller?.removeListener(_synchronizeMainSpeakingSession);
     _mainSpeakingSessionController.removeListener(
       _synchronizePendingMainSpeakingAudioHandoff,
@@ -1652,6 +1779,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   termsUri: _config.termsUri,
                   supportUri: _config.supportUri,
                   permissionError: _startupPermissionError,
+                  androidOfflineEnglishModelOptionAvailable:
+                      _supportsOfflineLanguagePacks &&
+                      _privacyConsentGranted &&
+                      !_limitedModeSelected,
+                  androidOfflineEnglishModelDownloadAllowed:
+                      _offlineSpeechModelConsent ==
+                      AndroidOfflineSpeechModelConsent.allowed,
+                  onAndroidOfflineEnglishModelDownloadChanged:
+                      _setAndroidOfflineSpeechModelDownload,
                   onGrantPrivacyConsent: _grantPrivacyConsent,
                   onContinueWithoutVoice: _continueWithoutVoice,
                   onRetryPermissions: () => unawaited(

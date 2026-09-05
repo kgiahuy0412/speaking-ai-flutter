@@ -51,6 +51,10 @@ android {
             signingConfig = signingConfigs.getByName(
                 if (hasReleaseSigning) "release" else "debug",
             )
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -63,4 +67,13 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("androidx.work:work-runtime:2.11.1")
+    // Vosk uses JNA to enter libvosk. Select the Android AAR explicitly;
+    // resolving the default JAR can leave native initialization blocked on
+    // some OEM builds even when the .so files happen to be packaged.
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
+    implementation("com.alphacephei:vosk-android:0.3.75")
 }

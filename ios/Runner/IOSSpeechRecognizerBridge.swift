@@ -235,7 +235,10 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       // accept or produce recorded-audio fallback files.
       result(false)
     case "speech.prepare":
-      prepare(result)
+      prepare(locale: Self.defaultLocale, result: result)
+    case "speech.prepareLocale":
+      let arguments = call.arguments as? [String: Any]
+      prepare(locale: Self.locale(from: arguments?["locale"]), result: result)
     case "speech.start":
       let arguments = call.arguments as? [String: Any]
       let commandMode = arguments?["commandMode"] as? Bool ?? false
@@ -271,7 +274,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     }
   }
 
-  private func prepare(_ result: @escaping FlutterResult) {
+  private func prepare(locale: Locale, result: @escaping FlutterResult) {
     ensureSpeechAuthorization { [weak self] authorization in
       guard let self else { return }
       guard authorization == .authorized else {
@@ -286,7 +289,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       }
       Task { @MainActor [weak self] in
         guard let self else { return }
-        result(await self.prepareBestEngine(locale: Self.defaultLocale) != nil)
+        result(await self.prepareBestEngine(locale: locale) != nil)
       }
     }
   }

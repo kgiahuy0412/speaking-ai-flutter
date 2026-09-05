@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,8 +10,10 @@ import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/device/aiv0_ble_control.dart';
 import '../../../l10n/display_language.dart';
+import '../../conversation/application/offline_language_service.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
+import '../../listening/application/android_offline_speech_model_service.dart';
 import '../../listening/domain/listening_catalog.dart';
 import '../../privacy/presentation/parental_gate.dart';
 import 'history_sheet.dart';
@@ -334,6 +338,10 @@ class SettingsSheet extends StatelessWidget {
                         trailing: context.tr('Mặc định', '默认'),
                         stateColor: AppColors.success,
                       ),
+                    if (isAndroid || isIOS) ...<Widget>[
+                      const SizedBox(height: 10),
+                      const _OfflineLanguagePacksCard(),
+                    ],
                     const SizedBox(height: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1006,6 +1014,374 @@ class SettingsSheet extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(context.tr('Đã hiểu', '知道了')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfflineLanguagePacksCard extends StatefulWidget {
+  const _OfflineLanguagePacksCard();
+
+  @override
+  State<_OfflineLanguagePacksCard> createState() =>
+      _OfflineLanguagePacksCardState();
+}
+
+class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
+  static const AndroidOfflineSpeechModelConsentStore _consentStore =
+      SharedPreferencesAndroidOfflineSpeechModelConsentStore();
+  static const AndroidOfflineSpeechModelService _service =
+      MethodChannelAndroidOfflineSpeechModelService();
+
+  late final AndroidOfflineSpeechModelCoordinator _coordinator =
+      AndroidOfflineSpeechModelCoordinator(
+        service: _service,
+        consentStore: _consentStore,
+      );
+  late final OfflineVietnameseEnglishTranslator _translator =
+      MlKitOfflineVietnameseEnglishTranslator();
+  final AppleOfflineSpeechAssetService _appleSpeech =
+      const AppleOfflineSpeechAssetService();
+
+  AndroidOfflineSpeechModelConsent _consent =
+      AndroidOfflineSpeechModelConsent.undecided;
+  AndroidOfflineSpeechModelStatus? _status;
+  AndroidOfflineSpeechModelPreparationResult? _preparation;
+  bool _busy = true;
+  int _request = 0;
+  Timer? _refreshTimer;
+
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refresh());
+  }
+
+  Future<void> _refresh() async {
+    final request = ++_request;
+    try {
+      final consent = await _consentStore.read();
+      final translationReady = await _translator.modelsReady();
+      final AndroidOfflineSpeechModelStatus speechStatus;
+      if (_isAndroid) {
+        final statuses = await Future.wait<AndroidOfflineSpeechModelStatus>([
+          _service.status(locale: 'en-US'),
+          _service.status(locale: 'vi-VN'),
+        ]);
+        speechStatus = _combineAndroidStatuses(statuses);
+      } else {
+        speechStatus = AndroidOfflineSpeechModelStatus(
+          state: translationReady
+              ? AndroidOfflineSpeechModelState.installed
+              : consent == AndroidOfflineSpeechModelConsent.allowed
+              ? AndroidOfflineSpeechModelState.pending
+              : AndroidOfflineSpeechModelState.missing,
+          appManaged: true,
+          modelId: 'apple-speech+mlkit-vi-en',
+        );
+      }
+      if (!mounted || request != _request) {
+        return;
+      }
+      setState(() {
+        _consent = consent;
+        _status = speechStatus;
+        _busy = false;
+      });
+      _updateRefreshTimer();
+    } catch (_) {
+      if (mounted && request == _request) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  AndroidOfflineSpeechModelStatus _combineAndroidStatuses(
+    List<AndroidOfflineSpeechModelStatus> statuses,
+  ) {
+    final states = statuses.map((status) => status.state).toSet();
+    final state =
+        states.every(
+          (state) => state == AndroidOfflineSpeechModelState.installed,
+        )
+        ? AndroidOfflineSpeechModelState.installed
+        : states.contains(AndroidOfflineSpeechModelState.pending)
+        ? AndroidOfflineSpeechModelState.pending
+        : states.contains(AndroidOfflineSpeechModelState.unavailable)
+        ? AndroidOfflineSpeechModelState.unavailable
+        : AndroidOfflineSpeechModelState.missing;
+    final totalBytes = statuses.fold<int>(
+      0,
+      (sum, status) => sum + (status.downloadBytes ?? 0),
+    );
+    final averageProgress = statuses.isEmpty
+        ? 0
+        : statuses.fold<int>(0, (sum, status) => sum + status.progress) ~/
+              statuses.length;
+    return AndroidOfflineSpeechModelStatus(
+      state: state,
+      appManaged: true,
+      progress: averageProgress,
+      modelId: 'vosk-en-us+vi-vn',
+      downloadBytes: totalBytes,
+    );
+  }
+
+  Future<void> _setAutomaticDownload(bool enabled) async {
+    if (_busy) {
+      return;
+    }
+    final request = ++_request;
+    setState(() {
+      _busy = true;
+      _consent = enabled
+          ? AndroidOfflineSpeechModelConsent.allowed
+          : AndroidOfflineSpeechModelConsent.declined;
+      _preparation = null;
+    });
+    try {
+      await _consentStore.write(_consent);
+      AndroidOfflineSpeechModelPreparationResult? preparation;
+      if (enabled) {
+        preparation =
+            AndroidOfflineSpeechModelPreparationResult.downloadRequested;
+        if (mounted && request == _request) {
+          setState(() {
+            _preparation = preparation;
+            _status = const AndroidOfflineSpeechModelStatus(
+              state: AndroidOfflineSpeechModelState.pending,
+              appManaged: true,
+            );
+            _busy = false;
+          });
+          _updateRefreshTimer();
+          _showResultMessage(preparation);
+        }
+        unawaited(_prepareAllModels());
+        return;
+      } else {
+        if (_isAndroid) {
+          await _service.cancelDownload();
+        }
+      }
+      final AndroidOfflineSpeechModelStatus status;
+      if (_isAndroid) {
+        status = await _service.status();
+      } else {
+        status = AndroidOfflineSpeechModelStatus(
+          state: await _translator.modelsReady()
+              ? AndroidOfflineSpeechModelState.installed
+              : AndroidOfflineSpeechModelState.missing,
+          appManaged: true,
+          modelId: 'apple-speech+mlkit-vi-en',
+        );
+      }
+      if (!mounted || request != _request) {
+        return;
+      }
+      setState(() {
+        _preparation = preparation;
+        _status = status;
+        _busy = false;
+      });
+      _updateRefreshTimer();
+      _showResultMessage(preparation);
+    } catch (_) {
+      if (!mounted || request != _request) {
+        return;
+      }
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Chưa lưu được lựa chọn. Vui lòng thử lại.',
+              '暂时无法保存选择，请重试。',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _prepareAllModels() async {
+    try {
+      if (_isAndroid) {
+        await Future.wait<AndroidOfflineSpeechModelPreparationResult>([
+          _coordinator.prepare(locale: 'en-US'),
+          _coordinator.prepare(locale: 'vi-VN'),
+        ]);
+      } else {
+        for (final locale in const <String>['vi-VN', 'en-US']) {
+          await _appleSpeech.prepareLocale(locale);
+        }
+      }
+      await _translator.downloadModels(wifiOnly: true);
+    } finally {
+      if (mounted) {
+        await _refresh();
+      }
+    }
+  }
+
+  void _updateRefreshTimer() {
+    if (_status?.state == AndroidOfflineSpeechModelState.pending) {
+      _refreshTimer ??= Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => unawaited(_refresh()),
+      );
+    } else {
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    unawaited(_translator.close());
+    super.dispose();
+  }
+
+  void _showResultMessage(AndroidOfflineSpeechModelPreparationResult? result) {
+    final message = switch (result) {
+      AndroidOfflineSpeechModelPreparationResult.downloadRequested =>
+        context.tr(
+          'HOMI sẽ tải các gói giọng nói và dịch trong nền qua Wi-Fi.',
+          'HOMI 将通过 Wi-Fi 在后台下载语音和翻译模型。',
+        ),
+      AndroidOfflineSpeechModelPreparationResult.waitingForWifi => context.tr(
+        'Đã bật tự tải. HOMI sẽ thực hiện khi có Wi-Fi.',
+        '已开启自动下载。连接 Wi-Fi 后 HOMI 会自动执行。',
+      ),
+      AndroidOfflineSpeechModelPreparationResult.ready => context.tr(
+        'Các gói offline đã sẵn sàng.',
+        '离线模型已准备好。',
+      ),
+      AndroidOfflineSpeechModelPreparationResult.unavailable => context.tr(
+        'Thiết bị này chưa hỗ trợ tải model trực tiếp.',
+        '此设备暂不支持直接下载模型。',
+      ),
+      _ => null,
+    };
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  String _detail(BuildContext context) {
+    if (_busy) {
+      return context.tr('Đang kiểm tra các gói offline…', '正在检查离线模型…');
+    }
+    switch (_status?.state) {
+      case AndroidOfflineSpeechModelState.installed:
+        return context.tr(
+          'Các gói giọng nói và dịch Việt–Anh đã sẵn sàng. Khi mất mạng, bài học, thử thách và dịch liên tục có thể xử lý trên thiết bị.',
+          '语音与越英翻译模型已准备好；离线时课程、挑战和连续翻译可在设备上处理。',
+        );
+      case AndroidOfflineSpeechModelState.pending:
+        final progress = _status?.progress ?? 0;
+        return context.tr(
+          progress > 0
+              ? 'HOMI đang tải các gói offline trong nền: $progress%. Hãy giữ kết nối Wi-Fi.'
+              : 'Đã xếp lịch tải các gói offline. HOMI sẽ tự bắt đầu khi có Wi-Fi.',
+          progress > 0
+              ? 'HOMI 正在后台下载 en-US 模型：$progress%。请保持 Wi-Fi 连接。'
+              : 'en-US 模型已排入下载队列；连接 Wi-Fi 后 HOMI 会自动开始。',
+        );
+      case AndroidOfflineSpeechModelState.unavailable:
+        return context.tr(
+          'CPU của thiết bị này chưa tương thích với model offline; khi có mạng ứng dụng vẫn chấm qua máy chủ.',
+          '此 Android 设备不支持由 HOMI 下载模型；联网时仍会通过服务器评分。',
+        );
+      case AndroidOfflineSpeechModelState.downloadable:
+      case AndroidOfflineSpeechModelState.missing:
+      case AndroidOfflineSpeechModelState.unknown:
+      case null:
+        if (_preparation ==
+            AndroidOfflineSpeechModelPreparationResult.waitingForWifi) {
+          return context.tr(
+            'Đã cho phép. HOMI sẽ tự tải en-US khi có Wi-Fi, không dùng dữ liệu di động.',
+            '已允许。连接 Wi-Fi 后 HOMI 将自动下载 en-US，不使用移动数据。',
+          );
+        }
+        return _consent == AndroidOfflineSpeechModelConsent.allowed
+            ? context.tr(
+                'Đã cho phép tự tải các gói tiếng Anh, tiếng Việt và dịch Việt–Anh qua Wi-Fi. Không mở màn hình tải riêng.',
+                '已允许通过 Wi-Fi 自动下载约 40 MB 的 en-US 模型，不会打开 Google 下载页面。',
+              )
+            : context.tr(
+                'Phụ huynh bật mục này một lần; HOMI tự tải các gói cần thiết khi có Wi-Fi và không dùng dữ liệu di động.',
+                '家长只需开启一次；HOMI 会在连接 Wi-Fi 时自动下载 en-US，不使用移动数据。',
+              );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final unsupported =
+        _status?.state == AndroidOfflineSpeechModelState.unavailable;
+    return Container(
+      key: const Key('settings-offline-language-packs'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? theme.colorScheme.surfaceContainerHigh
+            : AppColors.lavenderSoft,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.download_for_offline_rounded,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  context.tr('Tự tải giọng nói và dịch offline', '自动下载离线语音和翻译'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _detail(context),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            key: const Key('settings-offline-language-packs-switch'),
+            value: _consent == AndroidOfflineSpeechModelConsent.allowed,
+            onChanged: _busy || unsupported ? null : _setAutomaticDownload,
           ),
         ],
       ),

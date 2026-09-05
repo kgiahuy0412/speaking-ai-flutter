@@ -60,7 +60,7 @@ class ResultPanel extends StatelessWidget {
               'Câu tiếng Anh sẽ hiện ở đây',
               '英语句子会显示在这里',
             ),
-            trailing: currentResult == null
+            trailing: currentResult?.audioUri == null
                 ? null
                 : Semantics(
                     button: true,
@@ -78,6 +78,20 @@ class ResultPanel extends StatelessWidget {
                     ),
                   ),
           ),
+          if (currentResult?.textSource ==
+              'mlkit_on_device_translation') ...<Widget>[
+            const SizedBox(height: 7),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Bản dịch tự động • Powered by Google Translate',
+                key: const Key('google-translate-attribution'),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

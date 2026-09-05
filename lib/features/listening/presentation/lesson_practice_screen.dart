@@ -1563,6 +1563,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
             missions: missions,
             mediaService: widget.mediaService,
             attemptEvaluator: _attemptEvaluator,
+            iosSpeechInput: _usesIosNativeLessonRecognition
+                ? _iosLessonSpeechInput
+                : null,
             levelTitle: 'Level ${level.number}: ${level.titleVi}',
           ),
         ),

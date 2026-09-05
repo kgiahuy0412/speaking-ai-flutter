@@ -14,6 +14,7 @@ class MainActivity : FlutterActivity() {
     private val methodChannelName = "ailingo_platform"
     private val eventChannelName = "ailingo_platform/events"
     private var speechRecognizerBridge: AndroidSpeechRecognizerBridge? = null
+    private var homiOfflineSpeechBridge: HomiOfflineSpeechBridge? = null
     private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
     private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
     private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
@@ -30,6 +31,11 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         speechRecognizerBridge =
             AndroidSpeechRecognizerBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        homiOfflineSpeechBridge =
+            HomiOfflineSpeechBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -119,6 +125,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         speechRecognizerBridge?.dispose()
         speechRecognizerBridge = null
+        homiOfflineSpeechBridge?.dispose()
+        homiOfflineSpeechBridge = null
         offlineIntentRecognizerBridge?.dispose()
         offlineIntentRecognizerBridge = null
         innotrikBleAudioBridge?.dispose()

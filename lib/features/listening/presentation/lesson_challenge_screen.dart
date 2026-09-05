@@ -333,7 +333,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
           attemptNumber: ++_attemptNumber,
           childAge: widget.startAge,
           acceptedVariants: _acceptedRecognitionVariants,
-          requireAllExpectedTokens: true,
+          requireAllExpectedTokens: false,
         );
       }
       if (!mounted) return;
@@ -375,7 +375,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
               _expectedEnglish,
               candidate,
               acceptedVariants: _acceptedRecognitionVariants,
-              requireAllExpectedTokens: true,
+              requireAllExpectedTokens: false,
             ),
           )
           ? LessonAttemptOutcome.good
@@ -394,6 +394,13 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
 
   Future<bool> _applyOutcome(LessonAttemptOutcome outcome) async {
     if (outcome == LessonAttemptOutcome.good) {
+      return _advance();
+    }
+    // Never trap a child in an endless recognition loop. Offline engines can
+    // consistently miss one short function word even when the answer was
+    // spoken. Keep the tolerant match, then resolve the authored challenge
+    // after the same two-attempt allowance used by Level Mission.
+    if (_attemptNumber >= 2) {
       return _advance();
     }
     final message = switch (outcome) {

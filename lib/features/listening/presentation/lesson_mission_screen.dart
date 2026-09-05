@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_attempt_evaluator.dart';
@@ -73,6 +75,8 @@ class LessonMissionScreen extends StatefulWidget {
     required this.missions,
     required this.mediaService,
     this.attemptEvaluator,
+    this.voicePromptService,
+    this.iosSpeechInput,
     this.levelTitle,
     super.key,
   }) : assert(
@@ -88,6 +92,8 @@ class LessonMissionScreen extends StatefulWidget {
   final List<ListeningMissionContent> missions;
   final LessonMediaService mediaService;
   final LessonAttemptEvaluator? attemptEvaluator;
+  final VoicePromptService? voicePromptService;
+  final LessonEnglishSpeechInput? iosSpeechInput;
   final String? levelTitle;
 
   @override
@@ -95,6 +101,9 @@ class LessonMissionScreen extends StatefulWidget {
 }
 
 class _LessonMissionScreenState extends State<LessonMissionScreen> {
+  static const Duration _automaticAnswerWindow = Duration(seconds: 6);
+  static const Duration _promptCompletionTimeout = Duration(seconds: 10);
+
   late final LessonAttemptEvaluator _attemptEvaluator;
   late final bool _ownsAttemptEvaluator;
 
@@ -104,11 +113,20 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
   var _attemptNumber = 0;
   var _playingPrompt = false;
   var _recording = false;
+  var _recordingUsesIosSpeech = false;
   var _busy = false;
   var _promptRequest = 0;
   String? _message;
   final Map<String, LessonMissionAnswer> _answers =
       <String, LessonMissionAnswer>{};
+  Timer? _recordingAutoStopTimer;
+  Timer? _promptCompletionTimer;
+  Completer<void>? _promptCompletionWaiter;
+
+  bool get _usesIosOnDeviceRecognition =>
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.iOS &&
+      widget.iosSpeechInput != null;
 
   VoicePromptService get _prompt {
     final prompt = _voicePromptService;
@@ -131,6 +149,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
+    _voicePromptService = widget.voicePromptService;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_playCurrentPrompt()),
     );
@@ -139,9 +158,22 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
   @override
   void dispose() {
     _promptRequest += 1;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+    _promptCompletionTimer?.cancel();
+    _promptCompletionTimer = null;
+    final promptWaiter = _promptCompletionWaiter;
+    _promptCompletionWaiter = null;
+    if (promptWaiter != null && !promptWaiter.isCompleted) {
+      promptWaiter.complete();
+    }
     unawaited(widget.mediaService.stopPlayback());
-    if (_recording) {
-      unawaited(widget.mediaService.cancelRecording());
+    if (_recording || _recordingUsesIosSpeech) {
+      if (_recordingUsesIosSpeech && widget.iosSpeechInput != null) {
+        unawaited(widget.iosSpeechInput!.cancel());
+      } else {
+        unawaited(widget.mediaService.cancelRecording());
+      }
     }
     final prompt = _voicePromptService;
     if (prompt != null) {
@@ -166,15 +198,62 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
       _message = null;
     });
     try {
-      await _prompt.speakAndWait(_mission.prompt);
+      await widget.mediaService.prepareSelectedLessonOutput();
       if (!mounted || request != _promptRequest) return;
-      await _prompt.speakAndWait('Bạn nói đầy đủ câu tiếng Anh nhé.');
+      await _speakPromptAndWait(_mission.prompt);
+      if (!mounted || request != _promptRequest) return;
+      await _speakPromptAndWait('Bạn nói đầy đủ câu tiếng Anh nhé.');
     } catch (_) {
       // The visible prompt and record action remain available when TTS is
       // temporarily unavailable.
     } finally {
       if (mounted && request == _promptRequest) {
         setState(() => _playingPrompt = false);
+      }
+    }
+    if (!mounted || request != _promptRequest || _recording || _busy) {
+      return;
+    }
+    await _startRecording();
+  }
+
+  Future<void> _speakPromptAndWait(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    _promptCompletionTimer?.cancel();
+    final previousWaiter = _promptCompletionWaiter;
+    if (previousWaiter != null && !previousWaiter.isCompleted) {
+      previousWaiter.complete();
+    }
+
+    final waiter = Completer<void>();
+    _promptCompletionWaiter = waiter;
+    unawaited(() async {
+      try {
+        await _prompt.speakAndWait(text, locale: locale);
+        if (!waiter.isCompleted) waiter.complete();
+      } catch (error, stackTrace) {
+        if (!waiter.isCompleted) waiter.completeError(error, stackTrace);
+      }
+    }());
+    _promptCompletionTimer = Timer(_promptCompletionTimeout, () {
+      unawaited(() async {
+        try {
+          await _prompt.stop();
+        } finally {
+          if (!waiter.isCompleted) waiter.complete();
+        }
+      }());
+    });
+
+    try {
+      await waiter.future;
+    } finally {
+      if (identical(_promptCompletionWaiter, waiter)) {
+        _promptCompletionTimer?.cancel();
+        _promptCompletionTimer = null;
+        _promptCompletionWaiter = null;
       }
     }
   }
@@ -189,23 +268,56 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
     });
     try {
       await _prompt.stop();
-      await widget.mediaService.startRecording(
-        lessonId: '${widget.lesson.id}-mission',
-        sentenceNumber: _missionIndex + 1,
-        lessonTitle: '${widget.lesson.titleVi} · Level Mission',
-        sentenceId: _missionSentenceId,
-        english: expected,
-        vietnamese: _mission.correctVietnamese,
-        saveToHistory: false,
-      );
-      if (!mounted) return;
+      var usesIosSpeech = false;
+      final iosSpeechInput = _usesIosOnDeviceRecognition
+          ? widget.iosSpeechInput
+          : null;
+      if (iosSpeechInput != null) {
+        try {
+          await iosSpeechInput.startLessonEnglishRecognition();
+          usesIosSpeech = true;
+          widget.mediaService.handoffSelectedLessonOutputToNativeCapture();
+        } catch (error) {
+          debugPrint(
+            'HOMI iOS mission on-device recognition unavailable; '
+            'using recorded/backend fallback: $error',
+          );
+          await iosSpeechInput.cancel().catchError((Object _) {});
+        }
+      }
+      if (!usesIosSpeech) {
+        await widget.mediaService.startRecording(
+          lessonId: '${widget.lesson.id}-mission',
+          sentenceNumber: _missionIndex + 1,
+          lessonTitle: '${widget.lesson.titleVi} · Level Mission',
+          sentenceId: _missionSentenceId,
+          english: expected,
+          vietnamese: _mission.correctVietnamese,
+          saveToHistory: false,
+        );
+      }
+      if (!mounted) {
+        if (usesIosSpeech) {
+          await iosSpeechInput?.cancel().catchError((Object _) {});
+        } else {
+          await widget.mediaService.cancelRecording().catchError((Object _) {});
+        }
+        return;
+      }
       setState(() {
         _recording = true;
+        _recordingUsesIosSpeech = usesIosSpeech;
         _busy = false;
       });
+      _recordingAutoStopTimer?.cancel();
+      _recordingAutoStopTimer = Timer(
+        _automaticAnswerWindow,
+        () => unawaited(_stopRecording()),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
+        _recordingUsesIosSpeech = false;
         _busy = false;
         _message = _friendlyError(error);
       });
@@ -214,69 +326,120 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
 
   Future<void> _stopRecording() async {
     if (!_recording || _busy || !mounted) return;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
     setState(() => _busy = true);
+    var shouldOpenMicrophoneAgain = false;
     try {
-      final recording = await widget.mediaService.stopRecording();
+      final usesIosSpeech = _recordingUsesIosSpeech;
+      final LessonAttemptOutcome outcome;
+      if (usesIosSpeech) {
+        outcome = await _stopAndScoreIosOnDevice();
+        _attemptNumber += 1;
+      } else {
+        final recording = await widget.mediaService.stopRecording();
+        if (!mounted) return;
+        outcome = await _attemptEvaluator.evaluate(
+          lessonCode: _lessonCode,
+          sentenceId: _missionSentenceId,
+          expectedEnglish: _mission.correctAnswer,
+          recordingPath: recording.filePath,
+          recordingDuration: recording.duration,
+          attemptNumber: ++_attemptNumber,
+          childAge: widget.startAge,
+          requireAllExpectedTokens: false,
+        );
+      }
       if (!mounted) return;
-      setState(() => _recording = false);
-      final outcome = await _attemptEvaluator.evaluate(
-        lessonCode: _lessonCode,
-        sentenceId: _missionSentenceId,
-        expectedEnglish: _mission.correctAnswer,
-        recordingPath: recording.filePath,
-        recordingDuration: recording.duration,
-        attemptNumber: ++_attemptNumber,
-        childAge: widget.startAge,
-        requireAllExpectedTokens: true,
-      );
-      if (!mounted) return;
-      await _applyOutcome(outcome);
+      setState(() {
+        _recording = false;
+        _recordingUsesIosSpeech = false;
+      });
+      shouldOpenMicrophoneAgain = await _applyOutcome(outcome);
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _recording = false;
+        _recordingUsesIosSpeech = false;
         _message = _friendlyError(error);
       });
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    if (shouldOpenMicrophoneAgain && mounted && !_recording) {
+      await _startRecording();
+    }
   }
 
-  Future<void> _applyOutcome(LessonAttemptOutcome outcome) async {
+  Future<LessonAttemptOutcome> _stopAndScoreIosOnDevice() async {
+    final speechInput = widget.iosSpeechInput;
+    if (speechInput == null) return LessonAttemptOutcome.unclear;
+    try {
+      final capture = await speechInput.stop();
+      final candidates = <String>{
+        capture.sourceText,
+        ...capture.alternatives,
+      }.where((candidate) => candidate.trim().isNotEmpty);
+      if (candidates.isEmpty) return LessonAttemptOutcome.unclear;
+      return candidates.any(
+            (candidate) => matchesRecognizedLessonEnglish(
+              _mission.correctAnswer,
+              candidate,
+              requireAllExpectedTokens: false,
+            ),
+          )
+          ? LessonAttemptOutcome.good
+          : LessonAttemptOutcome.retry;
+    } on StreamingSpeechInputException catch (error) {
+      debugPrint(
+        'HOMI iOS mission recognition returned no usable speech: '
+        'code=${error.code ?? 'unknown'}',
+      );
+      return LessonAttemptOutcome.unclear;
+    } catch (error) {
+      debugPrint('HOMI iOS mission recognition failed locally: $error');
+      return LessonAttemptOutcome.unclear;
+    }
+  }
+
+  Future<bool> _applyOutcome(LessonAttemptOutcome outcome) async {
     switch (outcome) {
       case LessonAttemptOutcome.good:
-        await _resolveCurrent(correct: true, outcome: outcome);
-        return;
+        return _resolveCurrent(correct: true, outcome: outcome);
       case LessonAttemptOutcome.needsPractice:
-        await _resolveCurrent(correct: false, outcome: outcome);
-        return;
+        return _resolveCurrent(correct: false, outcome: outcome);
       case LessonAttemptOutcome.unclear:
       case LessonAttemptOutcome.retry:
         // Match the lesson behaviour: permit one retry, then resolve the
         // authored mission as weak so the Level can always produce 4 results.
         if (_attemptNumber >= 2) {
-          await _resolveCurrent(correct: false, outcome: outcome);
-          return;
+          return _resolveCurrent(correct: false, outcome: outcome);
         }
+        final feedback = outcome == LessonAttemptOutcome.unclear
+            ? 'Cô chưa nghe rõ. Bạn nói lại nhé.'
+            : 'Bạn nói đầy đủ cả câu tiếng Anh nhé.';
         if (mounted) {
-          setState(() {
-            _message = outcome == LessonAttemptOutcome.unclear
-                ? 'Cô chưa nghe rõ. Bạn nói lại nhé.'
-                : 'Bạn nói đầy đủ cả câu tiếng Anh nhé.';
-          });
+          setState(() => _message = feedback);
         }
-        return;
+        try {
+          await widget.mediaService.prepareSelectedLessonOutput();
+          await _speakPromptAndWait(feedback);
+        } catch (_) {
+          // Keep the visible feedback and reopen the microphone even if TTS is
+          // temporarily unavailable.
+        }
+        return mounted;
     }
   }
 
-  Future<void> _resolveCurrent({
+  Future<bool> _resolveCurrent({
     required bool correct,
     required LessonAttemptOutcome outcome,
   }) async {
     final mission = _mission;
     // An evaluator can resolve late as the route is transitioning. Never let a
     // duplicate callback turn one authored prompt into multiple score entries.
-    if (_answers.containsKey(mission.id)) return;
+    if (_answers.containsKey(mission.id)) return false;
     final answer = LessonMissionAnswer(
       missionId: mission.id,
       targetId: mission.coverageTargetId,
@@ -293,11 +456,12 @@ class _LessonMissionScreenState extends State<LessonMissionScreen> {
         _message = null;
       });
       await _playCurrentPrompt(allowBusy: true);
-      return;
+      return mounted;
     }
 
-    if (!mounted) return;
+    if (!mounted) return false;
     Navigator.of(context).pop(_buildResult());
+    return false;
   }
 
   LessonMissionResult _buildResult() {

@@ -188,6 +188,59 @@ void main() {
     },
   );
 
+  testWidgets('moves on after two retries instead of recording forever', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _FakeLessonMediaService();
+    final evaluator = _QueuedAttemptEvaluator(<LessonAttemptOutcome>[
+      LessonAttemptOutcome.retry,
+      LessonAttemptOutcome.retry,
+    ]);
+    await tester.pumpWidget(
+      _subject(
+        startAge: 7,
+        mediaService: mediaService,
+        attemptEvaluator: evaluator,
+        challenges: const <ListeningChallengeContent>[
+          ListeningChallengeContent(
+            id: 'challenge-1',
+            format: 'VI_TO_EN',
+            prompt: 'Where is the library?',
+            choices: <String>['Go straight.', 'It is five dollars.'],
+            correctAnswer: 'Go straight.',
+            correctVietnamese: 'Đi thẳng.',
+            targetId: 'target-1',
+          ),
+          ListeningChallengeContent(
+            id: 'challenge-2',
+            format: 'VI_TO_EN',
+            prompt: 'How are you?',
+            choices: <String>['I am fine.', 'I am eight.'],
+            correctAnswer: 'I am fine.',
+            correctVietnamese: 'Con khỏe.',
+            targetId: 'target-2',
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Câu 1/2'), findsOneWidget);
+    expect(mediaService.recordingStarts, 2);
+
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Câu 2/2'), findsOneWidget);
+    expect(evaluator.evaluationCalls, 2);
+    expect(mediaService.recordingStarts, 3);
+  });
+
   testWidgets('iOS scores a challenge on device without calling the backend', (
     tester,
   ) async {
@@ -390,6 +443,30 @@ class _ControlledAttemptEvaluator implements LessonAttemptEvaluator {
   }) {
     evaluationCalls += 1;
     return _completion.future;
+  }
+}
+
+class _QueuedAttemptEvaluator implements LessonAttemptEvaluator {
+  _QueuedAttemptEvaluator(this.outcomes);
+
+  final List<LessonAttemptOutcome> outcomes;
+  int evaluationCalls = 0;
+
+  @override
+  Future<LessonAttemptOutcome> evaluate({
+    required String lessonCode,
+    required String sentenceId,
+    required String expectedEnglish,
+    required String recordingPath,
+    required Duration recordingDuration,
+    required int attemptNumber,
+    required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
+  }) async {
+    final outcome = outcomes[evaluationCalls];
+    evaluationCalls += 1;
+    return outcome;
   }
 }
 

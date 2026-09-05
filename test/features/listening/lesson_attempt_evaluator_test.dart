@@ -6,11 +6,47 @@ import 'package:ai_speaking_flutter_app/features/listening/application/lesson_at
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_recording_storage.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/lesson_guide_flow.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('Android recorded recognizer uses the HOMI offline channel', () async {
+    const channel = MethodChannel('test.homi-offline-speech');
+    MethodCall? receivedCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          receivedCall = call;
+          return <String, Object?>{
+            'text': 'play soccer',
+            'alternatives': <String>['play football'],
+            'engine': 'vosk',
+          };
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    const recognizer = MethodChannelLessonRecordedSpeechRecognizer(
+      channel: channel,
+    );
+
+    final recognition = await recognizer.recognizeFile(
+      path: 'attempt.wav',
+      locale: 'en-US',
+      preferOnDevice: true,
+      requireOnDevice: true,
+    );
+
+    expect(receivedCall?.method, 'recognizeFile');
+    expect(receivedCall?.arguments, containsPair('path', 'attempt.wav'));
+    expect(recognition.transcript, 'play soccer');
+    expect(recognition.alternatives, <String>['play football']);
+  });
+
   test(
     'returns good only when backend confirms the target English words',
     () async {
@@ -273,6 +309,43 @@ void main() {
       expect(matchesRecognizedLessonEnglish('I am hungry', ''), isFalse);
       expect(
         matchesRecognizedLessonEnglish('I am hungry', 'I want the bathroom'),
+        isFalse,
+      );
+    });
+
+    test('accepts one light ASR miss in a normal multi-word phrase', () {
+      expect(
+        matchesRecognizedLessonEnglish(
+          'School starts at eight',
+          'School starts eight',
+        ),
+        isTrue,
+      );
+      expect(
+        matchesRecognizedLessonEnglish('Play soccer', 'Play socket'),
+        isTrue,
+      );
+    });
+
+    test('also applies encouraging matching to authored alternatives', () {
+      expect(
+        matchesRecognizedLessonEnglish(
+          'I would like some water',
+          'Can I have water',
+          acceptedVariants: const ['Can I have some water'],
+        ),
+        isTrue,
+      );
+    });
+
+    test('keeps single words and explicitly strict phrases strict', () {
+      expect(matchesRecognizedLessonEnglish('Shirt', 'Short'), isFalse);
+      expect(
+        matchesRecognizedLessonEnglish(
+          'A B C',
+          'A B',
+          requireAllExpectedTokens: true,
+        ),
         isFalse,
       );
     });

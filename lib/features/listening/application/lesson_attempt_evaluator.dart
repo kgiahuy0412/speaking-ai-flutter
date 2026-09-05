@@ -50,8 +50,8 @@ abstract interface class LessonRecordedSpeechRecognizer {
 class MethodChannelLessonRecordedSpeechRecognizer
     implements LessonRecordedSpeechRecognizer {
   const MethodChannelLessonRecordedSpeechRecognizer({
-    MethodChannel channel = const MethodChannel('ailingo_speech'),
-    Duration timeout = const Duration(seconds: 15),
+    MethodChannel channel = const MethodChannel('homi_offline_speech'),
+    Duration timeout = const Duration(seconds: 20),
   }) : _channel = channel,
        _timeout = timeout;
 
@@ -67,7 +67,7 @@ class MethodChannelLessonRecordedSpeechRecognizer
   }) async {
     try {
       final payload = await _channel
-          .invokeMethod<Object?>('speech.recognizeFileOnce', <String, Object?>{
+          .invokeMethod<Object?>('recognizeFile', <String, Object?>{
             'path': path,
             'sampleRate': 16000,
             'locale': locale,
@@ -96,7 +96,7 @@ class MethodChannelLessonRecordedSpeechRecognizer
     } on TimeoutException {
       try {
         await _channel
-            .invokeMethod<void>('speech.cancel')
+            .invokeMethod<void>('cancel')
             .timeout(const Duration(seconds: 2));
       } catch (_) {
         // Native cleanup is best-effort after a bounded recognition timeout.
@@ -120,8 +120,7 @@ class MethodChannelLessonRecordedSpeechRecognizer
 }
 
 /// Keeps normal online lesson scoring unchanged. Only a backend connectivity
-/// failure activates strict English recognition with the installed Android
-/// on-device model.
+/// failure activates HOMI's app-owned English model on Android.
 class BackendFirstLessonAttemptEvaluator
     implements LessonAttemptEvaluator, DisposableLessonAttemptEvaluator {
   BackendFirstLessonAttemptEvaluator({
@@ -606,31 +605,41 @@ String _normalizeLessonEnglish(String value) {
       .join(' ');
 }
 
-/// Performs the intentionally basic local pass/fail check used after Apple
-/// Speech produces an English transcript for a listening lesson.
-/// Compares an on-device transcript with an authored target.
+/// Performs the encouraging local pass/fail check used after an on-device
+/// recognizer produces an English transcript for a listening lesson.
 ///
-/// V4 supplies a deliberately small, authored recognition inventory for every
-/// target.  When a target requires every token (notably Alphabet/ABC), route
-/// it through [LessonRecognitionMatcher] rather than the more forgiving
-/// compatibility matcher kept for the old catalog.
+/// Authored targets which explicitly require every token (notably
+/// Alphabet/ABC) stay strict. Normal speaking exercises accept a small ASR or
+/// pronunciation miss so children are encouraged to continue, while silence,
+/// one-word fragments and clearly different answers still fail.
 bool matchesRecognizedLessonEnglish(
   String expectedEnglish,
   String transcript, {
   Iterable<String> acceptedVariants = const <String>[],
   bool requireAllExpectedTokens = false,
 }) {
-  if (requireAllExpectedTokens || acceptedVariants.isNotEmpty) {
-    return const LessonRecognitionMatcher().matches(
-      expectedEnglish: expectedEnglish,
-      transcript: transcript,
-      acceptedVariants: acceptedVariants,
-      requireAllExpectedTokens: requireAllExpectedTokens,
-    );
+  final strictMatch = const LessonRecognitionMatcher().matches(
+    expectedEnglish: expectedEnglish,
+    transcript: transcript,
+    acceptedVariants: acceptedVariants,
+    requireAllExpectedTokens: requireAllExpectedTokens,
+  );
+  if (strictMatch || requireAllExpectedTokens) {
+    return strictMatch;
   }
 
-  final expected = _normalizeLessonEnglish(expectedEnglish);
   final actual = _normalizeLessonEnglish(transcript);
+  if (actual.isEmpty) {
+    return false;
+  }
+  final targets = <String>{expectedEnglish, ...acceptedVariants};
+  return targets.any((target) {
+    final expected = _normalizeLessonEnglish(target);
+    return _matchesEncouragingLessonEnglish(expected, actual);
+  });
+}
+
+bool _matchesEncouragingLessonEnglish(String expected, String actual) {
   if (expected.isEmpty || actual.isEmpty) {
     return false;
   }
@@ -640,14 +649,56 @@ bool matchesRecognizedLessonEnglish(
 
   final expectedWords = expected.split(' ');
   final actualWords = actual.split(' ');
-  if (actualWords.length <= expectedWords.length + 2 &&
-      _containsContiguousWords(actualWords, expectedWords)) {
+
+  // A short isolated word can change meaning completely (left/right,
+  // shirt/short), so only authored exact variants may pass one-word targets.
+  if (expectedWords.length == 1) {
+    return false;
+  }
+
+  if (actualWords.length < expectedWords.length - 1 ||
+      actualWords.length > expectedWords.length + 2) {
+    return false;
+  }
+
+  if (_containsContiguousWords(actualWords, expectedWords)) {
     return true;
   }
 
   final longest = math.max(expected.length, actual.length);
   final similarity = 1 - (_levenshteinDistance(expected, actual) / longest);
-  return similarity >= 0.82;
+  final exactWordsInOrder = _longestCommonWordSubsequence(
+    expectedWords,
+    actualWords,
+  );
+
+  if (expectedWords.length == 2) {
+    return exactWordsInOrder >= 1 && similarity >= 0.78;
+  }
+
+  // For normal phrases, tolerate one omitted or mistranscribed word. The
+  // similarity floor prevents a sentence sharing only common filler words
+  // from being accepted.
+  return exactWordsInOrder >= expectedWords.length - 1 && similarity >= 0.66;
+}
+
+int _longestCommonWordSubsequence(List<String> left, List<String> right) {
+  var previous = List<int>.filled(right.length + 1, 0);
+  for (var leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    final current = List<int>.filled(right.length + 1, 0);
+    for (var rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      if (left[leftIndex - 1] == right[rightIndex - 1]) {
+        current[rightIndex] = previous[rightIndex - 1] + 1;
+      } else {
+        current[rightIndex] = math.max(
+          current[rightIndex - 1],
+          previous[rightIndex],
+        );
+      }
+    }
+    previous = current;
+  }
+  return previous.last;
 }
 
 bool _containsContiguousWords(List<String> source, List<String> expected) {

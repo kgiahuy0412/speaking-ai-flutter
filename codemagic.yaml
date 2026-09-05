@@ -113,6 +113,11 @@ workflows:
       - name: Build signed App Store IPA
         script: |
           set -euo pipefail
+          RELEASE_AI_SUBPROCESSORS="$AI_SUBPROCESSORS"
+          case "$RELEASE_AI_SUBPROCESSORS" in
+            *"Google ML Kit"*) ;;
+            *) RELEASE_AI_SUBPROCESSORS="$RELEASE_AI_SUBPROCESSORS và Google ML Kit (cung cấp model dịch tải xuống và chạy cục bộ; không nhận audio/transcript trong luồng offline)" ;;
+          esac
           flutter build ipa \
             --release \
             --build-number="$BUILD_NUMBER" \
@@ -129,7 +134,7 @@ workflows:
             --dart-define=PRIVACY_POLICY_URL="$PRIVACY_POLICY_URL" \
             --dart-define=TERMS_URL="$TERMS_URL" \
             --dart-define=SUPPORT_URL="$SUPPORT_URL" \
-            --dart-define=AI_SUBPROCESSORS="$AI_SUBPROCESSORS" \
+            --dart-define=AI_SUBPROCESSORS="$RELEASE_AI_SUBPROCESSORS" \
             --dart-define=DATA_RETENTION_SUMMARY="$DATA_RETENTION_SUMMARY"
 
     artifacts:

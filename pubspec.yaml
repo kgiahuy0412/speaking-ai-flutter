@@ -12,6 +12,7 @@ dependencies:
   crypto: ^3.0.7
   flutter:
     sdk: flutter
+  google_mlkit_translation: ^0.15.1
   http: ^1.6.0
   just_audio: ^0.10.6
   local_auth: ^3.0.2

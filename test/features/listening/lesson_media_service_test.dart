@@ -328,7 +328,7 @@ void main() {
       useSelectedHfp: false,
     );
 
-    expect(recordConfig.encoder, AudioEncoder.pcm16bits);
+    expect(recordConfig.encoder, AudioEncoder.wav);
     expect(recordConfig.sampleRate, 16000);
     expect(recordConfig.numChannels, 1);
   });

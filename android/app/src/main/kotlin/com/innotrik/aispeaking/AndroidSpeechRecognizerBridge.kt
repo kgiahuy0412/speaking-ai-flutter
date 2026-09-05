@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
@@ -13,6 +15,7 @@ import android.speech.RecognitionSupport
 import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -23,6 +26,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AndroidSpeechRecognizerBridge(
     private val activity: Activity,
@@ -74,6 +78,9 @@ class AndroidSpeechRecognizerBridge(
                         ),
                 )
             "speech.prepare" -> result.success(ensureRecognizer(RecognizerMode.STANDARD))
+            "speech.getOnDeviceModelStatus" -> getOnDeviceModelStatus(call, result)
+            "speech.requestOnDeviceModelDownload" ->
+                requestOnDeviceModelDownload(call, result)
             "speech.start" -> startListening(call, result)
             "speech.recognizeFile" -> recognizeFile(call, result, waitForFinalResult = false)
             "speech.recognizeFileOnce" -> recognizeFile(call, result, waitForFinalResult = true)
@@ -132,6 +139,201 @@ class AndroidSpeechRecognizerBridge(
 
         startRecognizer(result, commandMode, preferOnDevice, requireOnDevice, locale)
     }
+
+    private fun getOnDeviceModelStatus(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(
+                modelStatusPayload(
+                    state = "unsupported",
+                    strictOnDeviceAvailable = false,
+                ),
+            )
+            return
+        }
+        if (listening) {
+            result.error(
+                "SPEECH_RECOGNIZER_BUSY",
+                "Dịch vụ nhận diện đang bận.",
+                null,
+            )
+            return
+        }
+
+        val locale = call.argument<String>("locale")?.ifBlank { "en-US" } ?: "en-US"
+        val strictOnDeviceAvailable = supportsStrictOnDeviceFileRecognition()
+        val requestedMode =
+            if (strictOnDeviceAvailable) RecognizerMode.ON_DEVICE else RecognizerMode.STANDARD
+        if (!ensureRecognizer(requestedMode)) {
+            result.success(
+                modelStatusPayload(
+                    state = "unavailable",
+                    strictOnDeviceAvailable = strictOnDeviceAvailable,
+                ),
+            )
+            return
+        }
+
+        val activeRecognizer = recognizer
+        if (activeRecognizer == null) {
+            result.success(
+                modelStatusPayload(
+                    state = "unavailable",
+                    strictOnDeviceAvailable = strictOnDeviceAvailable,
+                ),
+            )
+            return
+        }
+        val intent = createRecognizerIntent(locale = locale, preferOnDevice = true)
+        // Some OEM recognition services incorrectly deliver onError and a
+        // later onSupportResult for one request. A MethodChannel reply is
+        // single-use, so accept only the first terminal callback.
+        val callbackCompleted = AtomicBoolean(false)
+        try {
+            activeRecognizer.checkRecognitionSupport(
+                intent,
+                activity.mainExecutor,
+                object : RecognitionSupportCallback {
+                    override fun onSupportResult(recognitionSupport: RecognitionSupport) {
+                        if (!callbackCompleted.compareAndSet(false, true)) return
+                        val installed = recognitionSupport.installedOnDeviceLanguages
+                        val pending = recognitionSupport.pendingOnDeviceLanguages
+                        val downloadable = recognitionSupport.supportedOnDeviceLanguages
+                        val online = recognitionSupport.onlineLanguages
+                        val state =
+                            when {
+                                installed.any { languageTagsMatch(it, locale) } -> "installed"
+                                pending.any { languageTagsMatch(it, locale) } -> "pending"
+                                downloadable.any { languageTagsMatch(it, locale) } -> "downloadable"
+                                online.any { languageTagsMatch(it, locale) } -> "missing"
+                                else -> "missing"
+                            }
+                        Log.i(
+                            logTag,
+                            "English offline model status=$state locale=$locale " +
+                                "strict=$strictOnDeviceAvailable installed=${installed.joinToString()} " +
+                                "downloadable=${downloadable.joinToString()} " +
+                                "pending=${pending.joinToString()}",
+                        )
+                        result.success(
+                            modelStatusPayload(
+                                state = state,
+                                strictOnDeviceAvailable = strictOnDeviceAvailable,
+                            ),
+                        )
+                    }
+
+                    override fun onError(error: Int) {
+                        if (!callbackCompleted.compareAndSet(false, true)) return
+                        Log.w(logTag, "English model support check failed: $error")
+                        // API 33 devices with a valid recognition service can still
+                        // request the locale model when support enumeration fails.
+                        result.success(
+                            modelStatusPayload(
+                                state = "missing",
+                                strictOnDeviceAvailable = strictOnDeviceAvailable,
+                                supportError = error,
+                            ),
+                        )
+                    }
+                },
+            )
+        } catch (error: RuntimeException) {
+            if (!callbackCompleted.compareAndSet(false, true)) return
+            Log.w(logTag, "English model support check threw", error)
+            result.success(
+                modelStatusPayload(
+                    state = "missing",
+                    strictOnDeviceAvailable = strictOnDeviceAvailable,
+                ),
+            )
+        }
+    }
+
+    private fun requestOnDeviceModelDownload(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.error(
+                "ON_DEVICE_MODEL_UNSUPPORTED",
+                "Android này chưa hỗ trợ tải model nhận diện từ ứng dụng.",
+                null,
+            )
+            return
+        }
+        if (listening) {
+            result.error(
+                "SPEECH_RECOGNIZER_BUSY",
+                "Dịch vụ nhận diện đang bận.",
+                null,
+            )
+            return
+        }
+        if (!hasValidatedUnmeteredWifi()) {
+            result.error(
+                "ON_DEVICE_MODEL_WIFI_REQUIRED",
+                "HOMI chỉ tải model nhận diện tiếng Anh qua Wi-Fi.",
+                null,
+            )
+            return
+        }
+
+        val locale = call.argument<String>("locale")?.ifBlank { "en-US" } ?: "en-US"
+        val strictOnDeviceAvailable = supportsStrictOnDeviceFileRecognition()
+        val requestedMode =
+            if (strictOnDeviceAvailable) RecognizerMode.ON_DEVICE else RecognizerMode.STANDARD
+        if (!ensureRecognizer(requestedMode)) {
+            result.error(
+                "ON_DEVICE_MODEL_UNSUPPORTED",
+                "Thiết bị không có dịch vụ nhận diện hỗ trợ tải model.",
+                null,
+            )
+            return
+        }
+
+        try {
+            recognizer?.triggerModelDownload(
+                createRecognizerIntent(locale = locale, preferOnDevice = true),
+            )
+            Log.i(
+                logTag,
+                "Requested English offline model download locale=$locale " +
+                    "mode=$requestedMode wifi=validated_unmetered",
+            )
+            result.success(
+                mapOf(
+                    "state" to "requested",
+                    "locale" to locale,
+                    "apiLevel" to Build.VERSION.SDK_INT,
+                    "strictOnDeviceAvailable" to strictOnDeviceAvailable,
+                ),
+            )
+        } catch (error: RuntimeException) {
+            Log.w(logTag, "English model download request failed", error)
+            result.error(
+                "ON_DEVICE_MODEL_DOWNLOAD_FAILED",
+                error.message ?: "Không thể yêu cầu Android tải model tiếng Anh.",
+                null,
+            )
+        }
+    }
+
+    private fun modelStatusPayload(
+        state: String,
+        strictOnDeviceAvailable: Boolean,
+        supportError: Int? = null,
+    ): Map<String, Any> =
+        mutableMapOf<String, Any>(
+            "state" to state,
+            "locale" to "en-US",
+            "apiLevel" to Build.VERSION.SDK_INT,
+            "strictOnDeviceAvailable" to strictOnDeviceAvailable,
+        ).apply {
+            if (supportError != null) put("supportError", supportError)
+        }
 
     private fun startRecognizer(
         result: MethodChannel.Result,
@@ -241,6 +443,8 @@ class AndroidSpeechRecognizerBridge(
         val locale = call.argument<String>("locale")?.ifBlank { defaultLocale } ?: defaultLocale
         val preferOnDevice = call.argument<Boolean>("preferOnDevice") == true
         val requireOnDevice = call.argument<Boolean>("requireOnDevice") == true
+        val allowDisconnectedOfflineCompatibility =
+            call.argument<Boolean>("allowDisconnectedOfflineCompatibility") == true
         val audioFile = path?.let(::File)
         val wavAudio = audioFile?.let(::inspectPcm16MonoWav)
         if (audioFile == null || wavAudio == null) {
@@ -260,7 +464,13 @@ class AndroidSpeechRecognizerBridge(
             )
             return
         }
-        if (requireOnDevice && !supportsStrictOnDeviceFileRecognition()) {
+        val strictOnDeviceAvailable = supportsStrictOnDeviceFileRecognition()
+        val useDisconnectedOfflineCompatibility =
+            requireOnDevice &&
+                !strictOnDeviceAvailable &&
+                allowDisconnectedOfflineCompatibility &&
+                supportsDisconnectedOfflineCompatibility()
+        if (requireOnDevice && !strictOnDeviceAvailable && !useDisconnectedOfflineCompatibility) {
             result.error(
                 "ON_DEVICE_SPEECH_UNAVAILABLE",
                 "Thiết bị chưa hỗ trợ nhận diện file bằng model offline.",
@@ -268,8 +478,13 @@ class AndroidSpeechRecognizerBridge(
             )
             return
         }
-        val requestedMode = resolveRecognizerMode(requireOnDevice)
-        if (requestedMode == null || !ensureRecognizer(requestedMode)) {
+        val requestedMode =
+            if (requireOnDevice && strictOnDeviceAvailable) {
+                RecognizerMode.ON_DEVICE
+            } else {
+                RecognizerMode.STANDARD
+            }
+        if (!ensureRecognizer(requestedMode)) {
             result.error(
                 if (requireOnDevice) "ON_DEVICE_SPEECH_UNAVAILABLE" else "SPEECH_UNAVAILABLE",
                 if (requireOnDevice) {
@@ -304,6 +519,11 @@ class AndroidSpeechRecognizerBridge(
 
         val beginRecognition = {
             if (generation == recognitionGeneration) {
+                Log.i(
+                    logTag,
+                    "Starting recorded English recognition mode=$requestedMode " +
+                        "disconnectedCompatibility=$useDisconnectedOfflineCompatibility",
+                )
                 beginFileRecognition(
                     audioFile = audioFile,
                     wavAudio = wavAudio,
@@ -315,7 +535,7 @@ class AndroidSpeechRecognizerBridge(
             }
         }
 
-        if (requireOnDevice) {
+        if (requireOnDevice && !useDisconnectedOfflineCompatibility) {
             checkInstalledOnDeviceModel(
                 intent = intent,
                 locale = locale,
@@ -472,6 +692,49 @@ class AndroidSpeechRecognizerBridge(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             isOnDeviceRecognitionAvailable()
 
+    /**
+     * Some Android 13 Xiaomi builds expose Google Speech Services while leaving
+     * the framework on-device recognizer component empty. The strict factory is
+     * then unavailable even with an installed offline language pack. Keep this
+     * compatibility path constrained to a device with no validated network;
+     * normal online lesson scoring never reaches this recognizer.
+     */
+    private fun supportsDisconnectedOfflineCompatibility(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            SpeechRecognizer.isRecognitionAvailable(activity) &&
+            !hasValidatedInternetConnection()
+
+    private fun hasValidatedInternetConnection(): Boolean =
+        try {
+            val connectivityManager =
+                activity.getSystemService(ConnectivityManager::class.java)
+                    ?: return true
+            val activeNetwork = connectivityManager.activeNetwork ?: return false
+            val capabilities =
+                connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (_: SecurityException) {
+            // Fail closed if an OEM blocks network-state inspection.
+            true
+        }
+
+    private fun hasValidatedUnmeteredWifi(): Boolean =
+        try {
+            val connectivityManager =
+                activity.getSystemService(ConnectivityManager::class.java)
+                    ?: return false
+            val activeNetwork = connectivityManager.activeNetwork ?: return false
+            val capabilities =
+                connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        } catch (_: SecurityException) {
+            false
+        }
+
     private fun checkInstalledOnDeviceModel(
         intent: Intent,
         locale: String,
@@ -488,13 +751,20 @@ class AndroidSpeechRecognizerBridge(
             onUnavailable()
             return
         }
+        val callbackCompleted = AtomicBoolean(false)
         try {
             activeRecognizer.checkRecognitionSupport(
                 intent,
                 activity.mainExecutor,
                 object : RecognitionSupportCallback {
                     override fun onSupportResult(recognitionSupport: RecognitionSupport) {
+                        if (!callbackCompleted.compareAndSet(false, true)) return
                         if (generation != recognitionGeneration) return
+                        Log.i(
+                            logTag,
+                            "Installed on-device speech languages=" +
+                                recognitionSupport.installedOnDeviceLanguages.joinToString(),
+                        )
                         if (
                             recognitionSupport.installedOnDeviceLanguages.any {
                                 languageTagsMatch(it, locale)
@@ -507,11 +777,14 @@ class AndroidSpeechRecognizerBridge(
                     }
 
                     override fun onError(error: Int) {
+                        if (!callbackCompleted.compareAndSet(false, true)) return
+                        Log.w(logTag, "Recognition support check failed: $error")
                         if (generation == recognitionGeneration) onUnavailable()
                     }
                 },
             )
         } catch (_: RuntimeException) {
+            if (!callbackCompleted.compareAndSet(false, true)) return
             if (generation == recognitionGeneration) onUnavailable()
         }
     }
@@ -722,6 +995,11 @@ class AndroidSpeechRecognizerBridge(
 
     override fun onError(error: Int) {
         val wasRequiredOnDevice = activeRequireOnDevice
+        Log.w(
+            logTag,
+            "Speech recognition failed: error=$error mode=$recognizerMode " +
+                "requiredOnDevice=$wasRequiredOnDevice",
+        )
         listening = false
         closeInjectedAudio()
         activeRequireOnDevice = false
@@ -976,5 +1254,6 @@ class AndroidSpeechRecognizerBridge(
         const val wavHeaderBytes = 44
         const val minimumCapturedPcmBytes = 1600
         const val injectedAudioBufferBytes = 8192
+        const val logTag = "HomiSpeech"
     }
 }

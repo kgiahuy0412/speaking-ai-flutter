@@ -12,6 +12,7 @@ void main() {
       var privacyConsentGranted = false;
       var permissionsGranted = false;
       var limitedModeSelected = false;
+      var offlineEnglishModelAllowed = false;
       int? selectedAge;
       var completed = false;
 
@@ -36,6 +37,12 @@ void main() {
               privacyPolicyUri: Uri.parse('https://example.com/privacy'),
               termsUri: Uri.parse('https://example.com/terms'),
               supportUri: Uri.parse('https://example.com/support'),
+              androidOfflineEnglishModelOptionAvailable: true,
+              androidOfflineEnglishModelDownloadAllowed:
+                  offlineEnglishModelAllowed,
+              onAndroidOfflineEnglishModelDownloadChanged: (enabled) async {
+                setState(() => offlineEnglishModelAllowed = enabled);
+              },
               onGrantPrivacyConsent: () async {
                 setState(() => privacyConsentGranted = true);
               },
@@ -98,6 +105,15 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('startup-request-permissions')));
       await tester.pumpAndSettle();
+
+      final offlineModelSwitch = find.byKey(
+        const Key('startup-android-offline-english-model'),
+      );
+      await tester.ensureVisible(offlineModelSwitch);
+      expect(offlineModelSwitch, findsOneWidget);
+      await tester.tap(offlineModelSwitch);
+      await tester.pumpAndSettle();
+      expect(offlineEnglishModelAllowed, isTrue);
 
       final completeButton = find.byKey(const Key('startup-confirm-age'));
       await tester.ensureVisible(completeButton);

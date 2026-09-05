@@ -391,7 +391,7 @@ class LessonMediaService {
     InputDevice? inputDevice,
   }) => RecordConfig(
     encoder: !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-        ? AudioEncoder.pcm16bits
+        ? AudioEncoder.wav
         : AudioEncoder.aacLc,
     sampleRate: 16000,
     bitRate: 64000,

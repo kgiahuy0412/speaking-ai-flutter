@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
@@ -16,6 +17,7 @@ import '../../../core/device/aiv0_ble_control.dart';
 import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
+import '../application/offline_language_service.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 import '../domain/speech_gated_batch_upload_session.dart';
@@ -81,6 +83,8 @@ class ConversationController extends ChangeNotifier {
     VoicePromptService? voicePromptService,
     required ConversationRepository repository,
     OfflineIntentRecognizer? offlineIntentRecognizer,
+    OfflineVietnameseSpeechRecognizer? offlineVietnameseSpeechRecognizer,
+    OfflineVietnameseEnglishTranslator? offlineVietnameseEnglishTranslator,
     DisplayLanguageStore? displayLanguageStore,
     required int childAge,
     bool preferBleStreaming = true,
@@ -107,6 +111,8 @@ class ConversationController extends ChangeNotifier {
        _voicePromptService = voicePromptService,
        _repository = repository,
        _offlineIntentRecognizer = offlineIntentRecognizer,
+       _offlineVietnameseSpeechRecognizer = offlineVietnameseSpeechRecognizer,
+       _offlineVietnameseEnglishTranslator = offlineVietnameseEnglishTranslator,
        _displayLanguageStore = displayLanguageStore,
        _childAge = childAge,
        _preferBleStreaming = preferBleStreaming,
@@ -244,6 +250,8 @@ class ConversationController extends ChangeNotifier {
   final VoicePromptService? _voicePromptService;
   final ConversationRepository _repository;
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
+  final OfflineVietnameseSpeechRecognizer? _offlineVietnameseSpeechRecognizer;
+  final OfflineVietnameseEnglishTranslator? _offlineVietnameseEnglishTranslator;
   final DisplayLanguageStore? _displayLanguageStore;
   int _childAge;
   final bool _preferBleStreaming;
@@ -475,28 +483,114 @@ class ConversationController extends ChangeNotifier {
     );
   }
 
-  Future<ConversationResult> _useLocalExactResultWhenBackendIsUnavailable({
+  ConversationResult _offlineTranslationResult(
+    StreamingSpeechCapture capture,
+    String englishText,
+  ) {
+    return ConversationResult(
+      conversationId: '',
+      sessionId: '',
+      context: context,
+      vietnameseText: capture.sourceText.trim(),
+      englishText: englishText.trim(),
+      // Continuous translation shows the English transcript only. Offline
+      // translation deliberately does not synthesize or play Vietnamese.
+      audioUri: null,
+      processingMode: 'offline_translation',
+      textSource: 'mlkit_on_device_translation',
+      audioSource: 'none',
+      asrMode: capture.asrMode,
+      latency: const ConversationLatency(
+        asrMs: 0,
+        llmMs: 0,
+        ttsMs: 0,
+        timeToFirstAudioMs: 0,
+      ),
+    );
+  }
+
+  Future<StreamingSpeechCapture?> _resolveOfflineVietnameseCapture({
+    required StreamingSpeechCapture? capture,
+    required AudioCapture? audioCapture,
+  }) async {
+    if (capture != null && capture.sourceText.trim().isNotEmpty) {
+      return capture;
+    }
+    final recognizer = _offlineVietnameseSpeechRecognizer;
+    if (recognizer == null || audioCapture == null) {
+      return null;
+    }
+    final transcript = await recognizer.recognize(audioCapture);
+    return StreamingSpeechCapture(
+      sourceText: transcript.text,
+      alternatives: transcript.alternatives,
+      duration: audioCapture.duration,
+      inputLabel: audioCapture.inputLabel,
+      confidence: transcript.confidence,
+      firstResultMs: null,
+      finalAfterStopMs: 0,
+      asrMode: 'vosk_offline_vi',
+      isBluetoothInput: audioCapture.isBluetoothInput,
+      initialNoiseRms: audioCapture.initialNoiseRms,
+      recordedAudio: audioCapture,
+    );
+  }
+
+  Future<ConversationResult> _useOfflineResultWhenBackendIsUnavailable({
     required Future<ConversationResult> backendResult,
     required StreamingSpeechCapture? capture,
+    required AudioCapture? audioCapture,
   }) async {
     try {
       return await backendResult;
     } catch (error, stackTrace) {
       final isRetryable =
           error is TimeoutException ||
+          error is http.ClientException ||
           (error is RetryableConversationException && error.isRetryable);
-      final fallback = capture == null || !isRetryable
-          ? null
-          : _localExactFallbackResult(capture);
-      if (fallback == null) {
+      if (!isRetryable) {
         Error.throwWithStackTrace(error, stackTrace);
       }
-      debugPrint(
-        'Backend conversation failed; using on-device exact rule: $error',
-      );
-      transientMessage =
-          'Dịch vụ đang tạm gián đoạn. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.';
-      return fallback;
+
+      try {
+        final offlineCapture = await _resolveOfflineVietnameseCapture(
+          capture: capture,
+          audioCapture: audioCapture,
+        );
+        if (offlineCapture != null) {
+          final exactFallback = _localExactFallbackResult(offlineCapture);
+          if (exactFallback != null) {
+            debugPrint(
+              'Backend conversation failed; using on-device exact rule: $error',
+            );
+            transientMessage =
+                'Dịch vụ đang tạm gián đoạn. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.';
+            return exactFallback;
+          }
+
+          final translator = _offlineVietnameseEnglishTranslator;
+          if (translator != null) {
+            final englishText = await translator.translate(
+              offlineCapture.sourceText,
+            );
+            if (englishText.trim().isNotEmpty) {
+              debugPrint(
+                'Backend conversation failed; using on-device translation: '
+                '$error',
+              );
+              transientMessage =
+                  'Đang ngoại tuyến. Bản dịch được xử lý trực tiếp trên thiết bị.';
+              return _offlineTranslationResult(offlineCapture, englishText);
+            }
+          }
+        }
+      } catch (offlineError) {
+        debugPrint(
+          'On-device conversation fallback was unavailable: '
+          '$offlineError',
+        );
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
@@ -2785,12 +2879,11 @@ class ConversationController extends ChangeNotifier {
               childAge: _childAge,
               vadSilenceMs: vadSilenceMs,
             );
-      final resultFuture = streamingCapture == null
-          ? backendResultFuture
-          : _useLocalExactResultWhenBackendIsUnavailable(
-              backendResult: backendResultFuture,
-              capture: streamingCapture,
-            );
+      final resultFuture = _useOfflineResultWhenBackendIsUnavailable(
+        backendResult: backendResultFuture,
+        capture: streamingCapture,
+        audioCapture: audioCapture,
+      );
       final processing = await Future.wait<Object?>([
         earlyRulePlayback == null
             ? _preparePlaybackWithTimeout()
@@ -3640,6 +3733,9 @@ class ConversationController extends ChangeNotifier {
   String _friendlyError(Object error) {
     if (error is TimeoutException) {
       return 'Kết nối backend quá chậm. Vui lòng thử lại.';
+    }
+    if (error is http.ClientException) {
+      return 'Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.';
     }
     if (error is RetryableConversationException && error.isRetryable) {
       return 'Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.';

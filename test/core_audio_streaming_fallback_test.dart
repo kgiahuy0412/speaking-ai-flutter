@@ -9,10 +9,12 @@ import 'package:ai_speaking_flutter_app/core/audio/preferred_audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/realtime_fallback_buffer.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
+import 'package:ai_speaking_flutter_app/features/conversation/application/offline_language_service.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   test('fallback buffer keeps immutable chunks in order', () {
@@ -1170,7 +1172,7 @@ void main() {
         ),
         playbackService: const _FakePlaybackService(),
         repository: _FallbackRepository(
-          streamingError: const _RetryableBackendFailure(),
+          streamingError: http.ClientException('No network'),
         ),
         childAge: 6,
         initialAsrMode: AsrMode.androidStreaming,
@@ -1189,6 +1191,74 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'unknown sentence uses on-device translation only after backend outage',
+    () async {
+      final translator = _FakeOfflineTranslator(
+        translatedText: 'The weather is beautiful today.',
+      );
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        streamingSpeechInput: _FakeStreamingSpeechInput(
+          sourceText: 'Hôm nay trời đẹp quá',
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: _FallbackRepository(
+          streamingError: http.ClientException('No network'),
+        ),
+        offlineVietnameseEnglishTranslator: translator,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.ready);
+      expect(controller.result?.vietnameseText, 'Hôm nay trời đẹp quá');
+      expect(controller.result?.englishText, 'The weather is beautiful today.');
+      expect(controller.result?.textSource, 'mlkit_on_device_translation');
+      expect(controller.result?.audioUri, isNull);
+      expect(translator.inputs, <String>['Hôm nay trời đẹp quá']);
+      controller.dispose();
+    },
+  );
+
+  test('successful backend does not invoke on-device translation', () async {
+    final translator = _FakeOfflineTranslator(
+      translatedText: 'This must not be used.',
+    );
+    final controller = ConversationController(
+      audioInput: _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      ),
+      streamingSpeechInput: _FakeStreamingSpeechInput(
+        sourceText: 'Hôm nay trời đẹp quá',
+      ),
+      playbackService: const _FakePlaybackService(),
+      repository: _FallbackRepository(),
+      offlineVietnameseEnglishTranslator: translator,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await controller.stopRecording(manual: true);
+
+    expect(controller.phase, ConversationPhase.ready);
+    expect(translator.inputs, isEmpty);
+    expect(controller.result?.textSource, isNot('mlkit_on_device_translation'));
+    controller.dispose();
+  });
 
   test('stop briefly waits for an almost-ready Realtime connection', () async {
     final input = _FakeChunkedInput(
@@ -1450,56 +1520,63 @@ void main() {
     controller.dispose();
   });
 
-  test('iOS native HFP capture uses selected media output for playback', () async {
-    final hfp = _FakeHfpAudioControl();
-    final recognizer = _FakeRouteOwningIOSStreamingSpeechInput(hfp);
-    final resultCompleter = Completer<ConversationResult>()
-      ..complete(
-        _result(
-          'stream-result',
-          audioUri: Uri.parse('https://api.example.com/result.mp3'),
+  test(
+    'iOS native HFP capture uses selected media output for playback',
+    () async {
+      final hfp = _FakeHfpAudioControl();
+      final recognizer = _FakeRouteOwningIOSStreamingSpeechInput(hfp);
+      final resultCompleter = Completer<ConversationResult>()
+        ..complete(
+          _result(
+            'stream-result',
+            audioUri: Uri.parse('https://api.example.com/result.mp3'),
+          ),
+        );
+      final repository = _FallbackRepository(
+        streamingResultCompleter: resultCompleter,
+      );
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Mic iPhone',
+        ),
+        streamingSpeechInput: recognizer,
+        hfpAudioControl: hfp,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.connectHfpDevice(
+        const HfpAudioDevice(
+          id: 'ios-hfp-input',
+          name: 'H20 HFP',
+          isConnected: true,
         ),
       );
-    final repository = _FallbackRepository(
-      streamingResultCompleter: resultCompleter,
-    );
-    final controller = ConversationController(
-      audioInput: _FakeChunkedInput(
-        available: true,
-        bluetooth: false,
-        label: 'Mic iPhone',
-      ),
-      streamingSpeechInput: recognizer,
-      hfpAudioControl: hfp,
-      playbackService: const _FakePlaybackService(),
-      repository: repository,
-      childAge: 6,
-      initialAsrMode: AsrMode.androidStreaming,
-    );
+      await controller.startRecording();
 
-    await controller.connectHfpDevice(
-      const HfpAudioDevice(
-        id: 'ios-hfp-input',
-        name: 'H20 HFP',
-        isConnected: true,
-      ),
-    );
-    await controller.startRecording();
+      expect(
+        hfp.startRouteCount,
+        1,
+        reason: 'Only the iOS recognizer opens SCO',
+      );
 
-    expect(hfp.startRouteCount, 1, reason: 'Only the iOS recognizer opens SCO');
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
 
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    await controller.stopRecording(manual: true);
-
-    expect(
-      hfp.startRouteCount,
-      1,
-      reason: 'Playback must not reopen SCO after recognition releases it',
-    );
-    expect(hfp.stopRouteCount, 1);
-    expect(repository.streamingCapture?.isBluetoothInput, isTrue);
-    controller.dispose();
-  });
+      expect(
+        hfp.startRouteCount,
+        1,
+        reason: 'Playback must not reopen SCO after recognition releases it',
+      );
+      expect(hfp.stopRouteCount, 1);
+      expect(repository.streamingCapture?.isBluetoothInput, isTrue);
+      controller.dispose();
+    },
+  );
 
   test('audio preparation has a finite failure boundary', () async {
     final playback = _NeverPreparingPlaybackService();
@@ -1563,39 +1640,42 @@ void main() {
     controller.dispose();
   });
 
-  test('pending HFP cancellation remains busy until native start settles', () async {
-    final hfp = _StubbornStartHfpAudioControl();
-    final controller = ConversationController(
-      audioInput: _FakeChunkedInput(
-        available: true,
-        bluetooth: false,
-        label: 'Mic iPhone',
-      ),
-      hfpAudioControl: hfp,
-      streamingSpeechInput: _FakeIOSStreamingSpeechInput(),
-      playbackService: const _FakePlaybackService(),
-      repository: _FallbackRepository(),
-      childAge: 6,
-      initialAsrMode: AsrMode.androidStreaming,
-      cancellationBarrierTimeout: const Duration(milliseconds: 20),
-    );
+  test(
+    'pending HFP cancellation remains busy until native start settles',
+    () async {
+      final hfp = _StubbornStartHfpAudioControl();
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Mic iPhone',
+        ),
+        hfpAudioControl: hfp,
+        streamingSpeechInput: _FakeIOSStreamingSpeechInput(),
+        playbackService: const _FakePlaybackService(),
+        repository: _FallbackRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+        cancellationBarrierTimeout: const Duration(milliseconds: 20),
+      );
 
-    await controller.connectHfpDevice(
-      const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
-    );
-    final starting = controller.startRecording();
-    await hfp.startRequested.future;
+      await controller.connectHfpDevice(
+        const HfpAudioDevice(id: 'h20', name: 'H20', isConnected: true),
+      );
+      final starting = controller.startRecording();
+      await hfp.startRequested.future;
 
-    final cancellation = await controller.cancelCurrentMainAction();
+      final cancellation = await controller.cancelCurrentMainAction();
 
-    expect(cancellation, MainButtonActionResult.busy);
-    expect(controller.isBusy, isTrue);
+      expect(cancellation, MainButtonActionResult.busy);
+      expect(controller.isBusy, isTrue);
 
-    hfp.completeStart();
-    await starting.timeout(const Duration(milliseconds: 300));
-    expect(controller.isBusy, isFalse);
-    controller.dispose();
-  });
+      hfp.completeStart();
+      await starting.timeout(const Duration(milliseconds: 300));
+      expect(controller.isBusy, isFalse);
+      controller.dispose();
+    },
+  );
 
   test(
     'MAIN cancellation during native start prevents late recording',
@@ -2651,6 +2731,28 @@ class _RetryableBackendFailure
 
   @override
   bool get isRetryable => true;
+}
+
+class _FakeOfflineTranslator implements OfflineVietnameseEnglishTranslator {
+  _FakeOfflineTranslator({required this.translatedText});
+
+  final String translatedText;
+  final List<String> inputs = <String>[];
+
+  @override
+  Future<bool> modelsReady() async => true;
+
+  @override
+  Future<bool> downloadModels({bool wifiOnly = true}) async => true;
+
+  @override
+  Future<String> translate(String vietnameseText) async {
+    inputs.add(vietnameseText);
+    return translatedText;
+  }
+
+  @override
+  Future<void> close() async {}
 }
 
 class _FallbackRepository
