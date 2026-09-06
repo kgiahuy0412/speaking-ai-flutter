@@ -374,7 +374,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                 label: Text(
                   widget.permissionRequestInProgress
                       ? 'Đang yêu cầu quyền…'
-                      : 'Cấp quyền cần thiết',
+                      : 'Tiếp tục',
                 ),
               ),
             ],

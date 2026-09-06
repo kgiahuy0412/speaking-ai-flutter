@@ -103,6 +103,8 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const Key('startup-request-permissions')),
       );
+      expect(find.text('Tiếp tục'), findsOneWidget);
+      expect(find.text('Cấp quyền cần thiết'), findsNothing);
       await tester.tap(find.byKey(const Key('startup-request-permissions')));
       await tester.pumpAndSettle();
 
