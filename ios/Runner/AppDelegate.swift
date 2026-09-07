@@ -113,6 +113,26 @@ import UIKit
 /// ML Kit's stock Flutter model manager currently allows cellular downloads
 /// on iOS even when Dart requests Wi-Fi. HOMI owns this narrow bridge so the
 /// parent's Wi-Fi-only choice is enforced by MLKit's native download condition.
+enum IOSOfflineTranslationModelNotificationPolicy {
+  static func matches(
+    _ notification: Notification,
+    expectedModel: TranslateRemoteModel
+  ) -> Bool {
+    guard
+      let downloadedModel = notification.userInfo?[
+        ModelDownloadUserInfoKey.remoteModel.rawValue
+      ] as? TranslateRemoteModel
+    else {
+      return false
+    }
+    return downloadedModel == expectedModel
+  }
+
+  static func error(from notification: Notification) -> NSError? {
+    notification.userInfo?[ModelDownloadUserInfoKey.error.rawValue] as? NSError
+  }
+}
+
 private final class IOSOfflineTranslationModelBridge {
   private let channel: FlutterMethodChannel
   private let modelManager = ModelManager.modelManager()
@@ -225,17 +245,34 @@ private final class IOSOfflineTranslationModelBridge {
 
     let successToken = NotificationCenter.default.addObserver(
       forName: Notification.Name.mlkitModelDownloadDidSucceed,
-      object: model,
+      // ML Kit posts the downloaded model in userInfo, not as the notification
+      // object. Filtering by `object: model` leaves this request pending forever
+      // and prevents the second vi/en model from ever being scheduled.
+      object: nil,
       queue: .main
-    ) { [weak self] _ in
+    ) { [weak self] notification in
+      guard IOSOfflineTranslationModelNotificationPolicy.matches(
+        notification,
+        expectedModel: model
+      ) else { return }
       self?.complete(locale: locale, succeeded: true)
     }
     let failureToken = NotificationCenter.default.addObserver(
       forName: Notification.Name.mlkitModelDownloadDidFail,
-      object: model,
+      object: nil,
       queue: .main
-    ) { [weak self] _ in
-      self?.complete(locale: locale, succeeded: false)
+    ) { [weak self] notification in
+      guard IOSOfflineTranslationModelNotificationPolicy.matches(
+        notification,
+        expectedModel: model
+      ) else { return }
+      self?.complete(
+        locale: locale,
+        succeeded: false,
+        error: IOSOfflineTranslationModelNotificationPolicy.error(
+          from: notification
+        )
+      )
     }
     pending[locale] = PendingTranslationModelDownload(
       successToken: successToken,
@@ -249,7 +286,11 @@ private final class IOSOfflineTranslationModelBridge {
     modelManager.download(model, conditions: conditions)
   }
 
-  private func complete(locale: String, succeeded: Bool) {
+  private func complete(
+    locale: String,
+    succeeded: Bool,
+    error: NSError? = nil
+  ) {
     guard let download = pending.removeValue(forKey: locale) else { return }
     NotificationCenter.default.removeObserver(download.successToken)
     NotificationCenter.default.removeObserver(download.failureToken)
@@ -259,8 +300,9 @@ private final class IOSOfflineTranslationModelBridge {
       download.result(
         FlutterError(
           code: "OFFLINE_TRANSLATION_DOWNLOAD_FAILED",
-          message: "The offline translation model could not be downloaded.",
-          details: locale
+          message: error?.localizedDescription
+            ?? "The offline translation model could not be downloaded.",
+          details: error?.domain ?? locale
         )
       )
     }

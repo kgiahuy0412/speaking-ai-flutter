@@ -186,6 +186,21 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       _scheduleVoiceNavigationListening();
       return;
     }
+
+    // Android must never leave SpeechRecognizer holding the microphone after
+    // HOMI loses the foreground. In particular, an enabled always-on session
+    // used to restart after every no-match while the app was covered or the
+    // screen was locked. iOS keeps its existing explicit MAIN/background flow.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      _voiceNavigationRestartTimer?.cancel();
+      unawaited(widget.voiceNavigationController?.pause());
+      if (state == AppLifecycleState.detached) {
+        _backgroundLearningActive = false;
+        unawaited(_backgroundLearningSession.stop());
+      }
+      return;
+    }
+
     if (state == AppLifecycleState.detached) {
       _backgroundLearningActive = false;
       unawaited(_backgroundLearningSession.stop());

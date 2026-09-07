@@ -49,6 +49,8 @@ import 'app_theme.dart';
 import 'app_theme_mode.dart';
 import 'mascot_assets.dart';
 
+enum _H20AutoConnectReason { background, parentSetup }
+
 class AiSpeakingApp extends StatefulWidget {
   const AiSpeakingApp({super.key});
 
@@ -530,7 +532,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     });
   }
 
-  Future<void> _autoConnectH20Ble() async {
+  Future<void> _autoConnectH20Ble({
+    _H20AutoConnectReason reason = _H20AutoConnectReason.background,
+  }) async {
     final control = _aiv0BleControl;
     final controller = _controller;
     final voiceController = _voiceNavigationController;
@@ -551,7 +555,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return;
     }
     _lastAiv0AutoConnectAttempt = now;
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
+    // Background recovery owns BLE Control only. Selecting an iOS HFP input
+    // reconfigures AVAudioSession and can tear down the shared Apple Speech
+    // recognizer between the MAIN prompt and its listening turn. Changing the
+    // microphone therefore remains an explicit parent-setup action.
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        reason == _H20AutoConnectReason.parentSetup) {
       // H20 exposes Classic Bluetooth HFP and BLE Control as two transports.
       // Activating HFP after BLE is connected makes iOS renegotiate the audio
       // profile and some H20 firmware revisions briefly drop their GATT link.
@@ -623,7 +632,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       return;
     }
     _lastAiv0AutoConnectAttempt = null;
-    await _autoConnectH20Ble();
+    await _autoConnectH20Ble(reason: _H20AutoConnectReason.parentSetup);
     if (mounted) {
       setState(() {});
     }
@@ -1357,7 +1366,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     _mainSpeakingSessionController.synchronize(
       isRecording: controller.isRecording,
-      isBusy: controller.isBusy,
+      isBusy: controller.isRecordingStartBlocked,
       isPlaying: controller.isPlaybackPlaying,
     );
     if (!_mainSpeakingSessionController.isActive ||
@@ -1409,7 +1418,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         _isPreparingMainSpeakingHfpSession ||
         _isStartingMainSpeakingTurn ||
         _isFinishingMainSpeakingMode ||
-        controller.isBusy ||
+        controller.isRecordingStartBlocked ||
         controller.isPlaybackPlaying) {
       return;
     }

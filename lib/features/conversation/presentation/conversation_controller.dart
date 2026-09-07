@@ -697,17 +697,19 @@ class ConversationController extends ChangeNotifier {
       h20HardwareTestPhase == H20HardwareTestPhase.openingRoute ||
       h20HardwareTestPhase == H20HardwareTestPhase.recording ||
       h20HardwareTestPhase == H20HardwareTestPhase.playing;
-  bool get isBusy =>
+  bool get isRecordingStartBlocked =>
       _preparingMicrophone ||
       _recordingStartOperation != null ||
       _pendingHfpStartOperation != null ||
       bleDiagnosticRunning ||
       h20HardwareTestActive ||
       hfpAudioStatus.isBusy ||
-      aiv0BleStatus.phase == Aiv0BlePhase.scanning ||
-      aiv0BleStatus.phase == Aiv0BlePhase.connecting ||
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
+  bool get isBusy =>
+      isRecordingStartBlocked ||
+      aiv0BleStatus.phase == Aiv0BlePhase.scanning ||
+      aiv0BleStatus.phase == Aiv0BlePhase.connecting;
 
   void setMainButtonDispatcher(
     Future<MainButtonActionResult> Function(MainButtonInputEvent event)?
@@ -1776,7 +1778,9 @@ class ConversationController extends ChangeNotifier {
       );
       return;
     }
-    if (!_audioInput.isAvailable || isBusy) {
+    // BLE is a separate H20 control transport. Its background scan/connect
+    // must not prevent Apple Speech (or the phone microphone) from starting.
+    if (!_audioInput.isAvailable || isRecordingStartBlocked) {
       _setError('Nguồn âm thanh hiện chưa sẵn sàng.');
       return;
     }

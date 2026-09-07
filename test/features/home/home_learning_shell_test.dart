@@ -347,7 +347,7 @@ void main() {
   });
 
   testWidgets(
-    'keeps Android listening while locked and pauses on an interruption',
+    'pauses Android voice navigation whenever the app leaves foreground',
     (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -388,12 +388,6 @@ void main() {
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump(const Duration(milliseconds: 400));
-
-      expect(voiceNavigationController.isListening, isTrue);
-      expect(speechInput.cancelCount, 0);
-
-      backgroundSession.interrupt('audio_focus_lost');
-      await tester.pump();
 
       expect(voiceNavigationController.isListening, isFalse);
       expect(speechInput.cancelCount, 1);

@@ -1230,6 +1230,43 @@ void main() {
     },
   );
 
+  test(
+    'iOS Apple Speech transcript uses on-device translation when offline',
+    () async {
+      final translator = _FakeOfflineTranslator(
+        translatedText: 'The weather is beautiful today.',
+      );
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Mic iPhone',
+        ),
+        streamingSpeechInput: _FakeIOSStreamingSpeechInput(
+          sourceText: 'Hôm nay trời đẹp quá',
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: _FallbackRepository(
+          streamingError: http.ClientException('No network'),
+        ),
+        offlineVietnameseEnglishTranslator: translator,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.ready);
+      expect(controller.result?.vietnameseText, 'Hôm nay trời đẹp quá');
+      expect(controller.result?.englishText, 'The weather is beautiful today.');
+      expect(controller.result?.textSource, 'mlkit_on_device_translation');
+      expect(translator.inputs, <String>['Hôm nay trời đẹp quá']);
+      controller.dispose();
+    },
+  );
+
   test('successful backend does not invoke on-device translation', () async {
     final translator = _FakeOfflineTranslator(
       translatedText: 'This must not be used.',
@@ -2233,6 +2270,7 @@ class _FakeIOSStreamingSpeechInput extends _FakeStreamingSpeechInput
   _FakeIOSStreamingSpeechInput({
     super.failOnStart,
     super.failOnStop,
+    super.sourceText,
     this.fallbackCapture,
   });
 

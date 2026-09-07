@@ -1,11 +1,42 @@
 import AVFoundation
 import Flutter
+import MLKitCommon
+import MLKitTranslate
 @testable import Runner
 import Speech
 import UIKit
 import XCTest
 
 class RunnerTests: XCTestCase {
+
+  func testOfflineTranslationDownloadNotificationReadsModelFromUserInfo() {
+    let vietnameseModel = TranslateRemoteModel.translateRemoteModel(
+      language: TranslateLanguage(rawValue: "vi")
+    )
+    let englishModel = TranslateRemoteModel.translateRemoteModel(
+      language: TranslateLanguage(rawValue: "en")
+    )
+    let notification = Notification(
+      name: .mlkitModelDownloadDidSucceed,
+      object: nil,
+      userInfo: [
+        ModelDownloadUserInfoKey.remoteModel.rawValue: vietnameseModel
+      ]
+    )
+
+    XCTAssertTrue(
+      IOSOfflineTranslationModelNotificationPolicy.matches(
+        notification,
+        expectedModel: vietnameseModel
+      )
+    )
+    XCTAssertFalse(
+      IOSOfflineTranslationModelNotificationPolicy.matches(
+        notification,
+        expectedModel: englishModel
+      )
+    )
+  }
 
   func testAiv0ReconnectPolicyRecoversMainImmediatelyThenUsesBoundedBackoff() {
     XCTAssertEqual(Aiv0ReconnectPolicy.maxAttempts, 5)

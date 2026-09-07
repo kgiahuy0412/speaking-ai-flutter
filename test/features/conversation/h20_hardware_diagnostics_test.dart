@@ -299,6 +299,70 @@ void main() {
   );
 
   test(
+    'phone microphone recording starts while AIV0 BLE scans independently',
+    () async {
+      final aiv0 = _FakeAiv0BleControl(
+        protocolConfirmed: false,
+        initialStatus: const Aiv0BleStatus(
+          phase: Aiv0BlePhase.scanning,
+          protocolConfirmed: false,
+          peripheralState: 'scanning',
+          mainNotificationState: 'unavailable',
+        ),
+      );
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        aiv0BleControl: aiv0,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+      );
+
+      // BLE scanning remains visible as global background work, but it is not
+      // an audio-resource conflict for Apple Speech on the phone microphone.
+      expect(controller.isBusy, isTrue);
+      expect(controller.isRecordingStartBlocked, isFalse);
+
+      await controller
+          .startRecording(noSpeechTimeout: const Duration(minutes: 1))
+          .timeout(const Duration(seconds: 1));
+
+      expect(controller.isRecording, isTrue);
+      expect(speechInput.startCount, 1);
+      await controller.cancelCurrentMainAction();
+      controller.dispose();
+    },
+  );
+
+  test('phone microphone does not race an HFP route change', () async {
+    final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      streamingSpeechInput: speechInput,
+      hfpAudioControl: _FakeHfpAudioControl(
+        initialStatus: const BluetoothAudioStatus(
+          phase: BluetoothAudioConnectionPhase.connecting,
+          sampleRate: 16000,
+        ),
+      ),
+      playbackService: _FakePlaybackService(),
+      repository: _NoNetworkRepository(),
+      childAge: 6,
+    );
+
+    expect(controller.usesHfpInput, isFalse);
+    expect(controller.isRecordingStartBlocked, isTrue);
+
+    await controller.startRecording();
+
+    expect(speechInput.startCount, 0);
+    expect(controller.errorMessage, 'Nguồn âm thanh hiện chưa sẵn sàng.');
+    controller.dispose();
+  });
+
+  test(
     'continuous HFP observes cached English playback completion before play',
     () async {
       final speechInput = _FakeContinuousHfpStreamingSpeechInput();
@@ -464,18 +528,21 @@ class _FakeHfpAudioControl implements HfpAudioControl {
   _FakeHfpAudioControl({
     this.activateRoute = true,
     this.devices = const <HfpAudioDevice>[],
-  });
+    BluetoothAudioStatus? initialStatus,
+  }) : _status =
+           initialStatus ??
+           const BluetoothAudioStatus(
+             phase: BluetoothAudioConnectionPhase.ready,
+             deviceId: '00:11:22:33:44:55',
+             deviceName: 'H20',
+             sampleRate: 16000,
+           );
 
   final bool activateRoute;
   final List<HfpAudioDevice> devices;
   final StreamController<BluetoothAudioStatus> _statuses =
       StreamController<BluetoothAudioStatus>.broadcast(sync: true);
-  BluetoothAudioStatus _status = const BluetoothAudioStatus(
-    phase: BluetoothAudioConnectionPhase.ready,
-    deviceId: '00:11:22:33:44:55',
-    deviceName: 'H20',
-    sampleRate: 16000,
-  );
+  BluetoothAudioStatus _status;
   int startRouteCount = 0;
   int stopRouteCount = 0;
   int disconnectCount = 0;
