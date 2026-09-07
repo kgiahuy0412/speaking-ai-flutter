@@ -479,6 +479,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             endAge: selectedAgeCatalog.endAge,
             topic: topic,
             content: content,
+            contentGroup: contentGroup,
             levelContent: contentGroup.level(content.levelNumber),
             controller: widget.controller,
             onVoiceNavigationPause: widget.onVoiceNavigationPause,

@@ -14,6 +14,38 @@ void main() {
     expect(LessonGuideFlowV2.beforeSentence.text, 'Nói theo cô nhé.');
   });
 
+  test('keeps the exact V4.1 Challenge and Mission introductions', () {
+    expect(v4ChallengeIntroAudioId, 'CHALLENGE_INTRO');
+    expect(v4ChallengeIntro, 'Tiếp theo là hai câu thử thách nhé.');
+    expect(v4MissionIntroAudioId, 'MISSION_INTRO');
+    expect(
+      v4MissionIntro,
+      'Tiếp theo là Nhiệm vụ cuối Level. Bạn sẽ có bốn câu thử thách.',
+    );
+  });
+
+  test('selects only approved V4 feedback for each age band', () {
+    expect(
+      LessonAgeFeedbackLibrary.message(
+        age: 4,
+        kind: LessonFeedbackKind.correct,
+      ),
+      'Đúng rồi!',
+    );
+    expect(
+      LessonAgeFeedbackLibrary.message(age: 9, kind: LessonFeedbackKind.retry),
+      'Thử lại nhé.',
+    );
+    expect(
+      LessonAgeFeedbackLibrary.message(age: 12, kind: LessonFeedbackKind.give),
+      'Nghe câu đúng nhé.',
+    );
+    expect(
+      LessonAgeFeedbackLibrary.message(age: 15, kind: LessonFeedbackKind.asr),
+      'HOMI chưa nghe rõ. Thử lại nhé.',
+    );
+  });
+
   test('defines the authoritative common guide prompts', () {
     expect(
       LessonGuideFlowV2.beforeSentence.audioCode,

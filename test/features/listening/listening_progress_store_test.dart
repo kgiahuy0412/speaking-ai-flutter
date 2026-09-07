@@ -114,6 +114,82 @@ void main() {
       expect(await fixture.store.readAll(), <String, int>{'v4-lesson': 3});
     },
   );
+
+  test('V4 resume stage and partial mission answers survive restart', () async {
+    final fixture = await _ProgressFixture.create();
+    addTearDown(fixture.dispose);
+
+    await fixture.store.saveResumeStage(
+      'lesson-last',
+      ListeningResumeStage.mission,
+    );
+    await fixture.store.saveMissionSelection('level-1', <String>[
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+    ]);
+    await fixture.store.saveMissionAnswer('level-1', 'm1', correct: true);
+    await fixture.store.saveMissionAnswer('level-1', 'm2', correct: false);
+    await fixture.store.saveMissionWeakTargets('level-1', <String>{'t2'});
+    await fixture.store.saveMissionAttempt('level-1', 1);
+
+    expect(
+      await fixture.store.readResumeStage('lesson-last'),
+      ListeningResumeStage.mission,
+    );
+    expect(await fixture.store.readMissionSelection('level-1'), <String>[
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+    ]);
+    expect(await fixture.store.readMissionAnswers('level-1'), <String, bool>{
+      'm1': true,
+      'm2': false,
+    });
+    expect(await fixture.store.readMissionWeakTargets('level-1'), <String>{
+      't2',
+    });
+    expect(await fixture.store.readMissionAttempt('level-1'), 1);
+    expect(await fixture.store.readAll(), isEmpty);
+
+    await fixture.store.clearMissionSession('level-1');
+    expect(await fixture.store.readMissionSelection('level-1'), isEmpty);
+    expect(await fixture.store.readMissionAnswers('level-1'), isEmpty);
+    expect(await fixture.store.readMissionWeakTargets('level-1'), isEmpty);
+    expect(await fixture.store.readMissionAttempt('level-1'), 0);
+  });
+
+  test(
+    'stars are idempotent and course completion event is one-shot',
+    () async {
+      final fixture = await _ProgressFixture.create();
+      addTearDown(fixture.dispose);
+
+      expect(await fixture.store.awardStar('lesson-1', 'core:t1'), isTrue);
+      expect(await fixture.store.awardStar('lesson-1', 'core:t1'), isFalse);
+      expect(await fixture.store.awardStar('lesson-1', 'challenge:q1'), isTrue);
+      expect(await fixture.store.readEarnedStars('lesson-1'), <String>{
+        'core:t1',
+        'challenge:q1',
+      });
+      expect(await fixture.store.readTotalEarnedStars(), 2);
+
+      expect(await fixture.store.isCourseCompleted('11-12'), isFalse);
+      await fixture.store.markCourseCompleted('11-12');
+      expect(await fixture.store.isCourseCompleted('11-12'), isTrue);
+      expect(
+        await fixture.store.markCourseCompletionEventCreated('11-12'),
+        isTrue,
+      );
+      expect(
+        await fixture.store.markCourseCompletionEventCreated('11-12'),
+        isFalse,
+      );
+      expect(await fixture.store.readAll(), isEmpty);
+    },
+  );
 }
 
 class _ProgressFixture {

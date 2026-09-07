@@ -2,9 +2,71 @@ enum LessonEntryGuideKind { first, newLesson, resume }
 
 enum LessonAttemptOutcome { good, unclear, retry, needsPractice }
 
+enum LessonFeedbackKind { correct, retry, give, noResponse, asr, skip }
+
+/// Reuses the approved V4 feedback library without inventing new praise or
+/// retry wording in individual lesson screens.
+abstract final class LessonAgeFeedbackLibrary {
+  static String message({required int age, required LessonFeedbackKind kind}) {
+    if (age <= 5) {
+      return switch (kind) {
+        LessonFeedbackKind.correct => 'Đúng rồi!',
+        LessonFeedbackKind.retry => 'Mình thử lại nhé.',
+        LessonFeedbackKind.give => 'HOMI nói mẫu nhé.',
+        LessonFeedbackKind.noResponse => 'Bạn thử nói nhé.',
+        LessonFeedbackKind.asr => 'HOMI chưa nghe rõ. Bạn nói lại nhé.',
+        LessonFeedbackKind.skip => 'Được rồi. HOMI nói mẫu nhé.',
+      };
+    }
+    if (age <= 7) {
+      return switch (kind) {
+        LessonFeedbackKind.correct => 'Giỏi lắm!',
+        LessonFeedbackKind.retry => 'Bạn thử lại nhé.',
+        LessonFeedbackKind.give => 'HOMI nói mẫu nhé.',
+        LessonFeedbackKind.noResponse => 'Bạn thử trả lời nhé.',
+        LessonFeedbackKind.asr => 'HOMI chưa nghe rõ. Bạn nói lại nhé.',
+        LessonFeedbackKind.skip => 'Được rồi. HOMI nói mẫu nhé.',
+      };
+    }
+    if (age <= 10) {
+      return switch (kind) {
+        LessonFeedbackKind.correct => 'Great!',
+        LessonFeedbackKind.retry => 'Thử lại nhé.',
+        LessonFeedbackKind.give => 'HOMI nói đáp án nhé.',
+        LessonFeedbackKind.noResponse => 'Bạn thử trả lời nhé.',
+        LessonFeedbackKind.asr => 'HOMI chưa nghe rõ. Bạn nói lại nhé.',
+        LessonFeedbackKind.skip => 'Được. Nghe câu đúng nhé.',
+      };
+    }
+    if (age <= 12) {
+      return switch (kind) {
+        LessonFeedbackKind.correct => 'Great.',
+        LessonFeedbackKind.retry => 'Thử lại nhé.',
+        LessonFeedbackKind.give => 'Nghe câu đúng nhé.',
+        LessonFeedbackKind.noResponse => 'Bạn thử trả lời nhé.',
+        LessonFeedbackKind.asr => 'HOMI chưa nghe rõ. Bạn nói lại nhé.',
+        LessonFeedbackKind.skip => 'Được. Nghe câu đúng nhé.',
+      };
+    }
+    return switch (kind) {
+      LessonFeedbackKind.correct => 'Exactly.',
+      LessonFeedbackKind.retry => 'Try again.',
+      LessonFeedbackKind.give => 'Nghe câu đúng nhé.',
+      LessonFeedbackKind.noResponse => 'Bạn thử trả lời nhé.',
+      LessonFeedbackKind.asr => 'HOMI chưa nghe rõ. Thử lại nhé.',
+      LessonFeedbackKind.skip => 'Được. Nghe câu đúng nhé.',
+    };
+  }
+}
+
 /// V4 content supplies these cues as audio sources. Keep their text centralized
 /// so the runtime and future recorded assets always use the same wording.
 const String v4SongPrealertAudioId = 'SONG_PREALERT';
+const String v4ChallengeIntroAudioId = 'CHALLENGE_INTRO';
+const String v4ChallengeIntro = 'Tiếp theo là hai câu thử thách nhé.';
+const String v4MissionIntroAudioId = 'MISSION_INTRO';
+const String v4MissionIntro =
+    'Tiếp theo là Nhiệm vụ cuối Level. Bạn sẽ có bốn câu thử thách.';
 const String v4SongPrealertTemplate =
     'Tiếp theo là hai câu thử thách. Xong rồi mình nghe bài hát [SONG_TITLE] nhé.';
 const String v4SongStartCueAudioId = 'SONG_START_CUE';

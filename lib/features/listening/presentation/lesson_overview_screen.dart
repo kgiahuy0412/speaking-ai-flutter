@@ -29,8 +29,12 @@ class LessonOverviewScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.topicContent,
+    this.contentGroup,
     this.levelContent,
     this.guideAudioLibrary,
+    this.voicePromptService,
+    this.englishSentencePause,
+    this.isRelearn = false,
     this.onTopicCompleted,
     super.key,
   });
@@ -42,10 +46,14 @@ class LessonOverviewScreen extends StatefulWidget {
   final ListeningLessonContent lesson;
   final ConversationController? controller;
   final ListeningTopicContent? topicContent;
+  final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
+  final VoicePromptService? voicePromptService;
+  final Duration? englishSentencePause;
+  final bool isRelearn;
   final VoidCallback? onTopicCompleted;
 
   @override
@@ -65,6 +73,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   @override
   void initState() {
     super.initState();
+    _voicePromptService = widget.voicePromptService;
     WidgetsBinding.instance.addPostFrameCallback((_) => _playOverview());
   }
 
@@ -89,6 +98,12 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     _ownsVoicePromptService = true;
     return _voicePromptService = createVoicePromptService();
   }
+
+  Duration get _englishSentencePause =>
+      widget.englishSentencePause ??
+      (widget.startAge >= 13
+          ? const Duration(milliseconds: 600)
+          : const Duration(milliseconds: 700));
 
   Future<void> _playOverview() async {
     if (_playing || _movingForward || !mounted) return;
@@ -127,13 +142,23 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
       await widget.mediaService.playToCompletion(uri);
       return;
     }
-    final text = widget.lesson.sentences
-        .map((sentence) => sentence.english)
-        .where((value) => value.trim().isNotEmpty)
-        .join(' ');
-    if (text.isEmpty || request != _request) return;
     setState(() => _status = 'Nghe toàn bộ bài bằng tiếng Anh…');
-    await _prompt.speakAndWait(text, locale: 'en-US');
+    final sentences = widget.lesson.sentences
+        .where((sentence) => sentence.english.trim().isNotEmpty)
+        .toList(growable: false);
+    for (var index = 0; index < sentences.length; index += 1) {
+      if (!mounted || request != _request) return;
+      final sentence = sentences[index];
+      final sentenceUri = sentence.audioUri;
+      if (sentenceUri != null) {
+        await widget.mediaService.playToCompletion(sentenceUri);
+      } else {
+        await _prompt.speakAndWait(sentence.english, locale: 'en-US');
+      }
+      if (index < sentences.length - 1) {
+        await Future<void>.delayed(_englishSentencePause);
+      }
+    }
   }
 
   Future<void> _playBilingualOverview(int request) async {
@@ -173,10 +198,13 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
           lesson: widget.lesson,
           controller: widget.controller,
           topicContent: widget.topicContent,
+          contentGroup: widget.contentGroup,
           levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: widget.guideAudioLibrary,
+          voicePromptService: widget.voicePromptService,
+          isRelearn: widget.isRelearn,
           onTopicCompleted: widget.onTopicCompleted,
         ),
       ),

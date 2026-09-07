@@ -22,6 +22,48 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
+    'virtual lesson buttons interrupt the current recording and change sentence',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final registry = ActiveLearningModuleRegistry();
+      addTearDown(registry.dispose);
+      final mediaService = _GuidedMediaService();
+
+      await tester.pumpWidget(
+        ActiveLearningModuleScope(
+          registry: registry,
+          child: _subject(
+            _lesson(code: 'A035_T01_L01', sentenceCount: 3),
+            mediaService,
+            guideAudioLibrary: _silentGuideAudioLibrary(),
+            voicePromptService: _FakeVoicePromptService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('virtual-lesson-controls')), findsOneWidget);
+      expect(mediaService.recording, isTrue);
+      expect(find.text('Sentence 1'), findsOneWidget);
+
+      final nextButton = find.byKey(const Key('virtual-lesson-next'));
+      await tester.ensureVisible(nextButton);
+      await tester.tap(nextButton);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Sentence 2'), findsOneWidget);
+      await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+      await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
+      await tester.pump();
+      expect(mediaService.startedSentenceIds, contains('GUIDED-FLOW_S2'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'V2 automatically guides, records, praises, and starts the next sentence',
     (tester) async {
       await _usePhoneSurface(tester);
@@ -271,7 +313,7 @@ void main() {
   );
 
   testWidgets(
-    'V2 rejects wrong content and automatically records the same sentence again',
+    'V2 replays the bilingual model once, then sends a second miss to Review',
     (tester) async {
       await _usePhoneSurface(tester);
       final mediaService = _GuidedMediaService();
@@ -303,33 +345,34 @@ void main() {
         voicePrompts.spoken,
         contains('vi-VN|Gần được rồi! Con nghe lại câu này nhé.'),
       );
-      expect(progressStore.needsPractice, contains(0));
-      expect(vocabularyStore.entries, hasLength(1));
+      expect(progressStore.needsPractice, isEmpty);
+      expect(vocabularyStore.entries, isEmpty);
       expect(
-        vocabularyStore.entries.single.collection,
-        VocabularyCollection.review,
+        voicePrompts.spoken,
+        containsAllInOrder(<String>[
+          'vi-VN|Gần được rồi! Con nghe lại câu này nhé.',
+          'en-US|Sentence 1',
+          'vi-VN|Câu 1',
+          'vi-VN|Bây giờ đến lượt con. Con nói lại nhé.',
+        ]),
       );
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
 
       expect(mediaService.recording, isTrue);
-      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(find.text('Sentence 2'), findsOneWidget);
       expect(progressStore.needsPractice, contains(0));
+      expect(vocabularyStore.entries, hasLength(1));
       expect(
-        voicePrompts.spoken.where(
-          (message) =>
-              message == 'vi-VN|Gần được rồi! Con nghe lại câu này nhé.',
+        vocabularyStore.entries.single.collection,
+        VocabularyCollection.review,
+      );
+      expect(
+        voicePrompts.spoken,
+        contains(
+          'vi-VN|Con đã cố gắng rồi! Mình sẽ luyện thêm sau. Cùng học câu tiếp nào.',
         ),
-        hasLength(1),
-      );
-      expect(
-        voicePrompts.spoken,
-        contains('vi-VN|Bây giờ con thử nói lại lần nữa nhé.'),
-      );
-      expect(
-        voicePrompts.spoken,
-        isNot(contains('vi-VN|Mình cùng học câu khác nhé!')),
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -417,20 +460,12 @@ void main() {
 
     expect(find.text('Sentence 1'), findsOneWidget);
     expect(mediaService.recording, isTrue);
-    expect(progressStore.needsPractice, contains(0));
+    expect(progressStore.needsPractice, isEmpty);
     expect(
       voicePrompts.spoken.where(
         (message) => message == 'vi-VN|Cô chưa nghe rõ. Con nói lại nhé.',
       ),
-      hasLength(1),
-    );
-    expect(
-      voicePrompts.spoken,
-      contains('vi-VN|Bây giờ con thử nói lại lần nữa nhé.'),
-    );
-    expect(
-      voicePrompts.spoken,
-      isNot(contains('vi-VN|Mình cùng học câu khác nhé!')),
+      hasLength(2),
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -463,11 +498,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();
-      expect(
-        vocabularyStore.entries.single.collection,
-        VocabularyCollection.review,
-      );
-      expect(progressStore.needsPractice, contains(0));
+      expect(vocabularyStore.entries, isEmpty);
+      expect(progressStore.needsPractice, isEmpty);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
       await tester.pumpAndSettle();

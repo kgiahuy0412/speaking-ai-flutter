@@ -8,6 +8,7 @@ import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_attempt_evaluator.dart';
 import '../application/lesson_media_service.dart';
@@ -31,6 +32,9 @@ class LessonChallengeScreen extends StatefulWidget {
     this.attemptEvaluator,
     this.voicePromptService,
     this.iosSpeechInput,
+    this.onStarEarned,
+    this.onStarEarnedWithResult,
+    this.showRolePlayOpeningHint = true,
     super.key,
   });
 
@@ -42,12 +46,22 @@ class LessonChallengeScreen extends StatefulWidget {
   final LessonAttemptEvaluator? attemptEvaluator;
   final VoicePromptService? voicePromptService;
   final LessonEnglishSpeechInput? iosSpeechInput;
+  final Future<void> Function(
+    String targetId,
+    String english,
+    String vietnamese,
+  )?
+  onStarEarned;
+  final Future<bool> Function(String starId, String english, String vietnamese)?
+  onStarEarnedWithResult;
+  final bool showRolePlayOpeningHint;
 
   @override
   State<LessonChallengeScreen> createState() => _LessonChallengeScreenState();
 }
 
-class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
+class _LessonChallengeScreenState extends State<LessonChallengeScreen>
+    implements ActiveLearningModuleController {
   static const Duration _automaticAnswerWindow = Duration(seconds: 6);
   static const Duration _promptCompletionTimeout = Duration(seconds: 10);
 
@@ -69,6 +83,17 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   Timer? _recordingAutoStopTimer;
   Timer? _promptCompletionTimer;
   Completer<void>? _promptCompletionWaiter;
+  bool _pausedForMainAssistant = false;
+  int _newRolePlayStars = 0;
+  ActiveLearningModuleRegistry? _activeModuleRegistry;
+  Object? _activeModuleRegistration;
+
+  @override
+  ActiveLearningModuleKind get moduleKind =>
+      ActiveLearningModuleKind.listeningLesson;
+
+  @override
+  bool get isPausedForMain => _pausedForMainAssistant;
 
   bool get _hasRolePlay {
     final rolePlay = widget.lesson.rolePlay;
@@ -119,7 +144,24 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final registry = ActiveLearningModuleScope.maybeOf(context);
+    if (identical(registry, _activeModuleRegistry)) return;
+    final oldRegistration = _activeModuleRegistration;
+    if (oldRegistration != null) {
+      _activeModuleRegistry?.unregister(oldRegistration);
+    }
+    _activeModuleRegistry = registry;
+    _activeModuleRegistration = registry?.register(this);
+  }
+
+  @override
   void dispose() {
+    final registration = _activeModuleRegistration;
+    if (registration != null) {
+      _activeModuleRegistry?.unregister(registration);
+    }
     _request += 1;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
@@ -153,8 +195,80 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     super.dispose();
   }
 
+  @override
+  Future<void> pauseForMainAssistant() async {
+    _pausedForMainAssistant = true;
+    _request += 1;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+    _promptCompletionTimer?.cancel();
+    _promptCompletionTimer = null;
+    final waiter = _promptCompletionWaiter;
+    _promptCompletionWaiter = null;
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
+    final wasRecording = _recording;
+    final usedIosSpeech = _recordingUsesIosSpeech;
+    if (mounted) {
+      setState(() {
+        _playingPrompt = false;
+        _recording = false;
+        _recordingUsesIosSpeech = false;
+        _busy = false;
+        _message = 'Phần thử thách đang tạm dừng.';
+      });
+    }
+    await Future.wait<void>(<Future<void>>[
+      widget.mediaService.stopPlayback().catchError((Object _) {}),
+      if (_voicePromptService != null)
+        _voicePromptService!.stop().catchError((Object _) {}),
+      if (wasRecording && usedIosSpeech && widget.iosSpeechInput != null)
+        widget.iosSpeechInput!.cancel().catchError((Object _) {})
+      else if (wasRecording)
+        widget.mediaService.cancelRecording().catchError((Object _) {}),
+    ]);
+  }
+
+  @override
+  Future<ActiveLearningCommandResult> handleMainCommand(
+    ActiveLearningCommand command,
+  ) async {
+    if (!mounted) return const ActiveLearningCommandResult.unavailable();
+    switch (command) {
+      case ActiveLearningCommand.resume:
+        _pausedForMainAssistant = false;
+        await _playCurrentPrompt();
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.stop:
+        await pauseForMainAssistant();
+        return const ActiveLearningCommandResult.handled(
+          spokenReply: 'Đã dừng phần thử thách.',
+        );
+      case ActiveLearningCommand.exitToHome:
+        await pauseForMainAssistant();
+        if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+        return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.replayCurrent:
+      case ActiveLearningCommand.nextItem:
+      case ActiveLearningCommand.previousItem:
+      case ActiveLearningCommand.nextLesson:
+      case ActiveLearningCommand.previousLesson:
+      case ActiveLearningCommand.restart:
+      case ActiveLearningCommand.vocabularyPracticeAgain:
+      case ActiveLearningCommand.vocabularyStars:
+        return const ActiveLearningCommandResult.unavailable(
+          spokenReply:
+              'Các nút câu trước, câu sau và nghe lại chỉ dùng trong phần luyện câu.',
+        );
+    }
+  }
+
   Future<void> _playCurrentPrompt({bool allowBusy = false}) async {
-    if (!mounted || _recording || (_busy && !allowBusy)) return;
+    if (_pausedForMainAssistant ||
+        !mounted ||
+        _recording ||
+        (_busy && !allowBusy)) {
+      return;
+    }
     final request = ++_request;
     setState(() {
       _playingPrompt = true;
@@ -187,7 +301,8 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         setState(() => _playingPrompt = false);
       }
     }
-    if (!mounted ||
+    if (_pausedForMainAssistant ||
+        !mounted ||
         request != _request ||
         !_shouldAutomaticallyRecord ||
         _recording ||
@@ -195,6 +310,45 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
       return;
     }
     await _startRecording();
+  }
+
+  Future<void> _replayCurrent() async {
+    if (_recording) {
+      _recordingAutoStopTimer?.cancel();
+      _recordingAutoStopTimer = null;
+      if (_recordingUsesIosSpeech && widget.iosSpeechInput != null) {
+        await widget.iosSpeechInput!.cancel().catchError((Object _) {});
+      } else {
+        await widget.mediaService.cancelRecording().catchError((Object _) {});
+      }
+      if (!mounted) return;
+      setState(() {
+        _recording = false;
+        _recordingUsesIosSpeech = false;
+      });
+    }
+    final previousHomiEnglish =
+        _rolePlayTurn?.speaker == ListeningRolePlaySpeaker.child
+        ? _previousHomiEnglish
+        : null;
+    if (previousHomiEnglish == null) {
+      await _playCurrentPrompt();
+      return;
+    }
+    final request = ++_request;
+    setState(() {
+      _playingPrompt = true;
+      _message = null;
+    });
+    try {
+      await widget.mediaService.prepareSelectedLessonOutput();
+      if (!mounted || request != _request) return;
+      await _speakPromptAndWait(previousHomiEnglish, locale: 'en-US');
+    } finally {
+      if (mounted && request == _request) {
+        setState(() => _playingPrompt = false);
+      }
+    }
   }
 
   Future<void> _speakPromptAndWait(
@@ -242,7 +396,13 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
   }
 
   Future<void> _startRecording() async {
-    if (_recording || _busy || _playingPrompt || !mounted) return;
+    if (_pausedForMainAssistant ||
+        _recording ||
+        _busy ||
+        _playingPrompt ||
+        !mounted) {
+      return;
+    }
     final expected = _expectedEnglish;
     if (expected.isEmpty) return;
     setState(() {
@@ -262,7 +422,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
           // startLessonEnglishRecognition now owns the same native HFP lease
           // that kept the question on H20. Future prompts must reacquire it.
           widget.mediaService.handoffSelectedLessonOutputToNativeCapture();
-        } catch (error) {
+        } on StreamingSpeechInputException catch (error) {
+          if (_isPermissionFailure(error)) {
+            rethrow;
+          }
           debugPrint(
             'HOMI iOS challenge on-device recognition unavailable; '
             'using recorded/backend fallback: $error',
@@ -309,8 +472,14 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     }
   }
 
+  bool _isPermissionFailure(StreamingSpeechInputException error) =>
+      error.code == 'SPEECH_PERMISSION_DENIED' ||
+      error.code == 'MICROPHONE_PERMISSION_DENIED' ||
+      error.code == 'MICROPHONE_PERMISSION_PENDING';
+
   Future<void> _stopRecording() async {
     if (!_recording || _busy || !mounted) return;
+    final request = _request;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     setState(() => _busy = true);
@@ -318,32 +487,37 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     try {
       final usesIosSpeech = _recordingUsesIosSpeech;
       final LessonAttemptOutcome outcome;
+      final evaluatedAttemptNumber = _attemptNumber + 1;
       if (usesIosSpeech) {
         outcome = await _stopAndScoreIosOnDevice();
-        _attemptNumber += 1;
       } else {
         final recording = await widget.mediaService.stopRecording();
-        if (!mounted) return;
+        if (!mounted || _pausedForMainAssistant || request != _request) {
+          return;
+        }
         outcome = await _attemptEvaluator.evaluate(
           lessonCode: widget.lesson.code,
           sentenceId: _attemptId,
           expectedEnglish: _expectedEnglish,
           recordingPath: recording.filePath,
           recordingDuration: recording.duration,
-          attemptNumber: ++_attemptNumber,
+          attemptNumber: evaluatedAttemptNumber,
           childAge: widget.startAge,
           acceptedVariants: _acceptedRecognitionVariants,
           requireAllExpectedTokens: false,
         );
       }
-      if (!mounted) return;
+      if (!mounted || _pausedForMainAssistant || request != _request) return;
+      if (outcome != LessonAttemptOutcome.unclear) {
+        _attemptNumber = evaluatedAttemptNumber;
+      }
       setState(() {
         _recording = false;
         _recordingUsesIosSpeech = false;
       });
       shouldOpenMicrophoneAgain = await _applyOutcome(outcome);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _pausedForMainAssistant || request != _request) return;
       setState(() {
         _recording = false;
         _recordingUsesIosSpeech = false;
@@ -355,7 +529,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
     // `_advance` has already finished the next coach prompt by this point.
     // Wait until the scoring state is released before claiming the H20 route;
     // otherwise the second challenge silently leaves its microphone closed.
-    if (shouldOpenMicrophoneAgain && mounted && !_recording) {
+    if (shouldOpenMicrophoneAgain &&
+        mounted &&
+        !_pausedForMainAssistant &&
+        !_recording) {
       await _startRecording();
     }
   }
@@ -394,23 +571,31 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
 
   Future<bool> _applyOutcome(LessonAttemptOutcome outcome) async {
     if (outcome == LessonAttemptOutcome.good) {
+      if (_inRolePlay) {
+        if (await _awardStar()) _newRolePlayStars += 1;
+        return _advance();
+      }
+      await _speakFeedback(LessonFeedbackKind.correct);
+      if (_pausedForMainAssistant) return false;
+      await _awardStar();
       return _advance();
     }
-    // Never trap a child in an endless recognition loop. Offline engines can
-    // consistently miss one short function word even when the answer was
-    // spoken. Keep the tolerant match, then resolve the authored challenge
-    // after the same two-attempt allowance used by Level Mission.
+    if (outcome == LessonAttemptOutcome.unclear) {
+      await _speakFeedback(LessonFeedbackKind.asr);
+      return mounted;
+    }
     if (_attemptNumber >= 2) {
-      return _advance();
+      return _giveAnswerAndAdvance(skip: false);
     }
-    final message = switch (outcome) {
-      LessonAttemptOutcome.unclear => 'Cô chưa nghe rõ. Bạn nói lại nhé.',
-      LessonAttemptOutcome.retry || LessonAttemptOutcome.needsPractice =>
-        _inRolePlay
-            ? 'Bạn nói đầy đủ cả câu tiếng Anh nhé.'
-            : 'Bạn nói lại đáp án bằng tiếng Anh nhé.',
-      LessonAttemptOutcome.good => '',
-    };
+    await _speakFeedback(LessonFeedbackKind.retry);
+    return mounted;
+  }
+
+  Future<void> _speakFeedback(LessonFeedbackKind kind) async {
+    final message = LessonAgeFeedbackLibrary.message(
+      age: widget.startAge,
+      kind: kind,
+    );
     if (mounted) setState(() => _message = message);
     try {
       await widget.mediaService.prepareSelectedLessonOutput();
@@ -419,10 +604,80 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
       // The written feedback remains visible; recording still resumes so a
       // temporary TTS outage never forces the child to use the phone.
     }
-    return mounted;
+  }
+
+  Future<bool> _awardStar() async {
+    final callbackWithResult = widget.onStarEarnedWithResult;
+    if (callbackWithResult != null) {
+      try {
+        final stableId = _inRolePlay
+            ? 'roleplay:${_rolePlayTurnIndex + 1}'
+            : 'challenge:${_challengeIndex + 1}';
+        return await callbackWithResult(
+          stableId,
+          _expectedEnglish,
+          _expectedVietnamese,
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+    final callback = widget.onStarEarned;
+    if (callback == null) return false;
+    try {
+      await callback(_attemptId, _expectedEnglish, _expectedVietnamese);
+      return true;
+    } catch (_) {
+      // Local Star persistence must never interrupt the speaking flow.
+      return false;
+    }
+  }
+
+  Future<bool> _giveAnswerAndAdvance({required bool skip}) async {
+    await _speakFeedback(
+      skip ? LessonFeedbackKind.skip : LessonFeedbackKind.give,
+    );
+    if (!mounted || _pausedForMainAssistant) return false;
+    try {
+      await widget.mediaService.prepareSelectedLessonOutput();
+      await _speakPromptAndWait(_expectedEnglish, locale: 'en-US');
+    } catch (_) {
+      // The written answer remains visible in the authored card.
+    }
+    if (!mounted || _pausedForMainAssistant) return false;
+    return _advance();
+  }
+
+  Future<void> _skipCurrent() async {
+    if (_busy || _playingPrompt) return;
+    setState(() => _busy = true);
+    var shouldOpenMicrophoneAgain = false;
+    try {
+      if (_recording) {
+        _recordingAutoStopTimer?.cancel();
+        _recordingAutoStopTimer = null;
+        if (_recordingUsesIosSpeech && widget.iosSpeechInput != null) {
+          await widget.iosSpeechInput!.cancel().catchError((Object _) {});
+        } else {
+          await widget.mediaService.cancelRecording().catchError((Object _) {});
+        }
+        if (!mounted) return;
+        setState(() {
+          _recording = false;
+          _recordingUsesIosSpeech = false;
+        });
+      }
+      shouldOpenMicrophoneAgain = await _giveAnswerAndAdvance(skip: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (shouldOpenMicrophoneAgain && mounted && !_recording) {
+      await _startRecording();
+    }
   }
 
   Future<bool> _advance() async {
+    if (_pausedForMainAssistant) return false;
     if (_inRolePlay) {
       final nextIndex = _rolePlayTurnIndex + 1;
       if (nextIndex < widget.lesson.rolePlay!.turns.length) {
@@ -439,6 +694,15 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         _attemptNumber = 0;
         _message = null;
       });
+      try {
+        await _speakPromptAndWait(
+          _newRolePlayStars > 0
+              ? 'Bạn đã hoàn thành đoạn hội thoại và có thêm $_newRolePlayStars Ngôi sao.'
+              : 'Bạn đã hoàn thành đoạn hội thoại rồi.',
+        );
+      } catch (_) {
+        // The challenge still starts if the summary cannot be spoken.
+      }
       await _playCurrentPrompt(allowBusy: true);
       return true;
     }
@@ -494,11 +758,27 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
         : '${widget.lesson.id}-roleplay-${_rolePlayTurnIndex + 1}';
   }
 
+  String? get _previousHomiEnglish {
+    if (!_inRolePlay || _rolePlayTurnIndex <= 0) return null;
+    final turns = widget.lesson.rolePlay!.turns;
+    for (var index = _rolePlayTurnIndex - 1; index >= 0; index -= 1) {
+      if (turns[index].speaker == ListeningRolePlaySpeaker.homi) {
+        final value = turns[index].english.trim();
+        return value.isEmpty ? null : value;
+      }
+    }
+    return null;
+  }
+
   int get _recordingNumber {
     return _inRolePlay ? _rolePlayTurnIndex + 1 : 100 + _challengeIndex + 1;
   }
 
   String _friendlyError(Object error) {
+    if (error is StreamingSpeechInputException &&
+        error.code == 'SPEECH_PERMISSION_DENIED') {
+      return error.message;
+    }
     final text = error.toString();
     if (text.contains('micro') || text.contains('Micro')) {
       return 'Ứng dụng cần quyền micro để nghe câu trả lời.';
@@ -545,7 +825,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
                       IconButton(
                         onPressed: _playingPrompt || _busy
                             ? null
-                            : _playCurrentPrompt,
+                            : _replayCurrent,
                         icon: const Icon(Icons.volume_up_rounded),
                         tooltip: 'Nghe lại',
                       ),
@@ -580,7 +860,9 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
                       child: _inRolePlay
                           ? _RolePlayCard(
                               turn: turn!,
-                              openingHint: _rolePlayTurnIndex == 0
+                              openingHint:
+                                  widget.showRolePlayOpeningHint &&
+                                      _rolePlayTurnIndex == 0
                                   ? rolePlay!.openingHint
                                   : null,
                             )
@@ -606,17 +888,30 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen> {
                       label: const Text('Tiếp tục'),
                     )
                   else
-                    FilledButton.icon(
-                      key: const Key('lesson-challenge-record-button'),
-                      onPressed: _busy || _playingPrompt
-                          ? null
-                          : (_recording ? _stopRecording : _startRecording),
-                      icon: Icon(
-                        _recording ? Icons.stop_rounded : Icons.mic_rounded,
-                      ),
-                      label: Text(
-                        _recording ? 'Dừng và chấm' : 'Nói câu trả lời',
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        FilledButton.icon(
+                          key: const Key('lesson-challenge-record-button'),
+                          onPressed: _busy || _playingPrompt
+                              ? null
+                              : (_recording ? _stopRecording : _startRecording),
+                          icon: Icon(
+                            _recording ? Icons.stop_rounded : Icons.mic_rounded,
+                          ),
+                          label: Text(
+                            _recording ? 'Dừng và chấm' : 'Nói câu trả lời',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        TextButton(
+                          key: const Key('lesson-challenge-skip-button'),
+                          onPressed: _busy || _playingPrompt
+                              ? null
+                              : _skipCurrent,
+                          child: const Text('Bỏ qua'),
+                        ),
+                      ],
                     ),
                   if (_inRolePlay) ...<Widget>[
                     const SizedBox(height: 8),

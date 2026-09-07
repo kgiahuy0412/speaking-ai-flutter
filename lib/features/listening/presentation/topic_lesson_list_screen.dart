@@ -22,6 +22,7 @@ class TopicLessonListScreen extends StatefulWidget {
     required this.endAge,
     required this.topic,
     required this.content,
+    this.contentGroup,
     this.levelContent,
     this.controller,
     this.onVoiceNavigationPause,
@@ -38,6 +39,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final int endAge;
   final ListeningTopic topic;
   final ListeningTopicContent content;
+  final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;
   final ConversationController? controller;
   final Future<void> Function()? onVoiceNavigationPause;
@@ -323,6 +325,13 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         : null;
     if (reviewFromBeginning) {
       await widget.progressStore.saveCurrentSentence(lesson.id, 0);
+      if (lesson.usesV4Flow) {
+        await widget.progressStore.clearV4LessonActivityCompleted(lesson.id);
+        await widget.progressStore.saveResumeStage(
+          lesson.id,
+          ListeningResumeStage.core,
+        );
+      }
     }
     await unlockFuture;
     if (!mounted) {
@@ -343,9 +352,11 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
             lesson: lesson,
             controller: widget.controller,
             topicContent: widget.content,
+            contentGroup: widget.contentGroup,
             levelContent: widget.levelContent,
             progressStore: widget.progressStore,
             mediaService: _mediaService,
+            relearnFromBeginning: reviewFromBeginning,
             onTopicCompleted: widget.onTopicCompleted,
           ),
         ),

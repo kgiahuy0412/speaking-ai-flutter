@@ -424,6 +424,8 @@ class _MemoryProgressStore extends ListeningProgressStore {
   int currentSentence;
   int completedSentences = 0;
   final Set<String> completedV4LessonActivities = <String>{};
+  ListeningResumeStage resumeStage = ListeningResumeStage.core;
+  final Set<String> earnedStars = <String>{};
 
   @override
   Future<Map<String, int>> readAll() async => <String, int>{
@@ -449,6 +451,27 @@ class _MemoryProgressStore extends ListeningProgressStore {
   @override
   Future<Set<String>> readCompletedV4LessonActivities() async =>
       Set<String>.of(completedV4LessonActivities);
+
+  @override
+  Future<ListeningResumeStage> readResumeStage(String lessonId) async =>
+      resumeStage;
+
+  @override
+  Future<void> saveResumeStage(
+    String lessonId,
+    ListeningResumeStage stage,
+  ) async => resumeStage = stage;
+
+  @override
+  Future<bool> awardStar(String scopeId, String starId) async =>
+      earnedStars.add(starId);
+
+  @override
+  Future<Set<String>> readEarnedStars(String scopeId) async =>
+      Set<String>.of(earnedStars);
+
+  @override
+  Future<int> readTotalEarnedStars() async => earnedStars.length;
 
   @override
   Future<void> saveSkippedSentence(String lessonId, int sentenceIndex) async {}

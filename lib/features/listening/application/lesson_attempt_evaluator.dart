@@ -418,8 +418,24 @@ class BackendLessonAttemptEvaluator
         'Kết quả kiểm tra câu nói không hợp lệ. Con thử lại sau nhé.',
       );
     }
+    final transcript = _recognizedEnglishFrom(decoded);
     if (matched) {
-      return LessonAttemptOutcome.good;
+      // A few deployed evaluators only return a loose semantic match. When a
+      // transcript is available, keep the client-side minimum-word contract
+      // so a fragment such as "School starts eight" cannot pass the authored
+      // four-word target. Older deployments without a transcript remain
+      // compatible and keep their server verdict.
+      if (transcript == null) {
+        return LessonAttemptOutcome.good;
+      }
+      return matchesRecognizedLessonEnglish(
+            expectedEnglish,
+            transcript,
+            acceptedVariants: acceptedVariants,
+            requireAllExpectedTokens: requireAllExpectedTokens,
+          )
+          ? LessonAttemptOutcome.good
+          : LessonAttemptOutcome.retry;
     }
 
     // Some deployed evaluators use a stricter server-side matcher than the V4
@@ -427,7 +443,6 @@ class BackendLessonAttemptEvaluator
     // transcript, apply that inventory locally before telling a child they are
     // wrong. This does not accept arbitrary audio: every expected token and
     // authored variant is still checked by the lesson matcher.
-    final transcript = _recognizedEnglishFrom(decoded);
     if (transcript != null &&
         matchesRecognizedLessonEnglish(
           expectedEnglish,
@@ -610,8 +625,8 @@ String _normalizeLessonEnglish(String value) {
 ///
 /// Authored targets which explicitly require every token (notably
 /// Alphabet/ABC) stay strict. Normal speaking exercises accept a small ASR or
-/// pronunciation miss so children are encouraged to continue, while silence,
-/// one-word fragments and clearly different answers still fail.
+/// pronunciation/ASR substitution so children are encouraged to continue,
+/// while silence, omitted words and clearly different answers still fail.
 bool matchesRecognizedLessonEnglish(
   String expectedEnglish,
   String transcript, {
@@ -656,7 +671,10 @@ bool _matchesEncouragingLessonEnglish(String expected, String actual) {
     return false;
   }
 
-  if (actualWords.length < expectedWords.length - 1 ||
+  // The authored content requires the child to say the complete sentence.
+  // Extra recognizer filler is harmless, but omitting even one target word is
+  // not: two spoken words must never pass a three-word target.
+  if (actualWords.length < expectedWords.length ||
       actualWords.length > expectedWords.length + 2) {
     return false;
   }
@@ -672,14 +690,16 @@ bool _matchesEncouragingLessonEnglish(String expected, String actual) {
     actualWords,
   );
 
-  if (expectedWords.length == 2) {
+  if (expectedWords.length == 2 && actualWords.length == expectedWords.length) {
     return exactWordsInOrder >= 1 && similarity >= 0.78;
   }
 
-  // For normal phrases, tolerate one omitted or mistranscribed word. The
-  // similarity floor prevents a sentence sharing only common filler words
-  // from being accepted.
-  return exactWordsInOrder >= expectedWords.length - 1 && similarity >= 0.66;
+  // For normal phrases, tolerate one mistranscribed word only when the
+  // recognizer returned at least the complete target word count. The
+  // similarity floor prevents common filler words from producing a pass.
+  return actualWords.length == expectedWords.length &&
+      exactWordsInOrder >= expectedWords.length - 1 &&
+      similarity >= 0.66;
 }
 
 int _longestCommonWordSubsequence(List<String> left, List<String> right) {

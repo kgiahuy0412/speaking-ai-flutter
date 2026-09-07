@@ -81,6 +81,25 @@ void main() {
   );
 
   test(
+    'does not trust a loose backend match when its transcript omits words',
+    () async {
+      final evaluator = BackendLessonAttemptEvaluator(
+        config: _config,
+        client: _lessonAttemptClient(
+          matched: true,
+          transcript: 'School starts eight',
+        ),
+      );
+
+      expect(
+        await _evaluate(evaluator, expectedEnglish: 'School starts at eight'),
+        LessonAttemptOutcome.retry,
+      );
+      evaluator.dispose();
+    },
+  );
+
+  test(
     'accepts a matching recognizer transcript after a stale backend false negative',
     () async {
       final evaluator = BackendLessonAttemptEvaluator(
@@ -313,14 +332,18 @@ void main() {
       );
     });
 
-    test('accepts one light ASR miss in a normal multi-word phrase', () {
+    test('requires the complete target word count', () {
       expect(
         matchesRecognizedLessonEnglish(
           'School starts at eight',
           'School starts eight',
         ),
-        isTrue,
+        isFalse,
       );
+      expect(matchesRecognizedLessonEnglish('Play soccer', 'Play'), isFalse);
+    });
+
+    test('accepts one light ASR substitution without an omitted word', () {
       expect(
         matchesRecognizedLessonEnglish('Play soccer', 'Play socket'),
         isTrue,
@@ -332,6 +355,14 @@ void main() {
         matchesRecognizedLessonEnglish(
           'I would like some water',
           'Can I have water',
+          acceptedVariants: const ['Can I have some water'],
+        ),
+        isFalse,
+      );
+      expect(
+        matchesRecognizedLessonEnglish(
+          'I would like some water',
+          'Can I have sum water',
           acceptedVariants: const ['Can I have some water'],
         ),
         isTrue,

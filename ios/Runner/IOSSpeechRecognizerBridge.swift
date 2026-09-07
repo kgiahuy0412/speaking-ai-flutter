@@ -281,7 +281,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         result(
           FlutterError(
             code: "SPEECH_PERMISSION_DENIED",
-            message: "HOMI cần quyền Nhận dạng giọng nói để dùng Apple Speech.",
+            message: "HOMI cần quyền Nhận dạng giọng nói. Hãy vào Cài đặt > Quyền riêng tư & Bảo mật > Nhận dạng giọng nói và bật HOMI.",
             details: nil
           )
         )
@@ -318,7 +318,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       guard authorization == .authorized else {
         self.failStart(
           code: "SPEECH_PERMISSION_DENIED",
-          message: "Quyền Nhận dạng giọng nói đã bị từ chối.",
+          message: "Quyền Nhận dạng giọng nói đã bị từ chối. Hãy vào Cài đặt > Quyền riêng tư & Bảo mật > Nhận dạng giọng nói và bật HOMI.",
           reason: "speech_permission_denied"
         )
         return

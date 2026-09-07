@@ -34,6 +34,43 @@ void main() {
     expect(find.text('Nghe và trả lời'), findsNothing);
   });
 
+  testWidgets('role-play defers praise until its end summary', (tester) async {
+    await _usePhoneSurface(tester);
+    final voicePrompt = _RecordingVoicePromptService();
+    await tester.pumpWidget(
+      _subject(
+        startAge: 8,
+        voicePromptService: voicePrompt,
+        onStarEarned: (_, _, _) async {},
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('lesson-challenge-record-button')));
+    await tester.pumpAndSettle();
+
+    expect(voicePrompt.spoken, isNot(contains('vi-VN|Great!')));
+    expect(
+      voicePrompt.spoken,
+      contains('vi-VN|Bạn đã hoàn thành đoạn hội thoại và có thêm 1 Ngôi sao.'),
+    );
+    expect(find.text('Thử thách nghe'), findsOneWidget);
+  });
+
+  testWidgets('relearn hides the authored role-play opening hint', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    await tester.pumpWidget(
+      _subject(startAge: 8, showRolePlayOpeningHint: false),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Can I...'), findsNothing);
+  });
+
   testWidgets(
     'skips role-play below age eight and keeps both authored choices',
     (tester) async {
@@ -45,6 +82,7 @@ void main() {
 
       expect(find.text('Đoạn hội thoại'), findsNothing);
       expect(find.text('Thử thách nghe'), findsOneWidget);
+      expect(find.byKey(const Key('virtual-lesson-controls')), findsNothing);
       expect(find.text('Nghe và trả lời'), findsOneWidget);
       expect(find.text('Where is the library?'), findsOneWidget);
       expect(find.text('Go straight.'), findsOneWidget);
@@ -66,10 +104,12 @@ void main() {
     (tester) async {
       await _usePhoneSurface(tester);
       final mediaService = _FakeLessonMediaService();
+      final earnedStars = <String>[];
       await tester.pumpWidget(
         _subject(
           startAge: 7,
           mediaService: mediaService,
+          onStarEarned: (targetId, _, _) async => earnedStars.add(targetId),
           challenges: const <ListeningChallengeContent>[
             ListeningChallengeContent(
               id: 'challenge-1',
@@ -103,9 +143,69 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Câu 2/2'), findsOneWidget);
-      expect(mediaService.selectedOutputPreparations, 2);
+      // Correct feedback is spoken before the second authored question.
+      expect(mediaService.selectedOutputPreparations, 3);
       expect(mediaService.recordingStarts, 2);
+      expect(earnedStars, <String>['challenge-1']);
       expect(find.text('Dừng và chấm'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'skip cancels recording, gives the answer, and opens challenge two',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _FakeLessonMediaService();
+      final evaluator = _QueuedAttemptEvaluator(<LessonAttemptOutcome>[]);
+      final voicePrompt = _RecordingVoicePromptService();
+      final earnedStars = <String>[];
+      await tester.pumpWidget(
+        _subject(
+          startAge: 7,
+          mediaService: mediaService,
+          attemptEvaluator: evaluator,
+          voicePromptService: voicePrompt,
+          onStarEarned: (starId, _, _) async => earnedStars.add(starId),
+          challenges: const <ListeningChallengeContent>[
+            ListeningChallengeContent(
+              id: 'challenge-1',
+              format: 'VI_TO_EN',
+              prompt: 'Where is the library?',
+              choices: <String>['Go straight.', 'It is five dollars.'],
+              correctAnswer: 'Go straight.',
+              correctVietnamese: 'Đi thẳng.',
+              targetId: 'target-1',
+            ),
+            ListeningChallengeContent(
+              id: 'challenge-2',
+              format: 'VI_TO_EN',
+              prompt: 'How are you?',
+              choices: <String>['I am fine.', 'I am eight.'],
+              correctAnswer: 'I am fine.',
+              correctVietnamese: 'Con khỏe.',
+              targetId: 'target-2',
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final skip = find.byKey(const Key('lesson-challenge-skip-button'));
+      await tester.ensureVisible(skip);
+      await tester.tap(skip);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Câu 2/2'), findsOneWidget);
+      expect(evaluator.evaluationCalls, 0);
+      expect(earnedStars, isEmpty);
+      expect(
+        voicePrompt.spoken,
+        containsAllInOrder(<String>[
+          'vi-VN|Được rồi. HOMI nói mẫu nhé.',
+          'en-US|Go straight.',
+        ]),
+      );
     },
   );
 
@@ -197,11 +297,15 @@ void main() {
       LessonAttemptOutcome.retry,
       LessonAttemptOutcome.retry,
     ]);
+    final voicePrompt = _RecordingVoicePromptService();
+    final earnedStars = <String>[];
     await tester.pumpWidget(
       _subject(
         startAge: 7,
         mediaService: mediaService,
         attemptEvaluator: evaluator,
+        voicePromptService: voicePrompt,
+        onStarEarned: (starId, _, _) async => earnedStars.add(starId),
         challenges: const <ListeningChallengeContent>[
           ListeningChallengeContent(
             id: 'challenge-1',
@@ -239,6 +343,15 @@ void main() {
     expect(find.text('Câu 2/2'), findsOneWidget);
     expect(evaluator.evaluationCalls, 2);
     expect(mediaService.recordingStarts, 3);
+    expect(earnedStars, isEmpty);
+    expect(
+      voicePrompt.spoken,
+      containsAllInOrder(<String>[
+        'vi-VN|Bạn thử lại nhé.',
+        'vi-VN|HOMI nói mẫu nhé.',
+        'en-US|Go straight.',
+      ]),
+    );
   });
 
   testWidgets('iOS scores a challenge on device without calling the backend', (
@@ -295,6 +408,41 @@ void main() {
     expect(find.text('Dừng và chấm'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets(
+    'iOS challenge surfaces Speech permission denial without backend fallback',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await _usePhoneSurface(tester);
+      final mediaService = _FakeLessonMediaService();
+      final speechInput = _FakeLessonEnglishSpeechInput(
+        '',
+        startError: const StreamingSpeechInputException(
+          'Hãy bật Nhận dạng giọng nói cho HOMI trong Cài đặt.',
+          code: 'SPEECH_PERMISSION_DENIED',
+        ),
+      );
+      final backendEvaluator = _FailIfCalledAttemptEvaluator();
+
+      await tester.pumpWidget(
+        _subject(
+          startAge: 7,
+          mediaService: mediaService,
+          iosSpeechInput: speechInput,
+          attemptEvaluator: backendEvaluator,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(speechInput.startCalls, 1);
+      expect(mediaService.recordingStarts, 0);
+      expect(backendEvaluator.evaluationCalls, 0);
+      expect(find.textContaining('Nhận dạng giọng nói'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 }
 
 Widget _subject({
@@ -304,6 +452,8 @@ Widget _subject({
   VoicePromptService? voicePromptService,
   LessonAttemptEvaluator? attemptEvaluator,
   LessonEnglishSpeechInput? iosSpeechInput,
+  Future<void> Function(String, String, String)? onStarEarned,
+  bool showRolePlayOpeningHint = true,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -329,6 +479,8 @@ Widget _subject({
       attemptEvaluator: attemptEvaluator ?? const _AlwaysGoodAttemptEvaluator(),
       voicePromptService: voicePromptService ?? const _FakeVoicePromptService(),
       iosSpeechInput: iosSpeechInput,
+      onStarEarned: onStarEarned,
+      showRolePlayOpeningHint: showRolePlayOpeningHint,
     ),
   );
 }
@@ -491,9 +643,10 @@ class _FailIfCalledAttemptEvaluator implements LessonAttemptEvaluator {
 }
 
 class _FakeLessonEnglishSpeechInput implements LessonEnglishSpeechInput {
-  _FakeLessonEnglishSpeechInput(this.transcript);
+  _FakeLessonEnglishSpeechInput(this.transcript, {this.startError});
 
   final String transcript;
+  final Object? startError;
   int startCalls = 0;
   int stopCalls = 0;
   int cancelCalls = 0;
@@ -501,6 +654,8 @@ class _FakeLessonEnglishSpeechInput implements LessonEnglishSpeechInput {
   @override
   Future<void> startLessonEnglishRecognition() async {
     startCalls += 1;
+    final error = startError;
+    if (error != null) throw error;
   }
 
   @override
@@ -534,6 +689,25 @@ class _FakeVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
+class _RecordingVoicePromptService implements VoicePromptService {
+  final List<String> spoken = <String>[];
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    spoken.add('$locale|$text');
+  }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) =>
+      speak(text, locale: locale);
 
   @override
   Future<void> stop() async {}

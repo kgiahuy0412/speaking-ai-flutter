@@ -31,10 +31,12 @@ class LessonIntroScreen extends StatefulWidget {
     required this.mediaService,
     this.controller,
     this.topicContent,
+    this.contentGroup,
     this.levelContent,
     this.guideAudioLibrary,
     this.voicePromptService,
     this.autoAdvance = true,
+    this.relearnFromBeginning = false,
     this.onTopicCompleted,
     super.key,
   });
@@ -46,12 +48,14 @@ class LessonIntroScreen extends StatefulWidget {
   final ListeningLessonContent lesson;
   final ConversationController? controller;
   final ListeningTopicContent? topicContent;
+  final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final LessonGuideAudioLibrary? guideAudioLibrary;
   final VoicePromptService? voicePromptService;
   final bool autoAdvance;
+  final bool relearnFromBeginning;
   final VoidCallback? onTopicCompleted;
 
   @override
@@ -70,6 +74,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   VoicePromptService? _voicePromptService;
   bool _ownsVoicePromptService = false;
   String? _guideText;
+  ListeningResumeStage _resumeStage = ListeningResumeStage.core;
+  bool _resumeCoreDirectly = false;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -188,18 +194,58 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       widget.lesson.id,
     );
     final opened = await widget.progressStore.hasOpenedLearningGuide();
+    var resumeStage = ListeningResumeStage.core;
+    if (widget.lesson.usesV4Flow) {
+      resumeStage = await widget.progressStore.readResumeStage(
+        widget.lesson.id,
+      );
+      if (!widget.relearnFromBeginning &&
+          resumeStage == ListeningResumeStage.core &&
+          completed >= widget.lesson.sentences.length &&
+          widget.lesson.sentences.isNotEmpty &&
+          !await widget.progressStore.hasCompletedV4LessonActivity(
+            widget.lesson.id,
+          )) {
+        resumeStage = ListeningResumeStage.challenge;
+      }
+    }
     final isInProgress =
         currentSentence > 0 && completed < widget.lesson.sentences.length;
     if (widget.lesson.usesV4Flow) {
       final lesson = widget.lesson;
       final topicContent = widget.topicContent;
       final String text;
-      if (isInProgress) {
+      if (resumeStage == ListeningResumeStage.challenge) {
+        text = 'Mình làm lại phần thử thách nhé.';
+      } else if (resumeStage == ListeningResumeStage.mission) {
+        text = 'Mình tiếp tục Nhiệm vụ cuối Level nhé.';
+      } else if (resumeStage == ListeningResumeStage.reinforcement) {
+        text = 'Mình luyện nhanh vài phần trước nhé.';
+      } else if (resumeStage == ListeningResumeStage.song) {
+        text = 'Mình nghe lại bài hát từ đầu nhé.';
+      } else if (isInProgress) {
         text = 'Mình học tiếp bài ${lesson.titleEn} nhé.';
-      } else if (completed >= lesson.sentences.length &&
-          lesson.sentences.isNotEmpty) {
-        // V4 does not replay a Hook/Micro-objective during relearn.
-        text = 'Mình học lại bài ${lesson.titleEn} nhé.';
+      } else if (widget.relearnFromBeginning ||
+          (completed >= lesson.sentences.length &&
+              lesson.sentences.isNotEmpty)) {
+        final rolePlayStars =
+            lesson.rolePlay?.turns
+                .where((turn) => turn.speaker == ListeningRolePlaySpeaker.child)
+                .length ??
+            0;
+        final totalStars = lesson.sentences.length + rolePlayStars + 2;
+        final earnedStars = await widget.progressStore.readEarnedStars(
+          lesson.id,
+        );
+        final remainingStars = (totalStars - earnedStars.length).clamp(
+          0,
+          totalStars,
+        );
+        text = remainingStars > 0
+            ? widget.startAge <= 10
+                  ? 'Bài này bạn còn $remainingStars Ngôi sao chưa chinh phục. Mình cùng thử nhé!'
+                  : 'Bài này bạn còn $remainingStars Ngôi sao chưa chinh phục.'
+            : 'Mình học lại bài ${lesson.titleEn} nhé.';
       } else {
         final isFirstLessonInTopic = lesson.number == 1;
         final isFirstTopicInLevel =
@@ -219,7 +265,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
             .trim();
       }
       if (mounted && !_pausedForMainAssistant) {
-        setState(() => _guideText = text);
+        setState(() {
+          _guideText = text;
+          _resumeStage = resumeStage;
+          _resumeCoreDirectly = isInProgress;
+        });
       }
       return;
     }
@@ -534,6 +584,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           lesson: widget.lesson,
           controller: widget.controller,
           topicContent: widget.topicContent,
+          contentGroup: widget.contentGroup,
           levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
@@ -554,6 +605,30 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       _movingForward = false;
       return;
     }
+    if (_resumeCoreDirectly || _resumeStage != ListeningResumeStage.core) {
+      await Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => LessonPracticeScreen(
+            language: widget.language,
+            startAge: widget.startAge,
+            endAge: widget.endAge,
+            topic: widget.topic,
+            lesson: widget.lesson,
+            controller: widget.controller,
+            topicContent: widget.topicContent,
+            contentGroup: widget.contentGroup,
+            levelContent: widget.levelContent,
+            progressStore: widget.progressStore,
+            mediaService: widget.mediaService,
+            guideAudioLibrary: _guideAudioLibrary,
+            initialResumeStage: _resumeStage,
+            isRelearn: widget.relearnFromBeginning,
+            onTopicCompleted: widget.onTopicCompleted,
+          ),
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).pushReplacement<void, void>(
       MaterialPageRoute<void>(
         builder: (_) => LessonOverviewScreen(
@@ -564,10 +639,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           lesson: widget.lesson,
           controller: widget.controller,
           topicContent: widget.topicContent,
+          contentGroup: widget.contentGroup,
           levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: _guideAudioLibrary,
+          isRelearn: widget.relearnFromBeginning,
           onTopicCompleted: widget.onTopicCompleted,
         ),
       ),
@@ -624,10 +701,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     lesson: widget.lesson,
     controller: widget.controller,
     topicContent: widget.topicContent,
+    contentGroup: widget.contentGroup,
     levelContent: widget.levelContent,
     progressStore: widget.progressStore,
     mediaService: widget.mediaService,
     guideAudioLibrary: _guideAudioLibrary,
+    isRelearn: widget.relearnFromBeginning,
     onTopicCompleted: widget.onTopicCompleted,
   );
 }

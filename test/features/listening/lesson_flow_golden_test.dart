@@ -527,6 +527,32 @@ class _GoldenProgressStore extends ListeningProgressStore {
       completedV4LessonActivities;
 
   @override
+  Future<bool> hasCompletedV4LessonActivity(String lessonId) async =>
+      completedV4LessonActivities.contains(lessonId);
+
+  @override
+  Future<void> markV4LessonActivityCompleted(String lessonId) async {}
+
+  @override
+  Future<ListeningResumeStage> readResumeStage(String lessonId) async =>
+      ListeningResumeStage.core;
+
+  @override
+  Future<void> saveResumeStage(
+    String lessonId,
+    ListeningResumeStage stage,
+  ) async {}
+
+  @override
+  Future<bool> awardStar(String scopeId, String starId) async => true;
+
+  @override
+  Future<Set<String>> readEarnedStars(String scopeId) async => <String>{};
+
+  @override
+  Future<int> readTotalEarnedStars() async => 0;
+
+  @override
   Future<int> readLesson(String lessonId) async => progress[lessonId] ?? 0;
 
   @override

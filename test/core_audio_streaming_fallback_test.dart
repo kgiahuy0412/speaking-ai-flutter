@@ -1922,6 +1922,36 @@ void main() {
     controller.dispose();
   });
 
+  test('iOS Speech permission denial does not use backend fallback', () async {
+    final input = _FakeChunkedInput(
+      available: true,
+      bluetooth: false,
+      label: 'Mic iPhone',
+    );
+    final repository = _FallbackRepository();
+    final controller = ConversationController(
+      audioInput: input,
+      streamingSpeechInput: _FakeIOSStreamingSpeechInput(
+        startError: const StreamingSpeechInputException(
+          'Hãy bật Nhận dạng giọng nói cho HOMI trong Cài đặt.',
+          code: 'SPEECH_PERMISSION_DENIED',
+        ),
+      ),
+      playbackService: const _FakePlaybackService(),
+      repository: repository,
+      childAge: 6,
+      initialAsrMode: AsrMode.androidStreaming,
+    );
+
+    await controller.startRecording();
+
+    expect(controller.phase, ConversationPhase.error);
+    expect(controller.errorMessage, contains('Nhận dạng giọng nói'));
+    expect(input.startCount, 0);
+    expect(repository.batchStarted, 0);
+    controller.dispose();
+  });
+
   test('iOS runtime failure uploads only the private fallback WAV', () async {
     final input = _FakeChunkedInput(
       available: true,
@@ -2203,12 +2233,14 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   _FakeStreamingSpeechInput({
     this.failOnStart = false,
     this.failOnStop = false,
+    this.startError,
     this.onStart,
     this.sourceText = 'Con muốn uống nước',
   });
 
   final bool failOnStart;
   final bool failOnStop;
+  final Object? startError;
   final void Function()? onStart;
   final String sourceText;
   int startCount = 0;
@@ -2232,6 +2264,10 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   Future<void> start() async {
     startCount += 1;
     onStart?.call();
+    final error = startError;
+    if (error != null) {
+      throw error;
+    }
     if (failOnStart) {
       throw const StreamingSpeechInputException(
         'Android streaming start failed.',
@@ -2270,6 +2306,7 @@ class _FakeIOSStreamingSpeechInput extends _FakeStreamingSpeechInput
   _FakeIOSStreamingSpeechInput({
     super.failOnStart,
     super.failOnStop,
+    super.startError,
     super.sourceText,
     this.fallbackCapture,
   });

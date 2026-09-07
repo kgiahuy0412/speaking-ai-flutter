@@ -834,7 +834,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     _backgroundWorkStarted = true;
     final nativeStreamingSpeechInput = _nativeStreamingSpeechInput;
-    if (nativeStreamingSpeechInput != null) {
+    if (nativeStreamingSpeechInput != null && !_usesIosHfpLifecycle) {
+      // Android may safely prepare SpeechRecognizer in the background. Apple
+      // Speech owns a separate system permission prompt, so iOS waits for an
+      // actual MAIN/recording action before asking the user.
       unawaited(nativeStreamingSpeechInput.prewarm());
     }
     final repository = _repository;

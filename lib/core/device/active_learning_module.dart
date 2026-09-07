@@ -162,6 +162,25 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
       return const ActiveLearningCommandResult.busy();
     }
   }
+
+  /// Stops the visible activity before applying a hardware-style command.
+  ///
+  /// Virtual lesson controls use this path today. The physical AIV0 buttons
+  /// can map to the same logical commands later without duplicating media or
+  /// microphone cancellation rules.
+  Future<ActiveLearningCommandResult> interruptAndExecute(
+    ActiveLearningCommand command,
+  ) async {
+    final activeBeforePause = controller;
+    if (activeBeforePause == null) {
+      return const ActiveLearningCommandResult.unavailable();
+    }
+    final paused = await pauseForMainAssistant();
+    if (!paused || !identical(activeBeforePause, controller)) {
+      return const ActiveLearningCommandResult.busy();
+    }
+    return execute(command);
+  }
 }
 
 class _ActiveLearningModuleRegistration {

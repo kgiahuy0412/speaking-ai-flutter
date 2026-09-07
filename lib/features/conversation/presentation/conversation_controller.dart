@@ -1959,7 +1959,8 @@ class ConversationController extends ChangeNotifier {
           if (await abandonCancelledRecordingStart()) return;
           final permissionFailure =
               error is StreamingSpeechInputException &&
-              (error.code == 'MICROPHONE_PERMISSION_DENIED' ||
+              (error.code == 'SPEECH_PERMISSION_DENIED' ||
+                  error.code == 'MICROPHONE_PERMISSION_DENIED' ||
                   error.code == 'MICROPHONE_PERMISSION_PENDING');
           if (permissionFailure) {
             await _stopHfpRoute();
