@@ -139,6 +139,12 @@ class LessonGuideFlowV2 {
     text: 'Bây giờ đến lượt con. Con nói lại nhé.',
   );
 
+  /// Exact V4 cue after English -> pause -> Vietnamese.
+  static const LessonGuidePrompt repeatTarget = LessonGuidePrompt(
+    audioCode: 'REPEAT_TARGET',
+    text: 'Bạn nói lại tiếng Anh nhé.',
+  );
+
   static const LessonGuidePrompt completionChoice = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_COMPLETION_CHOICE',
     text: 'Con hãy nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.',

@@ -64,6 +64,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   static const _englishToVietnamesePause = Duration(seconds: 2);
 
   VoicePromptService? _voicePromptService;
+  late final LessonGuideAudioLibrary _audioLibrary;
   bool _ownsVoicePromptService = false;
   bool _playing = false;
   bool _movingForward = false;
@@ -73,6 +74,7 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   @override
   void initState() {
     super.initState();
+    _audioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
     _voicePromptService = widget.voicePromptService;
     WidgetsBinding.instance.addPostFrameCallback((_) => _playOverview());
   }
@@ -80,13 +82,18 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   @override
   void dispose() {
     _request += 1;
-    unawaited(widget.mediaService.stopPlayback());
-    final voicePrompt = _voicePromptService;
-    if (voicePrompt != null) {
-      if (_ownsVoicePromptService) {
-        unawaited(voicePrompt.dispose());
-      } else {
-        unawaited(voicePrompt.stop());
+    // The replacement practice route reuses the same native media/TTS engines.
+    // Stopping them from this outgoing route can cancel the first prompt that
+    // the new route has already started.
+    if (!_movingForward) {
+      unawaited(widget.mediaService.stopPlayback());
+      final voicePrompt = _voicePromptService;
+      if (voicePrompt != null) {
+        if (_ownsVoicePromptService) {
+          unawaited(voicePrompt.dispose());
+        } else {
+          unawaited(voicePrompt.stop());
+        }
       }
     }
     super.dispose();
@@ -102,8 +109,8 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   Duration get _englishSentencePause =>
       widget.englishSentencePause ??
       (widget.startAge >= 13
-          ? const Duration(milliseconds: 600)
-          : const Duration(milliseconds: 700));
+          ? const Duration(milliseconds: 1200)
+          : const Duration(milliseconds: 1400));
 
   Future<void> _playOverview() async {
     if (_playing || _movingForward || !mounted) return;
@@ -136,7 +143,10 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   }
 
   Future<void> _playEnglishOnlyOverview(int request) async {
-    final uri = widget.lesson.overviewAudioUri;
+    final uri = await _resolveAuthoredAudio(
+      widget.lesson.overviewAudioUri,
+      widget.lesson.overviewAudioId,
+    );
     if (uri != null) {
       setState(() => _status = 'Nghe toàn bộ bài bằng tiếng Anh…');
       await widget.mediaService.playToCompletion(uri);
@@ -149,7 +159,10 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     for (var index = 0; index < sentences.length; index += 1) {
       if (!mounted || request != _request) return;
       final sentence = sentences[index];
-      final sentenceUri = sentence.audioUri;
+      final sentenceUri = await _resolveAuthoredAudio(
+        sentence.audioUri,
+        sentence.englishAudioId,
+      );
       if (sentenceUri != null) {
         await widget.mediaService.playToCompletion(sentenceUri);
       } else {
@@ -165,7 +178,10 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     for (final sentence in widget.lesson.sentences) {
       if (!mounted || request != _request) return;
       setState(() => _status = 'Đang nghe: ${sentence.english}');
-      final englishUri = sentence.audioUri;
+      final englishUri = await _resolveAuthoredAudio(
+        sentence.audioUri,
+        sentence.englishAudioId,
+      );
       if (englishUri != null) {
         await widget.mediaService.playToCompletion(englishUri);
       } else {
@@ -174,13 +190,23 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
       if (!mounted || request != _request) return;
       await Future<void>.delayed(_englishToVietnamesePause);
       if (!mounted || request != _request) return;
-      final vietnameseUri = sentence.vietnameseAudioUri;
+      final vietnameseUri = await _resolveAuthoredAudio(
+        sentence.vietnameseAudioUri,
+        sentence.vietnameseAudioId,
+      );
       if (vietnameseUri != null) {
         await widget.mediaService.playToCompletion(vietnameseUri);
       } else {
         await _prompt.speakAndWait(sentence.vietnamese, locale: 'vi-VN');
       }
     }
+  }
+
+  Future<Uri?> _resolveAuthoredAudio(Uri? uri, String? audioId) async {
+    if (uri != null) return uri;
+    final id = audioId?.trim();
+    if (id == null || id.isEmpty) return null;
+    return _audioLibrary.uriForAudioCode(id);
   }
 
   Future<void> _openPractice() async {

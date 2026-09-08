@@ -28,4 +28,52 @@ void main() {
       'Bạn muốn học lại Level 1, Level 2 hay Level 3?',
     );
   });
+
+  test('resolves spoken V4 choices within the active completion stage', () {
+    const resolver = V4CompletionChoiceResolver();
+
+    expect(
+      resolver.resolve(
+        'Con muốn học bài tiếp theo',
+        stage: V4CompletionStage.lessonEnd,
+      ),
+      V4CompletionAction.nextLesson,
+    );
+    expect(
+      resolver.resolve('Học lại bài này ạ', stage: V4CompletionStage.lessonEnd),
+      V4CompletionAction.relearnCurrentLesson,
+    );
+    expect(
+      resolver.resolve(
+        'Học lại toàn bộ chủ đề',
+        stage: V4CompletionStage.topicRelearnScope,
+      ),
+      V4CompletionAction.relearnTopic,
+    );
+    expect(
+      resolver.resolve(
+        'Cho con học lại level hai',
+        stage: V4CompletionStage.courseRelearnLevel,
+      ),
+      V4CompletionAction.relearnLevel2,
+    );
+    expect(
+      resolver.resolve('Dừng lại', stage: V4CompletionStage.nextLevel),
+      V4CompletionAction.stop,
+    );
+  });
+
+  test('does not return a choice that is not offered on screen', () {
+    expect(
+      const V4CompletionChoiceResolver().resolve(
+        'Dừng lại',
+        stage: V4CompletionStage.lessonEnd,
+        allowedActions: const <V4CompletionAction>[
+          V4CompletionAction.nextLesson,
+          V4CompletionAction.relearnCurrentLesson,
+        ],
+      ),
+      isNull,
+    );
+  });
 }

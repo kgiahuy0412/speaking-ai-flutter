@@ -9,6 +9,8 @@ enum ListeningResumeStage {
   mission,
   reinforcement,
   completed,
+  // Appended to preserve the persisted indexes of every existing stage.
+  rolePlay,
 }
 
 class ListeningProgressStore {
@@ -23,6 +25,7 @@ class ListeningProgressStore {
   static const String _v4LessonActivityPassedMarker =
       '::v4-lesson-activity-passed';
   static const String _resumeStageSuffix = '::resume-stage';
+  static const String _coreStartedSuffix = '::core-started';
   static const String _missionSelectedMarker = '::mission-selected::';
   static const String _missionAnswerMarker = '::mission-answer::';
   static const String _missionWeakMarker = '::mission-weak::';
@@ -47,6 +50,7 @@ class ListeningProgressStore {
           key.endsWith(_levelMissionPassedMarker) ||
           key.endsWith(_v4LessonActivityPassedMarker) ||
           key.endsWith(_resumeStageSuffix) ||
+          key.endsWith(_coreStartedSuffix) ||
           key.contains(_missionSelectedMarker) ||
           key.contains(_missionAnswerMarker) ||
           key.contains(_missionWeakMarker) ||
@@ -237,6 +241,17 @@ class ListeningProgressStore {
   ) async {
     final progress = await _readRaw();
     progress['$lessonId$_resumeStageSuffix'] = stage.index;
+    await _writeRaw(progress);
+  }
+
+  Future<bool> hasStartedLessonCore(String lessonId) async {
+    final progress = await _readRaw();
+    return progress['$lessonId$_coreStartedSuffix'] == 1;
+  }
+
+  Future<void> markLessonCoreStarted(String lessonId) async {
+    final progress = await _readRaw();
+    progress['$lessonId$_coreStartedSuffix'] = 1;
     await _writeRaw(progress);
   }
 

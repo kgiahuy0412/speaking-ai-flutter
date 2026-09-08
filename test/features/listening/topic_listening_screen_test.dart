@@ -507,6 +507,16 @@ void main() {
 }
 
 class _MemoryProgressStore extends ListeningProgressStore {
+  bool coreStarted = false;
+
+  @override
+  Future<bool> hasStartedLessonCore(String lessonId) async => coreStarted;
+
+  @override
+  Future<void> markLessonCoreStarted(String lessonId) async {
+    coreStarted = true;
+  }
+
   final Map<String, int> _progress = <String, int>{};
   final Set<String> _completedV4LessonActivities = <String>{};
 

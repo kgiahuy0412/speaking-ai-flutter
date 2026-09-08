@@ -80,6 +80,31 @@ void main() {
       },
     );
 
+    test('does not expose audio-production cues as lesson copy', () async {
+      final productionCue = RegExp(
+        r'\[(?:SFX|MUSIC|BGM|AMBIENCE|AMBIENT|SOUND|AUDIO|FX)\s*:[^\]\r\n]+\]',
+        caseSensitive: false,
+      );
+
+      for (final assetPath in const <String>[
+        'assets/data/listening_lessons.json',
+        'assets/data/listening_audio_manifest_v4.json',
+      ]) {
+        final source = await rootBundle.loadString(assetPath);
+        final leakedCues = productionCue
+            .allMatches(source)
+            .map((match) => match.group(0))
+            .whereType<String>()
+            .toSet();
+        expect(
+          leakedCues,
+          isEmpty,
+          reason:
+              '$assetPath must keep production directions out of text shown or spoken to children.',
+        );
+      }
+    });
+
     test(
       'keeps every authored challenge and mission tied to a core target',
       () {
@@ -169,7 +194,7 @@ void main() {
       }
     });
 
-    test('preserves the V4 role-play and song placements', () {
+    test('preserves the V4 role-play and song placements', () async {
       final rolePlayLessons = lessons
           .where((lesson) => lesson.rolePlay != null)
           .toList(growable: false);
@@ -220,17 +245,31 @@ void main() {
         }),
       );
       expect(
-        songLessons.every(
-          (lesson) =>
-              lesson.hasV4SongStage &&
-              lesson.songAudioId == '${lesson.code}_SONG' &&
-              lesson.songAudioUri == null &&
-              lesson.fullAudioUri == null,
-        ),
-        isTrue,
-        reason:
-            'V4 songs must retain their separate source-audio handoff and never reuse legacy full audio.',
+        <String, String>{
+          for (final lesson in songLessons)
+            lesson.id: lesson.songAudioUri.toString(),
+        },
+        equals(const <String, String>{
+          'c35-l1-t02-b02':
+              'asset:///assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3',
+          'c35-l3-t09-b02':
+              'asset:///assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3',
+          'c35-l3-t10-b02':
+              'asset:///assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3',
+          'c67-l3-t08-b01':
+              'asset:///assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3',
+          'c810-l1-t01-b02':
+              'asset:///assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3',
+        }),
       );
+      for (final lesson in songLessons) {
+        expect(lesson.hasV4SongStage, isTrue, reason: lesson.id);
+        expect(lesson.songAudioId, '${lesson.code}_SONG', reason: lesson.id);
+        expect(lesson.fullAudioUri, isNull, reason: lesson.id);
+        final assetPath = lesson.songAudioUri!.path.replaceFirst('/', '');
+        final audio = await rootBundle.load(assetPath);
+        expect(audio.lengthInBytes, greaterThan(0), reason: assetPath);
+      }
     });
 
     test('exports only approved V4 song cues and source-audio handoffs', () {
@@ -264,12 +303,14 @@ void main() {
         }),
       );
       expect(
-        songReferences.every(
-          (entry) => entry['qaStatus'] == 'PENDING_SOURCE_AUDIO',
-        ),
+        songReferences.every((entry) {
+          final sourceAudioUrl = entry['sourceAudioUrl'] as String?;
+          return entry['qaStatus'] == 'READY_SOURCE_AUDIO' &&
+              sourceAudioUrl != null &&
+              sourceAudioUrl.startsWith('asset:///assets/audio/');
+        }),
         isTrue,
-        reason:
-            'The V4 source names placements but provides no song lyrics/recording to synthesize.',
+        reason: 'Every V4 song must resolve to its approved bundled recording.',
       );
     });
   });

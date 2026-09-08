@@ -125,6 +125,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   int _newStarsThisLesson = 0;
   bool _v4CompletionChoiceVisible = false;
   V4CompletionStage? _activeV4CompletionStage;
+  List<V4CompletionAction> _activeV4CompletionActions =
+      const <V4CompletionAction>[];
+  int _completionChoiceGeneration = 0;
   int _mainPauseGeneration = 0;
   int _recordingLifecycleGeneration = 0;
   int _attemptEvaluationRequest = 0;
@@ -135,6 +138,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       widget.lesson.sentences[_sentenceIndex];
 
   bool get _usesGuideV2 => widget.lesson.usesGuidedPractice;
+
+  LessonGuidePrompt get _repeatTargetPrompt => widget.lesson.usesV4Flow
+      ? LessonGuideFlowV2.repeatTarget
+      : LessonGuideFlowV2.afterSample;
 
   IOSStreamingSpeechInput? get _iosLessonSpeechInput =>
       widget.controller?.iosLessonSpeechInput;
@@ -195,6 +202,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _recordingStartRequest += 1;
     _recordingLifecycleGeneration += 1;
     _attemptEvaluationRequest += 1;
+    _completionChoiceGeneration += 1;
     _cancelIdleReminder();
     _coachPopupTimer?.cancel();
     _praiseFireworksTimer?.cancel();
@@ -268,6 +276,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await _resumeV4Stage(widget.initialResumeStage);
       return;
     }
+    if (widget.lesson.usesV4Flow) {
+      try {
+        await widget.progressStore.markLessonCoreStarted(widget.lesson.id);
+      } catch (_) {
+        // Resume metadata is best-effort; the lesson itself remains usable.
+      }
+    }
     await _activateCurrentSentence(autoPlay: true);
   }
 
@@ -276,6 +291,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted) return;
     switch (stage) {
       case ListeningResumeStage.challenge:
+      case ListeningResumeStage.rolePlay:
       case ListeningResumeStage.song:
       case ListeningResumeStage.mission:
       case ListeningResumeStage.reinforcement:
@@ -290,7 +306,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
   }
 
-  Future<void> _activateCurrentSentence({required bool autoPlay}) async {
+  Future<void> _activateCurrentSentence({
+    required bool autoPlay,
+    bool restoreExistingRecording = true,
+  }) async {
     _cancelIdleReminder();
     _hideCoachPopup();
     if (mounted) {
@@ -301,7 +320,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _guidedSequenceStarted = false;
       });
     }
-    await _loadRecording();
+    if (restoreExistingRecording) {
+      await _loadRecording();
+    } else if (mounted) {
+      setState(() {
+        _recordingPath = null;
+        _recordingDuration = null;
+      });
+    }
     if (autoPlay && !_pausedForMainAssistant) {
       await _startGuidedSentenceSequence();
     }
@@ -396,7 +422,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_v4CompletionChoiceVisible) {
       final action = _completionActionForMainCommand(command);
       if (action != null) {
-        Navigator.of(context).pop(action);
+        await _cancelCompletionChoiceCapture();
+        if (mounted) Navigator.of(context).pop(action);
         return const ActiveLearningCommandResult.handled();
       }
     }
@@ -726,7 +753,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         if (_pausedForMainAssistant) {
           return;
         }
-        await _playPrompt(LessonGuideFlowV2.afterSample);
+        await _playPrompt(_repeatTargetPrompt);
       });
       if (mounted && !_pausedForMainAssistant && _recordingPath == null) {
         await _startRecording();
@@ -743,7 +770,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           ),
         );
         if (mounted && _recordingPath == null) {
-          await _playPrompt(LessonGuideFlowV2.afterSample);
+          await _playPrompt(_repeatTargetPrompt);
           await _startRecording();
         }
         return;
@@ -1469,7 +1496,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = null;
     });
-    await _activateCurrentSentence(autoPlay: autoPlaySentence);
+    // Returning to an earlier sentence is a new guided attempt even when that
+    // sentence has an archived recording. The archived file remains available
+    // in history, but must not suppress the sample -> prompt -> mic sequence.
+    await _activateCurrentSentence(
+      autoPlay: autoPlaySentence,
+      restoreExistingRecording: false,
+    );
   }
 
   Future<void> _exitLesson() async {
@@ -1530,9 +1563,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _ => completedActivity,
       };
       if (!resumeAfterChallenge) {
+        final hasRolePlay =
+            widget.startAge >= 8 &&
+            widget.lesson.rolePlay != null &&
+            widget.lesson.rolePlay!.turns.isNotEmpty;
+        final startAfterRolePlay =
+            hasRolePlay && resumeStage == ListeningResumeStage.challenge;
         await widget.progressStore.saveResumeStage(
           widget.lesson.id,
-          ListeningResumeStage.challenge,
+          hasRolePlay && !startAfterRolePlay
+              ? ListeningResumeStage.rolePlay
+              : ListeningResumeStage.challenge,
         );
         if (widget.lesson.hasV4SongStage) {
           await _voicePromptService.speakAndWait(
@@ -1550,37 +1591,43 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
               previousChallengeIds:
                   _previousV4ChallengeIds[widget.lesson.id] ?? const <String>[],
             );
-        if (selectedChallenges.length == 2) {
-          _previousV4ChallengeIds[widget.lesson.id] = selectedChallenges
-              .map((challenge) => challenge.id)
-              .toList(growable: false);
-          final completed = await Navigator.of(context).push<bool>(
-            MaterialPageRoute<bool>(
-              builder: (_) => LessonChallengeScreen(
-                language: widget.language,
-                startAge: widget.startAge,
-                lesson: widget.lesson,
-                challenges: selectedChallenges,
-                mediaService: widget.mediaService,
-                attemptEvaluator: _attemptEvaluator,
-                voicePromptService: _voicePromptService,
-                onStarEarnedWithResult: _saveAuthoredAnswerToStarsResult,
-                showRolePlayOpeningHint:
-                    !widget.isRelearn &&
-                    resumeStage == ListeningResumeStage.core,
-                iosSpeechInput: _usesIosNativeLessonRecognition
-                    ? _iosLessonSpeechInput
-                    : null,
-              ),
-            ),
-          );
-          if (!mounted || completed != true) return;
-          await widget.progressStore.markV4LessonActivityCompleted(
-            widget.lesson.id,
-          );
-          await _announceV4ActivityMilestone();
-          if (!mounted) return;
+        if (selectedChallenges.length != 2) {
+          await _reportInvalidChallengeContent();
+          return;
         }
+        _previousV4ChallengeIds[widget.lesson.id] = selectedChallenges
+            .map((challenge) => challenge.id)
+            .toList(growable: false);
+        final completed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => LessonChallengeScreen(
+              language: widget.language,
+              startAge: widget.startAge,
+              lesson: widget.lesson,
+              challenges: selectedChallenges,
+              mediaService: widget.mediaService,
+              attemptEvaluator: _attemptEvaluator,
+              voicePromptService: _voicePromptService,
+              onStarEarnedWithResult: _saveAuthoredAnswerToStarsResult,
+              startAfterRolePlay: startAfterRolePlay,
+              onRolePlayCompleted: () => widget.progressStore.saveResumeStage(
+                widget.lesson.id,
+                ListeningResumeStage.challenge,
+              ),
+              showRolePlayOpeningHint:
+                  !widget.isRelearn && resumeStage == ListeningResumeStage.core,
+              iosSpeechInput: _usesIosNativeLessonRecognition
+                  ? _iosLessonSpeechInput
+                  : null,
+            ),
+          ),
+        );
+        if (!mounted || completed != true) return;
+        await widget.progressStore.markV4LessonActivityCompleted(
+          widget.lesson.id,
+        );
+        await _announceV4ActivityMilestone();
+        if (!mounted) return;
       }
 
       final shouldOpenSong =
@@ -1795,50 +1842,83 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted) return null;
     _v4CompletionChoiceVisible = true;
     _activeV4CompletionStage = stage;
+    _activeV4CompletionActions = List<V4CompletionAction>.unmodifiable(actions);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _v4CompletionChoiceVisible &&
+          _activeV4CompletionStage == stage) {
+        unawaited(_listenForCompletionChoice());
+      }
+    });
     final result = await showModalBottomSheet<V4CompletionAction>(
       context: context,
       isDismissible: false,
       enableDrag: false,
       builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                prompt,
-                textAlign: TextAlign.center,
-                style: Theme.of(sheetContext).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 20),
-              for (var index = 0; index < actions.length; index++) ...<Widget>[
-                if (index > 0) const SizedBox(height: 10),
-                if (actions[index] == V4CompletionAction.stop)
-                  OutlinedButton.icon(
-                    key: ValueKey('v4-choice-${actions[index].name}'),
-                    onPressed: () =>
-                        Navigator.of(sheetContext).pop(actions[index]),
-                    icon: const Icon(Icons.stop_rounded),
-                    label: Text(v4CompletionActionLabel(actions[index])),
-                  )
-                else
-                  FilledButton.icon(
-                    key: ValueKey('v4-choice-${actions[index].name}'),
-                    onPressed: () =>
-                        Navigator.of(sheetContext).pop(actions[index]),
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                    label: Text(v4CompletionActionLabel(actions[index])),
-                  ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  prompt,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'HOMI đang mở micro để nghe lựa chọn. Bạn cũng có thể chạm nút bên dưới.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                for (
+                  var index = 0;
+                  index < actions.length;
+                  index++
+                ) ...<Widget>[
+                  if (index > 0) const SizedBox(height: 10),
+                  if (actions[index] == V4CompletionAction.stop)
+                    OutlinedButton.icon(
+                      key: ValueKey('v4-choice-${actions[index].name}'),
+                      onPressed: () => unawaited(
+                        _selectV4CompletionAction(sheetContext, actions[index]),
+                      ),
+                      icon: const Icon(Icons.stop_rounded),
+                      label: Text(v4CompletionActionLabel(actions[index])),
+                    )
+                  else
+                    FilledButton.icon(
+                      key: ValueKey('v4-choice-${actions[index].name}'),
+                      onPressed: () => unawaited(
+                        _selectV4CompletionAction(sheetContext, actions[index]),
+                      ),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: Text(v4CompletionActionLabel(actions[index])),
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
+    await _cancelCompletionChoiceCapture();
     _v4CompletionChoiceVisible = false;
     _activeV4CompletionStage = null;
+    _activeV4CompletionActions = const <V4CompletionAction>[];
     return result;
+  }
+
+  Future<void> _selectV4CompletionAction(
+    BuildContext sheetContext,
+    V4CompletionAction action,
+  ) async {
+    await _cancelCompletionChoiceCapture();
+    if (sheetContext.mounted) {
+      Navigator.of(sheetContext).pop(action);
+    }
   }
 
   Future<void> _handleV4CompletionAction(V4CompletionAction? action) async {
@@ -2000,8 +2080,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     bool resumeReinforcement = false,
   }) async {
     final level = widget.levelContent;
-    if (!_isLastLessonInLevel || level == null || level.missionBank.isEmpty) {
+    if (!_isLastLessonInLevel) {
       return true;
+    }
+    if (level == null ||
+        level.missionBank.length < LessonMissionResult.requiredQuestionCount) {
+      return _reportInvalidMissionContent();
     }
     if (await widget.progressStore.hasPassedLevelMission(level.id)) {
       return true;
@@ -2082,7 +2166,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         );
       }
       if (missions.length != LessonMissionResult.requiredQuestionCount) {
-        return true;
+        return _reportInvalidMissionContent();
       }
       if (savedSelection.isEmpty) {
         savedAnswers = const <String, bool>{};
@@ -2170,6 +2254,29 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       );
     }
     return false;
+  }
+
+  Future<bool> _reportInvalidMissionContent() async {
+    const message =
+        'Nhiệm vụ cuối Level chưa đủ 4 câu hỏi. Bạn cập nhật nội dung rồi thử lại nhé.';
+    if (mounted) setState(() => _message = message);
+    try {
+      await _voicePromptService.speakAndWait(message);
+    } catch (_) {
+      // The visible error still blocks an invalid Level completion.
+    }
+    return false;
+  }
+
+  Future<void> _reportInvalidChallengeContent() async {
+    const message =
+        'Phần thử thách chưa đủ 2 câu hỏi. Bạn cập nhật nội dung rồi thử lại nhé.';
+    if (mounted) setState(() => _message = message);
+    try {
+      await _voicePromptService.speakAndWait(message);
+    } catch (_) {
+      // The visible error still blocks invalid lesson completion.
+    }
   }
 
   Future<bool> _askContinueAfterMissionFailure() async {
@@ -2414,6 +2521,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     final pauseGeneration = _mainPauseGeneration;
+    final choiceGeneration = ++_completionChoiceGeneration;
     setState(() {
       _mediaBusy = true;
       _recordingStartPending = true;
@@ -2426,7 +2534,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       if (!mounted ||
           _pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration) {
+          pauseGeneration != _mainPauseGeneration ||
+          choiceGeneration != _completionChoiceGeneration) {
         return;
       }
       final deviceStart = widget.mediaService.startRecording(
@@ -2446,7 +2555,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       if (!mounted ||
           _pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration) {
+          pauseGeneration != _mainPauseGeneration ||
+          choiceGeneration != _completionChoiceGeneration) {
         await widget.mediaService.cancelRecording();
         return;
       }
@@ -2455,7 +2565,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _recording = true;
         _recordingStartPending = false;
         _mediaBusy = false;
-        _message = 'Con nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.';
+        _message = _activeV4CompletionStage == null
+            ? 'Con nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.'
+            : 'HOMI đang nghe lựa chọn của con…';
       });
       _recordingAutoStopTimer?.cancel();
       _recordingAutoStopTimer = Timer(
@@ -2463,18 +2575,27 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         () => unawaited(_stopCompletionChoiceRecording()),
       );
     } catch (error) {
-      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
+      if (_pausedForMainAssistant ||
+          pauseGeneration != _mainPauseGeneration ||
+          choiceGeneration != _completionChoiceGeneration) {
         await widget.mediaService.cancelRecording().catchError((Object _) {});
         return;
       }
-      if (mounted) {
-        setState(() {
-          _recordingStartPending = false;
-          _mediaBusy = false;
-          _recording = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _recordingStartPending = false;
+        _mediaBusy = false;
+        _recording = false;
+      });
+      if (_v4CompletionChoiceVisible && _activeV4CompletionStage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chưa mở được micro. Con chạm một nút để chọn nhé.'),
+          ),
+        );
+      } else {
+        await _showCompletionChoiceFallback(error.toString());
       }
-      await _showCompletionChoiceFallback(error.toString());
     }
   }
 
@@ -2483,6 +2604,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     _completionChoiceStopping = true;
+    final choiceGeneration = _completionChoiceGeneration;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     if (mounted) {
@@ -2504,6 +2626,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       final transcript = await _completionChoiceRecognizer.transcribe(
         recording,
       );
+      if (choiceGeneration != _completionChoiceGeneration) return;
+      final v4Stage = _activeV4CompletionStage;
+      if (_v4CompletionChoiceVisible && v4Stage != null) {
+        final action = const V4CompletionChoiceResolver().resolve(
+          transcript,
+          stage: v4Stage,
+          allowedActions: _activeV4CompletionActions,
+        );
+        if (!mounted) return;
+        if (action == null) {
+          setState(() {
+            _mediaBusy = false;
+            _message = 'Cô chưa nghe rõ lựa chọn. Con chạm một nút nhé.';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Cô chưa nghe rõ lựa chọn. Con có thể chạm một nút bên dưới.',
+              ),
+            ),
+          );
+          return;
+        }
+        Navigator.of(context).pop(action);
+        return;
+      }
       final choice = const LessonCompletionChoiceResolver().resolve(transcript);
       if (!mounted) {
         return;
@@ -2522,7 +2670,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _completionChoiceRecording = false;
           _recording = false;
         });
-        await _showCompletionChoiceFallback(error.toString());
+        if (_v4CompletionChoiceVisible && _activeV4CompletionStage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Chưa nhận diện được giọng nói. Con chạm một nút để chọn nhé.',
+              ),
+            ),
+          );
+        } else {
+          await _showCompletionChoiceFallback(error.toString());
+        }
       }
     } finally {
       if (recording != null) {
@@ -2534,6 +2692,27 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (mounted) {
         setState(() => _mediaBusy = false);
       }
+    }
+  }
+
+  Future<void> _cancelCompletionChoiceCapture() async {
+    _completionChoiceGeneration += 1;
+    _recordingAutoStopTimer?.cancel();
+    _recordingAutoStopTimer = null;
+    final shouldCancel =
+        _completionChoiceRecording ||
+        _recordingStartPending ||
+        _recordingDeviceStartInProgress != null;
+    _completionChoiceRecording = false;
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _recordingStartPending = false;
+        _mediaBusy = false;
+      });
+    }
+    if (shouldCancel && !_completionChoiceStopping) {
+      await widget.mediaService.cancelRecording().catchError((Object _) {});
     }
   }
 
@@ -2779,25 +2958,30 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (mounted) {
       setState(() {
         _mediaBusy = true;
-        _message = LessonGuideFlowV2.beforeSentence.text;
+        _message = widget.lesson.usesV4Flow
+            ? _sentence.english
+            : LessonGuideFlowV2.beforeSentence.text;
       });
     }
     try {
-      await _playPrompt(LessonGuideFlowV2.beforeSentence);
-      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
-        return;
-      }
-      await Future<void>.delayed(LessonGuideFlowV2.guideToSamplePause);
-      if (!mounted ||
-          _pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration) {
-        return;
+      if (!widget.lesson.usesV4Flow) {
+        await _playPrompt(LessonGuideFlowV2.beforeSentence);
+        if (_pausedForMainAssistant ||
+            pauseGeneration != _mainPauseGeneration) {
+          return;
+        }
+        await Future<void>.delayed(LessonGuideFlowV2.guideToSamplePause);
+        if (!mounted ||
+            _pausedForMainAssistant ||
+            pauseGeneration != _mainPauseGeneration) {
+          return;
+        }
       }
       await _playBilingualSentenceSample();
       if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
         return;
       }
-      await _playPrompt(LessonGuideFlowV2.afterSample);
+      await _playPrompt(_repeatTargetPrompt);
     } catch (error) {
       _setMessage(error.toString());
     } finally {
@@ -2849,7 +3033,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _playBilingualSentenceSample() async {
-    final englishUri = _sentence.audioUri;
+    final englishUri = await _resolveAuthoredAudio(
+      _sentence.audioUri,
+      _sentence.englishAudioId,
+    );
     if (englishUri != null) {
       await widget.mediaService.playToCompletion(englishUri);
     } else {
@@ -2863,13 +3050,23 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted || _pausedForMainAssistant) {
       return;
     }
-    final vietnameseUri = _sentence.vietnameseAudioUri;
+    final vietnameseUri = await _resolveAuthoredAudio(
+      _sentence.vietnameseAudioUri,
+      _sentence.vietnameseAudioId,
+    );
     if (vietnameseUri != null) {
       await widget.mediaService.playToCompletion(vietnameseUri);
     } else {
       await widget.mediaService.prepareSelectedLessonOutput();
       await _speakLessonPrompt(_sentence.vietnamese, locale: 'vi-VN');
     }
+  }
+
+  Future<Uri?> _resolveAuthoredAudio(Uri? uri, String? audioId) async {
+    if (uri != null) return uri;
+    final id = audioId?.trim();
+    if (id == null || id.isEmpty) return null;
+    return _guideAudioLibrary.uriForAudioCode(id);
   }
 
   Future<void> _playSampleThenInviteRecording(Uri uri) async {
@@ -2881,7 +3078,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted) {
       return;
     }
-    await _playPrompt(LessonGuideFlowV2.afterSample);
+    await _playPrompt(_repeatTargetPrompt);
   }
 
   Future<void> _playLessonAudioThenRecordGuide(Uri uri) async {

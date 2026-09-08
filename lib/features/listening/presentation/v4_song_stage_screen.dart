@@ -12,10 +12,9 @@ import '../domain/lesson_guide_flow.dart';
 
 enum V4SongStageAction { skipped, continued }
 
-/// A V4 song placement is deliberately separate from the older song-lesson
-/// player. The curriculum names five placements, but supplies no reusable
-/// song recording. A future source recording can be attached through
-/// [songAudioUri] without ever falling back to a legacy `fullAudioUri`.
+/// A V4 song placement is deliberately separate from the older standalone
+/// song-lesson player. The five approved recordings are joined through
+/// [songAudioUri] without treating them as legacy lessons again.
 class V4SongStageScreen extends StatefulWidget {
   const V4SongStageScreen({
     required this.language,
@@ -41,7 +40,7 @@ class V4SongStageScreen extends StatefulWidget {
 class _V4SongStageScreenState extends State<V4SongStageScreen> {
   VoicePromptService? _voicePromptService;
   late final bool _ownsVoicePromptService;
-  bool _announcing = false;
+  bool _announcing = true;
   bool _playing = false;
   String? _message;
   int _request = 0;
@@ -58,7 +57,7 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService = widget.voicePromptService;
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => unawaited(_announceSongStart()),
+      (_) => unawaited(_announceAndPlaySong()),
     );
   }
 
@@ -77,7 +76,7 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
     super.dispose();
   }
 
-  Future<void> _announceSongStart() async {
+  Future<void> _announceAndPlaySong() async {
     if (!mounted) return;
     final request = ++_request;
     setState(() {
@@ -90,33 +89,44 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
         locale: 'vi-VN',
       );
     } catch (_) {
-      // The stage remains usable if a device TTS voice is unavailable.
-    } finally {
-      if (mounted && request == _request) {
-        setState(() => _announcing = false);
-      }
+      // The approved song still starts if a device TTS voice is unavailable.
     }
+    if (!mounted || request != _request) return;
+    setState(() => _announcing = false);
+
+    if (widget.songAudioUri == null) {
+      setState(() => _message = 'Chưa tìm thấy file audio của bài hát.');
+      return;
+    }
+    await _playSongAndContinue(request: request);
   }
 
-  Future<void> _playSong() async {
+  Future<void> _playSongAndContinue({int? request}) async {
     final uri = widget.songAudioUri;
     if (uri == null || _playing || !mounted) return;
+    final playRequest = request ?? ++_request;
+    if (playRequest != _request) return;
     setState(() {
       _playing = true;
       _message = null;
     });
     try {
       await _prompt.stop();
-      await widget.mediaService.playToCompletion(uri);
-      if (mounted) {
-        setState(() => _message = 'Bạn đã nghe xong bài hát rồi.');
-      }
+      if (!mounted || playRequest != _request) return;
+      await widget.mediaService.playToCompletion(
+        uri,
+        timeout: const Duration(minutes: 5),
+      );
+      if (!mounted || playRequest != _request) return;
+      await _finish(V4SongStageAction.continued);
     } catch (_) {
-      if (mounted) {
+      if (mounted && playRequest == _request) {
         setState(() => _message = 'Chưa thể phát bài hát. Bạn thử lại nhé.');
       }
     } finally {
-      if (mounted) setState(() => _playing = false);
+      if (mounted && playRequest == _request) {
+        setState(() => _playing = false);
+      }
     }
   }
 
@@ -130,7 +140,7 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasFutureSongAudio = widget.songAudioUri != null;
+    final hasSongAudio = widget.songAudioUri != null;
     return DisplayLanguageScope(
       language: widget.language,
       child: Scaffold(
@@ -182,22 +192,30 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      if (hasFutureSongAudio)
+                      if (hasSongAudio)
                         FilledButton.tonalIcon(
                           key: const Key('v4-song-stage-play'),
-                          onPressed: _playing ? null : _playSong,
+                          onPressed: _announcing || _playing
+                              ? null
+                              : _playSongAndContinue,
                           icon: Icon(
                             _playing
                                 ? Icons.graphic_eq_rounded
                                 : Icons.play_arrow_rounded,
                           ),
                           label: Text(
-                            _playing ? 'Đang phát bài hát' : 'Phát bài hát',
+                            _announcing
+                                ? 'Chuẩn bị bài hát'
+                                : _playing
+                                ? 'Đang phát bài hát'
+                                : 'Thử phát lại',
                           ),
                         )
                       else
                         Text(
-                          'Bản audio bài hát sẽ được bổ sung sau.',
+                          _announcing
+                              ? 'Đang chuẩn bị bài hát.'
+                              : 'Chưa tìm thấy file audio của bài hát.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: AppColors.muted,
@@ -225,7 +243,9 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           key: const Key('v4-song-stage-continue'),
-                          onPressed: () => _finish(V4SongStageAction.continued),
+                          onPressed: _announcing || _playing
+                              ? null
+                              : () => _finish(V4SongStageAction.continued),
                           icon: const Icon(Icons.arrow_forward_rounded),
                           label: Text(
                             _announcing ? 'Tiếp tục' : 'Tiếp tục học',

@@ -101,6 +101,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isPreparingMainSpeakingHfpSession = false;
   bool _isFinishingMainSpeakingMode = false;
   bool _isHandlingMainSpeakingNoSpeech = false;
+  bool _isHandlingMainSpeakingCommand = false;
   bool _hasMainSpeakingTurnStarted = false;
   int _mainSpeakingHfpSessionGeneration = 0;
   bool _isGlobalModalOpen = false;
@@ -1375,7 +1376,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!_mainSpeakingSessionController.isActive ||
         _isPreparingMainSpeakingHfpSession ||
         _isFinishingMainSpeakingMode ||
-        _isHandlingMainSpeakingNoSpeech) {
+        _isHandlingMainSpeakingNoSpeech ||
+        _isHandlingMainSpeakingCommand) {
       if (!_mainSpeakingSessionController.isActive &&
           _restoreHfpAfterPhysicalMain) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
@@ -1421,6 +1423,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         _isPreparingMainSpeakingHfpSession ||
         _isStartingMainSpeakingTurn ||
         _isFinishingMainSpeakingMode ||
+        _isHandlingMainSpeakingCommand ||
         controller.isRecordingStartBlocked ||
         controller.isPlaybackPlaying) {
       return;
@@ -1551,11 +1554,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
 
     if (turn.action == MainSpeakingFallbackAction.resumeTranslation) {
-      _hasMainSpeakingTurnStarted = false;
-      final promptText = turn.promptText;
-      if (promptText != null) {
-        controller.clearMessage();
-        await controller.speakAssistantPrompt(promptText);
+      _isHandlingMainSpeakingCommand = true;
+      try {
+        _hasMainSpeakingTurnStarted = false;
+        final promptText = turn.promptText;
+        if (promptText != null) {
+          controller.clearMessage();
+          await controller.speakAssistantPrompt(promptText);
+        }
+      } finally {
+        _isHandlingMainSpeakingCommand = false;
       }
       if (_mainSpeakingSessionController.isActive &&
           !_isFinishingMainSpeakingMode) {

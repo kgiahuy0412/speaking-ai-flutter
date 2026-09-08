@@ -161,6 +161,17 @@ void main() {
     expect(await fixture.store.readMissionAttempt('level-1'), 0);
   });
 
+  test('first core sentence start persists without changing totals', () async {
+    final fixture = await _ProgressFixture.create();
+    addTearDown(fixture.dispose);
+
+    expect(await fixture.store.hasStartedLessonCore('lesson-first'), isFalse);
+    await fixture.store.markLessonCoreStarted('lesson-first');
+
+    expect(await fixture.store.hasStartedLessonCore('lesson-first'), isTrue);
+    expect(await fixture.store.readAll(), isEmpty);
+  });
+
   test(
     'stars are idempotent and course completion event is one-shot',
     () async {

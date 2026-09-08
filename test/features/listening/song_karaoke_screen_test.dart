@@ -526,6 +526,11 @@ class _KaraokeMediaService extends LessonMediaService {
 }
 
 class _MemoryProgressStore extends ListeningProgressStore {
+  @override
+  Future<bool> hasStartedLessonCore(String lessonId) async => false;
+
+  @override
+  Future<void> markLessonCoreStarted(String lessonId) async {}
   const _MemoryProgressStore();
 
   @override

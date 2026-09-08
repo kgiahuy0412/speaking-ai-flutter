@@ -50,6 +50,27 @@ LEVEL_TITLES = {
     3: "Ứng dụng",
 }
 
+# The five V4 placements reuse the approved song recordings that were already
+# bundled by the legacy catalog.  Their old age/topic codes are filenames, not
+# runtime placement rules, so keep an explicit title-to-asset join here.
+SONG_AUDIO_ASSETS = {
+    "Count with Me": (
+        "asset:///assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3"
+    ),
+    "My Happy Day": (
+        "asset:///assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3"
+    ),
+    "What Should I Wear?": (
+        "asset:///assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3"
+    ),
+    "My Busy Day": (
+        "asset:///assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3"
+    ),
+    "Let's Play Together": (
+        "asset:///assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3"
+    ),
+}
+
 SYSTEM_AUDIO = (
     ("LEVEL_INTRO", "vi-VN", "Bắt đầu Level [số] nhé."),
     ("TOPIC_INTRO", "vi-VN", "Chủ đề [số]: [Tên Chủ đề]."),
@@ -466,10 +487,12 @@ def parse_spec(source: Path) -> dict[str, Any]:
 
         song_match = SONG_RE.match(line)
         if song_match:
-            lesson["songTitle"] = song_match.group(1)
-            # V4 tracks songs as a separate source-audio handoff. This is
-            # deliberately not the legacy lesson `fullAudioUrl` field.
+            song_title = song_match.group(1)
+            lesson["songTitle"] = song_title
+            # V4 keeps songs as an embedded post-Challenge stage rather than a
+            # legacy standalone song lesson, but reuses the approved recordings.
             lesson["songAudioId"] = f"{lesson['code']}_SONG"
+            lesson["songAudioUrl"] = SONG_AUDIO_ASSETS.get(song_title)
             continue
 
         target_match = TARGET_RE.match(line)
@@ -677,17 +700,19 @@ def build_audio_manifest(catalog: dict[str, Any]) -> dict[str, Any]:
                 )
         song_title = lesson.get("songTitle")
         if song_title:
-            # The V4 source names the five song placements but deliberately
-            # does not provide lyrics or a canonical recording. Keep a
-            # separately traceable record for the music-production handoff;
-            # generating TTS from a title would create the wrong asset.
+            song_audio_url = lesson.get("songAudioUrl")
             entries.append(
                 {
                     "audioId": f"{lesson['code']}_SONG",
                     "kind": "songReference",
                     "locale": "en-US",
                     "sourceText": song_title,
-                    "qaStatus": "PENDING_SOURCE_AUDIO",
+                    "sourceAudioUrl": song_audio_url,
+                    "qaStatus": (
+                        "READY_SOURCE_AUDIO"
+                        if song_audio_url
+                        else "PENDING_SOURCE_AUDIO"
+                    ),
                     **prefix,
                 }
             )

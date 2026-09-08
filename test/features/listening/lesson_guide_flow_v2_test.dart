@@ -52,6 +52,8 @@ void main() {
       'AI_GUIDE_BEFORE_SENTENCE',
     );
     expect(LessonGuideFlowV2.afterSample.audioCode, 'AI_GUIDE_AFTER_SAMPLE');
+    expect(LessonGuideFlowV2.repeatTarget.audioCode, 'REPEAT_TARGET');
+    expect(LessonGuideFlowV2.repeatTarget.text, 'Bạn nói lại tiếng Anh nhé.');
     expect(
       LessonGuideFlowV2.completionChoiceUnclear.audioCode,
       'AI_GUIDE_COMPLETION_CHOICE_UNCLEAR',

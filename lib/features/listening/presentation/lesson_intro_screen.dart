@@ -209,13 +209,20 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         resumeStage = ListeningResumeStage.challenge;
       }
     }
+    final hasStartedCore = widget.lesson.usesV4Flow
+        ? await widget.progressStore.hasStartedLessonCore(widget.lesson.id)
+        : currentSentence > 0;
     final isInProgress =
-        currentSentence > 0 && completed < widget.lesson.sentences.length;
+        !widget.relearnFromBeginning &&
+        hasStartedCore &&
+        completed < widget.lesson.sentences.length;
     if (widget.lesson.usesV4Flow) {
       final lesson = widget.lesson;
       final topicContent = widget.topicContent;
       final String text;
-      if (resumeStage == ListeningResumeStage.challenge) {
+      if (resumeStage == ListeningResumeStage.rolePlay) {
+        text = 'Mình tiếp tục đoạn hội thoại nhé.';
+      } else if (resumeStage == ListeningResumeStage.challenge) {
         text = 'Mình làm lại phần thử thách nhé.';
       } else if (resumeStage == ListeningResumeStage.mission) {
         text = 'Mình tiếp tục Nhiệm vụ cuối Level nhé.';
@@ -304,13 +311,13 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     _animationController.dispose();
     if (!_movingForward) {
       widget.mediaService.stopPlayback();
-    }
-    final voicePrompt = _voicePromptService;
-    if (voicePrompt != null) {
-      if (_ownsVoicePromptService) {
-        unawaited(voicePrompt.dispose());
-      } else {
-        unawaited(voicePrompt.stop());
+      final voicePrompt = _voicePromptService;
+      if (voicePrompt != null) {
+        if (_ownsVoicePromptService) {
+          unawaited(voicePrompt.dispose());
+        } else {
+          unawaited(voicePrompt.stop());
+        }
       }
     }
     super.dispose();
@@ -644,6 +651,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: _guideAudioLibrary,
+          voicePromptService: widget.voicePromptService,
           isRelearn: widget.relearnFromBeginning,
           onTopicCompleted: widget.onTopicCompleted,
         ),

@@ -34,7 +34,9 @@ class LessonChallengeScreen extends StatefulWidget {
     this.iosSpeechInput,
     this.onStarEarned,
     this.onStarEarnedWithResult,
+    this.onRolePlayCompleted,
     this.showRolePlayOpeningHint = true,
+    this.startAfterRolePlay = false,
     super.key,
   });
 
@@ -54,7 +56,9 @@ class LessonChallengeScreen extends StatefulWidget {
   onStarEarned;
   final Future<bool> Function(String starId, String english, String vietnamese)?
   onStarEarnedWithResult;
+  final Future<void> Function()? onRolePlayCompleted;
   final bool showRolePlayOpeningHint;
+  final bool startAfterRolePlay;
 
   @override
   State<LessonChallengeScreen> createState() => _LessonChallengeScreenState();
@@ -134,6 +138,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   @override
   void initState() {
     super.initState();
+    _rolePlayCompleted = widget.startAfterRolePlay;
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
@@ -270,6 +275,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       return;
     }
     final request = ++_request;
+    final isHomiTurn = _rolePlayTurn?.speaker == ListeningRolePlaySpeaker.homi;
     setState(() {
       _playingPrompt = true;
       _message = null;
@@ -304,11 +310,18 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     if (_pausedForMainAssistant ||
         !mounted ||
         request != _request ||
-        !_shouldAutomaticallyRecord ||
         _recording ||
-        _busy) {
+        (_busy && !allowBusy)) {
       return;
     }
+    // A HOMI turn is playback-only and moves forward as soon as the authored
+    // line finishes. The child must never be asked to press a button or speak
+    // on behalf of HOMI.
+    if (isHomiTurn) {
+      await _advance();
+      return;
+    }
+    if (!_shouldAutomaticallyRecord) return;
     await _startRecording();
   }
 
@@ -397,6 +410,8 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
 
   Future<void> _startRecording() async {
     if (_pausedForMainAssistant ||
+        (_inRolePlay &&
+            _rolePlayTurn?.speaker == ListeningRolePlaySpeaker.homi) ||
         _recording ||
         _busy ||
         _playingPrompt ||
@@ -695,6 +710,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
         _message = null;
       });
       try {
+        await widget.onRolePlayCompleted?.call();
+      } catch (_) {
+        // Progress persistence must not block the authored challenge.
+      }
+      try {
         await _speakPromptAndWait(
           _newRolePlayStars > 0
               ? 'Bạn đã hoàn thành đoạn hội thoại và có thêm $_newRolePlayStars Ngôi sao.'
@@ -882,10 +902,19 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                   ],
                   const SizedBox(height: 14),
                   if (_inRolePlay && isHomiTurn)
-                    FilledButton.icon(
-                      onPressed: _playingPrompt || _busy ? null : _advance,
-                      icon: const Icon(Icons.arrow_forward_rounded),
-                      label: const Text('Tiếp tục'),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _playingPrompt
+                            ? 'HOMI đang nói…'
+                            : 'HOMI chuẩn bị câu tiếp theo…',
+                        key: const Key('lesson-role-play-homi-status'),
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: AppColors.indigo,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     )
                   else
                     Column(

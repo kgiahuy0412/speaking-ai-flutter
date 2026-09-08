@@ -493,12 +493,12 @@ class ConversationController extends ChangeNotifier {
       context: context,
       vietnameseText: capture.sourceText.trim(),
       englishText: englishText.trim(),
-      // Continuous translation shows the English transcript only. Offline
-      // translation deliberately does not synthesize or play Vietnamese.
+      // There is no remote audio URL while offline. The controller speaks the
+      // English result with the device TTS after applying this result.
       audioUri: null,
       processingMode: 'offline_translation',
       textSource: 'mlkit_on_device_translation',
-      audioSource: 'none',
+      audioSource: 'device_tts',
       asrMode: capture.asrMode,
       latency: const ConversationLatency(
         asrMs: 0,
@@ -2989,6 +2989,12 @@ class ConversationController extends ChangeNotifier {
       if (!reusedEarlyRulePlayback &&
           (nextResult.audioUri != null || _preferredPlaybackUri != null)) {
         await playResult(reportLatency: true, propagateFailure: true);
+      } else if (!reusedEarlyRulePlayback &&
+          nextResult.processingMode == 'offline_translation') {
+        await _speakOfflineTranslation(
+          nextResult.englishText,
+          turnGeneration: turnGeneration,
+        );
       }
       await stoppedAdaptiveWebUpload?.finishPreviewForwarding();
       stoppedAdaptiveWebUpload = null;
@@ -3432,6 +3438,35 @@ class ConversationController extends ChangeNotifier {
       if (propagateFailure) rethrow;
     } finally {
       if (openedHfpForReplay) await _stopHfpRoute();
+    }
+  }
+
+  Future<void> _speakOfflineTranslation(
+    String englishText, {
+    required int turnGeneration,
+  }) async {
+    final text = englishText.trim();
+    final promptService = _voicePromptService;
+    if (text.isEmpty || promptService == null) {
+      transientMessage =
+          'Đã dịch offline nhưng thiết bị chưa có giọng đọc tiếng Anh.';
+      notifyListeners();
+      return;
+    }
+    if (turnGeneration != _conversationTurnGeneration) return;
+    try {
+      if (promptService is SelectedMediaOutputVoicePromptService) {
+        await (promptService as SelectedMediaOutputVoicePromptService)
+            .speakAndWaitOnSelectedMediaOutput(text, locale: 'en-US');
+      } else {
+        await promptService.speakAndWait(text, locale: 'en-US');
+      }
+    } catch (error) {
+      if (turnGeneration != _conversationTurnGeneration) return;
+      transientMessage =
+          'Đã dịch offline nhưng chưa phát được giọng tiếng Anh: '
+          '${_friendlyError(error)}';
+      notifyListeners();
     }
   }
 

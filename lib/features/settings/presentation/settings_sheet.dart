@@ -1073,7 +1073,12 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
           _service.status(locale: 'en-US'),
           _service.status(locale: 'vi-VN'),
         ]);
-        speechStatus = _combineAndroidStatuses(statuses);
+        speechStatus = _combineAndroidStatuses(
+          statuses,
+          translationReady: translationReady,
+          automaticDownloadAllowed:
+              consent == AndroidOfflineSpeechModelConsent.allowed,
+        );
       } else {
         speechStatus = AndroidOfflineSpeechModelStatus(
           state: translationReady
@@ -1102,15 +1107,18 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
   }
 
   AndroidOfflineSpeechModelStatus _combineAndroidStatuses(
-    List<AndroidOfflineSpeechModelStatus> statuses,
-  ) {
+    List<AndroidOfflineSpeechModelStatus> statuses, {
+    required bool translationReady,
+    required bool automaticDownloadAllowed,
+  }) {
     final states = statuses.map((status) => status.state).toSet();
-    final state =
-        states.every(
-          (state) => state == AndroidOfflineSpeechModelState.installed,
-        )
+    final allSpeechInstalled = states.every(
+      (state) => state == AndroidOfflineSpeechModelState.installed,
+    );
+    final state = allSpeechInstalled && translationReady
         ? AndroidOfflineSpeechModelState.installed
-        : states.contains(AndroidOfflineSpeechModelState.pending)
+        : states.contains(AndroidOfflineSpeechModelState.pending) ||
+              (automaticDownloadAllowed && !translationReady)
         ? AndroidOfflineSpeechModelState.pending
         : states.contains(AndroidOfflineSpeechModelState.unavailable)
         ? AndroidOfflineSpeechModelState.unavailable
@@ -1119,14 +1127,24 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
       0,
       (sum, status) => sum + (status.downloadBytes ?? 0),
     );
-    final averageProgress = statuses.isEmpty
-        ? 0
-        : statuses.fold<int>(0, (sum, status) => sum + status.progress) ~/
-              statuses.length;
+    final weightedProgress = totalBytes <= 0
+        ? statuses.isEmpty
+              ? 0
+              : statuses.fold<int>(0, (sum, status) => sum + status.progress) ~/
+                    statuses.length
+        : statuses.fold<int>(
+                0,
+                (sum, status) =>
+                    sum + status.progress * (status.downloadBytes ?? 0),
+              ) ~/
+              totalBytes;
+    final progress = allSpeechInstalled && !translationReady
+        ? 95
+        : weightedProgress;
     return AndroidOfflineSpeechModelStatus(
       state: state,
       appManaged: true,
-      progress: averageProgress,
+      progress: progress,
       modelId: 'vosk-en-us+vi-vn',
       downloadBytes: totalBytes,
     );
@@ -1288,13 +1306,18 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
         );
       case AndroidOfflineSpeechModelState.pending:
         final progress = _status?.progress ?? 0;
+        final totalMegabytes = ((_status?.downloadBytes ?? 0) / 1024 / 1024)
+            .round();
+        final sizeText = totalMegabytes > 0
+            ? ' (riêng giọng nói khoảng $totalMegabytes MB; gói dịch tải thêm)'
+            : '';
         return context.tr(
           progress > 0
-              ? 'HOMI đang tải các gói offline trong nền: $progress%. Hãy giữ kết nối Wi-Fi.'
-              : 'Đã xếp lịch tải các gói offline. HOMI sẽ tự bắt đầu khi có Wi-Fi.',
+              ? 'HOMI đang tải các gói offline$sizeText trong nền: $progress%. Thường mất 2–10 phút tùy Wi-Fi; bạn có thể tiếp tục dùng ứng dụng.'
+              : 'Đã xếp lịch tải các gói offline$sizeText. HOMI sẽ tự bắt đầu khi có Wi-Fi; thường mất 2–10 phút.',
           progress > 0
-              ? 'HOMI 正在后台下载 en-US 模型：$progress%。请保持 Wi-Fi 连接。'
-              : 'en-US 模型已排入下载队列；连接 Wi-Fi 后 HOMI 会自动开始。',
+              ? 'HOMI 正在后台下载离线模型：$progress%。通常需要 2–10 分钟；您可以继续使用应用。'
+              : '离线模型已排入队列；连接 Wi-Fi 后会自动开始，通常需要 2–10 分钟。',
         );
       case AndroidOfflineSpeechModelState.unavailable:
         return context.tr(

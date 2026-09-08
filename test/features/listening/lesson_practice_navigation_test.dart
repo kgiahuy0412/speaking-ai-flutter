@@ -2,6 +2,7 @@ import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_completion_choice_recognizer.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
@@ -182,6 +183,9 @@ void main() {
           const Key('v4-activity-completion'),
           mediaService: mediaService,
           voicePromptService: _SilentVoicePromptService(),
+          completionChoiceRecognizer: _FixedCompletionChoiceRecognizer(
+            'Dừng lại',
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -196,6 +200,7 @@ void main() {
       final challenge = find.byKey(const Key('lesson-challenge-screen'));
       expect(challenge, findsOneWidget);
       expect(await store.hasCompletedV4LessonActivity(lesson.id), isFalse);
+      final startsBeforeCompletion = mediaService.startRecordingCount;
 
       Navigator.of(tester.element(challenge)).pop(true);
       await tester.pump();
@@ -203,6 +208,16 @@ void main() {
 
       expect(await store.hasCompletedV4LessonActivity(lesson.id), isTrue);
       expect(store.completedSentences, lesson.sentences.length);
+      expect(find.byKey(const Key('v4-choice-relearn')), findsOneWidget);
+      expect(mediaService.startRecordingCount, startsBeforeCompletion + 1);
+      expect(mediaService.recording, isTrue);
+
+      await tester.pump(const Duration(milliseconds: 6100));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(const Key('v4-choice-relearn')), findsNothing);
+      expect(mediaService.recording, isFalse);
     },
   );
 
@@ -330,6 +345,7 @@ Widget _subject(
   LessonMediaService? mediaService,
   LessonGuideAudioLibrary? guideAudioLibrary,
   VoicePromptService? voicePromptService,
+  LessonCompletionChoiceRecognizer? completionChoiceRecognizer,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -344,6 +360,7 @@ Widget _subject(
       progressStore: store,
       mediaService: mediaService ?? _SilentMediaService(),
       voicePromptService: voicePromptService,
+      completionChoiceRecognizer: completionChoiceRecognizer,
       guideAudioLibrary:
           guideAudioLibrary ??
           LessonGuideAudioLibrary(assetPaths: const <String>[]),
@@ -426,6 +443,15 @@ class _MemoryProgressStore extends ListeningProgressStore {
   final Set<String> completedV4LessonActivities = <String>{};
   ListeningResumeStage resumeStage = ListeningResumeStage.core;
   final Set<String> earnedStars = <String>{};
+  bool coreStarted = false;
+
+  @override
+  Future<bool> hasStartedLessonCore(String lessonId) async => coreStarted;
+
+  @override
+  Future<void> markLessonCoreStarted(String lessonId) async {
+    coreStarted = true;
+  }
 
   @override
   Future<Map<String, int>> readAll() async => <String, int>{
@@ -555,6 +581,15 @@ class _SilentMediaService extends LessonMediaService {
   }
 
   @override
+  Future<LessonRecording> stopRecording() async {
+    recording = false;
+    return const LessonRecording(
+      filePath: 'C:\\recordings\\completion-choice.m4a',
+      duration: Duration(seconds: 2),
+    );
+  }
+
+  @override
   Future<void> play(
     Uri uri, {
     LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
@@ -583,6 +618,19 @@ class _SilentVoicePromptService implements VoicePromptService {
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _FixedCompletionChoiceRecognizer
+    implements LessonCompletionChoiceRecognizer {
+  const _FixedCompletionChoiceRecognizer(this.transcript);
+
+  final String transcript;
+
+  @override
+  Future<String> transcribe(LessonRecording recording) async => transcript;
 
   @override
   Future<void> dispose() async {}

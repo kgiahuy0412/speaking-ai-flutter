@@ -64,6 +64,47 @@ void main() {
   );
 
   testWidgets(
+    'previous sentence starts a fresh guided attempt despite an old recording',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final registry = ActiveLearningModuleRegistry();
+      addTearDown(registry.dispose);
+      final mediaService = _GuidedMediaService(
+        recordedSentenceNumbers: const <int>{1, 2},
+      );
+      final progressStore = _MemoryProgressStore()..currentSentence = 1;
+
+      await tester.pumpWidget(
+        ActiveLearningModuleScope(
+          registry: registry,
+          child: _subject(
+            _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+            mediaService,
+            progressStore: progressStore,
+            guideAudioLibrary: _silentGuideAudioLibrary(),
+            voicePromptService: _FakeVoicePromptService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sentence 2'), findsOneWidget);
+      expect(mediaService.recording, isFalse);
+
+      final operation = registry.execute(ActiveLearningCommand.previousItem);
+      await tester.pumpAndSettle();
+      final result = await operation;
+
+      expect(result.wasHandled, isTrue);
+      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(mediaService.startedSentenceIds, contains('GUIDED-FLOW_S1'));
+      expect(mediaService.recording, isTrue);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'V2 automatically guides, records, praises, and starts the next sentence',
     (tester) async {
       await _usePhoneSurface(tester);
@@ -127,6 +168,33 @@ void main() {
       await tester.pump();
     },
   );
+
+  testWidgets('V4 core uses the exact English repeat cue without a preface', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final voicePrompts = _ReadyCueVoicePromptService();
+
+    await tester.pumpWidget(
+      _subject(
+        _lesson(v4: true),
+        _GuidedMediaService(),
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        voicePromptService: voicePrompts,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      voicePrompts.spoken,
+      containsAllInOrder(<String>[
+        'en-US|Sentence 1',
+        'vi-VN|Câu 1',
+        'vi-VN|Bạn nói lại tiếng Anh nhé.',
+      ]),
+    );
+    expect(voicePrompts.spoken, isNot(contains('vi-VN|Nói theo cô nhé.')));
+  });
 
   testWidgets('V2 automatically stops a child recording after six seconds', (
     tester,
@@ -1776,6 +1844,7 @@ ListeningLessonContent _lesson({
   Uri? introAudioUri,
   Uri? sentenceAudioUri,
   Uri? vietnameseAudioUri,
+  bool v4 = false,
 }) {
   return ListeningLessonContent(
     id: id,
@@ -1789,6 +1858,25 @@ ListeningLessonContent _lesson({
     estimatedMinutes: 1,
     type: type,
     autoAdvanceDelay: const Duration(seconds: 3),
+    entry: v4
+        ? const ListeningLessonEntry(
+            kind: ListeningLessonEntryKind.microObjective,
+            text: 'Mình cùng học nhé.',
+          )
+        : null,
+    challengeBank: v4
+        ? const <ListeningChallengeContent>[
+            ListeningChallengeContent(
+              id: 'guided-v4-q1',
+              format: 'VI_TO_EN',
+              prompt: 'Câu một.',
+              choices: <String>['Sentence 1', 'Sentence 2'],
+              correctAnswer: 'Sentence 1',
+              correctVietnamese: 'Câu 1',
+              targetId: 'GUIDED-FLOW_S1',
+            ),
+          ]
+        : const <ListeningChallengeContent>[],
     sentences: List<ListeningSentenceContent>.generate(
       sentenceCount,
       (index) => ListeningSentenceContent(
@@ -2166,6 +2254,7 @@ class _MemoryProgressStore extends ListeningProgressStore {
   int currentSentence = 0;
   int completed = 0;
   bool learningGuideOpened = false;
+  bool coreStarted = false;
   final Set<int> needsPractice = <int>{};
 
   @override
@@ -2183,6 +2272,14 @@ class _MemoryProgressStore extends ListeningProgressStore {
   @override
   Future<void> markLearningGuideOpened() async {
     learningGuideOpened = true;
+  }
+
+  @override
+  Future<bool> hasStartedLessonCore(String lessonId) async => coreStarted;
+
+  @override
+  Future<void> markLessonCoreStarted(String lessonId) async {
+    coreStarted = true;
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
@@ -46,7 +48,7 @@ void main() {
     expect(media.stopPlaybackCalls, greaterThanOrEqualTo(1));
   });
 
-  testWidgets('plays only an explicit future V4 song URI and can continue', (
+  testWidgets('automatically plays the approved song after SONG_START_CUE', (
     tester,
   ) async {
     await _usePhoneSurface(tester);
@@ -69,16 +71,45 @@ void main() {
     await tester.tap(find.byKey(const Key('open-v4-song-stage')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('v4-song-stage-play')));
-    await tester.pumpAndSettle();
+    expect(media.playedToCompletion, <Uri>[songUri]);
+    expect(media.playbackTimeouts, <Duration>[const Duration(minutes: 5)]);
+    expect(result, V4SongStageAction.continued);
+    expect(find.byKey(const Key('v4-song-stage-screen')), findsNothing);
+  });
+
+  testWidgets('skip interrupts an active song and continues without resuming', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final playback = Completer<void>();
+    final prompts = _FakeVoicePromptService();
+    final media = _FakeLessonMediaService(playback: playback);
+    final songUri = Uri.parse('asset:///assets/audio/song.mp3');
+    V4SongStageAction? result;
+
+    await tester.pumpWidget(
+      _host(
+        songTitle: 'Count with Me',
+        mediaService: media,
+        voicePromptService: prompts,
+        songAudioUri: songUri,
+        onResult: (value) => result = value,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('open-v4-song-stage')));
+    await tester.pump();
+    await tester.pump();
 
     expect(media.playedToCompletion, <Uri>[songUri]);
-    expect(find.text('Bạn đã nghe xong bài hát rồi.'), findsOneWidget);
+    expect(find.byKey(const Key('v4-song-stage-screen')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('v4-song-stage-continue')));
+    await tester.tap(find.byKey(const Key('v4-song-stage-skip')));
+    await tester.pump();
+    playback.complete();
     await tester.pumpAndSettle();
 
-    expect(result, V4SongStageAction.continued);
+    expect(result, V4SongStageAction.skipped);
+    expect(media.stopPlaybackCalls, greaterThanOrEqualTo(1));
   });
 }
 
@@ -141,7 +172,11 @@ class _FakeVoicePromptService implements VoicePromptService {
 }
 
 class _FakeLessonMediaService extends LessonMediaService {
+  _FakeLessonMediaService({this.playback});
+
+  final Completer<void>? playback;
   final List<Uri> playedToCompletion = <Uri>[];
+  final List<Duration> playbackTimeouts = <Duration>[];
   int stopPlaybackCalls = 0;
 
   @override
@@ -154,6 +189,8 @@ class _FakeLessonMediaService extends LessonMediaService {
     LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
     playedToCompletion.add(uri);
+    playbackTimeouts.add(timeout);
+    await playback?.future;
   }
 
   @override

@@ -8,6 +8,7 @@ import 'package:ai_speaking_flutter_app/core/audio/offline_intent_recognizer.dar
 import 'package:ai_speaking_flutter_app/core/audio/preferred_audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/realtime_fallback_buffer.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
+import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/application/offline_language_service.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
@@ -1198,6 +1199,7 @@ void main() {
       final translator = _FakeOfflineTranslator(
         translatedText: 'The weather is beautiful today.',
       );
+      final voicePrompt = _RecordingVoicePromptService();
       final controller = ConversationController(
         audioInput: _FakeChunkedInput(
           available: true,
@@ -1211,6 +1213,7 @@ void main() {
         repository: _FallbackRepository(
           streamingError: http.ClientException('No network'),
         ),
+        voicePromptService: voicePrompt,
         offlineVietnameseEnglishTranslator: translator,
         childAge: 6,
         initialAsrMode: AsrMode.androidStreaming,
@@ -1225,6 +1228,10 @@ void main() {
       expect(controller.result?.englishText, 'The weather is beautiful today.');
       expect(controller.result?.textSource, 'mlkit_on_device_translation');
       expect(controller.result?.audioUri, isNull);
+      expect(controller.result?.audioSource, 'device_tts');
+      expect(voicePrompt.spoken, <String>[
+        'en-US|The weather is beautiful today.',
+      ]);
       expect(translator.inputs, <String>['Hôm nay trời đẹp quá']);
       controller.dispose();
     },
@@ -1236,6 +1243,7 @@ void main() {
       final translator = _FakeOfflineTranslator(
         translatedText: 'The weather is beautiful today.',
       );
+      final voicePrompt = _RecordingVoicePromptService();
       final controller = ConversationController(
         audioInput: _FakeChunkedInput(
           available: true,
@@ -1249,6 +1257,7 @@ void main() {
         repository: _FallbackRepository(
           streamingError: http.ClientException('No network'),
         ),
+        voicePromptService: voicePrompt,
         offlineVietnameseEnglishTranslator: translator,
         childAge: 6,
         initialAsrMode: AsrMode.androidStreaming,
@@ -1262,6 +1271,9 @@ void main() {
       expect(controller.result?.vietnameseText, 'Hôm nay trời đẹp quá');
       expect(controller.result?.englishText, 'The weather is beautiful today.');
       expect(controller.result?.textSource, 'mlkit_on_device_translation');
+      expect(voicePrompt.spoken, <String>[
+        'en-US|The weather is beautiful today.',
+      ]);
       expect(translator.inputs, <String>['Hôm nay trời đẹp quá']);
       controller.dispose();
     },
@@ -2828,6 +2840,25 @@ class _FakeOfflineTranslator implements OfflineVietnameseEnglishTranslator {
 
   @override
   Future<void> close() async {}
+}
+
+class _RecordingVoicePromptService implements VoicePromptService {
+  final List<String> spoken = <String>[];
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {
+    spoken.add('$locale|$text');
+  }
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) =>
+      speak(text, locale: locale);
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class _FallbackRepository

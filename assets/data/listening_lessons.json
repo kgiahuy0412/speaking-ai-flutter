@@ -1584,7 +1584,7 @@
               "titleVi": "Count With Me",
               "titleEn": "Count With Me",
               "lessonType": "standard",
-              "intro": "Nghe thật kỹ nhé. [SFX:HAND_CLAP_2X_CLEAR]",
+              "intro": "Nghe thật kỹ nhé.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -1597,7 +1597,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "Nghe thật kỹ nhé. [SFX:HAND_CLAP_2X_CLEAR]"
+                "text": "Nghe thật kỹ nhé."
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -1664,7 +1664,7 @@
                 {
                   "id": "C35-L1-T02-B02-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:HAND_CLAP_3X_CLEAR] Three claps hay Five claps?",
+                  "prompt": "Three claps hay Five claps?",
                   "choices": [
                     "Three claps.",
                     "Five claps."
@@ -1676,7 +1676,7 @@
                 {
                   "id": "C35-L1-T02-B02-Q07",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:HAND_CLAP_5X_CLEAR] Five claps hay Two claps?",
+                  "prompt": "Five claps hay Two claps?",
                   "choices": [
                     "Five claps.",
                     "Two claps."
@@ -1777,7 +1777,8 @@
                   "requiresAllExpectedTokens": false
                 }
               ],
-              "songAudioId": "C35-L1-T02-B02_SONG"
+              "songAudioId": "C35-L1-T02-B02_SONG",
+              "songAudioUrl": "asset:///assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3"
             }
           ],
           "songs": []
@@ -2630,7 +2631,7 @@
               "titleVi": "Animal Names",
               "titleEn": "Animal Names",
               "lessonType": "standard",
-              "intro": "[SFX:CAT_MEOW_SINGLE] Bạn đoán xem con gì?",
+              "intro": "Bạn đoán xem con gì?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -2643,7 +2644,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:CAT_MEOW_SINGLE] Bạn đoán xem con gì?"
+                "text": "Bạn đoán xem con gì?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -2710,7 +2711,7 @@
                 {
                   "id": "C35-L2-T05-B01-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:CAT_MEOW_SINGLE] Cat hay Dog?",
+                  "prompt": "Cat hay Dog?",
                   "choices": [
                     "Cat.",
                     "Dog."
@@ -2722,7 +2723,7 @@
                 {
                   "id": "C35-L2-T05-B01-Q07",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:DOG_BARK_SINGLE] Dog hay Bird?",
+                  "prompt": "Dog hay Bird?",
                   "choices": [
                     "Dog.",
                     "Bird."
@@ -2734,7 +2735,7 @@
                 {
                   "id": "C35-L2-T05-B01-Q08",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:COW_MOO_SINGLE] Cow hay Duck?",
+                  "prompt": "Cow hay Duck?",
                   "choices": [
                     "Cow.",
                     "Duck."
@@ -2911,7 +2912,7 @@
                 {
                   "id": "C35-L2-T05-B02-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:CAT_MEOW_SINGLE] It's a cat hay It's a dog?",
+                  "prompt": "It's a cat hay It's a dog?",
                   "choices": [
                     "It's a cat.",
                     "It's a dog."
@@ -2923,7 +2924,7 @@
                 {
                   "id": "C35-L2-T05-B02-Q07",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:DOG_BARK_SINGLE] It's a dog hay It's a bird?",
+                  "prompt": "It's a dog hay It's a bird?",
                   "choices": [
                     "It's a dog.",
                     "It's a bird."
@@ -2935,7 +2936,7 @@
                 {
                   "id": "C35-L2-T05-B02-Q08",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:COW_MOO_SINGLE] It's a cow hay It's a duck?",
+                  "prompt": "It's a cow hay It's a duck?",
                   "choices": [
                     "It's a cow.",
                     "It's a duck."
@@ -4351,7 +4352,7 @@
                 {
                   "id": "C35-L3-T09-B01-Q05",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:LIGHT_RAIN_1P5S] Rainy hay Sunny?",
+                  "prompt": "Rainy hay Sunny?",
                   "choices": [
                     "Rainy.",
                     "Sunny."
@@ -4469,7 +4470,7 @@
               "titleVi": "What to Wear?",
               "titleEn": "What to Wear?",
               "lessonType": "standard",
-              "intro": "[SFX:LIGHT_RAIN_1P5S] Mưa rồi. Mặc gì nhỉ?",
+              "intro": "Mưa rồi. Mặc gì nhỉ?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -4482,7 +4483,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:LIGHT_RAIN_1P5S] Mưa rồi. Mặc gì nhỉ?"
+                "text": "Mưa rồi. Mặc gì nhỉ?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -4647,7 +4648,8 @@
                   "requiresAllExpectedTokens": false
                 }
               ],
-              "songAudioId": "C35-L3-T09-B02_SONG"
+              "songAudioId": "C35-L3-T09-B02_SONG",
+              "songAudioUrl": "asset:///assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3"
             }
           ],
           "songs": []
@@ -4746,7 +4748,7 @@
                 {
                   "id": "C35-L3-T10-B01-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:ALARM_CLOCK_2_BEEPS] Wake up hay Sleep?",
+                  "prompt": "Wake up hay Sleep?",
                   "choices": [
                     "Wake up.",
                     "Sleep."
@@ -4867,7 +4869,7 @@
               "titleVi": "Happy Day",
               "titleEn": "Happy Day",
               "lessonType": "standard",
-              "intro": "[SFX:ALARM_CLOCK_2_BEEPS] Một ngày mới bắt đầu rồi!",
+              "intro": "Một ngày mới bắt đầu rồi!",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -4880,7 +4882,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:ALARM_CLOCK_2_BEEPS] Một ngày mới bắt đầu rồi!"
+                "text": "Một ngày mới bắt đầu rồi!"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -5062,7 +5064,8 @@
                   "requiresAllExpectedTokens": false
                 }
               ],
-              "songAudioId": "C35-L3-T10-B02_SONG"
+              "songAudioId": "C35-L3-T10-B02_SONG",
+              "songAudioUrl": "asset:///assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3"
             }
           ],
           "songs": []
@@ -7216,7 +7219,7 @@
                 {
                   "id": "C67-L1-T03-B01-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:ELEPHANT_TRUMPET_SHORT] Elephant hay Monkey?",
+                  "prompt": "Elephant hay Monkey?",
                   "choices": [
                     "Elephant.",
                     "Monkey."
@@ -7228,7 +7231,7 @@
                 {
                   "id": "C67-L1-T03-B01-Q07",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:BIRD_CHIRP_1P5S] Bird hay Fish?",
+                  "prompt": "Bird hay Fish?",
                   "choices": [
                     "Bird.",
                     "Fish."
@@ -7352,7 +7355,7 @@
               "titleVi": "Animal Abilities",
               "titleEn": "Animal Abilities",
               "lessonType": "standard",
-              "intro": "[SFX:BIRD_CHIRP_1P5S] Nó có thể làm gì nhỉ?",
+              "intro": "Nó có thể làm gì nhỉ?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -7365,7 +7368,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:BIRD_CHIRP_1P5S] Nó có thể làm gì nhỉ?"
+                "text": "Nó có thể làm gì nhỉ?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -8469,7 +8472,7 @@
                 {
                   "id": "C67-L2-T06-B01-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:FOOT_STOMP_2X] Stamp your feet hay Raise your hands?",
+                  "prompt": "Stamp your feet hay Raise your hands?",
                   "choices": [
                     "Stamp your feet.",
                     "Raise your hands."
@@ -9002,7 +9005,7 @@
               "titleVi": "In Class",
               "titleEn": "In Class",
               "lessonType": "standard",
-              "intro": "[SFX:SCHOOL_BELL_SINGLE] Đến giờ vào lớp rồi.",
+              "intro": "Đến giờ vào lớp rồi.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -9015,7 +9018,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:SCHOOL_BELL_SINGLE] Đến giờ vào lớp rồi."
+                "text": "Đến giờ vào lớp rồi."
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -9408,7 +9411,8 @@
                   "requiresAllExpectedTokens": false
                 }
               ],
-              "songAudioId": "C67-L3-T08-B01_SONG"
+              "songAudioId": "C67-L3-T08-B01_SONG",
+              "songAudioUrl": "asset:///assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3"
             },
             {
               "id": "c67-l3-t08-b02",
@@ -9829,7 +9833,7 @@
               "titleVi": "Where Are We?",
               "titleEn": "Where Are We?",
               "lessonType": "standard",
-              "intro": "[SFX:CHECKOUT_SCANNER_BEEP_2X] HOMI đang ở đâu nhỉ?",
+              "intro": "HOMI đang ở đâu nhỉ?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -9842,7 +9846,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:CHECKOUT_SCANNER_BEEP_2X] HOMI đang ở đâu nhỉ?"
+                "text": "HOMI đang ở đâu nhỉ?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -10966,7 +10970,7 @@
               "titleVi": "Time & Tasks",
               "titleEn": "Time & Tasks",
               "lessonType": "standard",
-              "intro": "[SFX:CLOCK_CHIME_SINGLE] Mấy giờ rồi nhỉ?",
+              "intro": "Mấy giờ rồi nhỉ?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -10979,7 +10983,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:CLOCK_CHIME_SINGLE] Mấy giờ rồi nhỉ?"
+                "text": "Mấy giờ rồi nhỉ?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -11360,7 +11364,8 @@
                   "requiresAllExpectedTokens": false
                 }
               ],
-              "songAudioId": "C810-L1-T01-B02_SONG"
+              "songAudioId": "C810-L1-T01-B02_SONG",
+              "songAudioUrl": "asset:///assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3"
             }
           ],
           "songs": []
@@ -11580,7 +11585,7 @@
               "titleVi": "Classroom Talk",
               "titleEn": "Classroom Talk",
               "lessonType": "standard",
-              "intro": "[SFX:DOOR_KNOCK_2X] Cửa lớp đang đóng.",
+              "intro": "Cửa lớp đang đóng.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -11593,7 +11598,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:DOOR_KNOCK_2X] Cửa lớp đang đóng."
+                "text": "Cửa lớp đang đóng."
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -12857,7 +12862,7 @@
               "titleVi": "Weather Choices",
               "titleEn": "Weather Choices",
               "lessonType": "standard",
-              "intro": "[SFX:SOFT_WIND_GUST_1P5S] Hôm nay trời thế nào?",
+              "intro": "Hôm nay trời thế nào?",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -12870,7 +12875,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:SOFT_WIND_GUST_1P5S] Hôm nay trời thế nào?"
+                "text": "Hôm nay trời thế nào?"
               },
               "overviewMode": "bilingual",
               "challengeBank": [
@@ -12937,7 +12942,7 @@
                 {
                   "id": "C810-L2-T05-B01-Q06",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:LIGHT_RAIN_1P5S] Rainy today hay Sunny today?",
+                  "prompt": "Rainy today hay Sunny today?",
                   "choices": [
                     "Rainy today.",
                     "Sunny today."
@@ -12949,7 +12954,7 @@
                 {
                   "id": "C810-L2-T05-B01-Q07",
                   "format": "UNDERSTANDING",
-                  "prompt": "[SFX:SOFT_WIND_GUST_1P5S] Windy today hay Hot today?",
+                  "prompt": "Windy today hay Hot today?",
                   "choices": [
                     "Windy today.",
                     "Hot today."
@@ -18563,7 +18568,7 @@
               "titleVi": "Stay Safe",
               "titleEn": "Stay Safe",
               "lessonType": "standard",
-              "intro": "[SFX:MESSAGE_PING_SINGLE] Có một tin nhắn lạ.",
+              "intro": "Có một tin nhắn lạ.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -18576,7 +18581,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:MESSAGE_PING_SINGLE] Có một tin nhắn lạ."
+                "text": "Có một tin nhắn lạ."
               },
               "overviewMode": "englishOnly",
               "challengeBank": [
@@ -24506,7 +24511,7 @@
               "titleVi": "Ask for Info",
               "titleEn": "Ask for Info",
               "lessonType": "standard",
-              "intro": "[SFX:STATION_CHIME_SHORT] Sắp đến giờ tàu chạy.",
+              "intro": "Sắp đến giờ tàu chạy.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -24519,7 +24524,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:STATION_CHIME_SHORT] Sắp đến giờ tàu chạy."
+                "text": "Sắp đến giờ tàu chạy."
               },
               "overviewMode": "englishOnly",
               "challengeBank": [
@@ -24974,7 +24979,7 @@
               "titleVi": "My Order",
               "titleEn": "My Order",
               "lessonType": "standard",
-              "intro": "[SFX:TABLEWARE_CLINK_SOFT] Đến lúc gọi món rồi.",
+              "intro": "Đến lúc gọi món rồi.",
               "outro": "",
               "estimatedMinutes": 4,
               "reviewPauseMs": 2000,
@@ -24987,7 +24992,7 @@
               "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
-                "text": "[SFX:TABLEWARE_CLINK_SOFT] Đến lúc gọi món rồi."
+                "text": "Đến lúc gọi món rồi."
               },
               "overviewMode": "englishOnly",
               "challengeBank": [
