@@ -1968,14 +1968,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _v4CompletionChoiceVisible = true;
     _activeV4CompletionStage = stage;
     _activeV4CompletionActions = List<V4CompletionAction>.unmodifiable(actions);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted &&
-          _v4CompletionChoiceVisible &&
-          _activeV4CompletionStage == stage) {
-        unawaited(_listenForCompletionChoice());
-      }
-    });
-    final result = await showModalBottomSheet<V4CompletionAction>(
+    final resultFuture = showModalBottomSheet<V4CompletionAction>(
       context: context,
       isDismissible: false,
       enableDrag: false,
@@ -2029,6 +2022,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         ),
       ),
     );
+    // showModalBottomSheet pushes its route synchronously. Yield one microtask
+    // so route/listener setup settles, but do not wait for a frame callback:
+    // frames may be suspended after the screen is locked or HOMI is covered.
+    await Future<void>.delayed(Duration.zero);
+    if (mounted &&
+        _v4CompletionChoiceVisible &&
+        _activeV4CompletionStage == stage) {
+      unawaited(_listenForCompletionChoice());
+    }
+    final result = await resultFuture;
     await _cancelCompletionChoiceCapture();
     _v4CompletionChoiceVisible = false;
     _activeV4CompletionStage = null;

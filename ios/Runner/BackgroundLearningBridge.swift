@@ -1,11 +1,15 @@
 import Flutter
 import Foundation
+import UIKit
 
 final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
   private let methodChannel: FlutterMethodChannel
   private let eventChannel: FlutterEventChannel
   private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private var eventSink: FlutterEventSink?
+  private var activeLearningRequested = false
+  private var didEnterBackgroundToken: NSObjectProtocol?
+  private var willEnterForegroundToken: NSObjectProtocol?
 
   init(
     messenger: FlutterBinaryMessenger,
@@ -22,6 +26,21 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
     )
     super.init()
 
+    didEnterBackgroundToken = NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.reconcileBackgroundTransitionLease()
+    }
+    willEnterForegroundToken = NotificationCenter.default.addObserver(
+      forName: UIApplication.willEnterForegroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.audioSessionCoordinator.setBackgroundTransitionLeaseActive(false)
+    }
+
     methodChannel.setMethodCallHandler { [weak self] call, result in
       guard let self else {
         result(false)
@@ -32,7 +51,14 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
         self.audioSessionCoordinator.setBackgroundLearningEnabled(true)
         result(true)
       case "stop":
+        self.activeLearningRequested = false
+        self.audioSessionCoordinator.setBackgroundTransitionLeaseActive(false)
         self.audioSessionCoordinator.setBackgroundLearningEnabled(false)
+        result(nil)
+      case "setActiveLearning":
+        let arguments = call.arguments as? [String: Any]
+        self.activeLearningRequested = arguments?["active"] as? Bool ?? false
+        self.reconcileBackgroundTransitionLease()
         result(nil)
       case "isActive":
         result(self.audioSessionCoordinator.isBackgroundLearningEnabled)
@@ -62,10 +88,26 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
   }
 
   func dispose() {
+    activeLearningRequested = false
+    audioSessionCoordinator.setBackgroundTransitionLeaseActive(false)
     audioSessionCoordinator.setBackgroundLearningEnabled(false)
     audioSessionCoordinator.onBackgroundLearningEvent = nil
     methodChannel.setMethodCallHandler(nil)
     eventChannel.setStreamHandler(nil)
     eventSink = nil
+    if let didEnterBackgroundToken {
+      NotificationCenter.default.removeObserver(didEnterBackgroundToken)
+    }
+    didEnterBackgroundToken = nil
+    if let willEnterForegroundToken {
+      NotificationCenter.default.removeObserver(willEnterForegroundToken)
+    }
+    willEnterForegroundToken = nil
+  }
+
+  private func reconcileBackgroundTransitionLease() {
+    let shouldRetain = activeLearningRequested
+      && UIApplication.shared.applicationState != .active
+    audioSessionCoordinator.setBackgroundTransitionLeaseActive(shouldRetain)
   }
 }

@@ -10,6 +10,7 @@ import '../../../config/app_config.dart';
 import '../../../core/auth/installation_authenticated_client.dart';
 import '../../../core/device/client_identity.dart';
 import '../../../core/network/multipart_audio_file.dart';
+import '../../../core/network/network_availability.dart';
 import '../domain/lesson_guide_flow.dart';
 import '../domain/lesson_recognition.dart';
 import 'lesson_audio_format.dart';
@@ -127,11 +128,14 @@ class BackendFirstLessonAttemptEvaluator
     required LessonAttemptEvaluator backendEvaluator,
     LessonRecordedSpeechRecognizer recognizer =
         const MethodChannelLessonRecordedSpeechRecognizer(),
+    Future<bool> Function()? networkTransportAvailable,
   }) : _backendEvaluator = backendEvaluator,
-       _recognizer = recognizer;
+       _recognizer = recognizer,
+       _networkTransportAvailable = networkTransportAvailable;
 
   final LessonAttemptEvaluator _backendEvaluator;
   final LessonRecordedSpeechRecognizer _recognizer;
+  final Future<bool> Function()? _networkTransportAvailable;
 
   @override
   Future<LessonAttemptOutcome> evaluate({
@@ -145,32 +149,49 @@ class BackendFirstLessonAttemptEvaluator
     Iterable<String> acceptedVariants = const <String>[],
     bool requireAllExpectedTokens = false,
   }) async {
-    LessonAttemptEvaluationException backendFailure;
-    try {
-      return await _backendEvaluator.evaluate(
-        lessonCode: lessonCode,
-        sentenceId: sentenceId,
-        expectedEnglish: expectedEnglish,
-        recordingPath: recordingPath,
-        recordingDuration: recordingDuration,
-        attemptNumber: attemptNumber,
-        childAge: childAge,
-        acceptedVariants: acceptedVariants,
-        requireAllExpectedTokens: requireAllExpectedTokens,
-      );
-    } on LessonAttemptEvaluationException catch (error) {
-      if (!error.backendUnavailable) rethrow;
-      backendFailure = error;
-    } on TimeoutException {
-      backendFailure = const LessonAttemptEvaluationException(
-        'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        backendUnavailable: true,
-      );
-    } on http.ClientException {
-      backendFailure = const LessonAttemptEvaluationException(
-        'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
-        backendUnavailable: true,
-      );
+    var hasNetworkTransport = true;
+    final checker = _networkTransportAvailable;
+    if (checker != null) {
+      try {
+        hasNetworkTransport = await checker();
+      } catch (_) {
+        // Preserve backend-first behaviour when the optional platform signal
+        // cannot be read.
+      }
+    }
+
+    LessonAttemptEvaluationException backendFailure =
+        const LessonAttemptEvaluationException(
+          'Thiết bị đang ngoại tuyến và chưa thể chấm câu trên máy.',
+          backendUnavailable: true,
+        );
+    if (hasNetworkTransport) {
+      try {
+        return await _backendEvaluator.evaluate(
+          lessonCode: lessonCode,
+          sentenceId: sentenceId,
+          expectedEnglish: expectedEnglish,
+          recordingPath: recordingPath,
+          recordingDuration: recordingDuration,
+          attemptNumber: attemptNumber,
+          childAge: childAge,
+          acceptedVariants: acceptedVariants,
+          requireAllExpectedTokens: requireAllExpectedTokens,
+        );
+      } on LessonAttemptEvaluationException catch (error) {
+        if (!error.backendUnavailable) rethrow;
+        backendFailure = error;
+      } on TimeoutException {
+        backendFailure = const LessonAttemptEvaluationException(
+          'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+          backendUnavailable: true,
+        );
+      } on http.ClientException {
+        backendFailure = const LessonAttemptEvaluationException(
+          'Chưa kết nối được máy chủ. Con thử lại sau nhé.',
+          backendUnavailable: true,
+        );
+      }
     }
 
     try {
@@ -223,6 +244,7 @@ LessonAttemptEvaluator createDefaultLessonAttemptEvaluator() {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     return BackendFirstLessonAttemptEvaluator(
       backendEvaluator: backendEvaluator,
+      networkTransportAvailable: NetworkAvailability.hasTransport,
     );
   }
   return backendEvaluator;

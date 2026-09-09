@@ -1,0 +1,16 @@
+{
+  "BACKEND_BASE_URL": "https://speaking-ai-nextjs-backend-production.up.railway.app",
+  "USE_DEMO_BACKEND": "false",
+  "CHILD_AGE": "6",
+  "PREFER_BLE_STREAMING": "false",
+  "REALTIME_BATCH_FALLBACK": "false",
+  "REALTIME_FALLBACK_BUFFER_BYTES": "15728640",
+  "ENABLE_AIV0_BLE_CONTROL": "true",
+  "AIV0_DRAFT_PROTOCOL_CONFIRMED": "false",
+  "ENABLE_HFP_AUDIO": "true",
+  "PRIVACY_POLICY_URL": "https://homi-app-privacy.lixiang22.chatgpt.site/privacy",
+  "TERMS_URL": "https://homi-app-privacy.lixiang22.chatgpt.site/terms",
+  "SUPPORT_URL": "https://homi-app-privacy.lixiang22.chatgpt.site/support",
+  "AI_SUBPROCESSORS": "Railway (hạ tầng backend HOMI), Cloudflare Workers AI (nhận dạng, dịch và tạo giọng đọc), Cloudinary (lưu bản ghi để phụ huynh nghe lại) và Google ML Kit (cung cấp model dịch tải xuống và chạy cục bộ; không nhận audio/transcript trong luồng offline)",
+  "DATA_RETENTION_SUMMARY": "HOMI chỉ hiển thị tối đa 3 audio gần nhất trong Lịch sử gần đây. Audio người dùng được lưu tối đa 30 ngày; transcript và lịch sử tương tác tối đa 180 ngày; chẩn đoán kỹ thuật tối đa 30 ngày. Phụ huynh có thể xóa riêng hoặc rút chấp thuận để xóa ngay toàn bộ dữ liệu liên quan."
+}

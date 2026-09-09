@@ -339,6 +339,17 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(ownership.canDeactivate)
   }
 
+  func testIOSAudioOwnershipKeepsActiveLessonAcrossBackgroundAudioGap() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    ownership.acquire(.backgroundTransition)
+    XCTAssertFalse(ownership.canDeactivate)
+    XCTAssertEqual(ownership.activeOwners, [.backgroundTransition])
+
+    ownership.release(.backgroundTransition)
+    XCTAssertTrue(ownership.canDeactivate)
+  }
+
   func testIOSAudioOwnershipOnlyReportsARealCaptureReleaseOnce() {
     var ownership = IOSAudioSessionOwnershipState()
 
@@ -892,6 +903,28 @@ class RunnerTests: XCTestCase {
 
     XCTAssertEqual(try XCTUnwrap(IOSAudioBufferLevel.dbfs(floatBuffer)), -6.02, accuracy: 0.1)
     XCTAssertEqual(try XCTUnwrap(IOSAudioBufferLevel.dbfs(int16Buffer)), -6.02, accuracy: 0.1)
+  }
+
+  func testIOSLessonRecordingGainRaisesAndClipsPersistedSamples() throws {
+    let format = try XCTUnwrap(
+      AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+      )
+    )
+    let buffer = try XCTUnwrap(
+      AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 2)
+    )
+    buffer.frameLength = 2
+    buffer.floatChannelData?[0][0] = 0.2
+    buffer.floatChannelData?[0][1] = 0.8
+
+    IOSLessonRecordingGain.apply(to: buffer)
+
+    XCTAssertEqual(try XCTUnwrap(buffer.floatChannelData?[0][0]), 0.5, accuracy: 0.001)
+    XCTAssertEqual(try XCTUnwrap(buffer.floatChannelData?[0][1]), 1, accuracy: 0.001)
   }
 
   func testIOSBuiltInMicPolicyExcludesBluetoothOptions() {

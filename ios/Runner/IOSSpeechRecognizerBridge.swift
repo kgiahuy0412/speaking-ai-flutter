@@ -107,6 +107,63 @@ struct IOSAudioBufferLevel {
   }
 }
 
+/// Raises only the persisted child recording (about +8 dB). Recognition still
+/// receives the untouched microphone buffer, so matching accuracy and voice
+/// activity thresholds are unchanged.
+struct IOSLessonRecordingGain {
+  static let defaultLinearGain: Double = 2.5
+
+  static func apply(
+    to buffer: AVAudioPCMBuffer,
+    linearGain: Double = defaultLinearGain
+  ) {
+    guard linearGain > 1 else { return }
+    let audioBuffers = UnsafeMutableAudioBufferListPointer(
+      buffer.mutableAudioBufferList
+    )
+    for audioBuffer in audioBuffers {
+      guard let data = audioBuffer.mData else { continue }
+      switch buffer.format.commonFormat {
+      case .pcmFormatFloat32:
+        let samples = data.bindMemory(
+          to: Float.self,
+          capacity: Int(audioBuffer.mDataByteSize) / MemoryLayout<Float>.size
+        )
+        let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Float>.size
+        for index in 0..<count {
+          samples[index] = max(-1, min(1, samples[index] * Float(linearGain)))
+        }
+      case .pcmFormatInt16:
+        let samples = data.bindMemory(
+          to: Int16.self,
+          capacity: Int(audioBuffer.mDataByteSize) / MemoryLayout<Int16>.size
+        )
+        let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int16>.size
+        for index in 0..<count {
+          let amplified = Double(samples[index]) * linearGain
+          samples[index] = Int16(
+            max(Double(Int16.min), min(Double(Int16.max), amplified.rounded()))
+          )
+        }
+      case .pcmFormatInt32:
+        let samples = data.bindMemory(
+          to: Int32.self,
+          capacity: Int(audioBuffer.mDataByteSize) / MemoryLayout<Int32>.size
+        )
+        let count = Int(audioBuffer.mDataByteSize) / MemoryLayout<Int32>.size
+        for index in 0..<count {
+          let amplified = Double(samples[index]) * linearGain
+          samples[index] = Int32(
+            max(Double(Int32.min), min(Double(Int32.max), amplified.rounded()))
+          )
+        }
+      default:
+        continue
+      }
+    }
+  }
+}
+
 struct IOSNativeSpeechEngineSelector {
   static func select(
     isIOS26OrNewer: Bool,
@@ -623,7 +680,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     inputNode.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
       guard let self, self.active, self.generation == generation else { return }
       do {
-        try self.recordingFile?.write(from: buffer)
+        if self.recordingFile != nil {
+          let recordingBuffer = try self.copyForSpeechAnalyzer(buffer)
+          IOSLessonRecordingGain.apply(to: recordingBuffer)
+          try self.recordingFile?.write(from: recordingBuffer)
+        }
         let analyzerInputCount: Int
         if #available(iOS 26.0, *),
           self.activeEngine == .speechAnalyzer,

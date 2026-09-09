@@ -85,9 +85,6 @@ class VoiceNavigationController extends ChangeNotifier {
   static const Duration _commandListenRestartDelay = Duration(
     milliseconds: 100,
   );
-  static const Duration _mainCommandListenRestartDelay = Duration(
-    milliseconds: 500,
-  );
   final StreamingSpeechInput _speechInput;
   final VoiceNavigationIntentResolver _resolver;
   final MainVoiceAssistantFlow _mainAssistantFlow;
@@ -203,6 +200,15 @@ class VoiceNavigationController extends ChangeNotifier {
   /// destinations without translating the child's command as practice text.
   Future<bool> activateOtherLearningFromSpeaking() async {
     return _activateMainAssistantFlow(_mainAssistantFlow.beginOtherLearning);
+  }
+
+  /// Leaves continuous translation and asks only for the destinations that
+  /// make sense after stopping it. The prompt is followed by a navigation mic,
+  /// never by another translation recording.
+  Future<bool> activateAfterContinuousTranslationStop() async {
+    return _activateMainAssistantFlow(
+      _mainAssistantFlow.beginAfterTranslationStop,
+    );
   }
 
   /// Continues the guided topic journey after the child completes a topic.
@@ -434,7 +440,9 @@ class VoiceNavigationController extends ChangeNotifier {
     }
 
     if (turn.continueListening) {
-      _scheduleSession(_mainCommandListenRestartDelay);
+      // The recognizer that produced this command is still being finalized.
+      // Its completion callback performs the immediate prompt -> mic handoff
+      // after clearing _finishInProgress, including while the app is covered.
       return true;
     }
 
@@ -602,13 +610,7 @@ class VoiceNavigationController extends ChangeNotifier {
             notifyListeners();
           }
           if (_continuousRequested && generation == _generation) {
-            _scheduleSession(
-              _awaitingCommand
-                  ? _buttonCommandSession
-                        ? _mainCommandListenRestartDelay
-                        : _commandListenRestartDelay
-                  : _restartDelay,
-            );
+            await _runStartSession(generation);
           }
           return;
         }
@@ -636,7 +638,7 @@ class VoiceNavigationController extends ChangeNotifier {
         promptText: MainVoiceAssistantFlow.noSpeechRetryPrompt,
       );
       if (prompted && !_disposed && generation == _generation) {
-        _scheduleSession(_mainCommandListenRestartDelay);
+        await _runStartSession(generation);
       }
       return;
     }
@@ -953,6 +955,7 @@ class VoiceNavigationController extends ChangeNotifier {
         .whenComplete(() {
           if (identical(_finishInProgress, finishFuture)) {
             _finishInProgress = null;
+            _restartAfterCompletedFinish(generation);
           }
         });
     _finishInProgress = finishFuture;
@@ -978,15 +981,6 @@ class VoiceNavigationController extends ChangeNotifier {
       _speechDetected = false;
       if (!_disposed) {
         notifyListeners();
-      }
-      if (_continuousRequested && generation == _generation) {
-        _scheduleSession(
-          _awaitingCommand
-              ? _buttonCommandSession
-                    ? _mainCommandListenRestartDelay
-                    : _commandListenRestartDelay
-              : _restartDelay,
-        );
       }
     }
   }
@@ -1024,6 +1018,7 @@ class VoiceNavigationController extends ChangeNotifier {
     finishFuture = _runFinishSession(generation).whenComplete(() {
       if (identical(_finishInProgress, finishFuture)) {
         _finishInProgress = null;
+        _restartAfterCompletedFinish(generation);
       }
     });
     _finishInProgress = finishFuture;
@@ -1031,7 +1026,6 @@ class VoiceNavigationController extends ChangeNotifier {
   }
 
   Future<void> _runFinishSession(int generation) async {
-    var sessionFailed = false;
     try {
       final capture = await _speechInput.stop();
       if (_disposed || generation != _generation) {
@@ -1039,9 +1033,9 @@ class VoiceNavigationController extends ChangeNotifier {
       }
       await _handleCaptureCandidates(capture, generation);
     } catch (error) {
-      sessionFailed = true;
       if (!_disposed && generation == _generation) {
         _lastError = error;
+        _continuousRequested = false;
         if (_buttonCommandSession) {
           _awaitingCommand = false;
           _buttonCommandSession = false;
@@ -1056,16 +1050,26 @@ class VoiceNavigationController extends ChangeNotifier {
       if (!_disposed) {
         notifyListeners();
       }
-      if (!sessionFailed && _continuousRequested && generation == _generation) {
-        _scheduleSession(
-          _awaitingCommand
-              ? _buttonCommandSession
-                    ? _mainCommandListenRestartDelay
-                    : _commandListenRestartDelay
-              : _restartDelay,
-        );
-      }
     }
+  }
+
+  void _restartAfterCompletedFinish(int generation) {
+    if (_disposed ||
+        generation != _generation ||
+        !_continuousRequested ||
+        _finishInProgress != null) {
+      return;
+    }
+    if (_awaitingCommand && _buttonCommandSession) {
+      // MAIN prompts are allowed to finish while the UI is backgrounded. A
+      // Timer can be suspended at exactly this boundary, so start the next
+      // command capture immediately once the prior recognizer is released.
+      unawaited(_runStartSession(generation));
+      return;
+    }
+    _scheduleSession(
+      _awaitingCommand ? _commandListenRestartDelay : _restartDelay,
+    );
   }
 
   Future<({bool heardTranscript, bool handled})> _handleCaptureCandidates(

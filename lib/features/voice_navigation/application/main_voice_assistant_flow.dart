@@ -11,8 +11,8 @@ import 'voice_navigation_intent_resolver.dart';
 enum MainVoiceAssistantStage {
   idle,
   chooseFeature,
-  chooseTranslationMode,
   chooseOtherLearning,
+  chooseAfterTranslationStop,
   chooseAlternativeAfterLearning,
   chooseVocabularyCollection,
   activeLearning,
@@ -77,6 +77,8 @@ class MainVoiceAssistantFlow {
       'Khi sẵn sàng, bạn nhấn nút gọi HOMI nhé.';
   static const String otherLearningPrompt =
       'Được thôi. Bạn muốn dịch sang tiếng Anh, học theo chủ đề hay học bộ từ vựng?';
+  static const String afterTranslationStopPrompt =
+      'Con muốn học chủ đề, học bộ từ vựng hay dừng lại?';
   static const String activeLearningPrompt =
       'Bạn muốn nghe lại, học câu tiếp theo, học câu trước, hay dừng lại?';
   static const String alternativeAfterLearningPrompt =
@@ -86,13 +88,8 @@ class MainVoiceAssistantFlow {
   static final String translationModeAcknowledgement =
       HomiFallbackCatalog.assistantPromptById['AI-020'] ??
       'Mình cùng dịch sang tiếng Anh nha.';
-  // The approved workbook has no INT-005 / single-sentence mode. AI-020 is
-  // retained verbatim, then made actionable with the sole supported choice.
-  static final String translationModePrompt =
-      '$translationModeAcknowledgement Bạn nói “dịch liên tục” để bắt đầu nhé.';
   static final String continuousTranslationPrompt =
-      HomiFallbackCatalog.assistantPromptById['AI-022'] ??
-      'Bạn cứ nói từng câu. Muốn dừng thì nói “dừng lại”.';
+      '$translationModeAcknowledgement ${HomiFallbackCatalog.assistantPromptById['AI-022'] ?? 'Bạn cứ nói từng câu. Muốn dừng thì nói “dừng lại”.'}';
   static const Map<MainVoiceAssistantStage, String> _fallbackPolicyIdByStage =
       <MainVoiceAssistantStage, String>{
         MainVoiceAssistantStage.chooseFeature: 'FB-001',
@@ -106,8 +103,6 @@ class MainVoiceAssistantFlow {
       };
   static const ActiveLearningCommandResolver _activeLearningCommandResolver =
       ActiveLearningCommandResolver();
-  static const ControlledSpeechLexicon _controlledSpeechLexicon =
-      ControlledSpeechLexicon();
 
   final List<ListeningAgeCatalog> _catalogs;
   final Future<ListeningContentCatalog> Function() _contentLoader;
@@ -148,6 +143,12 @@ class MainVoiceAssistantFlow {
     reset();
     _stage = MainVoiceAssistantStage.chooseOtherLearning;
     return otherLearningPrompt;
+  }
+
+  String beginAfterTranslationStop() {
+    reset();
+    _stage = MainVoiceAssistantStage.chooseAfterTranslationStop;
+    return afterTranslationStopPrompt;
   }
 
   String beginActiveLearning({ActiveLearningModuleKind? kind}) {
@@ -255,8 +256,8 @@ class MainVoiceAssistantFlow {
       MainVoiceAssistantStage.chooseOtherLearning ||
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         _isUnambiguousFeatureChoice(normalized),
-      MainVoiceAssistantStage.chooseTranslationMode =>
-        _isContinuousTranslationChoice(normalized),
+      MainVoiceAssistantStage.chooseAfterTranslationStop =>
+        _isTopicChoice(normalized) || _isVocabularyChoice(normalized),
       MainVoiceAssistantStage.chooseVocabularyCollection =>
         _isReviewVocabularyChoice(normalized) ||
             _isStarVocabularyChoice(normalized),
@@ -290,12 +291,12 @@ class MainVoiceAssistantFlow {
           _isTopicChoice(normalized) ||
           _isVocabularyChoice(normalized) ||
           _isTranslationChoice(normalized),
-    MainVoiceAssistantStage.chooseTranslationMode =>
-      _isContinuousTranslationChoice(normalized),
     MainVoiceAssistantStage.chooseOtherLearning =>
       _isTopicChoice(normalized) ||
           _isVocabularyChoice(normalized) ||
           _isTranslationChoice(normalized),
+    MainVoiceAssistantStage.chooseAfterTranslationStop =>
+      _isTopicChoice(normalized) || _isVocabularyChoice(normalized),
     MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
       _isVocabularyChoice(normalized) || _isTranslationChoice(normalized),
     MainVoiceAssistantStage.chooseVocabularyCollection =>
@@ -357,14 +358,12 @@ class MainVoiceAssistantFlow {
         recognizedText,
         normalized,
       ),
-      MainVoiceAssistantStage.chooseTranslationMode => _handleTranslationMode(
-        recognizedText,
-        normalized,
-      ),
       MainVoiceAssistantStage.chooseOtherLearning => await _handleOtherLearning(
         recognizedText,
         normalized,
       ),
+      MainVoiceAssistantStage.chooseAfterTranslationStop =>
+        await _handleAfterTranslationStop(recognizedText, normalized),
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         await _handleAlternativeAfterLearning(recognizedText, normalized),
       MainVoiceAssistantStage.chooseVocabularyCollection =>
@@ -445,7 +444,7 @@ class MainVoiceAssistantFlow {
       return _beginConfiguredTopicSelection();
     }
     if (_isTranslationChoice(normalized)) {
-      return _beginTranslationMode();
+      return _beginContinuousTranslation(recognizedText);
     }
     if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
@@ -476,7 +475,7 @@ class MainVoiceAssistantFlow {
       return _beginConfiguredTopicSelection();
     }
     if (_isTranslationChoice(normalized)) {
-      return _beginTranslationMode();
+      return _beginContinuousTranslation(recognizedText);
     }
     if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
@@ -487,26 +486,29 @@ class MainVoiceAssistantFlow {
     );
   }
 
-  MainVoiceAssistantTurn _beginTranslationMode() {
-    _stage = MainVoiceAssistantStage.chooseTranslationMode;
-    return MainVoiceAssistantTurn(
-      promptText: translationModePrompt,
-      continueListening: true,
-    );
-  }
-
-  MainVoiceAssistantTurn _handleTranslationMode(
+  Future<MainVoiceAssistantTurn> _handleAfterTranslationStop(
     String recognizedText,
     String normalized,
-  ) {
-    if (_looksLikePromptEcho(normalized) ||
-        !_isContinuousTranslationChoice(normalized)) {
-      return MainVoiceAssistantTurn(
-        promptText: translationModePrompt,
+  ) async {
+    if (_looksLikePromptEcho(normalized)) {
+      return const MainVoiceAssistantTurn(
+        promptText: afterTranslationStopPrompt,
         continueListening: true,
       );
     }
-    return _beginContinuousTranslation(recognizedText);
+    if (_isVocabularyChoice(normalized)) {
+      return _beginVocabularyLearning(
+        recognizedText: recognizedText,
+        matchedPhrase: 'hoc tu vung',
+      );
+    }
+    if (_isTopicChoice(normalized)) {
+      return _beginConfiguredTopicSelection();
+    }
+    return const MainVoiceAssistantTurn(
+      promptText: afterTranslationStopPrompt,
+      continueListening: true,
+    );
   }
 
   MainVoiceAssistantTurn _beginContinuousTranslation(String recognizedText) {
@@ -540,7 +542,7 @@ class MainVoiceAssistantFlow {
       );
     }
     if (_isTranslationChoice(normalized)) {
-      return _beginTranslationMode();
+      return _beginContinuousTranslation(recognizedText);
     }
     if (_isSpeakingChoice(normalized)) {
       return _beginContinuousTranslation(recognizedText);
@@ -1156,12 +1158,6 @@ class MainVoiceAssistantFlow {
       _containsPhrase(normalized, 'luyen giao tiep') ||
       _containsPhrase(normalized, 'noi chuyen');
 
-  static bool _isContinuousTranslationChoice(String normalized) =>
-      _controlledSpeechLexicon
-          .resolve(normalized, state: ControlledSpeechState.translateMenu)
-          ?.intent ==
-      ControlledSpeechIntent.translateContinuous;
-
   ControlledSpeechState get _activeLearningSpeechState =>
       _activeLearningKind == ActiveLearningModuleKind.vocabulary
       ? ControlledSpeechState.vocabulary
@@ -1312,8 +1308,9 @@ class MainVoiceAssistantFlow {
   MainVoiceAssistantTurn _helpTurn() {
     final promptText = switch (_stage) {
       MainVoiceAssistantStage.chooseFeature => openingPrompt,
-      MainVoiceAssistantStage.chooseTranslationMode => translationModePrompt,
       MainVoiceAssistantStage.chooseOtherLearning => otherLearningPrompt,
+      MainVoiceAssistantStage.chooseAfterTranslationStop =>
+        afterTranslationStopPrompt,
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         alternativeAfterLearningPrompt,
       MainVoiceAssistantStage.chooseVocabularyCollection =>
@@ -1369,9 +1366,6 @@ class MainVoiceAssistantFlow {
             (_isSpeakingChoice(normalized) && _isTopicChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc chu de ne') ||
             normalized == 'hoc chu de ne',
-      MainVoiceAssistantStage.chooseTranslationMode =>
-        normalized ==
-            HomiFallbackCatalog.normalizeVietnamese(translationModePrompt),
       MainVoiceAssistantStage.chooseOtherLearning =>
         (_isTopicChoice(normalized) &&
                 _isVocabularyChoice(normalized) &&
@@ -1379,6 +1373,12 @@ class MainVoiceAssistantFlow {
             (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
             _containsPhrase(normalized, 'hay hoc tu vung ne') ||
             normalized == 'hoc tu vung ne',
+      MainVoiceAssistantStage.chooseAfterTranslationStop =>
+        (_isTopicChoice(normalized) && _isVocabularyChoice(normalized)) ||
+            normalized ==
+                HomiFallbackCatalog.normalizeVietnamese(
+                  afterTranslationStopPrompt,
+                ),
       MainVoiceAssistantStage.chooseAlternativeAfterLearning =>
         _isTranslationChoice(normalized) && _isVocabularyChoice(normalized),
       MainVoiceAssistantStage.chooseVocabularyCollection =>

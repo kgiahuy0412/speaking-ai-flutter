@@ -397,6 +397,50 @@ void main() {
   );
 
   testWidgets(
+    'keeps an explicit Android MAIN command mic alive in background',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      final backgroundSession = _FakeBackgroundLearningSession();
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+      );
+      final controller = _controller();
+      addTearDown(backgroundSession.dispose);
+      addTearDown(voiceNavigationController.dispose);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          voiceNavigationController: voiceNavigationController,
+          backgroundLearningSession: backgroundSession,
+        ),
+      );
+      await tester.pump();
+      expect(await voiceNavigationController.activateFromMainButton(), isTrue);
+      expect(voiceNavigationController.isListening, isTrue);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(voiceNavigationController.isListening, isTrue);
+      expect(speechInput.cancelCount, 0);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets(
     'rearms an Android background session without opening a busy microphone',
     (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -616,60 +660,50 @@ void main() {
     },
   );
 
-  testWidgets(
-    'translation choice enters continuous translation after mode selection',
-    (tester) async {
-      SharedPreferences.setMockInitialValues(<String, Object>{});
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('translation choice enters continuous translation directly', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      final speechInput = _FakeStreamingSpeechInput();
-      final voiceNavigationController = VoiceNavigationController(
-        speechInput: speechInput,
-        ownsSpeechInput: true,
-      );
-      final controller = _controller();
-      var didStartContinuousMode = false;
+    final speechInput = _FakeStreamingSpeechInput();
+    final voiceNavigationController = VoiceNavigationController(
+      speechInput: speechInput,
+      ownsSpeechInput: true,
+    );
+    final controller = _controller();
+    var didStartContinuousMode = false;
 
-      await tester.pumpWidget(
-        _app(
-          controller,
-          voiceNavigationController: voiceNavigationController,
-          onMainSpeakingModeStarted: () => didStartContinuousMode = true,
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _app(
+        controller,
+        voiceNavigationController: voiceNavigationController,
+        onMainSpeakingModeStarted: () => didStartContinuousMode = true,
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(await voiceNavigationController.activateFromMainButton(), isTrue);
-      expect(
-        await voiceNavigationController.dispatchRecognizedText(
-          'Dịch sang tiếng Anh',
-        ),
-        isTrue,
-      );
-      await tester.pump(const Duration(milliseconds: 700));
-      await tester.pump();
+    expect(await voiceNavigationController.activateFromMainButton(), isTrue);
+    expect(
+      await voiceNavigationController.dispatchRecognizedText(
+        'Dịch sang tiếng Anh',
+      ),
+      isTrue,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
 
-      expect(didStartContinuousMode, isFalse);
+    expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+    expect(didStartContinuousMode, isTrue);
+    expect(controller.isRecording, isFalse);
 
-      expect(
-        await voiceNavigationController.dispatchRecognizedText('Dịch liên tục'),
-        isTrue,
-      );
-      await tester.pump(const Duration(milliseconds: 700));
-      await tester.pump();
-
-      expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
-      expect(didStartContinuousMode, isTrue);
-      expect(controller.isRecording, isFalse);
-
-      controller.dispose();
-      voiceNavigationController.dispose();
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
+    controller.dispose();
+    voiceNavigationController.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 Widget _app(

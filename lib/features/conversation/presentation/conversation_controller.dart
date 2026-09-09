@@ -99,6 +99,7 @@ class ConversationController extends ChangeNotifier {
     Duration cancellationBarrierTimeout = const Duration(milliseconds: 1500),
     bool recordAndroidAudioForArchive = false,
     bool Function()? voiceDataProcessingAllowed,
+    Future<bool> Function()? networkTransportAvailable,
     Future<void> Function()? beforeRecordingStart,
     bool Function(String recognizedText)? recognizedSpeechCommandMatcher,
     Future<void> Function(String recognizedText)? onRecognizedSpeechCommand,
@@ -127,6 +128,7 @@ class ConversationController extends ChangeNotifier {
        _cancellationBarrierTimeout = cancellationBarrierTimeout,
        _recordAndroidAudioForArchive = recordAndroidAudioForArchive,
        _voiceDataProcessingAllowed = voiceDataProcessingAllowed,
+       _networkTransportAvailable = networkTransportAvailable,
        _beforeRecordingStart = beforeRecordingStart,
        _recognizedSpeechCommandMatcher = recognizedSpeechCommandMatcher,
        _onRecognizedSpeechCommand = onRecognizedSpeechCommand,
@@ -267,6 +269,7 @@ class ConversationController extends ChangeNotifier {
   final Duration _cancellationBarrierTimeout;
   final bool _recordAndroidAudioForArchive;
   final bool Function()? _voiceDataProcessingAllowed;
+  final Future<bool> Function()? _networkTransportAvailable;
   final Future<void> Function()? _beforeRecordingStart;
   final bool Function(String recognizedText)? _recognizedSpeechCommandMatcher;
   final Future<void> Function(String recognizedText)?
@@ -652,45 +655,61 @@ class ConversationController extends ChangeNotifier {
         Error.throwWithStackTrace(error, stackTrace);
       }
 
-      try {
-        final offlineCapture = await _resolveOfflineVietnameseCapture(
-          capture: capture,
-          audioCapture: audioCapture,
-        );
-        if (offlineCapture != null) {
-          final exactFallback = _localExactFallbackResult(offlineCapture);
-          if (exactFallback != null) {
-            debugPrint(
-              'Backend conversation failed; using on-device exact rule: $error',
-            );
-            transientMessage =
-                'Dịch vụ đang tạm gián đoạn. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.';
-            return exactFallback;
-          }
-
-          final translator = _offlineVietnameseEnglishTranslator;
-          if (translator != null) {
-            final englishText = await translator.translate(
-              offlineCapture.sourceText,
-            );
-            if (englishText.trim().isNotEmpty) {
-              debugPrint(
-                'Backend conversation failed; using on-device translation: '
-                '$error',
-              );
-              transientMessage =
-                  'Đang ngoại tuyến. Bản dịch được xử lý trực tiếp trên thiết bị.';
-              return _offlineTranslationResult(offlineCapture, englishText);
-            }
-          }
-        }
-      } catch (offlineError) {
-        debugPrint(
-          'On-device conversation fallback was unavailable: '
-          '$offlineError',
-        );
-      }
+      final offlineResult = await _tryOfflineConversationResult(
+        capture: capture,
+        audioCapture: audioCapture,
+        reason: error,
+      );
+      if (offlineResult != null) return offlineResult;
       Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<ConversationResult?> _tryOfflineConversationResult({
+    required StreamingSpeechCapture? capture,
+    required AudioCapture? audioCapture,
+    required Object reason,
+  }) async {
+    try {
+      final offlineCapture = await _resolveOfflineVietnameseCapture(
+        capture: capture,
+        audioCapture: audioCapture,
+      );
+      if (offlineCapture == null) return null;
+
+      final exactFallback = _localExactFallbackResult(offlineCapture);
+      if (exactFallback != null) {
+        debugPrint('Using on-device exact conversation rule: $reason');
+        transientMessage = reason == 'network_transport_unavailable'
+            ? 'Đang ngoại tuyến. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.'
+            : 'Dịch vụ đang tạm gián đoạn. Ứng dụng đang dùng câu trả lời có sẵn trên thiết bị.';
+        return exactFallback;
+      }
+
+      final translator = _offlineVietnameseEnglishTranslator;
+      if (translator == null) return null;
+      final englishText = await translator.translate(offlineCapture.sourceText);
+      if (englishText.trim().isEmpty) return null;
+      debugPrint('Using on-device conversation translation: $reason');
+      transientMessage =
+          'Đang ngoại tuyến. Bản dịch được xử lý trực tiếp trên thiết bị.';
+      return _offlineTranslationResult(offlineCapture, englishText);
+    } catch (offlineError) {
+      debugPrint(
+        'On-device conversation fallback was unavailable: $offlineError',
+      );
+      return null;
+    }
+  }
+
+  Future<bool> _hasNetworkTransport() async {
+    final checker = _networkTransportAvailable;
+    if (checker == null) return true;
+    try {
+      return await checker();
+    } catch (error) {
+      debugPrint('Network transport check was skipped: $error');
+      return true;
     }
   }
 
@@ -2979,29 +2998,45 @@ class ConversationController extends ChangeNotifier {
         }
       }
 
-      final backendResultFuture = streamingCapture != null
-          ? _repository.processStreamingText(
+      final hasNetworkTransport = await _hasNetworkTransport();
+      final offlineFirstResult = hasNetworkTransport
+          ? null
+          : await _tryOfflineConversationResult(
               capture: streamingCapture,
-              context: context,
-              childAge: _childAge,
-              vadSilenceMs: vadSilenceMs,
-            )
-          : batchUpload != null
-          ? _finalizeBatchChunksWithFallback(
-              upload: batchUpload,
-              capture: audioCapture!,
-            )
-          : _repository.processAudio(
-              capture: audioCapture!,
-              context: context,
-              childAge: _childAge,
-              vadSilenceMs: vadSilenceMs,
+              audioCapture: audioCapture,
+              reason: 'network_transport_unavailable',
             );
-      final resultFuture = _useOfflineResultWhenBackendIsUnavailable(
-        backendResult: backendResultFuture,
-        capture: streamingCapture,
-        audioCapture: audioCapture,
-      );
+      final Future<ConversationResult> resultFuture;
+      if (offlineFirstResult != null) {
+        // Do not create an HTTP request after the OS has already reported that
+        // Wi-Fi/mobile data disappeared. This makes an in-progress online
+        // session switch to the installed model on the very next utterance.
+        resultFuture = Future<ConversationResult>.value(offlineFirstResult);
+      } else {
+        final backendResultFuture = streamingCapture != null
+            ? _repository.processStreamingText(
+                capture: streamingCapture,
+                context: context,
+                childAge: _childAge,
+                vadSilenceMs: vadSilenceMs,
+              )
+            : batchUpload != null
+            ? _finalizeBatchChunksWithFallback(
+                upload: batchUpload,
+                capture: audioCapture!,
+              )
+            : _repository.processAudio(
+                capture: audioCapture!,
+                context: context,
+                childAge: _childAge,
+                vadSilenceMs: vadSilenceMs,
+              );
+        resultFuture = _useOfflineResultWhenBackendIsUnavailable(
+          backendResult: backendResultFuture,
+          capture: streamingCapture,
+          audioCapture: audioCapture,
+        );
+      }
       final processing = await Future.wait<Object?>([
         earlyRulePlayback == null
             ? _preparePlaybackWithTimeout()

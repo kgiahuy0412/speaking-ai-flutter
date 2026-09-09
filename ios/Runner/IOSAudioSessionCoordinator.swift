@@ -7,6 +7,7 @@ enum IOSAudioInputTarget: String {
 }
 
 enum IOSAudioSessionOwner: String, Hashable {
+  case backgroundTransition
   case mainTurn
   case prompt
   case hfpRoute
@@ -69,6 +70,9 @@ final class IOSAudioSessionCoordinator: NSObject {
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
   var isPromptActive: Bool { ownership.contains(.prompt) }
   var isHfpRouteActive: Bool { ownership.contains(.hfpRoute) }
+  var isBackgroundTransitionLeaseActive: Bool {
+    ownership.contains(.backgroundTransition)
+  }
   var onMainTurnEnded: (() -> Void)?
   var onSpeechCaptureStarted: (() -> Void)?
   var onSpeechCaptureEnded: (() -> Void)?
@@ -455,6 +459,27 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func clearPreferredInput(caller: String) throws {
     try ensurePreferredInput(nil, caller: caller)
+  }
+
+  /// Retains the already-configured audio session only while an active lesson
+  /// is crossing a background prompt/audio gap. It never starts the mic and is
+  /// released as soon as the app becomes foreground again.
+  func setBackgroundTransitionLeaseActive(_ active: Bool) {
+    if active == isBackgroundTransitionLeaseActive { return }
+    if active {
+      acquireSessionOwner(
+        .backgroundTransition,
+        caller: "BackgroundLearningBridge.activeLearning"
+      )
+      return
+    }
+    releaseSessionOwner(
+      .backgroundTransition,
+      caller: "BackgroundLearningBridge.activeLearning"
+    )
+    releaseAudioSessionIfIdle(
+      caller: "BackgroundLearningBridge.activeLearningEnded"
+    )
   }
 
   /// Remembers the HFP device explicitly selected by the user. iOS can expose

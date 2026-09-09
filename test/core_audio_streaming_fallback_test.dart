@@ -1319,6 +1319,42 @@ void main() {
     },
   );
 
+  test(
+    'network loss switches to device translation before HTTP starts',
+    () async {
+      final repository = _FallbackRepository();
+      final translator = _FakeOfflineTranslator(
+        translatedText: 'The weather is beautiful today.',
+      );
+      final controller = ConversationController(
+        audioInput: _FakeChunkedInput(
+          available: true,
+          bluetooth: false,
+          label: 'Phone',
+        ),
+        streamingSpeechInput: _FakeStreamingSpeechInput(
+          sourceText: 'Hôm nay trời đẹp quá',
+        ),
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        offlineVietnameseEnglishTranslator: translator,
+        networkTransportAvailable: () async => false,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.phase, ConversationPhase.ready);
+      expect(controller.result?.processingMode, 'offline_translation');
+      expect(repository.streamingTextRequests, 0);
+      expect(translator.inputs, <String>['Hôm nay trời đẹp quá']);
+      controller.dispose();
+    },
+  );
+
   test('successful backend does not invoke on-device translation', () async {
     final translator = _FakeOfflineTranslator(
       translatedText: 'This must not be used.',

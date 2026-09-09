@@ -210,6 +210,36 @@ void main() {
   );
 
   test(
+    'Main prompt reopens the mic immediately after final recognition',
+    () async {
+      final speechInput = _FakeNavigationSpeechInput(
+        stopText: 'Mình chưa biết chọn gì',
+      );
+      final controller = VoiceNavigationController(
+        speechInput: speechInput,
+        voicePromptService: _FakeVoicePromptService(),
+      );
+
+      expect(await controller.activateFromMainButton(), isTrue);
+      expect(
+        speechInput.events.where((event) => event == 'start'),
+        hasLength(1),
+      );
+
+      speechInput.emitCompleted();
+      await _waitUntil(
+        () => speechInput.events.where((event) => event == 'start').length == 2,
+        timeout: const Duration(milliseconds: 200),
+      );
+
+      expect(controller.isListening, isTrue);
+      expect(controller.isAwaitingCommand, isTrue);
+      controller.dispose();
+      await speechInput.dispose();
+    },
+  );
+
+  test(
     'HFP speech activity extends MAIN command window before transcript',
     () async {
       final speechInput = _FakeNavigationSpeechInput();
@@ -513,6 +543,29 @@ void main() {
     expect(await controller.dispatchRecognizedText('Luyện lại'), isTrue);
     expect(voicePrompt.spokenTexts, contains('Phần luyện lại chưa có từ nào.'));
     expect(controller.isMainButtonSessionActive, isFalse);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
+
+  test('translation stop opens its navigation menu and microphone', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+    );
+
+    expect(await controller.activateAfterContinuousTranslationStop(), isTrue);
+    expect(voicePrompt.spokenTexts, <String>[
+      MainVoiceAssistantFlow.afterTranslationStopPrompt,
+    ]);
+    expect(controller.isAwaitingCommand, isTrue);
+    expect(controller.isListening, isTrue);
+    expect(
+      controller.mainAssistantStage,
+      MainVoiceAssistantStage.chooseAfterTranslationStop,
+    );
 
     controller.dispose();
     await speechInput.dispose();

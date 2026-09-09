@@ -439,6 +439,30 @@ void main() {
     );
 
     test(
+      'skips the backend immediately when network transport is gone',
+      () async {
+        final backend = _FakeAttemptEvaluator.outcome(
+          LessonAttemptOutcome.retry,
+        );
+        final recognizer = _FakeLessonRecordedSpeechRecognizer(
+          const LessonRecordedSpeechRecognition(transcript: 'I am ready'),
+        );
+        final evaluator = BackendFirstLessonAttemptEvaluator(
+          backendEvaluator: backend,
+          recognizer: recognizer,
+          networkTransportAvailable: () async => false,
+        );
+
+        expect(
+          await _evaluateBackendFirst(evaluator, expectedEnglish: "I'm ready"),
+          LessonAttemptOutcome.good,
+        );
+        expect(backend.calls, 0);
+        expect(recognizer.calls, 1);
+      },
+    );
+
+    test(
       'accepts alternatives and returns retry for different speech',
       () async {
         final matching = BackendFirstLessonAttemptEvaluator(

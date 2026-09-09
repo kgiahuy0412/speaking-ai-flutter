@@ -21,6 +21,7 @@ import '../core/device/aiv0_ble_control.dart';
 import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/device/main_button_coordinator.dart';
+import '../core/network/network_availability.dart';
 import '../core/pwa/pwa_install_gate.dart';
 import '../core/platform/background_learning_session.dart';
 import '../core/update/android_update_gate.dart';
@@ -830,6 +831,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       // upload raw audio.
       recordAndroidAudioForArchive: supportsAndroidNativeSpeech,
       voiceDataProcessingAllowed: () => _voiceAccessEnabled,
+      networkTransportAvailable: NetworkAvailability.hasTransport,
       beforeRecordingStart: voiceNavigationController?.pause,
       recognizedSpeechCommandMatcher: _matchesMainSpeakingCommand,
       onRecognizedSpeechCommand: _handleMainSpeakingCommand,
@@ -1619,17 +1621,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       setState(() => _isActivatingMainAssistant = true);
     }
     try {
-      // Leave continuous translation before any English result is shown or
-      // played. The preceding FB-009 confirmation has made this transition
-      // explicit, so an ordinary sentence never becomes a navigation action.
-      if (_usesIosHfpLifecycle) {
-        await controller.endContinuousHfpSession();
-      }
+      // Leave continuous translation before opening the next voice menu. The
+      // command resolver has already consumed the explicit control phrase, so
+      // the child's next words belong only to the navigation microphone.
+      await controller.endContinuousHfpSession();
       switch (turn.action) {
         case MainSpeakingFallbackAction.openOtherLearning:
           await voiceController.activateOtherLearningFromSpeaking();
         case MainSpeakingFallbackAction.openMainAssistant:
-          await voiceController.activateFromMainButton();
+          await voiceController.activateAfterContinuousTranslationStop();
         case MainSpeakingFallbackAction.resumeTranslation:
           return;
       }

@@ -19,9 +19,9 @@ class MainSpeakingFallbackTurn {
 
 /// Applies FB-009 while automatic continuous translation is active.
 ///
-/// The first leave/stop command is confirmed before the session is exited.
-/// While confirmation is open every final transcript is consumed here, rather
-/// than accidentally being translated as normal content.
+/// Requests to learn something else keep the FB-009 confirmation. An explicit
+/// stop exits immediately into the post-translation navigation menu, so the
+/// translation recorder cannot consume the child's next choice.
 class MainSpeakingFallbackFlow {
   MainSpeakingFallbackFlow({
     MainSpeakingCommandResolver commandResolver =
@@ -54,6 +54,12 @@ class MainSpeakingFallbackFlow {
       return MainSpeakingFallbackTurn(
         action: MainSpeakingFallbackAction.resumeTranslation,
         promptText: HomiFallbackCatalog.assistantPromptById['AI-022']!,
+      );
+    }
+    if (command == MainSpeakingCommand.stopTranslation) {
+      _pendingCommand = null;
+      return const MainSpeakingFallbackTurn(
+        action: MainSpeakingFallbackAction.openMainAssistant,
       );
     }
 

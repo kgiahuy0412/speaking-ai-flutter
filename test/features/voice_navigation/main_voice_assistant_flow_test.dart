@@ -56,26 +56,34 @@ void main() {
     }
   });
 
-  test('uses the approved two-step translation-mode state', () async {
+  test('opens continuous translation directly from the Main choice', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     flow.begin();
 
-    final chooseTranslation = await flow.handle('Dịch sang tiếng Anh');
-    expect(chooseTranslation.continueListening, isTrue);
+    final translation = await flow.handle('Dịch sang tiếng Anh');
+    expect(translation.continueListening, isFalse);
     expect(
-      chooseTranslation.promptText,
-      MainVoiceAssistantFlow.translationModePrompt,
-    );
-    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
-
-    final continuous = await flow.handle('Dịch liên tục');
-    expect(
-      continuous.promptText,
+      translation.promptText,
       MainVoiceAssistantFlow.continuousTranslationPrompt,
     );
-    expect(continuous.continueListening, isFalse);
-    expect(continuous.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
+    expect(translation.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
     expect(flow.stage, MainVoiceAssistantStage.idle);
+  });
+
+  test('after translation stop offers topic, vocabulary, or stop', () async {
+    final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+
+    expect(
+      flow.beginAfterTranslationStop(),
+      MainVoiceAssistantFlow.afterTranslationStopPrompt,
+    );
+    expect(flow.stage, MainVoiceAssistantStage.chooseAfterTranslationStop);
+    expect(flow.canHandle('Học chủ đề'), isTrue);
+    expect(flow.canHandle('Dừng lại'), isTrue);
+
+    final topic = await flow.handle('Học chủ đề');
+    expect(topic.continueListening, isTrue);
+    expect(flow.stage, MainVoiceAssistantStage.askAge);
   });
 
   test('offers all three top-level choices from Main', () async {
@@ -119,15 +127,7 @@ void main() {
 
     final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     translationFlow.begin();
-    final chooseTranslation = await translationFlow.handle(
-      'Dịch sang tiếng Anh',
-    );
-    expect(chooseTranslation.continueListening, isTrue);
-    expect(
-      chooseTranslation.promptText,
-      MainVoiceAssistantFlow.translationModePrompt,
-    );
-    final translation = await translationFlow.handle('Dịch liên tục');
+    final translation = await translationFlow.handle('Dịch sang tiếng Anh');
     expect(translation.continueListening, isFalse);
     expect(
       translation.promptText,
@@ -359,11 +359,7 @@ void main() {
     flow.beginActiveLearning();
     await flow.handle('Con không muốn học nữa');
 
-    final chooseTranslation = await flow.handle('Dịch sang tiếng Anh');
-    expect(chooseTranslation.continueListening, isTrue);
-    expect(flow.stage, MainVoiceAssistantStage.chooseTranslationMode);
-
-    final translationTurn = await flow.handle('Dịch liên tục');
+    final translationTurn = await flow.handle('Dịch sang tiếng Anh');
     expect(
       translationTurn.promptText,
       MainVoiceAssistantFlow.continuousTranslationPrompt,

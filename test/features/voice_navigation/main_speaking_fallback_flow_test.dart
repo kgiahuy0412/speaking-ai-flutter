@@ -62,15 +62,9 @@ void main() {
       final flow = MainSpeakingFallbackFlow();
 
       final stop = flow.handle('Thôi');
-      expect(
-        stop?.promptText,
-        HomiFallbackCatalog.fallbackPolicyById['FB-009']!.firstPrompt,
-      );
-      final confirmedStop = flow.handle('Dừng lại');
-      expect(
-        confirmedStop?.action,
-        MainSpeakingFallbackAction.openMainAssistant,
-      );
+      expect(stop?.action, MainSpeakingFallbackAction.openMainAssistant);
+      expect(stop?.promptText, isNull);
+      expect(flow.isAwaitingConfirmation, isFalse);
 
       final help = flow.handle('Giúp mình với');
       expect(help?.action, MainSpeakingFallbackAction.resumeTranslation);
