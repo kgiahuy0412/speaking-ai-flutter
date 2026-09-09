@@ -40,7 +40,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(find.byKey(const Key('virtual-lesson-controls')), findsOneWidget);
       expect(mediaService.recording, isTrue);
@@ -91,7 +91,7 @@ void main() {
       expect(mediaService.recording, isFalse);
 
       final operation = registry.execute(ActiveLearningCommand.previousItem);
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
       final result = await operation;
 
       expect(result.wasHandled, isTrue);
@@ -121,7 +121,7 @@ void main() {
           vocabularyStore: vocabularyStore,
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(
         voicePrompts.spoken,
@@ -138,7 +138,7 @@ void main() {
       expect(mediaService.phoneOutputPreparationCount, 0);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(find.text('Sentence 2'), findsOneWidget);
       expect(mediaService.recording, isTrue);
@@ -183,7 +183,7 @@ void main() {
         voicePromptService: voicePrompts,
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     expect(
       voicePrompts.spoken,
@@ -209,7 +209,7 @@ void main() {
         voicePromptService: _FakeVoicePromptService(),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
     expect(mediaService.recording, isTrue);
 
     await tester.pump(const Duration(seconds: 6));
@@ -253,7 +253,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
     expect(mediaService.recording, isTrue);
     expect(mediaService.startedSentenceIds, hasLength(1));
 
@@ -275,7 +275,7 @@ void main() {
     expect(mediaService.startedSentenceIds, hasLength(2));
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     expect(find.text('Sentence 2'), findsOneWidget);
     expect(voicePrompts.spoken, contains('vi-VN|Con làm tốt lắm'));
@@ -310,10 +310,10 @@ void main() {
         voicePromptService: voicePrompts,
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     final praiseIndex = voicePrompts.spoken.indexWhere(
       (message) => message == 'vi-VN|Con làm tốt lắm',
@@ -344,7 +344,7 @@ void main() {
         voicePromptService: _FakeVoicePromptService(),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
     expect(mediaService.recording, isTrue);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
@@ -353,7 +353,7 @@ void main() {
 
     expect(evaluator.evaluationCalls, 0);
     mediaService.finishRecordingPlayback();
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     expect(evaluator.evaluationCalls, 1);
     expect(mediaService.playedUris.last.toString(), contains('latest.m4a'));
@@ -383,14 +383,14 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
     await evaluator.started.future;
     expect(await registry.pauseForMainAssistant(), isTrue);
     evaluator.complete(LessonAttemptOutcome.good);
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     expect(find.text('Sentence 1'), findsOneWidget);
     expect(mediaService.recording, isFalse);
@@ -472,10 +472,10 @@ void main() {
           vocabularyStore: vocabularyStore,
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
       expect(mediaService.recording, isTrue);
       expect(find.text('Sentence 1'), findsOneWidget);
       expect(
@@ -495,7 +495,7 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(mediaService.recording, isTrue);
       expect(find.text('Sentence 2'), findsOneWidget);
@@ -539,10 +539,10 @@ void main() {
           vocabularyStore: vocabularyStore,
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(mediaService.recording, isTrue);
       expect(find.text('Sentence 1'), findsOneWidget);
@@ -580,10 +580,10 @@ void main() {
           voicePromptService: voicePrompts,
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(evaluator.evaluationCalls, 1);
       expect(mediaService.recording, isTrue);
@@ -620,15 +620,15 @@ void main() {
         vocabularyStore: vocabularyStore,
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
     expect(mediaService.recording, isTrue);
     expect(find.text('Sentence 1'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     expect(find.text('Sentence 1'), findsOneWidget);
     expect(mediaService.recording, isTrue);
@@ -666,15 +666,15 @@ void main() {
           vocabularyStore: vocabularyStore,
         ),
       );
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
       expect(vocabularyStore.entries, isEmpty);
       expect(progressStore.needsPractice, isEmpty);
 
       await tester.tap(find.byKey(const Key('record-lesson-sentence')));
-      await tester.pumpAndSettle();
+      await _pumpGuidedSpeechTurn(tester);
 
       expect(vocabularyStore.entries, hasLength(1));
       expect(
@@ -707,7 +707,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
@@ -772,7 +772,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
@@ -820,7 +820,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
@@ -859,7 +859,7 @@ void main() {
         onTopicCompleted: () => topicCompletedCount += 1,
       ),
     );
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
 
     await tester.tap(find.byKey(const Key('record-lesson-sentence')));
     await tester.pump();
@@ -1838,7 +1838,7 @@ void main() {
     expect(find.textContaining('Không thể phát lời mở đầu'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
-    await tester.pumpAndSettle();
+    await _pumpGuidedSpeechTurn(tester);
     expect(find.byType(LessonReviewScreen), findsNothing);
     expect(find.byType(LessonPracticeScreen), findsOneWidget);
 
@@ -1889,6 +1889,13 @@ Widget _subject(
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    builder: (context, child) {
+      final mediaQuery = MediaQuery.of(context);
+      return MediaQuery(
+        data: mediaQuery.copyWith(disableAnimations: true),
+        child: child!,
+      );
+    },
     home: LessonPracticeScreen(
       language: DisplayLanguage.vietnamese,
       startAge: 3,
@@ -2482,6 +2489,16 @@ class _MemoryProgressStore extends ListeningProgressStore {
 
 Future<void> _finishInitialLoad(WidgetTester tester) async {
   await tester.pump();
+  await tester.pump();
+}
+
+/// Advances authored guide pauses only as far as the next microphone turn.
+/// `pumpAndSettle` is unsuitable here because the recording auto-stop timer can
+/// complete the turn before assertions observe the open microphone.
+Future<void> _pumpGuidedSpeechTurn(WidgetTester tester) async {
+  await _finishInitialLoad(tester);
+  await tester.pump(LessonGuideFlowV2.guideToSamplePause);
+  await tester.pump(LessonGuideFlowV2.englishToVietnamesePause);
   await tester.pump();
 }
 

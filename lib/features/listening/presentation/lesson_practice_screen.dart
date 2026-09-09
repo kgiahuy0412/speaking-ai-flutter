@@ -24,6 +24,7 @@ import '../domain/listening_content.dart';
 import '../domain/authored_question_selector.dart';
 import '../domain/lesson_guide_flow.dart';
 import '../domain/v4_completion_flow.dart';
+import 'active_learning_navigation.dart';
 import 'lesson_challenge_screen.dart';
 import 'lesson_mission_screen.dart';
 import 'lesson_intro_screen.dart';
@@ -2143,23 +2144,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await widget.mediaService.stopPlayback();
     if (!mounted) return;
     _handingOffMediaPlayback = true;
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonIntroScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: ageCatalog.topics[topicIndex],
-          lesson: lesson,
-          controller: widget.controller,
-          topicContent: topic,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.contentGroup?.level(topic.levelNumber),
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          relearnFromBeginning: relearn,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonIntroScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: ageCatalog.topics[topicIndex],
+        lesson: lesson,
+        controller: widget.controller,
+        topicContent: topic,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.contentGroup?.level(topic.levelNumber),
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        relearnFromBeginning: relearn,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }
@@ -2537,22 +2537,21 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     // disposes the replaced practice route. Do not let the old route's
     // dispose() stop the new route's intro audio.
     _handingOffMediaPlayback = true;
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonIntroScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.levelContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonIntroScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: widget.topic,
+        lesson: lesson,
+        controller: widget.controller,
+        topicContent: widget.topicContent,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.levelContent,
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }
@@ -2616,23 +2615,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await widget.mediaService.stopPlayback();
     if (!mounted) return;
     _handingOffMediaPlayback = true;
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonIntroScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: widget.lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.levelContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          relearnFromBeginning: true,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonIntroScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: widget.topic,
+        lesson: widget.lesson,
+        controller: widget.controller,
+        topicContent: widget.topicContent,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.levelContent,
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        relearnFromBeginning: true,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }
@@ -3498,6 +3496,8 @@ class _SentenceCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           const HomiWaveform(
+            key: Key('lesson-sample-waveform'),
+            active: true,
             width: 230,
             height: 48,
             semanticLabel: 'Dạng sóng câu mẫu',
@@ -3538,14 +3538,12 @@ class _SentenceCard extends StatelessWidget {
                     minimumSize: const Size.fromHeight(52),
                     backgroundColor: isDark
                         ? colorScheme.surfaceContainerHighest
-                        : const Color(0xFFFFF6EE),
+                        : AppColors.accentPinkSoft,
                     foregroundColor: isDark
                         ? colorScheme.primary
-                        : AppColors.indigoDark,
+                        : AppColors.accentPink,
                     side: BorderSide(
-                      color: isDark
-                          ? colorScheme.outline
-                          : const Color(0xFFFFD8C4),
+                      color: isDark ? colorScheme.outline : AppColors.peach,
                     ),
                   ),
                 ),
@@ -3937,11 +3935,13 @@ class _LessonCoachPopupState extends State<_LessonCoachPopup>
     };
     final surface = secondReminder
         ? const Color(0xFFFFF7EA)
-        : const Color(0xFFF2F1FF);
+        : AppColors.mintSoft;
     final border = secondReminder
         ? const Color(0xFFFFD89A)
         : AppColors.lavenderBorder;
-    final accent = secondReminder ? const Color(0xFFE58A2B) : AppColors.indigo;
+    final accent = secondReminder
+        ? const Color(0xFFE58A2B)
+        : AppColors.primaryNavy;
 
     return Semantics(
       liveRegion: true,

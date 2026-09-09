@@ -12,6 +12,7 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import 'active_learning_navigation.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'song_karaoke_screen.dart';
@@ -174,7 +175,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                                   Theme.of(context).brightness ==
                                       Brightness.dark
                                   ? Theme.of(context).colorScheme.outlineVariant
-                                  : const Color(0xFFE4E9F7),
+                                  : AppColors.mintBorder,
                             ),
                             itemBuilder: (context, index) {
                               final lesson = widget.content.lessons[index];
@@ -388,23 +389,22 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       if (!mounted) {
         return;
       }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => LessonIntroScreen(
-            language: widget.language,
-            startAge: widget.startAge,
-            endAge: widget.endAge,
-            topic: widget.topic,
-            lesson: lesson,
-            controller: widget.controller,
-            topicContent: widget.content,
-            contentGroup: widget.contentGroup,
-            levelContent: widget.levelContent,
-            progressStore: widget.progressStore,
-            mediaService: _mediaService,
-            relearnFromBeginning: reviewFromBeginning,
-            onTopicCompleted: widget.onTopicCompleted,
-          ),
+      await pushForActiveLearning<void>(
+        context,
+        (_) => LessonIntroScreen(
+          language: widget.language,
+          startAge: widget.startAge,
+          endAge: widget.endAge,
+          topic: widget.topic,
+          lesson: lesson,
+          controller: widget.controller,
+          topicContent: widget.content,
+          contentGroup: widget.contentGroup,
+          levelContent: widget.levelContent,
+          progressStore: widget.progressStore,
+          mediaService: _mediaService,
+          relearnFromBeginning: reviewFromBeginning,
+          onTopicCompleted: widget.onTopicCompleted,
         ),
       );
     } finally {
@@ -721,7 +721,7 @@ class _LessonPathCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: lesson.number == 1 || completedSentences > 0
                               ? AppColors.indigo
-                              : const Color(0xFFAEB9D5),
+                              : AppColors.softNavy,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: const <BoxShadow>[
@@ -806,7 +806,7 @@ class _LessonPathCard extends StatelessWidget {
                                 value: progress,
                                 minHeight: 7,
                                 backgroundColor: AppColors.lavenderBorder,
-                                color: AppColors.indigo,
+                                color: AppColors.accentPink,
                               ),
                             ),
                           ),

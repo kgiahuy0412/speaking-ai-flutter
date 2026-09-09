@@ -86,7 +86,7 @@ void main() {
     expect(mediaService.recordingStarts, 1);
 
     await tester.tap(find.byKey(const Key('lesson-challenge-record-button')));
-    await tester.pumpAndSettle();
+    await _pumpChallengeTransition(tester);
 
     expect(voicePrompt.spoken, contains('en-US|Please sit down.'));
     expect(find.text('Thank you.'), findsOneWidget);
@@ -129,7 +129,7 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.byKey(const Key('lesson-challenge-record-button')));
-    await tester.pumpAndSettle();
+    await _pumpChallengeTransition(tester);
 
     expect(voicePrompt.spoken, isNot(contains('vi-VN|Great!')));
     expect(
@@ -221,7 +221,7 @@ void main() {
       expect(find.text('Dừng và chấm'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('lesson-challenge-record-button')));
-      await tester.pumpAndSettle();
+      await _pumpChallengeTransition(tester);
 
       expect(find.text('Câu 2/2'), findsOneWidget);
       // Correct feedback is spoken before the second authored question.
@@ -275,7 +275,7 @@ void main() {
       final skip = find.byKey(const Key('lesson-challenge-skip-button'));
       await tester.ensureVisible(skip);
       await tester.tap(skip);
-      await tester.pumpAndSettle();
+      await _pumpChallengeTransition(tester);
 
       expect(find.text('Câu 2/2'), findsOneWidget);
       expect(evaluator.evaluationCalls, 0);
@@ -361,7 +361,7 @@ void main() {
       expect(mediaService.recordingStarts, 1);
 
       evaluator.complete(LessonAttemptOutcome.good);
-      await tester.pumpAndSettle();
+      await _pumpChallengeTransition(tester);
 
       expect(find.text('Câu 2/2'), findsOneWidget);
       expect(mediaService.recordingStarts, 2);
@@ -480,7 +480,7 @@ void main() {
     expect(mediaService.nativeCaptureHandoffs, 1);
 
     await tester.pump(const Duration(seconds: 6));
-    await tester.pumpAndSettle();
+    await _pumpChallengeTransition(tester);
 
     expect(speechInput.stopCalls, 1);
     expect(backendEvaluator.evaluationCalls, 0);
@@ -879,6 +879,15 @@ class _MissingSecondFinishVoicePromptService implements VoicePromptService {
   Future<void> stop() async {
     stopCalls += 1;
   }
+}
+
+/// Flushes a prompt/scoring handoff without advancing the six-second answer
+/// timer for the newly opened microphone turn.
+Future<void> _pumpChallengeTransition(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump();
+  await tester.pump();
+  await tester.pump();
 }
 
 Future<void> _usePhoneSurface(WidgetTester tester) async {

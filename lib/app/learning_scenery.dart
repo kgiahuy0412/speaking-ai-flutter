@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
 import 'mascot_assets.dart';
 
 const learningSceneryAsset = MascotAssets.scenery;
@@ -41,15 +42,15 @@ class LearningScenery extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: <Color>[
                   if (isDark)
-                    const Color(0xFF091126).withValues(alpha: 0.72)
+                    AppColors.darkCanvas.withValues(alpha: 0.82)
                   else
                     Colors.white.withValues(alpha: overlayOpacity),
                   if (isDark)
-                    const Color(0xFF0E1630).withValues(alpha: 0.48)
+                    AppColors.darkSurface.withValues(alpha: 0.76)
                   else
                     Colors.white.withValues(alpha: overlayOpacity * 0.55),
                   if (isDark)
-                    const Color(0xFF0A1127).withValues(alpha: 0.78)
+                    AppColors.darkCanvas.withValues(alpha: 0.92)
                   else
                     Colors.white.withValues(alpha: overlayOpacity * 0.35),
                 ],
@@ -66,18 +67,18 @@ class LearningScenery extends StatelessWidget {
 
 BoxDecoration scenicPanelDecoration({
   double radius = 28,
-  Color color = const Color(0xF7FFFDF8),
-  Color borderColor = const Color(0x66FFFFFF),
+  Color color = const Color(0xFAFFFEFD),
+  Color borderColor = AppColors.mintBorder,
 }) {
   return BoxDecoration(
     color: color,
     borderRadius: BorderRadius.circular(radius),
     border: Border.all(color: borderColor, width: 1.4),
-    boxShadow: const <BoxShadow>[
+    boxShadow: <BoxShadow>[
       BoxShadow(
-        color: Color(0x24142451),
-        blurRadius: 24,
-        offset: Offset(0, 10),
+        color: AppColors.primaryNavy.withValues(alpha: 0.09),
+        blurRadius: 18,
+        offset: const Offset(0, 8),
       ),
     ],
   );

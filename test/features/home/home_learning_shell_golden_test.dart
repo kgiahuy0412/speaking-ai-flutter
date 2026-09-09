@@ -12,6 +12,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const backgroundEvents = MethodChannel('ailingo_background_learning/events');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+
+  setUp(() {
+    messenger.setMockMethodCallHandler(backgroundEvents, (_) async => null);
+  });
+  tearDown(() {
+    messenger.setMockMethodCallHandler(backgroundEvents, null);
+  });
+
   testWidgets('home communication matches image one', (tester) async {
     final controller = await _pumpGoldenApp(tester);
     addTearDown(controller.dispose);
@@ -63,9 +75,38 @@ void main() {
       matchesGoldenFile('goldens/home-add-vocabulary-390x844.png'),
     );
   });
+
+  testWidgets('dark home keeps the approved option two composition', (
+    tester,
+  ) async {
+    final controller = await _pumpGoldenApp(tester, themeMode: ThemeMode.dark);
+    addTearDown(controller.dispose);
+
+    await expectLater(
+      find.byType(HomeLearningShell),
+      matchesGoldenFile('goldens/dark-home-communication-390x844.png'),
+    );
+
+    await tester.tap(find.byKey(const Key('vocabulary-edge-tab')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(HomeLearningShell),
+      matchesGoldenFile('goldens/dark-home-vocabulary-390x844.png'),
+    );
+
+    await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(TopicListeningScreen),
+      matchesGoldenFile('goldens/dark-home-topics-390x844.png'),
+    );
+  });
 }
 
-Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
+Future<ConversationController> _pumpGoldenApp(
+  WidgetTester tester, {
+  ThemeMode themeMode = ThemeMode.light,
+}) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   await _loadGoldenFonts();
   await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -81,6 +122,8 @@ Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
     MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      darkTheme: buildDarkAppTheme(),
+      themeMode: themeMode,
       home: HomeLearningShell(
         controller: controller,
         onScreenMainPressed: () async {},

@@ -485,6 +485,7 @@ class AndroidStreamingSpeechInput
     try {
       return await _methodChannel.invokeMethod<bool>(
             'speech.supportsAudioSource',
+            <String, bool>{'onlyWhenOffline': true},
           ) ??
           false;
     } on MissingPluginException {

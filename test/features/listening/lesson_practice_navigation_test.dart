@@ -384,6 +384,13 @@ Widget _subject(
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    builder: (context, child) {
+      final mediaQuery = MediaQuery.of(context);
+      return MediaQuery(
+        data: mediaQuery.copyWith(disableAnimations: true),
+        child: child!,
+      );
+    },
     home: LessonPracticeScreen(
       key: sessionKey,
       language: DisplayLanguage.vietnamese,

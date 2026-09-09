@@ -9,6 +9,7 @@ import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
+import 'active_learning_navigation.dart';
 
 bool shouldUseSongKaraoke({
   required int startAge,
@@ -557,8 +558,9 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen>
     if (!mounted) {
       return;
     }
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(builder: widget.practiceBuilder),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      widget.practiceBuilder,
     );
   }
 
@@ -634,8 +636,9 @@ class _SongKaraokeScreenState extends State<SongKaraokeScreen>
       return;
     }
     if (action == _SongEndAction.practice) {
-      await Navigator.of(context).pushReplacement<void, void>(
-        MaterialPageRoute<void>(builder: widget.practiceBuilder),
+      await pushReplacementForActiveLearning<void, void>(
+        context,
+        widget.practiceBuilder,
       );
     } else {
       Navigator.of(context).pop();
@@ -690,7 +693,10 @@ class _SongHeader extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.9),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.music_note_rounded, color: Color(0xFF155EEF)),
+          child: const Icon(
+            Icons.music_note_rounded,
+            color: AppColors.primaryNavy,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -791,7 +797,7 @@ class _KaraokeLyrics extends StatelessWidget {
                           '${words[index]}${index == words.length - 1 ? '' : ' '}',
                       style: currentStyle?.copyWith(
                         color: index < highlightedWordCount
-                            ? const Color(0xFF2536E8)
+                            ? AppColors.accentPink
                             : AppColors.ink,
                       ),
                     ),
@@ -806,7 +812,7 @@ class _KaraokeLyrics extends StatelessWidget {
               translationLine,
               key: const Key('song-karaoke-translation-line'),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: const Color(0xFF47628F),
+                color: AppColors.softNavy,
                 fontSize: compact ? 20 : 25,
                 height: 1.25,
                 fontWeight: FontWeight.w700,
@@ -908,8 +914,8 @@ class _SongPlayer extends StatelessWidget {
                     key: const Key('song-karaoke-progress'),
                     value: progress,
                     minHeight: 7,
-                    color: AppColors.indigo,
-                    backgroundColor: const Color(0xFFDCE5F7),
+                    color: AppColors.accentPink,
+                    backgroundColor: AppColors.mintBorder,
                   ),
                 ),
                 const SizedBox(height: 6),

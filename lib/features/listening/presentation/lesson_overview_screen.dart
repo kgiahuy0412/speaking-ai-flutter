@@ -13,6 +13,7 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import 'active_learning_navigation.dart';
 import 'lesson_practice_screen.dart';
 
 /// The V4 listen-first pass.  It deliberately does not record or evaluate an
@@ -214,25 +215,24 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
     _movingForward = true;
     await widget.mediaService.stopPlayback();
     if (!mounted) return;
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonPracticeScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: widget.lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.levelContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          guideAudioLibrary: widget.guideAudioLibrary,
-          voicePromptService: widget.voicePromptService,
-          isRelearn: widget.isRelearn,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonPracticeScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: widget.topic,
+        lesson: widget.lesson,
+        controller: widget.controller,
+        topicContent: widget.topicContent,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.levelContent,
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        guideAudioLibrary: widget.guideAudioLibrary,
+        voicePromptService: widget.voicePromptService,
+        isRelearn: widget.isRelearn,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }

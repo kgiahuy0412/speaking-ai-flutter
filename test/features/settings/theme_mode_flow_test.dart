@@ -181,6 +181,43 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('dark settings keep the shared HOMI visual system', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        darkTheme: buildDarkAppTheme(),
+        themeMode: ThemeMode.dark,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: Scaffold(body: SettingsSheet(controller: controller)),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/dark-settings-turn-controls-390x844.png'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('H20 settings use one compact shared surface', (tester) async {
     await _usePhoneSurface(tester);
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;

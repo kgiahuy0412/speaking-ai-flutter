@@ -36,6 +36,7 @@ flutter:
     - assets/data/listening_audio_manifest_v4.json
     - assets/data/listening_ai_lexicon_v4.json
     - assets/data/homi_ai_fallback_catalog_v1.json
+    - assets/data/vietnamese_speech_corrections_v1.json
     - assets/audio/A-3-5/GUIDE_RECORD/
     - assets/audio/A-3-5/GUIDE_PRAISE/
     - assets/audio/A-3-5/GUIDE_NEXT/
@@ -81,7 +82,9 @@ flutter:
     - assets/images/song-karaoke-sunrise.webp
     - assets/images/learning-train-field-background.webp
     - assets/images/learning-minimal-sky-background.png
+    - assets/images/learning-minimal-sky-background-option2.png
     - assets/images/home-hero-blob.png
+    - assets/images/home-hero-blob-option2.png
     - assets/images/home-waveform.png
     - assets/images/mascot/
     - assets/images/topics/

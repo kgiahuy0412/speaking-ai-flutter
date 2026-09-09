@@ -662,16 +662,32 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "AVAudioSession",
       message: "reason=\(rawReason)"
     )
-    guard isBackgroundLearningEnabled, type == .began else { return }
+    guard isBackgroundLearningEnabled, let type else { return }
 
-    // Locking the screen does not emit an AVAudioSession interruption while
-    // the background audio mode remains active. Every real interruption that
-    // reaches this observer (for example a call, Siri, an alarm, or competing
-    // non-mixable audio) must pause the learning session.
-    onBackgroundLearningEvent?([
-      "type": "background.interrupted",
-      "reason": "audio_session_interruption_\(rawReason)",
-    ])
+    switch type {
+    case .began:
+      // Locking the screen does not emit an AVAudioSession interruption while
+      // the background audio mode remains active. Calls, Siri, alarms and
+      // competing non-mixable audio do, and must pause the current turn.
+      onBackgroundLearningEvent?([
+        "type": "background.interrupted",
+        "reason": "audio_session_interruption_\(rawReason)",
+      ])
+    case .ended:
+      let rawOptions =
+        (notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? NSNumber)?
+          .uintValue ?? 0
+      let options = AVAudioSession.InterruptionOptions(rawValue: rawOptions)
+      guard options.contains(.shouldResume) else { return }
+      // This only rearms the explicit H20 learning session. Flutter still
+      // requires a valid MAIN turn before opening the microphone again.
+      onBackgroundLearningEvent?([
+        "type": "background.resumable",
+        "reason": "audio_session_interruption_ended",
+      ])
+    @unknown default:
+      break
+    }
   }
 
   private func routeDescription(_ route: AVAudioSessionRouteDescription) -> String {

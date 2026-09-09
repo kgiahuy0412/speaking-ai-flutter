@@ -282,6 +282,9 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     static let firmwareRevision = CBUUID(string: "2A26")
   }
 
+  private static let centralRestorationIdentifier =
+    "com.innotrik.aispeaking.h20-central"
+
   private struct DiscoveredDevice {
     let peripheral: CBPeripheral
     var name: String
@@ -366,6 +369,13 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       self?.handle(call, result: result)
     }
     eventChannel.setStreamHandler(self)
+    // Creating the manager with the same restoration identifier lets iOS
+    // return a previously connected H20 after a system-initiated relaunch.
+    // Do not instantiate it before the parent has answered the Bluetooth
+    // permission prompt.
+    if CBManager.authorization == .allowedAlways {
+      _ = ensureCentral()
+    }
     registerRemoteMainCommands()
     audioSessionCoordinator.onMainTurnEnded = { [weak self] in
       // Match Android: HFP activity never tears down a healthy BLE
@@ -473,7 +483,11 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     let manager = CBCentralManager(
       delegate: self,
       queue: .main,
-      options: [CBCentralManagerOptionShowPowerAlertKey: true]
+      options: [
+        CBCentralManagerOptionShowPowerAlertKey: true,
+        CBCentralManagerOptionRestoreIdentifierKey:
+          Self.centralRestorationIdentifier,
+      ]
     )
     central = manager
     return manager
@@ -1413,11 +1427,93 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
 }
 
 extension Aiv0BleControlBridge: CBCentralManagerDelegate {
+  func centralManager(
+    _ central: CBCentralManager,
+    willRestoreState dict: [String: Any]
+  ) {
+    let restored =
+      dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral]
+      ?? []
+    guard let peripheral = restored.first else {
+      audioSessionCoordinator.trace(
+        stage: "ble_state_restored_empty",
+        caller: "Aiv0BleControlBridge.willRestoreState"
+      )
+      return
+    }
+
+    manualDisconnect = false
+    connectedPeripheral = peripheral
+    peripheral.delegate = self
+    discoveredDevices[peripheral.identifier] = DiscoveredDevice(
+      peripheral: peripheral,
+      name: peripheral.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        ?? "H20",
+      rssi: 0,
+      likely: true,
+      advertisesControlService: true
+    )
+    resetCharacteristics()
+    phase = "reconnecting"
+    message = "iOS đang khôi phục kết nối H20."
+    lastNotificationRecovery =
+      "state-restoration • peripheral=\(peripheral.state) • notify=discovering"
+    audioSessionCoordinator.trace(
+      stage: "ble_state_restored",
+      caller: "Aiv0BleControlBridge.willRestoreState",
+      values: [
+        "deviceId": peripheral.identifier.uuidString,
+        "peripheralState": String(describing: peripheral.state),
+      ]
+    )
+    emitStatus()
+
+    switch peripheral.state {
+    case .connected:
+      peripheral.discoverServices([
+        ProtocolUUID.controlService,
+        ProtocolUUID.batteryService,
+        ProtocolUUID.deviceInformationService,
+      ])
+      scheduleConnectTimeout()
+    case .disconnected:
+      if central.state == .poweredOn {
+        connectPeripheral(peripheral, using: central)
+        scheduleConnectTimeout()
+      }
+    case .connecting, .disconnecting:
+      break
+    @unknown default:
+      break
+    }
+  }
+
   func centralManagerDidUpdateState(_ central: CBCentralManager) {
     switch central.state {
     case .poweredOn:
-      phase = stateCharacteristic == nil ? "idle" : "connected"
-      message = nil
+      if let restoredPeripheral = connectedPeripheral,
+         stateCharacteristic == nil,
+         restoredPeripheral.state == .disconnected {
+        phase = "reconnecting"
+        message = "iOS đang kết nối lại H20."
+        connectPeripheral(restoredPeripheral, using: central)
+        scheduleConnectTimeout()
+      } else if let restoredPeripheral = connectedPeripheral,
+                stateCharacteristic == nil,
+                restoredPeripheral.state == .connected {
+        phase = "connecting"
+        message = "iOS đang khôi phục nút MAIN H20."
+        restoredPeripheral.delegate = self
+        restoredPeripheral.discoverServices([
+          ProtocolUUID.controlService,
+          ProtocolUUID.batteryService,
+          ProtocolUUID.deviceInformationService,
+        ])
+        scheduleConnectTimeout()
+      } else {
+        phase = stateCharacteristic == nil ? "idle" : "connected"
+        message = nil
+      }
     case .poweredOff:
       phase = "error"
       message = "Bluetooth đang tắt."

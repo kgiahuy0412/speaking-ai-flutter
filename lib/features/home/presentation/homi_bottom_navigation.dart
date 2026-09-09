@@ -50,8 +50,8 @@ class HomiBottomNavigation extends StatelessWidget {
 
     return Material(
       color: surface,
-      elevation: 14,
-      shadowColor: AppColors.ink.withValues(alpha: 0.16),
+      elevation: 8,
+      shadowColor: AppColors.primaryNavy.withValues(alpha: 0.12),
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -185,6 +185,19 @@ class _MainNavigationAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final ringColor = isDark
+        ? theme.colorScheme.surfaceContainerHighest
+        : AppColors.mintSoft;
+    final buttonColor = enabled
+        ? (isDark ? theme.colorScheme.primary : AppColors.indigo)
+        : (isDark
+              ? theme.colorScheme.surfaceContainerHighest
+              : AppColors.periwinkle);
+    final buttonForeground = isDark
+        ? theme.colorScheme.onPrimary
+        : Colors.white;
     return Semantics(
       button: true,
       enabled: enabled,
@@ -204,10 +217,10 @@ class _MainNavigationAction extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFDDF3FF), width: 7),
-                  boxShadow: const <BoxShadow>[
+                  border: Border.all(color: ringColor, width: 7),
+                  boxShadow: <BoxShadow>[
                     BoxShadow(
-                      color: Color(0x273D4DD6),
+                      color: AppColors.primaryNavy.withValues(alpha: 0.14),
                       blurRadius: 18,
                       offset: Offset(0, 8),
                     ),
@@ -216,12 +229,12 @@ class _MainNavigationAction extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: enabled ? AppColors.indigo : AppColors.periwinkle,
+                    color: buttonColor,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.mic_rounded,
-                    color: Colors.white,
+                    color: buttonForeground,
                     size: 30,
                   ),
                 ),
@@ -231,8 +244,8 @@ class _MainNavigationAction extends StatelessWidget {
               bottom: 4,
               child: Text(
                 'MAIN',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.indigo,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: isDark ? theme.colorScheme.primary : AppColors.indigo,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),

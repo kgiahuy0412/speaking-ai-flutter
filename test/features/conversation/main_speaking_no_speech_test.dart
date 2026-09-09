@@ -7,6 +7,7 @@ import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversation_repository.dart';
+import 'package:ai_speaking_flutter_app/features/conversation/application/vietnamese_transcript_corrector.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -160,6 +161,41 @@ void main() {
     expect(controller.phase, ConversationPhase.idle);
     expect(controller.result, isNull);
   });
+
+  test(
+    'native transcript is corrected before online conversation translation',
+    () async {
+      final repository = _CapturingStreamingRepository();
+      final controller = ConversationController(
+        audioInput: _SilentAudioInput(),
+        streamingSpeechInput: const _CorrectableStreamingSpeechInput(),
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        vietnameseTranscriptCorrector: MapVietnameseTranscriptCorrector(
+          const <String, String>{
+            'Con ngửa tay xong rồi': 'Con rửa tay xong rồi',
+          },
+        ),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+        webRuntimeOverride: false,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.startRecording(
+        noSpeechTimeout: const Duration(seconds: 5),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(repository.capture?.sourceText, 'Con rửa tay xong rồi');
+      expect(
+        repository.capture?.extraBenchmark?['transcriptCorrectionApplied'],
+        isTrue,
+      );
+      expect(controller.result?.vietnameseText, 'Con rửa tay xong rồi');
+    },
+  );
 }
 
 class _SilentAudioInput implements ChunkedAudioInput {
@@ -367,4 +403,74 @@ class _NoSpeechStreamingSpeechInput implements StreamingSpeechInput {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _CorrectableStreamingSpeechInput implements StreamingSpeechInput {
+  const _CorrectableStreamingSpeechInput();
+
+  @override
+  String get label => 'ASR cần sửa câu';
+
+  @override
+  Stream<double> get amplitudeDbfs => const Stream<double>.empty();
+
+  @override
+  Stream<void> get completed => const Stream<void>.empty();
+
+  @override
+  Stream<String> get partialText => const Stream<String>.empty();
+
+  @override
+  Future<bool> checkAvailability() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<StreamingSpeechCapture> stop() async => const StreamingSpeechCapture(
+    sourceText: 'Con ngửa tay xong rồi',
+    duration: Duration(seconds: 1),
+    inputLabel: 'ASR cần sửa câu',
+    confidence: 0.7,
+    firstResultMs: 100,
+    finalAfterStopMs: 20,
+  );
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _CapturingStreamingRepository extends DemoConversationRepository {
+  StreamingSpeechCapture? capture;
+
+  @override
+  Future<ConversationResult> processStreamingText({
+    required StreamingSpeechCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async {
+    this.capture = capture;
+    return ConversationResult(
+      conversationId: 'corrected-turn',
+      sessionId: 'corrected-session',
+      context: context,
+      vietnameseText: capture.sourceText,
+      englishText: 'I have washed my hands.',
+      audioUri: null,
+      processingMode: 'streaming',
+      textSource: 'native_speech',
+      audioSource: 'none',
+      asrMode: capture.asrMode,
+      latency: const ConversationLatency(
+        asrMs: 1,
+        llmMs: 1,
+        ttsMs: 0,
+        timeToFirstAudioMs: 0,
+      ),
+    );
+  }
 }

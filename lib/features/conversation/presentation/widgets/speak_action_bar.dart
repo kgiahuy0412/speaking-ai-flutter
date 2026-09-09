@@ -20,13 +20,17 @@ class SpeakActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isRecording = phase == ConversationPhase.recording;
     final isProcessing =
         phase == ConversationPhase.processing || isPreparingMicrophone;
-    final primary = isRecording ? AppColors.coral : AppColors.indigo;
-    final secondary = isRecording
-        ? const Color(0xFFE9524A)
-        : AppColors.indigoDark;
+    final primary = isRecording
+        ? (isDark ? theme.colorScheme.secondary : AppColors.accentPink)
+        : (isDark ? theme.colorScheme.primary : AppColors.primaryNavy);
+    final foreground = isDark && !isRecording
+        ? theme.colorScheme.onPrimary
+        : Colors.white;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 13, 20, 24),
@@ -45,16 +49,11 @@ class SpeakActionBar extends StatelessWidget {
                   : _label(context),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: isProcessing
-                        ? <Color>[
-                            AppColors.indigo.withValues(alpha: 0.38),
-                            AppColors.indigoDark.withValues(alpha: 0.38),
-                          ]
-                        : <Color>[primary, secondary],
-                  ),
+                  color: isProcessing
+                      ? (isDark
+                            ? theme.colorScheme.surfaceContainerHighest
+                            : AppColors.softNavy.withValues(alpha: 0.72))
+                      : primary,
                   borderRadius: BorderRadius.circular(34),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
@@ -78,7 +77,7 @@ class SpeakActionBar extends StatelessWidget {
                             isRecording
                                 ? Icons.stop_rounded
                                 : Icons.mic_rounded,
-                            color: Colors.white,
+                            color: foreground,
                             size: 31,
                           ),
                           const SizedBox(width: 12),
@@ -93,11 +92,10 @@ class SpeakActionBar extends StatelessWidget {
                                       )
                                     : _label(context),
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                    ),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: foreground,
+                                  fontSize: 20,
+                                ),
                               ),
                             ),
                           ),

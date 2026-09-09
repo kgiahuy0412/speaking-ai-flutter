@@ -69,14 +69,17 @@ class AndroidSpeechRecognizerBridge(
         when (call.method) {
             "speech.isAvailable" ->
                 result.success(SpeechRecognizer.isRecognitionAvailable(activity))
-            "speech.supportsAudioSource" ->
+            "speech.supportsAudioSource" -> {
+                val onlyWhenOffline = call.argument<Boolean>("onlyWhenOffline") == true
                 result.success(
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        (!onlyWhenOffline || !hasValidatedInternetConnection()) &&
                         (
                             call.argument<Boolean>("requireOnDevice") != true ||
                                 isOnDeviceRecognitionAvailable()
                         ),
                 )
+            }
             "speech.prepare" -> result.success(ensureRecognizer(RecognizerMode.STANDARD))
             "speech.getOnDeviceModelStatus" -> getOnDeviceModelStatus(call, result)
             "speech.requestOnDeviceModelDownload" ->

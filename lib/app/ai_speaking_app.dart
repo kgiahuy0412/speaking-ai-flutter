@@ -22,10 +22,12 @@ import '../core/device/client_identity.dart';
 import '../core/device/device_registration_service.dart';
 import '../core/device/main_button_coordinator.dart';
 import '../core/pwa/pwa_install_gate.dart';
+import '../core/platform/background_learning_session.dart';
 import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
 import '../features/conversation/application/offline_language_service.dart';
+import '../features/conversation/application/vietnamese_transcript_corrector.dart';
 import '../features/conversation/domain/conversation_models.dart';
 import '../features/conversation/domain/conversation_repository.dart';
 import '../features/conversation/presentation/conversation_controller.dart';
@@ -488,6 +490,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
     }
 
+    if (parentInitiated && defaultTargetPlatform == TargetPlatform.android) {
+      final notificationGranted = await MethodChannelBackgroundLearningSession()
+          .requestNotificationPermission();
+      if (!notificationGranted) {
+        errors.add(
+          'Cần cấp quyền Thông báo để Android hiển thị phiên học nền với H20.',
+        );
+      }
+    }
+
     if (!mounted) {
       return;
     }
@@ -794,6 +806,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           : null,
       offlineVietnameseEnglishTranslator: supportsNativeSpeech
           ? _offlineTranslator
+          : null,
+      vietnameseTranscriptCorrector: supportsNativeSpeech
+          ? AssetVietnameseTranscriptCorrector()
           : null,
       displayLanguageStore: const DisplayLanguageStore(),
       childAge: _config.childAge,
@@ -1674,6 +1689,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     final history = await repository.fetchHistory();
     const fastSources = <String>{
       'phrase_rule',
+      'corpus_rule',
       'keyword_rule',
       'promoted_rule',
       'semantic_cache',

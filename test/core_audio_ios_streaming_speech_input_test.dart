@@ -9,6 +9,33 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('Android uses recorded-audio recognition only while offline', () async {
+    const methodChannel = MethodChannel('test_android_recorded_audio_support');
+    final events = StreamController<dynamic>.broadcast();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    Object? receivedArguments;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      if (call.method == 'speech.supportsAudioSource') {
+        receivedArguments = call.arguments;
+        return true;
+      }
+      return null;
+    });
+    final input = AndroidStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+    );
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await input.dispose();
+      await events.close();
+    });
+
+    expect(await input.supportsRecordedAudioRecognition(), isTrue);
+    expect(receivedArguments, <String, bool>{'onlyWhenOffline': true});
+  });
+
   test('iOS forwards native speech activity and preserves dBFS', () async {
     final events = StreamController<dynamic>.broadcast();
     final input = AndroidStreamingSpeechInput(

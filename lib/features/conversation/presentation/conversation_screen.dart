@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../home/presentation/scenic_app_header.dart';
@@ -65,10 +66,8 @@ class ConversationScreen extends StatelessWidget {
           language: controller.displayLanguage,
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            body: ColoredBox(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF0E1630)
-                  : Colors.white,
+            body: LearningScenery(
+              overlayOpacity: 0.025,
               child: SafeArea(
                 bottom: false,
                 child: Column(
@@ -205,7 +204,11 @@ class _InlineMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isError ? Theme.of(context).colorScheme.error : AppColors.ink;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final color = isError
+        ? theme.colorScheme.error
+        : (isDark ? theme.colorScheme.onTertiaryContainer : AppColors.ink);
     final localizedMessage = context.trKnown(message);
     return Semantics(
       liveRegion: true,
@@ -213,7 +216,11 @@ class _InlineMessage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
         decoration: BoxDecoration(
-          color: isError ? const Color(0xFFFFF1F0) : AppColors.lavender,
+          color: isError
+              ? theme.colorScheme.errorContainer
+              : (isDark
+                    ? theme.colorScheme.tertiaryContainer
+                    : AppColors.lavender),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(

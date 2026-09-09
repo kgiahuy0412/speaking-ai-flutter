@@ -173,10 +173,8 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ColoredBox(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF0E1630)
-            : Colors.white,
+      body: LearningScenery(
+        overlayOpacity: 0.025,
         child: SafeArea(
           bottom: false,
           child: Column(
@@ -206,10 +204,11 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
   }
 
   Widget _buildJourneyLanding(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final titleColor = isDark
         ? Theme.of(context).colorScheme.primary
-        : const Color(0xFF102653);
+        : AppColors.deepNavy;
     final savedCount = _entriesForJourney(_VocabularyJourney.family).length;
     final starCount = _entriesForJourney(_VocabularyJourney.stars).length;
     final reviewCount = _entriesForJourney(_VocabularyJourney.review).length;
@@ -226,70 +225,65 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
               Text(
                 context.tr('Từ vựng của con', '孩子的词汇'),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                style: theme.textTheme.displaySmall?.copyWith(
                   color: titleColor,
                   fontSize: 31,
                   letterSpacing: -0.9,
-                  shadows: const <Shadow>[
-                    Shadow(color: Colors.white, blurRadius: 9),
-                  ],
+                  shadows: isDark
+                      ? const <Shadow>[
+                          Shadow(color: Colors.black54, blurRadius: 12),
+                        ]
+                      : const <Shadow>[
+                          Shadow(color: Colors.white, blurRadius: 9),
+                        ],
                 ),
               ),
               const SizedBox(height: 5),
               Text(
                 context.tr('Chọn hành trình của con', '选择你的学习旅程'),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.muted,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: isDark
+                      ? theme.colorScheme.onSurfaceVariant
+                      : AppColors.muted,
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  child: _JourneyCard(
-                    key: const Key('vocabulary-family-card'),
-                    height: 138,
-                    backgroundColor: const Color(0xFFFFF0E8),
-                    accentColor: const Color(0xFFFF664B),
-                    onPressed: () => _openJourney(_VocabularyJourney.family),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          flex: 6,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: Image.asset(
-                                _familyAsset,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.center,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),
+              _JourneyCard(
+                key: const Key('vocabulary-family-card'),
+                height: 138,
+                onPressed: () => _openJourney(_VocabularyJourney.family),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      flex: 5,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 12, 8, 12),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(26),
+                          child: Image.asset(
+                            _familyAsset,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            filterQuality: FilterQuality.high,
                           ),
                         ),
-                        Expanded(
-                          flex: 5,
-                          child: _JourneyCopy(
-                            title: context.tr('Gia đình', '家庭'),
-                            count: context.tr(
-                              '$savedCount từ',
-                              '$savedCount 个词',
-                            ),
-                            countColor: const Color(0xFFF4573F),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      flex: 6,
+                      child: _JourneyCopy(
+                        title: context.tr('Gia đình', '家庭'),
+                        count: context.tr('$savedCount từ', '$savedCount 个词'),
+                        countColor: AppColors.accentPink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 10),
               SizedBox(
                 height: 144,
                 child: Stack(
@@ -309,14 +303,12 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                       ),
                     ),
                     Positioned(
-                      left: 71,
-                      right: -14,
+                      left: 0,
+                      right: 0,
                       top: 0,
                       child: _JourneyCard(
                         key: const Key('vocabulary-stars-card'),
                         height: 138,
-                        backgroundColor: const Color(0xFFFFF8DD),
-                        accentColor: const Color(0xFFFFB719),
                         onPressed: () => _openJourney(_VocabularyJourney.stars),
                         child: Row(
                           children: <Widget>[
@@ -344,7 +336,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                                   '$starCount từ yêu thích',
                                   '$starCount 个收藏词',
                                 ),
-                                countColor: const Color(0xFFFFAC13),
+                                countColor: AppColors.accentPink,
                               ),
                             ),
                           ],
@@ -354,44 +346,36 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  child: _JourneyCard(
-                    key: const Key('vocabulary-review-card'),
-                    height: 138,
-                    backgroundColor: const Color(0xFFF5F0FF),
-                    accentColor: const Color(0xFF8354DF),
-                    onPressed: () => _openJourney(_VocabularyJourney.review),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          flex: 6,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 2, 8),
-                            child: Image.asset(
-                              _reviewAsset,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),
-                          ),
+              const SizedBox(height: 10),
+              _JourneyCard(
+                key: const Key('vocabulary-review-card'),
+                height: 138,
+                onPressed: () => _openJourney(_VocabularyJourney.review),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      flex: 5,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                        child: Image.asset(
+                          _reviewAsset,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
                         ),
-                        Expanded(
-                          flex: 5,
-                          child: _JourneyCopy(
-                            title: context.tr('Luyện lại', '复习'),
-                            count: context.tr(
-                              '$reviewCount từ cần ôn',
-                              '$reviewCount 个待复习词',
-                            ),
-                            countColor: const Color(0xFF8354DF),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      flex: 6,
+                      child: _JourneyCopy(
+                        title: context.tr('Luyện lại', '复习'),
+                        count: context.tr(
+                          '$reviewCount từ cần ôn',
+                          '$reviewCount 个待复习词',
+                        ),
+                        countColor: AppColors.accentPink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -404,7 +388,8 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
   Widget _buildJourneyDetail(BuildContext context) {
     final journey = _selectedJourney!;
     final visibleEntries = _filteredEntries;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Center(
       key: ValueKey<_VocabularyJourney>(journey),
@@ -422,8 +407,12 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                     icon: const Icon(Icons.arrow_back_rounded),
                     tooltip: context.tr('Quay lại', '返回'),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.9),
-                      foregroundColor: AppColors.indigoDark,
+                      backgroundColor: isDark
+                          ? theme.colorScheme.surfaceContainerHighest
+                          : Colors.white.withValues(alpha: 0.9),
+                      foregroundColor: isDark
+                          ? theme.colorScheme.primary
+                          : AppColors.indigoDark,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -432,13 +421,12 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                       _journeyTitle(context, journey),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            color: isDark
-                                ? Theme.of(context).colorScheme.primary
-                                : AppColors.indigoDark,
-                            fontSize: 27,
-                          ),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: isDark
+                            ? theme.colorScheme.primary
+                            : AppColors.indigoDark,
+                        fontSize: 27,
+                      ),
                     ),
                   ),
                   IconButton.filledTonal(
@@ -455,10 +443,16 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                         ? context.tr('Đóng chế độ xóa', '退出删除模式')
                         : context.tr('Xóa từ vựng', '删除词汇'),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.9),
+                      backgroundColor: isDark
+                          ? theme.colorScheme.surfaceContainerHighest
+                          : Colors.white.withValues(alpha: 0.9),
                       foregroundColor: _deleteMode
-                          ? AppColors.coral
-                          : AppColors.indigo,
+                          ? (isDark
+                                ? theme.colorScheme.secondary
+                                : AppColors.coral)
+                          : (isDark
+                                ? theme.colorScheme.primary
+                                : AppColors.indigo),
                     ),
                   ),
                 ],
@@ -471,14 +465,18 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                   '${visibleEntries.length} từ đã lưu',
                   '已保存 ${visibleEntries.length} 个词',
                 ),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: theme.textTheme.titleMedium?.copyWith(
                   color: isDark
-                      ? Theme.of(context).colorScheme.primary
+                      ? theme.colorScheme.primary
                       : AppColors.indigoDark,
                   fontWeight: FontWeight.w800,
-                  shadows: const <Shadow>[
-                    Shadow(color: Colors.white, blurRadius: 8),
-                  ],
+                  shadows: isDark
+                      ? const <Shadow>[
+                          Shadow(color: Colors.black54, blurRadius: 10),
+                        ]
+                      : const <Shadow>[
+                          Shadow(color: Colors.white, blurRadius: 8),
+                        ],
                 ),
               ),
               const SizedBox(height: 14),
@@ -554,9 +552,9 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                     '没有匹配的词，试试其他关键词。',
                   ),
                   textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             )
@@ -579,7 +577,10 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                     onDelete: () => unawaited(_delete(entries[index])),
                   ),
                   if (index != entries.length - 1)
-                    const Divider(color: AppColors.lavenderBorder, height: 1),
+                    Divider(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      height: 1,
+                    ),
                 ],
               ],
             ),
@@ -831,9 +832,9 @@ class _VocabularyHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final foreground = isDark
-        ? Theme.of(context).colorScheme.primary
-        : const Color(0xFF102653);
+    final colorScheme = Theme.of(context).colorScheme;
+    final foreground = isDark ? colorScheme.primary : AppColors.deepNavy;
+    final readyColor = isDark ? colorScheme.tertiary : AppColors.success;
 
     return Center(
       child: ConstrainedBox(
@@ -856,10 +857,16 @@ class _VocabularyHeader extends StatelessWidget {
                           height: 56,
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.92),
+                            color: isDark
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHighest
+                                : Colors.white.withValues(alpha: 0.92),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.95),
+                              color: isDark
+                                  ? Theme.of(context).colorScheme.outline
+                                  : Colors.white.withValues(alpha: 0.95),
                               width: 2.5,
                             ),
                             boxShadow: const <BoxShadow>[
@@ -910,7 +917,7 @@ class _VocabularyHeader extends StatelessWidget {
                                     height: 10,
                                     decoration: BoxDecoration(
                                       color: isReady
-                                          ? AppColors.success
+                                          ? readyColor
                                           : AppColors.muted,
                                       shape: BoxShape.circle,
                                       boxShadow: isReady
@@ -936,7 +943,7 @@ class _VocabularyHeader extends StatelessWidget {
                                           .bodyMedium
                                           ?.copyWith(
                                             color: isReady
-                                                ? AppColors.success
+                                                ? readyColor
                                                 : AppColors.muted,
                                             fontSize: 14,
                                             fontWeight: FontWeight.w700,
@@ -1012,15 +1019,14 @@ class _VocabularyHeaderButton extends StatelessWidget {
             : Colors.white.withValues(alpha: 0.9),
         foregroundColor: isDark
             ? Theme.of(context).colorScheme.primary
-            : const Color(0xFF153B9A),
+            : AppColors.primaryNavy,
         side: BorderSide(
           color: isDark
               ? Theme.of(context).colorScheme.outline
-              : const Color(0xFFD4E5ED),
+              : AppColors.mintBorder,
           width: 1.4,
         ),
-        elevation: 2,
-        shadowColor: const Color(0x24142451),
+        elevation: 0,
       ),
     );
   }
@@ -1029,57 +1035,55 @@ class _VocabularyHeaderButton extends StatelessWidget {
 class _JourneyCard extends StatelessWidget {
   const _JourneyCard({
     required this.height,
-    required this.backgroundColor,
-    required this.accentColor,
     required this.onPressed,
     required this.child,
     super.key,
   });
 
   final double height;
-  final Color backgroundColor;
-  final Color accentColor;
   final VoidCallback onPressed;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(18),
         child: Ink(
           height: height,
           decoration: BoxDecoration(
-            color: backgroundColor.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(42),
+            border: Border(
+              bottom: BorderSide(
+                color: isDark
+                    ? theme.colorScheme.outlineVariant
+                    : AppColors.mintBorder,
+                width: 1.2,
+              ),
+            ),
           ),
           child: Stack(
             fit: StackFit.expand,
             children: <Widget>[
-              Padding(padding: const EdgeInsets.only(right: 8), child: child),
+              Padding(padding: const EdgeInsets.only(right: 52), child: child),
               Positioned(
-                right: 11,
-                bottom: 11,
+                right: 4,
+                top: (height - 45) / 2,
                 child: Container(
                   width: 45,
                   height: 45,
                   decoration: BoxDecoration(
-                    color: accentColor,
+                    color: isDark
+                        ? theme.colorScheme.primary
+                        : AppColors.primaryNavy,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: accentColor.withValues(alpha: 0.28),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.arrow_forward_rounded,
-                    color: Colors.white,
+                    color: isDark ? theme.colorScheme.onPrimary : Colors.white,
                     size: 30,
                   ),
                 ),
@@ -1105,6 +1109,8 @@ class _JourneyCopy extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 22, 12, 20),
       child: Column(
@@ -1117,8 +1123,10 @@ class _JourneyCopy extends StatelessWidget {
             child: Text(
               title,
               maxLines: 1,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: const Color(0xFF102653),
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: isDark
+                    ? theme.colorScheme.onSurface
+                    : AppColors.deepNavy,
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
@@ -1130,8 +1138,8 @@ class _JourneyCopy extends StatelessWidget {
             count,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: countColor,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: isDark ? theme.colorScheme.secondary : countColor,
               fontSize: 16,
               height: 1.16,
               fontWeight: FontWeight.w800,
@@ -1158,6 +1166,8 @@ class _VocabularyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -1165,11 +1175,17 @@ class _VocabularyRow extends StatelessWidget {
           Container(
             width: 46,
             height: 46,
-            decoration: const BoxDecoration(
-              color: AppColors.lavender,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : AppColors.lavender,
               shape: BoxShape.circle,
             ),
-            child: Icon(_icon, color: AppColors.indigo, size: 25),
+            child: Icon(
+              _icon,
+              color: isDark ? theme.colorScheme.primary : AppColors.indigo,
+              size: 25,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1180,8 +1196,8 @@ class _VocabularyRow extends StatelessWidget {
                   entry.word,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.indigoDark,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1190,15 +1206,15 @@ class _VocabularyRow extends StatelessWidget {
                   entry.meaning,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _dateLabel(context),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.muted,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                     fontSize: 10,
                   ),
                 ),
@@ -1214,10 +1230,14 @@ class _VocabularyRow extends StatelessWidget {
             tooltip: deleteMode
                 ? context.tr('Xóa từ này', '删除此词')
                 : context.tr('Nghe phát âm', '播放发音'),
-            color: deleteMode ? AppColors.coral : AppColors.indigo,
+            color: deleteMode
+                ? (isDark ? theme.colorScheme.secondary : AppColors.coral)
+                : (isDark ? theme.colorScheme.primary : AppColors.indigo),
             style: IconButton.styleFrom(
               minimumSize: const Size.square(44),
-              backgroundColor: AppColors.lavenderSoft,
+              backgroundColor: isDark
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : AppColors.lavenderSoft,
             ),
           ),
         ],
@@ -1273,9 +1293,11 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
   @override
   Widget build(BuildContext context) {
     final enabled = _controller.text.trim().isNotEmpty;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 48),
-      backgroundColor: const Color(0xFFFFFDFB),
+      backgroundColor: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -1288,8 +1310,8 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
               Center(
                 child: Text(
                   context.tr('Thêm từ vựng', '添加词汇'),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: AppColors.indigoDark,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
                     fontSize: 23,
                   ),
                 ),
@@ -1301,26 +1323,35 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
                 autofocus: true,
                 minLines: 1,
                 maxLines: 1,
-                style: const TextStyle(fontSize: 13),
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 13,
+                ),
                 decoration: InputDecoration(
                   hintText: context.tr(
                     'Nhập từ tiếng Anh hoặc tiếng Việt',
                     '输入英文或越南文',
                   ),
                   filled: true,
-                  fillColor: AppColors.lavenderSoft,
+                  fillColor: isDark
+                      ? theme.colorScheme.surfaceContainer
+                      : AppColors.lavenderSoft,
                   hintStyle: const TextStyle(fontSize: 13),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(
-                      color: AppColors.indigo,
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? theme.colorScheme.outline
+                          : AppColors.indigo,
                       width: 1.5,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(
-                      color: AppColors.indigo,
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? theme.colorScheme.secondary
+                          : AppColors.indigo,
                       width: 2,
                     ),
                   ),
@@ -1337,8 +1368,8 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
                   '可以输入一个单词或短语。',
                 ),
                 maxLines: 1,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.muted,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 12.5,
                 ),
               ),
@@ -1346,9 +1377,11 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Icon(
+                  Icon(
                     Icons.lightbulb_outline_rounded,
-                    color: AppColors.indigo,
+                    color: isDark
+                        ? theme.colorScheme.tertiary
+                        : AppColors.indigo,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1369,8 +1402,8 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
                           ),
                         ],
                       ),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.indigoDark,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface,
                         fontSize: 13,
                         height: 1.3,
                       ),
@@ -1396,7 +1429,12 @@ class _AddVocabularyDialogState extends State<_AddVocabularyDialog> {
                     label: Text(context.tr('Thêm', '添加')),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(104, 46),
-                      backgroundColor: AppColors.indigo,
+                      backgroundColor: isDark
+                          ? theme.colorScheme.primary
+                          : AppColors.indigo,
+                      foregroundColor: isDark
+                          ? theme.colorScheme.onPrimary
+                          : Colors.white,
                     ),
                   ),
                 ],

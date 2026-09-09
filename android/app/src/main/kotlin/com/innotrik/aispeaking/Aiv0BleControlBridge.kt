@@ -504,6 +504,9 @@ class Aiv0BleControlBridge(
                 TAG,
                 "Button Event device=$deviceId len=${value.size} duplicate=$duplicate raw=$hex",
             )
+            if (!duplicate && isObservedH20MainPacket(value)) {
+                BackgroundLearningService.notePhysicalMain()
+            }
             emitStatus()
             eventSink?.success(
                 mapOf(
@@ -727,6 +730,12 @@ class Aiv0BleControlBridge(
             "advertisesControlService" to advertisesControlService,
         )
     }
+
+    private fun isObservedH20MainPacket(value: ByteArray): Boolean =
+        value.size == 12 &&
+            (value[0].toInt() and 0xFF) == 0x01 &&
+            (value[1].toInt() and 0xFF) == 0x01 &&
+            (value[3].toInt() and 0xFF) == 0x01
 
     private fun ByteArray.toHex(): String = joinToString(" ") {
         (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase(Locale.ROOT)

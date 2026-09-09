@@ -121,23 +121,42 @@ class SettingsSheet extends StatelessWidget {
                       label: context.tr('Ngôn ngữ hiển thị', '显示语言'),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<DisplayLanguage>(
-                        showSelectedIcon: false,
-                        segments: DisplayLanguage.values
+                    if (MediaQuery.textScalerOf(context).scale(1) >= 1.5)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: DisplayLanguage.values
                             .map(
-                              (language) => ButtonSegment<DisplayLanguage>(
-                                value: language,
+                              (language) => ChoiceChip(
                                 label: Text(language.nativeLabel),
+                                selected:
+                                    controller.displayLanguage == language,
+                                onSelected: (_) =>
+                                    controller.setDisplayLanguage(language),
                               ),
                             )
                             .toList(growable: false),
-                        selected: <DisplayLanguage>{controller.displayLanguage},
-                        onSelectionChanged: (selection) =>
-                            controller.setDisplayLanguage(selection.first),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<DisplayLanguage>(
+                          showSelectedIcon: false,
+                          segments: DisplayLanguage.values
+                              .map(
+                                (language) => ButtonSegment<DisplayLanguage>(
+                                  value: language,
+                                  label: Text(language.nativeLabel),
+                                ),
+                              )
+                              .toList(growable: false),
+                          selected: <DisplayLanguage>{
+                            controller.displayLanguage,
+                          },
+                          onSelectionChanged: (selection) =>
+                              controller.setDisplayLanguage(selection.first),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 24),
                     _SectionLabel(
                       label: context.tr('Nhóm tuổi của trẻ', '孩子年龄组'),
@@ -403,9 +422,9 @@ class SettingsSheet extends StatelessWidget {
                         '700 ms là mặc định; có thể tăng nếu trẻ thường ngắt câu.',
                         '默认 700 毫秒；如果孩子说话经常停顿，可以调高。',
                       ),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 22),
                     OutlinedButton.icon(
@@ -710,9 +729,9 @@ class SettingsSheet extends StatelessWidget {
                     'APK sẽ xác nhận service 9E3B0001. Âm thanh không truyền qua BLE.',
                     'APK 将验证 9E3B0001 服务。音频不通过 BLE 传输。',
                   ),
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ConstrainedBox(
@@ -724,11 +743,13 @@ class SettingsSheet extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final device = devices[index];
                       return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.lavender,
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: Icon(
                             Icons.bluetooth_rounded,
-                            color: AppColors.indigo,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         title: Text(device.name),
@@ -808,9 +829,9 @@ class SettingsSheet extends StatelessWidget {
                     'Thiết bị đúng giao thức được ưu tiên ở đầu danh sách.',
                     '符合协议的设备会优先显示在列表顶部。',
                   ),
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ConstrainedBox(
@@ -824,15 +845,19 @@ class SettingsSheet extends StatelessWidget {
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: device.isLikelyInnotrik
-                              ? AppColors.lavender
-                              : const Color(0xFFF1F2F8),
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest
+                              : Theme.of(context).colorScheme.surfaceContainer,
                           child: Icon(
                             device.isLikelyInnotrik
                                 ? Icons.bluetooth_connected_rounded
                                 : Icons.bluetooth_rounded,
                             color: device.isLikelyInnotrik
-                                ? AppColors.indigo
-                                : AppColors.muted,
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         title: Text(device.displayName),
@@ -961,9 +986,9 @@ class SettingsSheet extends StatelessWidget {
                         ? 'iOS 仅显示 AVAudioSession 中可用的 HFP 麦克风；当前设备优先。'
                         : 'Android 仅允许应用使用已配对的 HFP；已连接设备优先显示。',
                   ),
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ConstrainedBox(
@@ -977,13 +1002,20 @@ class SettingsSheet extends StatelessWidget {
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: device.isConnected
-                              ? AppColors.successSoft
-                              : const Color(0xFFF1F2F8),
+                              ? Color.alphaBlend(
+                                  AppColors.success.withValues(alpha: 0.14),
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHighest,
+                                )
+                              : Theme.of(context).colorScheme.surfaceContainer,
                           child: Icon(
                             Icons.headset_mic_rounded,
                             color: device.isConnected
                                 ? AppColors.success
-                                : AppColors.muted,
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         title: Text(device.displayName),
@@ -2186,9 +2218,9 @@ class _Aiv0DiagnosticLine extends StatelessWidget {
             width: 108,
             child: Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.muted),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(

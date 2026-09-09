@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../listening/domain/listening_catalog.dart';
 
@@ -113,10 +114,8 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     final stepNumber = _step.index + 1;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ColoredBox(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF0E1630)
-            : Colors.white,
+      body: LearningScenery(
+        overlayOpacity: 0.025,
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -160,6 +159,11 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   }
 
   Widget _buildPrivacyStep(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final headingColor = isDark
+        ? theme.colorScheme.onSurface
+        : AppColors.indigoDark;
+    final accentColor = isDark ? theme.colorScheme.secondary : AppColors.coral;
     return _SetupStepLayout(
       key: const ValueKey<String>('startup-privacy-step'),
       title: 'Xác nhận của phụ huynh',
@@ -179,7 +183,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                   ? null
                   : (value) =>
                         setState(() => _adultRoleConfirmed = value ?? false),
-              activeColor: AppColors.coral,
+              activeColor: accentColor,
               checkColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(22),
@@ -187,7 +191,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               title: Text(
                 'Tôi là phụ huynh, người giám hộ hoặc giáo viên',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppColors.indigoDark,
+                  color: headingColor,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -199,8 +203,12 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             onPressed: _showLegalReview,
             style: TextButton.styleFrom(
               alignment: Alignment.centerLeft,
-              foregroundColor: AppColors.indigoDark,
-              backgroundColor: Colors.white.withValues(alpha: 0.74),
+              foregroundColor: isDark
+                  ? theme.colorScheme.primary
+                  : AppColors.indigoDark,
+              backgroundColor: isDark
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : Colors.white.withValues(alpha: 0.74),
               minimumSize: const Size.fromHeight(54),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(
@@ -239,7 +247,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                   ? null
                   : (value) =>
                         setState(() => _voiceDataAccepted = value ?? false),
-              activeColor: AppColors.coral,
+              activeColor: accentColor,
               checkColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(22),
@@ -247,7 +255,9 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               title: Text(
                 'Tôi đồng ý để HOMI xử lý dữ liệu giọng nói theo Điều khoản và Chính sách quyền riêng tư đã đọc.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.indigoDark.withValues(alpha: 0.76),
+                  color: isDark
+                      ? theme.colorScheme.onSurfaceVariant
+                      : AppColors.indigoDark.withValues(alpha: 0.76),
                   height: 1.4,
                 ),
               ),
@@ -315,19 +325,29 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
       title: 'Chọn hồ sơ học của trẻ',
       subtitle:
           'Phụ huynh chọn nhóm tuổi để HOMI chuẩn bị từ vựng, chủ đề và cách hướng dẫn phù hợp.',
-      panel: Column(
-        children: <Widget>[
-          for (final catalog in listeningCatalogs)
-            _ProfileAgeOption(
-              key: ValueKey('startup-age-${catalog.id}'),
-              label: '${catalog.startAge}–${catalog.endAge} tuổi',
-              selected:
-                  widget.selectedAge != null &&
-                  widget.selectedAge! >= catalog.startAge &&
-                  widget.selectedAge! <= catalog.endAge,
-              onPressed: () => widget.onAgeSelected(catalog.startAge),
-            ),
-        ],
+      panel: LayoutBuilder(
+        builder: (context, constraints) {
+          final optionWidth = (constraints.maxWidth - 10) / 2;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: <Widget>[
+              for (final catalog in listeningCatalogs)
+                SizedBox(
+                  width: optionWidth,
+                  child: _ProfileAgeOption(
+                    key: ValueKey('startup-age-${catalog.id}'),
+                    label: '${catalog.startAge}–${catalog.endAge} tuổi',
+                    selected:
+                        widget.selectedAge != null &&
+                        widget.selectedAge! >= catalog.startAge &&
+                        widget.selectedAge! <= catalog.endAge,
+                    onPressed: () => widget.onAgeSelected(catalog.startAge),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       footer: <Widget>[
         const _InfoBox(
@@ -335,13 +355,20 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
           text: 'Nhóm tuổi chỉ được thay đổi trong Cài đặt dành cho phụ huynh.',
         ),
         SizedBox(
-          height: compact ? 104 : 154,
-          child: Align(
-            alignment: Alignment.bottomRight,
-            child: Image.asset(
-              MascotAssets.wave,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+          height: compact ? 168 : 216,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 20),
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Transform.scale(
+                scale: 1.15,
+                alignment: Alignment.bottomRight,
+                child: Image.asset(
+                  MascotAssets.wave,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
             ),
           ),
         ),
@@ -483,7 +510,12 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               : null,
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(58),
-            backgroundColor: AppColors.indigo,
+            backgroundColor: theme.brightness == Brightness.dark
+                ? theme.colorScheme.primary
+                : AppColors.indigo,
+            foregroundColor: theme.brightness == Brightness.dark
+                ? theme.colorScheme.onPrimary
+                : Colors.white,
           ),
           icon: const Icon(Icons.play_circle_outline_rounded),
           label: const Text('Hoàn tất và bắt đầu phiên học'),
@@ -664,7 +696,7 @@ class _LegalReviewSheetState extends State<_LegalReviewSheet> {
                   child: Text(
                     'Điều khoản và quyền riêng tư',
                     style: theme.textTheme.titleLarge?.copyWith(
-                      color: AppColors.indigoDark,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -836,7 +868,7 @@ class _LegalSection extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Icon(icon, size: 23, color: AppColors.indigo),
+        Icon(icon, size: 23, color: theme.colorScheme.primary),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -926,7 +958,7 @@ class _SetupHeader extends StatelessWidget {
                     Text(
                       'Thiết lập HOMI',
                       style: theme.textTheme.titleLarge?.copyWith(
-                        color: AppColors.indigoDark,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     Text(
@@ -950,7 +982,9 @@ class _SetupHeader extends StatelessWidget {
                     height: 6,
                     decoration: BoxDecoration(
                       color: index <= stepNumber
-                          ? AppColors.indigo
+                          ? (theme.brightness == Brightness.dark
+                                ? theme.colorScheme.secondary
+                                : AppColors.accentPink)
                           : theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(999),
                     ),
@@ -1003,10 +1037,11 @@ class _ProfileAgeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: selected ? const Color(0xFFFFF0B7) : Colors.transparent,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(23),
         child: InkWell(
           onTap: onPressed,
@@ -1019,10 +1054,12 @@ class _ProfileAgeOption extends StatelessWidget {
                 children: <Widget>[
                   Icon(
                     selected
-                        ? Icons.check_circle_rounded
+                        ? Icons.radio_button_checked_rounded
                         : Icons.radio_button_unchecked_rounded,
                     color: selected
-                        ? AppColors.coral
+                        ? (isDark
+                              ? theme.colorScheme.secondary
+                              : AppColors.coral)
                         : theme.colorScheme.onSurfaceVariant,
                     size: 27,
                   ),
@@ -1031,17 +1068,11 @@ class _ProfileAgeOption extends StatelessWidget {
                     child: Text(
                       label,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: AppColors.indigoDark,
+                        color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  if (selected)
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      color: AppColors.coral,
-                      size: 27,
-                    ),
                 ],
               ),
             ),
@@ -1078,7 +1109,7 @@ class _SetupStepLayout extends StatelessWidget {
         Text(
           title,
           style: theme.textTheme.headlineMedium?.copyWith(
-            color: AppColors.indigoDark,
+            color: theme.colorScheme.onSurface,
             fontSize: compact ? 28 : 32,
             letterSpacing: -0.7,
           ),
@@ -1097,7 +1128,7 @@ class _SetupStepLayout extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.brightness == Brightness.dark
                 ? theme.colorScheme.surfaceContainer
-                : const Color(0xFFFFFBEC),
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(30),
           ),
           child: panel,
@@ -1135,11 +1166,14 @@ class _DeviceChoiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: selected
-            ? AppColors.successSoft
+            ? (isDark
+                  ? AppColors.success.withValues(alpha: 0.16)
+                  : AppColors.successSoft)
             : theme.colorScheme.surface.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -1150,7 +1184,9 @@ class _DeviceChoiceCard extends StatelessWidget {
             children: <Widget>[
               Icon(
                 icon,
-                color: selected ? AppColors.success : AppColors.indigo,
+                color: selected
+                    ? (isDark ? theme.colorScheme.tertiary : AppColors.success)
+                    : theme.colorScheme.primary,
               ),
               const SizedBox(width: 10),
               Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
@@ -1212,12 +1248,15 @@ class _PermissionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final color = granted ? AppColors.success : theme.colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
       decoration: BoxDecoration(
         color: granted
-            ? AppColors.successSoft
+            ? (isDark
+                  ? AppColors.success.withValues(alpha: 0.16)
+                  : AppColors.successSoft)
             : theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
       ),
@@ -1255,21 +1294,33 @@ class _InfoBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
+        color: isDark
+            ? theme.colorScheme.tertiaryContainer
+            : AppColors.mintSoft,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+          Icon(
+            icon,
+            color: isDark
+                ? theme.colorScheme.onTertiaryContainer
+                : AppColors.softNavy,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
+              style: TextStyle(
+                color: isDark
+                    ? theme.colorScheme.onTertiaryContainer
+                    : AppColors.muted,
+              ),
             ),
           ),
         ],
@@ -1306,17 +1357,26 @@ class _GrantedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: AppColors.successSoft,
+        color: isDark
+            ? AppColors.success.withValues(alpha: 0.16)
+            : AppColors.successSoft,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: <Widget>[
           const Icon(Icons.check_circle_rounded, color: AppColors.success),
           const SizedBox(width: 8),
-          Expanded(child: Text(text)),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: theme.colorScheme.onSurface),
+            ),
+          ),
         ],
       ),
     );

@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
     private var hfpAudioBridge: HfpAudioBridge? = null
     private var voicePromptBridge: VoicePromptBridge? = null
+    private var backgroundLearningBridge: AndroidBackgroundLearningBridge? = null
     private val installationCredentialStore by lazy {
         AndroidInstallationCredentialStore(applicationContext)
     }
@@ -60,6 +61,11 @@ class MainActivity : FlutterActivity() {
             )
         voicePromptBridge =
             VoicePromptBridge(
+                this,
+                flutterEngine.dartExecutor.binaryMessenger,
+            )
+        backgroundLearningBridge =
+            AndroidBackgroundLearningBridge(
                 this,
                 flutterEngine.dartExecutor.binaryMessenger,
             )
@@ -137,6 +143,8 @@ class MainActivity : FlutterActivity() {
         hfpAudioBridge = null
         voicePromptBridge?.dispose()
         voicePromptBridge = null
+        backgroundLearningBridge?.dispose()
+        backgroundLearningBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -146,6 +154,10 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         if (
+            backgroundLearningBridge?.onRequestPermissionsResult(
+                requestCode,
+                grantResults,
+            ) == true ||
             speechRecognizerBridge?.onRequestPermissionsResult(
                 requestCode,
                 grantResults,

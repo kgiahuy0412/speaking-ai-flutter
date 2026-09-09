@@ -396,6 +396,52 @@ void main() {
     },
   );
 
+  testWidgets(
+    'rearms an Android background session without opening a busy microphone',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final backgroundSession = _FakeBackgroundLearningSession();
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+      );
+      final controller = _controller();
+      addTearDown(backgroundSession.dispose);
+      addTearDown(voiceNavigationController.dispose);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          autoStartVoiceNavigation: true,
+          voiceNavigationController: voiceNavigationController,
+          backgroundLearningSession: backgroundSession,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 901));
+      expect(voiceNavigationController.isListening, isTrue);
+
+      backgroundSession.interrupt('audio_focus_loss');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(voiceNavigationController.isListening, isFalse);
+
+      backgroundSession.resume();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(voiceNavigationController.isListening, isTrue);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   testWidgets('opens a lesson inside a named topic from voice', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tester.view.physicalSize = const Size(390, 844);
@@ -694,6 +740,15 @@ class _FakeBackgroundLearningSession
       BackgroundLearningEvent(
         type: BackgroundLearningEventType.interrupted,
         reason: reason,
+      ),
+    );
+  }
+
+  void resume() {
+    _events.add(
+      const BackgroundLearningEvent(
+        type: BackgroundLearningEventType.resumable,
+        reason: 'audio_session_interruption_ended',
       ),
     );
   }

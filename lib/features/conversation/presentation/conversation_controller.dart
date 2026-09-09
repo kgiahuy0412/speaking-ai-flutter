@@ -18,6 +18,7 @@ import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
 import '../application/offline_language_service.dart';
+import '../application/vietnamese_transcript_corrector.dart';
 import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 import '../domain/speech_gated_batch_upload_session.dart';
@@ -85,6 +86,7 @@ class ConversationController extends ChangeNotifier {
     OfflineIntentRecognizer? offlineIntentRecognizer,
     OfflineVietnameseSpeechRecognizer? offlineVietnameseSpeechRecognizer,
     OfflineVietnameseEnglishTranslator? offlineVietnameseEnglishTranslator,
+    VietnameseTranscriptCorrector? vietnameseTranscriptCorrector,
     DisplayLanguageStore? displayLanguageStore,
     required int childAge,
     bool preferBleStreaming = true,
@@ -113,6 +115,7 @@ class ConversationController extends ChangeNotifier {
        _offlineIntentRecognizer = offlineIntentRecognizer,
        _offlineVietnameseSpeechRecognizer = offlineVietnameseSpeechRecognizer,
        _offlineVietnameseEnglishTranslator = offlineVietnameseEnglishTranslator,
+       _vietnameseTranscriptCorrector = vietnameseTranscriptCorrector,
        _displayLanguageStore = displayLanguageStore,
        _childAge = childAge,
        _preferBleStreaming = preferBleStreaming,
@@ -238,6 +241,7 @@ class ConversationController extends ChangeNotifier {
     if (displayLanguageStore != null) {
       unawaited(_loadDisplayLanguage());
     }
+    unawaited(_primeVietnameseTranscriptCorrector());
     unawaited(_primeExactIntentCatalog());
   }
 
@@ -252,6 +256,7 @@ class ConversationController extends ChangeNotifier {
   final OfflineIntentRecognizer? _offlineIntentRecognizer;
   final OfflineVietnameseSpeechRecognizer? _offlineVietnameseSpeechRecognizer;
   final OfflineVietnameseEnglishTranslator? _offlineVietnameseEnglishTranslator;
+  final VietnameseTranscriptCorrector? _vietnameseTranscriptCorrector;
   final DisplayLanguageStore? _displayLanguageStore;
   int _childAge;
   final bool _preferBleStreaming;
@@ -325,6 +330,10 @@ class ConversationController extends ChangeNotifier {
   Future<void>? _realtimeConnectionFuture;
   int _realtimeConnectionGeneration = 0;
   OfflineIntentManifest? _offlineIntentManifest;
+  Map<String, OfflineIntentDefinition> _offlineIntentByContextAndText =
+      const <String, OfflineIntentDefinition>{};
+  Map<String, OfflineIntentDefinition> _offlineIntentByContextAndId =
+      const <String, OfflineIntentDefinition>{};
   OfflineIntentGate? _offlineIntentGate;
   OfflineIntentDecision? _offlineIntentDecision;
   int? _offlineIntentFirstResultMs;
@@ -379,6 +388,22 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _primeVietnameseTranscriptCorrector() async {
+    final corrector = _vietnameseTranscriptCorrector;
+    if (corrector == null) {
+      return;
+    }
+    try {
+      await corrector.warmUp();
+    } catch (error) {
+      // A bad optional pack must not block recording or translation. The
+      // normal transcript continues through the existing backend/offline path.
+      debugPrint(
+        'Vietnamese transcript correction preload was skipped: $error',
+      );
+    }
+  }
+
   Future<void> _primeExactIntentCatalog() async {
     // Web Batch Chunks has no local transcript to match while recording. The
     // backend performs the exact lookup after ASR, so downloading the catalog
@@ -395,7 +420,7 @@ class ConversationController extends ChangeNotifier {
     try {
       final manifest = await catalog.fetchOfflineIntentManifest();
       if (!_disposed) {
-        _offlineIntentManifest = manifest;
+        _setOfflineIntentManifest(manifest);
       }
     } catch (error) {
       debugPrint('Exact-rule catalog preload was skipped: $error');
@@ -411,6 +436,35 @@ class ConversationController extends ChangeNotifier {
         .trim();
   }
 
+  String _exactIntentKey(String contextValue, String normalizedText) =>
+      '$contextValue\u0000$normalizedText';
+
+  void _setOfflineIntentManifest(OfflineIntentManifest manifest) {
+    final byContextAndText = <String, OfflineIntentDefinition>{};
+    final byContextAndId = <String, OfflineIntentDefinition>{};
+    for (final item in manifest.items) {
+      for (final contextValue in item.contexts) {
+        byContextAndId.putIfAbsent(
+          _exactIntentKey(contextValue, item.id),
+          () => item,
+        );
+        for (final sample in item.samples) {
+          final normalized = _normalizeExactText(sample);
+          if (normalized.isEmpty) continue;
+          byContextAndText.putIfAbsent(
+            _exactIntentKey(contextValue, normalized),
+            () => item,
+          );
+        }
+      }
+    }
+    _offlineIntentManifest = manifest;
+    _offlineIntentByContextAndText =
+        Map<String, OfflineIntentDefinition>.unmodifiable(byContextAndText);
+    _offlineIntentByContextAndId =
+        Map<String, OfflineIntentDefinition>.unmodifiable(byContextAndId);
+  }
+
   OfflineIntentDefinition? _findLocalExactIntent(
     String sourceText,
     PracticeContext targetContext,
@@ -419,17 +473,10 @@ class ConversationController extends ChangeNotifier {
     if (normalized.isEmpty) {
       return null;
     }
-    for (final item in _offlineIntentManifest?.items ?? const []) {
-      if (!item.contexts.contains(targetContext.apiValue)) {
-        continue;
-      }
-      for (final sample in item.samples) {
-        if (_normalizeExactText(sample) == normalized) {
-          return item;
-        }
-      }
-    }
-    return null;
+    return _offlineIntentByContextAndText[_exactIntentKey(
+      targetContext.apiValue,
+      normalized,
+    )];
   }
 
   bool _applyLocalExactPreview(
@@ -521,19 +568,72 @@ class ConversationController extends ChangeNotifier {
       return null;
     }
     final transcript = await recognizer.recognize(audioCapture);
-    return StreamingSpeechCapture(
-      sourceText: transcript.text,
-      alternatives: transcript.alternatives,
-      duration: audioCapture.duration,
-      inputLabel: audioCapture.inputLabel,
-      confidence: transcript.confidence,
-      firstResultMs: null,
-      finalAfterStopMs: 0,
-      asrMode: 'vosk_offline_vi',
-      isBluetoothInput: audioCapture.isBluetoothInput,
-      initialNoiseRms: audioCapture.initialNoiseRms,
-      recordedAudio: audioCapture,
+    return _correctVietnameseCapture(
+      StreamingSpeechCapture(
+        sourceText: transcript.text,
+        alternatives: transcript.alternatives,
+        duration: audioCapture.duration,
+        inputLabel: audioCapture.inputLabel,
+        confidence: transcript.confidence,
+        firstResultMs: null,
+        finalAfterStopMs: 0,
+        asrMode: 'vosk_offline_vi',
+        isBluetoothInput: audioCapture.isBluetoothInput,
+        initialNoiseRms: audioCapture.initialNoiseRms,
+        recordedAudio: audioCapture,
+      ),
     );
+  }
+
+  Future<StreamingSpeechCapture> _correctVietnameseCapture(
+    StreamingSpeechCapture capture,
+  ) async {
+    final corrector = _vietnameseTranscriptCorrector;
+    if (corrector == null || capture.sourceText.trim().isEmpty) {
+      return capture;
+    }
+    try {
+      final correction = await corrector.correct(
+        primaryText: capture.sourceText,
+        alternatives: capture.alternatives,
+      );
+      if (!correction.wasCorrected) {
+        return capture;
+      }
+      debugPrint(
+        'Applied an exact on-device Vietnamese transcript correction.',
+      );
+      return StreamingSpeechCapture(
+        sourceText: correction.correctedText,
+        duration: capture.duration,
+        inputLabel: capture.inputLabel,
+        confidence: capture.confidence,
+        firstResultMs: capture.firstResultMs,
+        finalAfterStopMs: capture.finalAfterStopMs,
+        asrMode: capture.asrMode,
+        isBluetoothInput: capture.isBluetoothInput,
+        initialNoiseRms: capture.initialNoiseRms,
+        realtimeSessionCreateMs: capture.realtimeSessionCreateMs,
+        realtimeWebSocketConnectMs: capture.realtimeWebSocketConnectMs,
+        realtimeWebSocketOpenAfterRecordingMs:
+            capture.realtimeWebSocketOpenAfterRecordingMs,
+        realtimeChunkDurationMs: capture.realtimeChunkDurationMs,
+        workerAsrPilotRttMs: capture.workerAsrPilotRttMs,
+        workerAsrPilotAsrMs: capture.workerAsrPilotAsrMs,
+        workerAsrPilotAudioBytes: capture.workerAsrPilotAudioBytes,
+        alternatives: capture.alternatives,
+        extraBenchmark: <String, dynamic>{
+          ...?capture.extraBenchmark,
+          'transcriptCorrectionApplied': true,
+          'transcriptCorrectionSource': 'device_exact_dictionary',
+        },
+        recordedAudio: capture.recordedAudio,
+      );
+    } catch (error) {
+      // A missing or malformed optional dictionary must never block speech.
+      debugPrint('Vietnamese transcript correction was skipped: $error');
+      return capture;
+    }
   }
 
   Future<ConversationResult> _useOfflineResultWhenBackendIsUnavailable({
@@ -1942,17 +2042,13 @@ class ConversationController extends ChangeNotifier {
             _usingStreamingSpeech = false;
             _usingRecordedAudioSpeech = true;
             await _audioInput.startChunked();
-          } else if (hasRecordedAudioPipeline) {
-            // Android 12 and older cannot inject the saved WAV into the
-            // platform recognizer. Use the audio-first Cloudflare path so the
-            // utterance is still recognized and archived instead of reverting
-            // to a transcript-only session.
-            _usingStreamingSpeech = false;
-            asrMode = AsrMode.batchChunks;
-            transientMessage =
-                'Thiết bị đang dùng Cloudflare để bảo đảm lưu được audio.';
-            await _startBatchRecording();
           } else {
+            // The fast online path is transcript-first on every supported
+            // Android version. A false recorded-audio capability commonly
+            // means the device is online (file injection is reserved for the
+            // offline path), not that native live recognition is unavailable.
+            // Starting Batch Chunks here added an audio-session round trip and
+            // bypassed SpeechRecognizer even though it was ready.
             await _streamingSpeechInput!.start();
           }
           if (await abandonCancelledRecordingStart()) return;
@@ -2084,7 +2180,7 @@ class ConversationController extends ChangeNotifier {
       if (manifest.items.isEmpty) {
         throw StateError('Backend chưa có offline intent manifest.');
       }
-      _offlineIntentManifest = manifest;
+      _setOfflineIntentManifest(manifest);
       _offlineIntentGate = OfflineIntentGate(manifest.policy);
       _offlineIntentDecision = null;
       _offlineIntentHypothesisSubscription = recognizer.hypotheses.listen(
@@ -2144,14 +2240,11 @@ class ConversationController extends ChangeNotifier {
     _offlineFallbackTimer?.cancel();
     _offlineFallbackTimer = null;
 
-    OfflineIntentDefinition? definition;
-    for (final item in _offlineIntentManifest?.items ?? const []) {
-      if (item.id == decision.hypothesis.intentId &&
-          item.contexts.contains(context.apiValue)) {
-        definition = item;
-        break;
-      }
-    }
+    final definition =
+        _offlineIntentByContextAndId[_exactIntentKey(
+          context.apiValue,
+          decision.hypothesis.intentId,
+        )];
     if (definition != null) {
       _preview = ConversationPreview(
         sourceText: decision.hypothesis.transcript.trim(),
@@ -2830,16 +2923,35 @@ class ConversationController extends ChangeNotifier {
             .catchError((Object _) {});
         return;
       }
-      final streamingCommandText = streamingCapture?.sourceText.trim();
-      if (streamingCommandText != null &&
-          streamingCommandText.isNotEmpty &&
-          _matchesRecognizedSpeechCommand(streamingCommandText)) {
+      String? streamingCommandText;
+      if (streamingCapture != null) {
+        for (final candidate in <String>[
+          streamingCapture.sourceText,
+          ...streamingCapture.alternatives,
+        ]) {
+          final text = candidate.trim();
+          if (text.isNotEmpty && _matchesRecognizedSpeechCommand(text)) {
+            streamingCommandText = text;
+            break;
+          }
+        }
+      }
+      if (streamingCommandText != null) {
         handledSpeechCommand = streamingCommandText;
         await batchUpload
             ?.discard(reason: 'spoken_command_handled')
             .catchError((Object _) {});
         _completeRecognizedSpeechCommand();
         return;
+      }
+      if (streamingCapture != null) {
+        streamingCapture = await _correctVietnameseCapture(streamingCapture);
+        if (turnGeneration != _conversationTurnGeneration) {
+          await batchUpload
+              ?.discard(reason: 'single_sentence_mode_cancelled')
+              .catchError((Object _) {});
+          return;
+        }
       }
       phase = ConversationPhase.processing;
       unawaited(_syncAiv0AppState());

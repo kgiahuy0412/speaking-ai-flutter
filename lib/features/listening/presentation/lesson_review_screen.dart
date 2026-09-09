@@ -10,6 +10,7 @@ import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
+import 'active_learning_navigation.dart';
 
 enum LessonReviewMode { overview, learned }
 
@@ -553,9 +554,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
       Navigator.of(context).pop(-1);
       return;
     }
-    Navigator.of(
-      context,
-    ).pushReplacement<void, void>(MaterialPageRoute<void>(builder: builder));
+    unawaited(pushReplacementForActiveLearning<void, void>(context, builder));
   }
 
   Future<void> _toggleAutoReview() async {

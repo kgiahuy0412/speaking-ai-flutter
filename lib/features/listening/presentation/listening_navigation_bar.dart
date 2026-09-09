@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/app_theme.dart';
 import '../../../l10n/display_language.dart';
 
 class ListeningNavigationBar extends StatelessWidget {
@@ -34,7 +35,7 @@ class ListeningNavigationBar extends StatelessWidget {
                 backgroundColor: backgroundColor,
                 indicatorColor: isDark
                     ? colorScheme.surfaceContainerHighest
-                    : const Color(0xFFF2F1FF),
+                    : AppColors.mintSoft,
                 onDestinationSelected: (index) {
                   if (index == 0) {
                     onCommunication();

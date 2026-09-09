@@ -872,7 +872,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                         : 'Câu ${_challengeIndex + 1}/${widget.challenges.length}',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.muted,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -896,7 +896,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                       _message!,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.coral,
+                        color: theme.colorScheme.secondary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -912,7 +912,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                         key: const Key('lesson-role-play-homi-status'),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          color: AppColors.indigo,
+                          color: theme.colorScheme.primary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -938,11 +938,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
                               if (_recording || _busy)
-                                const HomiWaveform(
+                                HomiWaveform(
                                   active: true,
                                   width: 48,
                                   height: 24,
-                                  color: Colors.white,
+                                  color: theme.colorScheme.onPrimary,
                                 )
                               else
                                 const Icon(Icons.mic_rounded, size: 28),
@@ -990,36 +990,41 @@ class _RolePlayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isChild = turn.speaker == ListeningRolePlaySpeaker.child;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return HomiSurface(
       padding: const EdgeInsets.all(22),
       color: isChild && !isDark ? AppColors.lavenderSoft : null,
-      borderColor: isChild ? AppColors.periwinkle : null,
+      borderColor: isChild
+          ? (isDark ? theme.colorScheme.outline : AppColors.periwinkle)
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             isChild ? 'Lượt của bạn' : 'HOMI nói',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: isChild ? AppColors.indigo : AppColors.muted,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: isChild
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 14),
-          Text(turn.english, style: Theme.of(context).textTheme.titleLarge),
+          Text(turn.english, style: theme.textTheme.titleLarge),
           if (isChild) ...<Widget>[
             const SizedBox(height: 8),
             Text(
               turn.vietnamese,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             if (openingHint != null && openingHint!.isNotEmpty) ...<Widget>[
               const SizedBox(height: 14),
               Text(
                 'Gợi ý: $openingHint',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.indigo,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1038,6 +1043,8 @@ class _ChallengeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return HomiSurface(
       padding: const EdgeInsets.all(22),
       child: Column(
@@ -1056,21 +1063,20 @@ class _ChallengeCard extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.lavenderSoft,
+                color: isDark
+                    ? theme.colorScheme.surfaceContainerHighest
+                    : AppColors.lavenderSoft,
                 borderRadius: BorderRadius.circular(HomiUi.controlRadius),
               ),
-              child: Text(
-                choice,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              child: Text(choice, style: theme.textTheme.titleMedium),
             ),
           ],
           const SizedBox(height: 4),
           Text(
             'Hãy nói đáp án bằng tiếng Anh, không nói A hoặc B.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

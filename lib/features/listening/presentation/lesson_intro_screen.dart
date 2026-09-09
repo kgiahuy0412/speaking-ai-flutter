@@ -16,6 +16,7 @@ import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import '../domain/lesson_guide_flow.dart';
+import 'active_learning_navigation.dart';
 import 'lesson_overview_screen.dart';
 import 'lesson_practice_screen.dart';
 import 'song_karaoke_screen.dart';
@@ -584,23 +585,22 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       _movingForward = false;
       return;
     }
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonPracticeScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: widget.lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.levelContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          guideAudioLibrary: _guideAudioLibrary,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonPracticeScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: widget.topic,
+        lesson: widget.lesson,
+        controller: widget.controller,
+        topicContent: widget.topicContent,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.levelContent,
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        guideAudioLibrary: _guideAudioLibrary,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }
@@ -616,32 +616,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return;
     }
     if (_resumeCoreDirectly || _resumeStage != ListeningResumeStage.core) {
-      await Navigator.of(context).pushReplacement<void, void>(
-        MaterialPageRoute<void>(
-          builder: (_) => LessonPracticeScreen(
-            language: widget.language,
-            startAge: widget.startAge,
-            endAge: widget.endAge,
-            topic: widget.topic,
-            lesson: widget.lesson,
-            controller: widget.controller,
-            topicContent: widget.topicContent,
-            contentGroup: widget.contentGroup,
-            levelContent: widget.levelContent,
-            progressStore: widget.progressStore,
-            mediaService: widget.mediaService,
-            guideAudioLibrary: _guideAudioLibrary,
-            initialResumeStage: _resumeStage,
-            isRelearn: widget.relearnFromBeginning,
-            onTopicCompleted: widget.onTopicCompleted,
-          ),
-        ),
-      );
-      return;
-    }
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => LessonOverviewScreen(
+      await pushReplacementForActiveLearning<void, void>(
+        context,
+        (_) => LessonPracticeScreen(
           language: widget.language,
           startAge: widget.startAge,
           endAge: widget.endAge,
@@ -654,10 +631,31 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           progressStore: widget.progressStore,
           mediaService: widget.mediaService,
           guideAudioLibrary: _guideAudioLibrary,
-          voicePromptService: widget.voicePromptService,
+          initialResumeStage: _resumeStage,
           isRelearn: widget.relearnFromBeginning,
           onTopicCompleted: widget.onTopicCompleted,
         ),
+      );
+      return;
+    }
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => LessonOverviewScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        endAge: widget.endAge,
+        topic: widget.topic,
+        lesson: widget.lesson,
+        controller: widget.controller,
+        topicContent: widget.topicContent,
+        contentGroup: widget.contentGroup,
+        levelContent: widget.levelContent,
+        progressStore: widget.progressStore,
+        mediaService: widget.mediaService,
+        guideAudioLibrary: _guideAudioLibrary,
+        voicePromptService: widget.voicePromptService,
+        isRelearn: widget.relearnFromBeginning,
+        onTopicCompleted: widget.onTopicCompleted,
       ),
     );
   }
@@ -672,20 +670,16 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       _movingForward = false;
       return;
     }
-    await Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => SongKaraokeScreen(
-          language: widget.language,
-          lesson: widget.lesson,
-          mediaService: widget.mediaService,
-          topicTitle:
-              widget.topicContent?.titleEn ??
-              widget.language.choose(
-                widget.topic.titleVi,
-                widget.topic.titleZh,
-              ),
-          practiceBuilder: _buildPracticeScreen,
-        ),
+    await pushReplacementForActiveLearning<void, void>(
+      context,
+      (_) => SongKaraokeScreen(
+        language: widget.language,
+        lesson: widget.lesson,
+        mediaService: widget.mediaService,
+        topicTitle:
+            widget.topicContent?.titleEn ??
+            widget.language.choose(widget.topic.titleVi, widget.topic.titleZh),
+        practiceBuilder: _buildPracticeScreen,
       ),
     );
   }

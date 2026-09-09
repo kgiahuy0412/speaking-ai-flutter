@@ -24,6 +24,7 @@ class ScenicAppHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final readyColor = isDark ? colorScheme.tertiary : AppColors.success;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),
@@ -86,9 +87,7 @@ class ScenicAppHeader extends StatelessWidget {
                           width: 10,
                           height: 10,
                           decoration: BoxDecoration(
-                            color: isReady
-                                ? AppColors.success
-                                : AppColors.muted,
+                            color: isReady ? readyColor : AppColors.muted,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -102,9 +101,7 @@ class ScenicAppHeader extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: isReady
-                                      ? AppColors.success
-                                      : AppColors.muted,
+                                  color: isReady ? readyColor : AppColors.muted,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
                                 ),

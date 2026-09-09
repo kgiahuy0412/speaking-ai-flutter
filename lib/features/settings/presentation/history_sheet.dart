@@ -442,7 +442,7 @@ class _HistorySheetState extends State<HistorySheet> {
           ),
           backgroundColor: isError
               ? Theme.of(context).colorScheme.error
-              : AppColors.ink,
+              : Theme.of(context).colorScheme.inverseSurface,
         ),
       );
   }
@@ -470,6 +470,7 @@ class _HistoryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: <Widget>[
         Expanded(
@@ -482,9 +483,9 @@ class _HistoryHeader extends StatelessWidget {
               ),
               Text(
                 context.tr('$count lượt đã lưu', '已保存 $count 条'),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -582,7 +583,7 @@ class _HistoryBody extends StatelessWidget {
             child: Text(
               context.trKnown(_dayLabel(item.createdAt)),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 14,
               ),
             ),
@@ -623,6 +624,8 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final status = _statusPresentation(item.reviewStatus);
     final localizedStatus = context.trKnown(status.label);
 
@@ -643,7 +646,12 @@ class _HistoryRow extends StatelessWidget {
                 HomiIconBadge(
                   icon: status.icon,
                   foregroundColor: status.color,
-                  backgroundColor: status.background,
+                  backgroundColor: isDark
+                      ? Color.alphaBlend(
+                          status.color.withValues(alpha: 0.14),
+                          theme.colorScheme.surfaceContainerHighest,
+                        )
+                      : status.background,
                   size: 40,
                   iconSize: 22,
                 ),
@@ -657,8 +665,8 @@ class _HistoryRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   _formatTime(item.createdAt),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.muted,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -669,9 +677,9 @@ class _HistoryRow extends StatelessWidget {
               padding: const EdgeInsets.only(left: 50),
               child: Text(
                 item.englishText,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: AppColors.indigo),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -726,14 +734,15 @@ class _HistoryRow extends StatelessWidget {
                       icon: const Icon(Icons.sentiment_satisfied_alt_rounded),
                       tooltip: context.tr('Đánh dấu Đúng ý', '标记为符合原意'),
                       style: IconButton.styleFrom(
-                        backgroundColor:
-                            item.reviewStatus == HistoryReviewStatus.approved
+                        backgroundColor: isDark
+                            ? theme.colorScheme.surfaceContainerHighest
+                            : item.reviewStatus == HistoryReviewStatus.approved
                             ? AppColors.successSoft
                             : AppColors.lavender,
                         foregroundColor:
                             item.reviewStatus == HistoryReviewStatus.approved
                             ? AppColors.success
-                            : AppColors.indigoDark,
+                            : theme.colorScheme.primary,
                       ),
                     ),
                     IconButton(
@@ -741,14 +750,15 @@ class _HistoryRow extends StatelessWidget {
                       icon: const Icon(Icons.sentiment_dissatisfied_rounded),
                       tooltip: context.tr('Đánh dấu Sai ý', '标记为不符合原意'),
                       style: IconButton.styleFrom(
-                        backgroundColor:
-                            item.reviewStatus == HistoryReviewStatus.rejected
+                        backgroundColor: isDark
+                            ? theme.colorScheme.surfaceContainerHighest
+                            : item.reviewStatus == HistoryReviewStatus.rejected
                             ? AppColors.coralSoft
                             : AppColors.lavender,
                         foregroundColor:
                             item.reviewStatus == HistoryReviewStatus.rejected
                             ? Theme.of(context).colorScheme.error
-                            : AppColors.indigoDark,
+                            : theme.colorScheme.primary,
                       ),
                     ),
                     IconButton(
@@ -774,16 +784,20 @@ class _MetadataChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.lavenderSoft,
+        color: isDark
+            ? theme.colorScheme.surfaceContainerHighest
+            : AppColors.lavenderSoft,
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: AppColors.muted,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -800,11 +814,18 @@ class _LearningChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final presentation = _learningPresentation(item);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: presentation.background,
+        color: isDark
+            ? Color.alphaBlend(
+                presentation.color.withValues(alpha: 0.12),
+                theme.colorScheme.surfaceContainerHighest,
+              )
+            : presentation.background,
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(
@@ -845,6 +866,7 @@ class _HistoryMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 36),
@@ -854,7 +876,7 @@ class _HistoryMessage extends StatelessWidget {
             if (assetPath != null)
               Image.asset(assetPath!, height: 116, fit: BoxFit.contain)
             else
-              Icon(icon, color: AppColors.muted, size: 38),
+              Icon(icon, color: theme.colorScheme.onSurfaceVariant, size: 38),
             const SizedBox(height: 10),
             Text(
               text,
@@ -866,9 +888,9 @@ class _HistoryMessage extends StatelessWidget {
               Text(
                 subtitle!,
                 textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
             if (actionLabel != null && onAction != null) ...<Widget>[

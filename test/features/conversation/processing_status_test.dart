@@ -70,7 +70,7 @@ void main() {
     });
   }
 
-  testWidgets('active waveform visibly pulses after MAIN is pressed', (
+  testWidgets('active waveform travels smoothly at frame cadence', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -86,21 +86,34 @@ void main() {
     );
 
     final waveform = find.byKey(const Key('conversation-animated-waveform'));
-    final transform = find.descendant(
+    Finder waveBar(int index) => find.descendant(
       of: waveform,
-      matching: find.byType(Transform),
+      matching: find.byKey(ValueKey<String>('homi-wave-bar-$index')),
     );
-    final before = tester
-        .widget<Transform>(transform.first)
-        .transform
-        .entry(1, 1);
+    var previous = <double>[
+      tester.getSize(waveBar(4)).height,
+      tester.getSize(waveBar(10)).height,
+      tester.getSize(waveBar(16)).height,
+    ];
+    var changed = false;
+    var largestFrameStep = 0.0;
 
-    await tester.pump(const Duration(milliseconds: 155));
+    for (var frame = 0; frame < 24; frame += 1) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final current = <double>[
+        tester.getSize(waveBar(4)).height,
+        tester.getSize(waveBar(10)).height,
+        tester.getSize(waveBar(16)).height,
+      ];
+      for (var index = 0; index < current.length; index += 1) {
+        final step = (current[index] - previous[index]).abs();
+        if (step > 0.01) changed = true;
+        if (step > largestFrameStep) largestFrameStep = step;
+      }
+      previous = current;
+    }
 
-    final after = tester
-        .widget<Transform>(transform.first)
-        .transform
-        .entry(1, 1);
-    expect(after, isNot(before));
+    expect(changed, isTrue);
+    expect(largestFrameStep, lessThan(3.5));
   });
 }

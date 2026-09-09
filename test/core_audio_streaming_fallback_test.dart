@@ -413,6 +413,46 @@ void main() {
   );
 
   test(
+    'native alternative command bypasses the conversation request',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+        emitOnStart: <int>[5, 6, 7, 8],
+      );
+      final streaming = _FakeStreamingSpeechInput(
+        sourceText: 'Còn cái gì cắt để học không?',
+        alternatives: const <String>['Còn cái gì khác để học không?'],
+      );
+      final repository = _FallbackRepository();
+      String? handledCommand;
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: streaming,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        recognizedSpeechCommandMatcher: (text) => text.contains('khác để học'),
+        onRecognizedSpeechCommand: (text) async => handledCommand = text,
+      );
+
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(handledCommand, 'Còn cái gì khác để học không?');
+      expect(repository.streamingCapture, isNull);
+      expect(repository.batchStarted, 0);
+      expect(repository.fullFileUploads, 0);
+      expect(repository.streamingTextRequests, 0);
+      expect(controller.result, isNull);
+      expect(controller.phase, ConversationPhase.idle);
+      controller.dispose();
+    },
+  );
+
+  test(
     'Batch command result is hidden and opens the command handler',
     () async {
       final input = _FakeChunkedInput(
@@ -2028,6 +2068,9 @@ void main() {
       expect(recognizer.startCount, 1);
       expect(recognizer.recordedCapture, isNull);
       expect(input.startCount, 0);
+      expect(repository.batchStarted, 0);
+      expect(repository.fullFileUploads, 0);
+      expect(repository.streamingTextRequests, 1);
       expect(repository.streamingCapture?.asrMode, 'android_streaming');
       controller.dispose();
     },
@@ -2178,34 +2221,43 @@ void main() {
     controller.dispose();
   });
 
-  test('older Android keeps audio through Cloudflare Batch Chunks', () async {
-    final input = _FakeChunkedInput(
-      available: true,
-      bluetooth: false,
-      label: 'Phone',
-    );
-    final repository = _FallbackRepository();
-    final controller = ConversationController(
-      audioInput: input,
-      streamingSpeechInput: _FakeRecordedAudioStreamingSpeechInput(
+  test(
+    'online Android without file injection keeps the fast native path',
+    () async {
+      final input = _FakeChunkedInput(
+        available: true,
+        bluetooth: false,
+        label: 'Phone',
+      );
+      final repository = _FallbackRepository();
+      final recognizer = _FakeRecordedAudioStreamingSpeechInput(
         supportsRecordedAudio: false,
-      ),
-      playbackService: const _FakePlaybackService(),
-      repository: repository,
-      childAge: 6,
-      initialAsrMode: AsrMode.androidStreaming,
-      recordAndroidAudioForArchive: true,
-    );
+      );
+      final controller = ConversationController(
+        audioInput: input,
+        streamingSpeechInput: recognizer,
+        playbackService: const _FakePlaybackService(),
+        repository: repository,
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+        recordAndroidAudioForArchive: true,
+      );
 
-    await controller.startRecording();
-    await _emitDetectedSpeech(input);
-    await controller.stopRecording(manual: true);
+      await controller.startRecording();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
 
-    expect(controller.asrMode, AsrMode.batchChunks);
-    expect(repository.batchSession.finalized, isTrue);
-    expect(controller.result?.conversationId, 'batch-result');
-    controller.dispose();
-  });
+      expect(recognizer.startCount, 1);
+      expect(recognizer.recordedCapture, isNull);
+      expect(input.startCount, 0);
+      expect(repository.batchStarted, 0);
+      expect(repository.fullFileUploads, 0);
+      expect(repository.streamingTextRequests, 1);
+      expect(repository.streamingCapture?.sourceText, 'Con muốn uống nước');
+      expect(controller.result?.conversationId, 'stream-result');
+      controller.dispose();
+    },
+  );
 
   test('Safari Worker result archives the complete Web WAV', () async {
     final input = _FakeChunkedInput(
@@ -2248,6 +2300,7 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
     this.startError,
     this.onStart,
     this.sourceText = 'Con muốn uống nước',
+    this.alternatives = const <String>[],
   });
 
   final bool failOnStart;
@@ -2255,6 +2308,7 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
   final Object? startError;
   final void Function()? onStart;
   final String sourceText;
+  final List<String> alternatives;
   int startCount = 0;
 
   @override
@@ -2296,6 +2350,7 @@ class _FakeStreamingSpeechInput implements StreamingSpeechInput {
     }
     return StreamingSpeechCapture(
       sourceText: sourceText,
+      alternatives: alternatives,
       duration: Duration(seconds: 1),
       inputLabel: 'ASR Android trực tiếp',
       confidence: 0.9,
@@ -2886,6 +2941,7 @@ class _FallbackRepository
   int realtimeStarted = 0;
   int batchStarted = 0;
   int fullFileUploads = 0;
+  int streamingTextRequests = 0;
   String? batchFallbackReason;
   StreamingSpeechCapture? streamingCapture;
   AudioCapture? audioCapture;
@@ -2964,6 +3020,7 @@ class _FallbackRepository
     required int childAge,
     required int vadSilenceMs,
   }) async {
+    streamingTextRequests += 1;
     streamingCapture = capture;
     final error = streamingError;
     if (error != null) {

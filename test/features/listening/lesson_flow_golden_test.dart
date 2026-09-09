@@ -1,4 +1,5 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/app/homi_ui.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
@@ -190,6 +191,11 @@ void main() {
       ],
     );
     await tester.pumpAndSettle();
+
+    final sampleWaveform = tester.widget<HomiWaveform>(
+      find.byKey(const Key('lesson-sample-waveform')),
+    );
+    expect(sampleWaveform.active, isTrue);
 
     await expectLater(
       find.byType(LessonPracticeScreen),
@@ -462,6 +468,13 @@ class _GoldenApp extends StatelessWidget {
       theme: buildAppTheme(),
       darkTheme: buildDarkAppTheme(),
       themeMode: themeMode,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(disableAnimations: true),
+          child: child!,
+        );
+      },
       home: child,
     );
   }

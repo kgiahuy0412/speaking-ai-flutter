@@ -225,6 +225,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       return;
     }
     _startingBackgroundLearning = true;
+    // Subscribe before native start so a foreground-service failure emitted
+    // during Android service creation cannot race past Flutter.
+    _backgroundLearningSubscription ??= _backgroundLearningSession.events
+        .listen(_handleBackgroundLearningEvent);
     final active = await _backgroundLearningSession.start();
     _startingBackgroundLearning = false;
     if (!mounted) {
@@ -235,14 +239,17 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     }
     _backgroundLearningActive = active;
     if (active) {
-      _backgroundLearningSubscription ??= _backgroundLearningSession.events
-          .listen(_handleBackgroundLearningEvent);
       _scheduleVoiceNavigationListening();
     }
   }
 
   void _handleBackgroundLearningEvent(BackgroundLearningEvent event) {
     if (!mounted) return;
+    if (event.type == BackgroundLearningEventType.resumable) {
+      _backgroundLearningActive = true;
+      _scheduleVoiceNavigationListening();
+      return;
+    }
     _backgroundLearningActive = false;
     _voiceNavigationRestartTimer?.cancel();
     unawaited(widget.voiceNavigationController?.pause());
@@ -745,6 +752,14 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       if (!mounted) {
         return;
       }
+      unawaited(_ensureBackgroundLearningStarted());
+      final activeLearningSession = _backgroundLearningSession;
+      if (activeLearningSession is ActiveLearningBackgroundSessionControl) {
+        unawaited(
+          (activeLearningSession as ActiveLearningBackgroundSessionControl)
+              .setActiveLearning(true),
+        );
+      }
       final routeDuration = MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : const Duration(milliseconds: 260);
@@ -815,6 +830,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       }
       if (!routeClosedCompleter.isCompleted) {
         routeClosedCompleter.complete();
+      }
+      final activeLearningSession = _backgroundLearningSession;
+      if (activeLearningSession is ActiveLearningBackgroundSessionControl) {
+        unawaited(
+          (activeLearningSession as ActiveLearningBackgroundSessionControl)
+              .setActiveLearning(false),
+        );
       }
       if (mounted) {
         _resumeVoiceNavigation();

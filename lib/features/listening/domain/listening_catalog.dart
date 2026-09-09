@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/app_theme.dart';
+
 @immutable
 class ListeningTopic {
   const ListeningTopic({
@@ -40,14 +42,14 @@ class ListeningAgeCatalog {
   String get id => '$startAge-$endAge';
 }
 
-const _indigo = Color(0xFF3D4DD6);
+const _indigo = AppColors.primaryNavy;
 const _blue = Color(0xFF2684D9);
 const _green = Color(0xFF23A05A);
 const _orange = Color(0xFFE36A3D);
 const _amber = Color(0xFFE28A21);
-const _coral = Color(0xFFF36B5F);
-const _purpleWash = Color(0xFFF1EEFF);
-const _blueWash = Color(0xFFE9F5FF);
+const _coral = AppColors.accentPink;
+const _purpleWash = AppColors.accentPinkSoft;
+const _blueWash = AppColors.mintSoft;
 const _greenWash = Color(0xFFEAF7EE);
 const _orangeWash = Color(0xFFFFF0E4);
 const _amberWash = Color(0xFFFFF4DF);
