@@ -81,6 +81,8 @@ flutter:
     - assets/images/song-karaoke-sunrise.webp
     - assets/images/learning-train-field-background.webp
     - assets/images/learning-minimal-sky-background.png
+    - assets/images/home-hero-blob.png
+    - assets/images/home-waveform.png
     - assets/images/mascot/
     - assets/images/topics/
     - assets/images/vocabulary/

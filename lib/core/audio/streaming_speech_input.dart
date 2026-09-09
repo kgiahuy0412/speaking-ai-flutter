@@ -605,6 +605,7 @@ class AndroidStreamingSpeechInput
     required bool commandMode,
     required NativeSpeechAudioSource audioSource,
     String? localeIdentifier,
+    String? recordingPath,
   }) async {
     if (_active) {
       await cancel();
@@ -651,6 +652,7 @@ class AndroidStreamingSpeechInput
             'preferOnDevice': commandMode && _preferOnDevice,
             'audioSource': audioSource.channelValue,
             'locale': ?localeIdentifier,
+            'recordingPath': ?recordingPath,
           })
           .timeout(_nativeCommandTimeout);
       await readyCompleter.future.timeout(_readyTimeout);
@@ -1257,9 +1259,20 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   Future<void> startLessonEnglishRecognition() =>
       _startWithAudioRoute(commandMode: false, localeIdentifier: 'en-US');
 
+  /// Keeps a local WAV for lesson playback while Apple Speech consumes the
+  /// same AVAudioEngine buffers. No second recorder or microphone is opened.
+  Future<void> startLessonEnglishRecognitionWithRecording(
+    String recordingPath,
+  ) => _startWithAudioRoute(
+    commandMode: false,
+    localeIdentifier: 'en-US',
+    recordingPath: recordingPath,
+  );
+
   Future<void> _startWithAudioRoute({
     required bool commandMode,
     String? localeIdentifier,
+    String? recordingPath,
   }) async {
     // Outside a verified continuous session, each recognition turn still owns
     // a short HFP lease. A continuous session is opt-in and survives only after
@@ -1311,6 +1324,7 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
         commandMode: commandMode,
         audioSource: audioSource,
         localeIdentifier: localeIdentifier,
+        recordingPath: recordingPath,
       );
     } catch (_) {
       if (routeGeneration != null) {
@@ -1324,6 +1338,11 @@ class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
   /// controller could upload to the Batch endpoint after a native failure.
   @override
   AudioCapture? takeFallbackAudioCapture() => null;
+
+  /// Lesson playback is local-only. Keep MAIN's no-upload policy above while
+  /// allowing the lesson screen to retrieve the explicitly requested WAV.
+  AudioCapture? takeLessonRecordingAudioCapture() =>
+      super.takeFallbackAudioCapture();
 
   @override
   Future<StreamingSpeechCapture> stop() async {

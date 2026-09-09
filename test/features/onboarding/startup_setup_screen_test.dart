@@ -71,8 +71,12 @@ void main() {
       await tester.pump();
       await tester.ensureVisible(consentButton);
       expect(tester.widget<FilledButton>(consentButton).onPressed, isNull);
-      expect(find.textContaining('Cloudflare Workers AI'), findsOneWidget);
-      expect(find.textContaining('Cloudinary'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Tôi đồng ý để HOMI xử lý dữ liệu giọng nói theo Điều khoản',
+        ),
+        findsOneWidget,
+      );
 
       await _completeLegalReview(tester);
       final legalCheckbox = find.byKey(const Key('startup-accept-legal'));

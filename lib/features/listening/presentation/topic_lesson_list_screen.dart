@@ -4,15 +4,16 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
+import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
-import 'listening_navigation_bar.dart';
 import 'song_karaoke_screen.dart';
 
 class TopicLessonListScreen extends StatefulWidget {
@@ -25,6 +26,8 @@ class TopicLessonListScreen extends StatefulWidget {
     this.contentGroup,
     this.levelContent,
     this.controller,
+    this.onMainPressed,
+    this.onVocabularyRequested,
     this.onVoiceNavigationPause,
     this.onVoiceNavigationResume,
     this.progressStore = const ListeningProgressStore(),
@@ -42,6 +45,8 @@ class TopicLessonListScreen extends StatefulWidget {
   final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;
   final ConversationController? controller;
+  final Future<void> Function()? onMainPressed;
+  final VoidCallback? onVocabularyRequested;
   final Future<void> Function()? onVoiceNavigationPause;
   final VoidCallback? onVoiceNavigationResume;
   final ListeningProgressStore progressStore;
@@ -114,174 +119,215 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         key: const Key('topic-lesson-list-screen'),
         backgroundColor: Colors.transparent,
         body: LearningScenery(
-          child: SafeArea(
-            bottom: false,
-            child: FutureBuilder<_TopicLessonProgressSnapshot>(
-              future: _progressFuture,
-              builder: (context, snapshot) {
-                final progress =
-                    snapshot.data ?? const _TopicLessonProgressSnapshot.empty();
-                return CustomScrollView(
-                  slivers: <Widget>[
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _Header(onBack: _goBack),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _TopicHero(widget: widget),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                      sliver: SliverToBoxAdapter(
-                        child: Row(
-                          children: <Widget>[
-                            const Icon(
-                              Icons.auto_awesome_rounded,
-                              color: AppColors.periwinkle,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                context.tr('Hành trình học', '学习旅程'),
-                                style: Theme.of(context).textTheme.titleLarge,
+          overlayOpacity: 0.36,
+          child: Stack(
+            children: <Widget>[
+              SafeArea(
+                bottom: false,
+                child: FutureBuilder<_TopicLessonProgressSnapshot>(
+                  future: _progressFuture,
+                  builder: (context, snapshot) {
+                    final progress =
+                        snapshot.data ??
+                        const _TopicLessonProgressSnapshot.empty();
+                    return CustomScrollView(
+                      slivers: <Widget>[
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                          sliver: SliverToBoxAdapter(
+                            child: _Header(
+                              title: context.tr(
+                                widget.content.titleVi,
+                                widget.topic.titleZh,
                               ),
+                              onBack: _goBack,
                             ),
-                            const Icon(
-                              Icons.star_rounded,
-                              color: Color(0xFFFFC75B),
-                              size: 23,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                      sliver: SliverList.separated(
-                        itemCount: widget.content.lessons.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final lesson = widget.content.lessons[index];
-                          final completed =
-                              (progress.lessonProgress[lesson.id] ?? 0).clamp(
-                                0,
-                                lesson.sentences.length,
-                              );
-                          final lessonCompleted = _isLessonCompleted(
-                            lesson,
-                            completed,
-                            progress.completedV4LessonActivities,
-                          );
-                          return _LessonPathCard(
-                            key: ValueKey('lesson-${lesson.id}'),
-                            lesson: lesson,
-                            completedSentences: completed,
-                            isCompleted: lessonCompleted,
-                            needsV4Challenge:
-                                lesson.usesV4Flow &&
-                                completed >= lesson.sentences.length &&
-                                !lessonCompleted,
-                            isLast: index == widget.content.lessons.length - 1,
-                            onPressed: () => _startLesson(
-                              lesson,
-                              reviewFromBeginning:
-                                  lesson.sentences.isNotEmpty &&
-                                  lessonCompleted,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    if (widget.showsSongs) ...<Widget>[
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                        sliver: SliverToBoxAdapter(
-                          child: Row(
-                            children: <Widget>[
-                              const Icon(
-                                Icons.music_note_rounded,
-                                color: AppColors.coral,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  context.tr('Bài hát & chant', '歌曲与节奏歌'),
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                              ),
-                              Text(
-                                context.tr(
-                                  '${widget.content.songs.length} bài',
-                                  '${widget.content.songs.length} 首',
-                                ),
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: AppColors.muted),
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                        sliver: SliverList.separated(
-                          itemCount: widget.content.songs.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final song = widget.content.songs[index];
-                            final completed =
-                                (progress.lessonProgress[song.id] ?? 0).clamp(
-                                  0,
-                                  song.sentences.length,
-                                );
-                            final lessonCompleted = _isLessonCompleted(
-                              song,
-                              completed,
-                              progress.completedV4LessonActivities,
-                            );
-                            return _LessonPathCard(
-                              key: ValueKey('song-${song.id}'),
-                              lesson: song,
-                              completedSentences: completed,
-                              isCompleted: lessonCompleted,
-                              needsV4Challenge:
-                                  song.usesV4Flow &&
-                                  completed >= song.sentences.length &&
-                                  !lessonCompleted,
-                              isLast: index == widget.content.songs.length - 1,
-                              onPressed: () => _startLesson(
-                                song,
-                                reviewFromBeginning:
-                                    song.sentences.isNotEmpty &&
-                                    lessonCompleted,
-                              ),
-                            );
-                          },
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                          sliver: SliverToBoxAdapter(
+                            child: _TopicHero(widget: widget),
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
-                );
-              },
-            ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+                          sliver: SliverToBoxAdapter(
+                            child: Text(
+                              context.tr('Hành trình học', '学习旅程'),
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: AppColors.indigoDark,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 42),
+                          sliver: SliverList.separated(
+                            itemCount: widget.content.lessons.length,
+                            separatorBuilder: (_, _) => Divider(
+                              height: 1,
+                              indent: 72,
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Theme.of(context).colorScheme.outlineVariant
+                                  : const Color(0xFFE4E9F7),
+                            ),
+                            itemBuilder: (context, index) {
+                              final lesson = widget.content.lessons[index];
+                              final completed =
+                                  (progress.lessonProgress[lesson.id] ?? 0)
+                                      .clamp(0, lesson.sentences.length);
+                              final lessonCompleted = _isLessonCompleted(
+                                lesson,
+                                completed,
+                                progress.completedV4LessonActivities,
+                              );
+                              return _LessonPathCard(
+                                key: ValueKey('lesson-${lesson.id}'),
+                                lesson: lesson,
+                                completedSentences: completed,
+                                isCompleted: lessonCompleted,
+                                needsV4Challenge:
+                                    lesson.usesV4Flow &&
+                                    completed >= lesson.sentences.length &&
+                                    !lessonCompleted,
+                                isLast:
+                                    index == widget.content.lessons.length - 1,
+                                onPressed: () => _startLesson(
+                                  lesson,
+                                  reviewFromBeginning:
+                                      lesson.sentences.isNotEmpty &&
+                                      lessonCompleted,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (widget.showsSongs) ...<Widget>[
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                            sliver: SliverToBoxAdapter(
+                              child: Row(
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.music_note_rounded,
+                                    color: AppColors.coral,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      context.tr('Bài hát & chant', '歌曲与节奏歌'),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
+                                  ),
+                                  Text(
+                                    context.tr(
+                                      '${widget.content.songs.length} bài',
+                                      '${widget.content.songs.length} 首',
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: AppColors.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                            sliver: SliverList.separated(
+                              itemCount: widget.content.songs.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final song = widget.content.songs[index];
+                                final completed =
+                                    (progress.lessonProgress[song.id] ?? 0)
+                                        .clamp(0, song.sentences.length);
+                                final lessonCompleted = _isLessonCompleted(
+                                  song,
+                                  completed,
+                                  progress.completedV4LessonActivities,
+                                );
+                                return _LessonPathCard(
+                                  key: ValueKey('song-${song.id}'),
+                                  lesson: song,
+                                  completedSentences: completed,
+                                  isCompleted: lessonCompleted,
+                                  needsV4Challenge:
+                                      song.usesV4Flow &&
+                                      completed >= song.sentences.length &&
+                                      !lessonCompleted,
+                                  isLast:
+                                      index == widget.content.songs.length - 1,
+                                  onPressed: () => _startLesson(
+                                    song,
+                                    reviewFromBeginning:
+                                        song.sentences.isNotEmpty &&
+                                        lessonCompleted,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                right: 4,
+                bottom: -22,
+                child: IgnorePointer(
+                  child: Image.asset(
+                    MascotAssets.wave,
+                    width: 156,
+                    height: 156,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        bottomNavigationBar: ListeningNavigationBar(
-          onCommunication: () =>
-              Navigator.of(context).popUntil((route) => route.isFirst),
-          onHistory: _showHistory,
+        bottomNavigationBar: KeyedSubtree(
+          key: const Key('listening-bottom-navigation'),
+          child: HomiBottomNavigation(
+            selectedIndex: 1,
+            onConversation: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+            onTopics: _goBack,
+            onMain: widget.onMainPressed == null
+                ? null
+                : () => unawaited(widget.onMainPressed!()),
+            onVocabulary: _openVocabulary,
+            onHistory: _showHistory,
+            conversationKey: const Key('listening-conversation-tab'),
+            topicsKey: const Key('listening-topics-tab'),
+            mainKey: const Key('listening-main-button'),
+            vocabularyKey: const Key('listening-vocabulary-tab'),
+            historyKey: const Key('listening-history-tab'),
+          ),
         ),
       ),
     );
   }
 
   void _goBack() => Navigator.of(context).pop();
+
+  void _openVocabulary() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    widget.onVocabularyRequested?.call();
+  }
 
   Future<void> _openInitialLesson() async {
     final lessonNumber = widget.initialLessonNumber;
@@ -399,8 +445,9 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onBack});
+  const _Header({required this.title, required this.onBack});
 
+  final String title;
   final VoidCallback onBack;
 
   @override
@@ -409,20 +456,49 @@ class _Header extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: <Widget>[
-        IconButton(
+        IconButton.filled(
           onPressed: onBack,
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: context.tr('Quay lại', '返回'),
+          style: IconButton.styleFrom(
+            minimumSize: const Size.square(52),
+            backgroundColor: isDark
+                ? colorScheme.surfaceContainerHighest
+                : const Color(0xF8FFFDF9),
+            foregroundColor: isDark ? colorScheme.primary : AppColors.ink,
+            elevation: 3,
+            shadowColor: const Color(0x24142451),
+          ),
         ),
-        const Spacer(),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: isDark ? colorScheme.onSurface : AppColors.indigoDark,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
         Container(
-          width: 48,
-          height: 48,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
             color: isDark
                 ? colorScheme.surfaceContainerHighest
-                : AppColors.lavender,
+                : const Color(0xF8FFFDF9),
             shape: BoxShape.circle,
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x24142451),
+                blurRadius: 16,
+                offset: Offset(0, 7),
+              ),
+            ],
           ),
           child: Icon(
             Icons.person_rounded,
@@ -461,16 +537,15 @@ class _TopicHero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text(
-          context.tr(content.titleVi, widget.topic.titleZh),
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        const SizedBox(height: 14),
         AspectRatio(
-          aspectRatio: 1.58,
+          aspectRatio: 1.45,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(54),
+              topRight: Radius.circular(76),
+              bottomLeft: Radius.circular(68),
+              bottomRight: Radius.circular(44),
+            ),
             child: ColoredBox(
               color: widget.topic.background,
               child: widget.topic.imagePath == null
@@ -487,7 +562,7 @@ class _TopicHero extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         if (widget.showsSongs) ...<Widget>[
           Align(
             alignment: Alignment.center,
@@ -514,10 +589,16 @@ class _TopicHero extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
-            color: isDark
-                ? colorScheme.surfaceContainer
-                : AppColors.lavenderSoft,
-            borderRadius: BorderRadius.circular(18),
+            color: isDark ? colorScheme.surfaceContainer : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: <BoxShadow>[
+              if (!isDark)
+                const BoxShadow(
+                  color: Color(0x14244883),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+            ],
           ),
           child: Row(
             children: <Widget>[
@@ -620,20 +701,13 @@ class _LessonPathCard extends StatelessWidget {
       button: true,
       label: 'Bài ${lesson.number}, ${lesson.titleVi}',
       child: Material(
-        color: isDark
-            ? colorScheme.surface.withValues(alpha: 0.96)
-            : AppColors.lavenderSoft,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(
-            color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
-          ),
-        ),
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+            padding: const EdgeInsets.fromLTRB(8, 14, 8, 16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -645,7 +719,9 @@ class _LessonPathCard extends StatelessWidget {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppColors.indigo,
+                          color: lesson.number == 1 || completedSentences > 0
+                              ? AppColors.indigo
+                              : const Color(0xFFAEB9D5),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: const <BoxShadow>[

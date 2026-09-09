@@ -405,6 +405,43 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'completed turn stays blocked until its microphone cleanup finishes',
+    () async {
+      final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        streamingSpeechInput: speechInput,
+        playbackService: _FakePlaybackService(),
+        repository: _SuccessfulStreamingRepository(),
+        childAge: 6,
+        initialAsrMode: AsrMode.androidStreaming,
+      );
+      final readyStartBlocked = <bool>[];
+      controller.addListener(() {
+        if (controller.phase == ConversationPhase.ready) {
+          readyStartBlocked.add(controller.isRecordingStartBlocked);
+        }
+      });
+
+      await controller.startRecording(
+        noSpeechTimeout: const Duration(minutes: 1),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await controller.stopRecording(manual: true);
+
+      expect(controller.lastTurnEndReason, ConversationTurnEndReason.completed);
+      expect(readyStartBlocked, isNotEmpty);
+      expect(
+        readyStartBlocked.first,
+        isTrue,
+        reason: 'The next turn must not start before old-turn cleanup.',
+      );
+      expect(readyStartBlocked.last, isFalse);
+      controller.dispose();
+    },
+  );
 }
 
 Future<void> _flushAsyncEvents() async {
@@ -865,4 +902,31 @@ class _NoNetworkRepository implements ConversationRepository {
 
   @override
   Future<void> dispose() async {}
+}
+
+class _SuccessfulStreamingRepository extends _NoNetworkRepository {
+  @override
+  Future<ConversationResult> processStreamingText({
+    required StreamingSpeechCapture capture,
+    required PracticeContext context,
+    required int childAge,
+    required int vadSilenceMs,
+  }) async => ConversationResult(
+    conversationId: 'continuous-turn',
+    sessionId: 'continuous-session',
+    context: context,
+    vietnameseText: capture.sourceText,
+    englishText: 'Hello.',
+    audioUri: null,
+    processingMode: 'streaming',
+    textSource: 'native_speech',
+    audioSource: 'none',
+    asrMode: capture.asrMode,
+    latency: const ConversationLatency(
+      asrMs: 1,
+      llmMs: 1,
+      ttsMs: 0,
+      timeToFirstAudioMs: 0,
+    ),
+  );
 }

@@ -34,6 +34,7 @@ import '../features/listening/application/android_offline_speech_model_service.d
 import '../features/listening/application/android_runtime_platform.dart';
 import '../features/listening/domain/listening_catalog.dart';
 import '../features/listening/domain/listening_content.dart';
+import '../features/listening/presentation/listening_route_names.dart';
 import '../features/onboarding/presentation/startup_setup_screen.dart';
 import '../features/onboarding/application/parent_setup_progress_store.dart';
 import '../features/privacy/data/privacy_consent_store.dart';
@@ -87,6 +88,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   final AppleOfflineSpeechAssetService _appleOfflineSpeechAssetService =
       const AppleOfflineSpeechAssetService();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  late final _MainOverlayNavigatorObserver _mainOverlayNavigatorObserver;
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
   late final MainSpeakingSessionController _mainSpeakingSessionController;
@@ -105,6 +107,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _hasMainSpeakingTurnStarted = false;
   int _mainSpeakingHfpSessionGeneration = 0;
   bool _isGlobalModalOpen = false;
+  bool _showFloatingMainButton = false;
   bool _backgroundWorkStarted = false;
   bool _activeModulePausedForMain = false;
   bool _isResumingActiveModule = false;
@@ -157,6 +160,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _mainOverlayNavigatorObserver = _MainOverlayNavigatorObserver(
+      onVisibilityChanged: (visible) {
+        if (!mounted || _showFloatingMainButton == visible) return;
+        setState(() => _showFloatingMainButton = visible);
+      },
+    );
     _config = AppConfig.fromEnvironment();
     _mainSpeakingSessionController = MainSpeakingSessionController();
     _mainSpeakingSessionController.addListener(
@@ -1309,6 +1318,15 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
   }
 
+  Future<void> _handleScreenMainShortPress() async {
+    await _mainButtonCoordinator.handle(
+      const MainButtonInputEvent(
+        source: MainButtonSource.screen,
+        gesture: MainButtonGesture.shortPress,
+      ),
+    );
+  }
+
   Future<void> _handleScreenMainRelease() async {
     await _mainButtonCoordinator.handle(
       const MainButtonInputEvent(
@@ -1707,6 +1725,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: <NavigatorObserver>[_mainOverlayNavigatorObserver],
       title: 'HOMI App',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
@@ -1723,7 +1742,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
               if (voiceController != null &&
                   !_isGlobalModalOpen &&
                   _startupReady &&
-                  _voiceAccessEnabled)
+                  _voiceAccessEnabled &&
+                  _showFloatingMainButton)
                 Positioned(
                   right: 16,
                   bottom: 0,
@@ -1734,14 +1754,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                       conversationController: controller,
                       speakingSessionController: _mainSpeakingSessionController,
                       isActivationPending: _isActivatingMainAssistant,
-                      onPressed: () async {
-                        await _mainButtonCoordinator.handle(
-                          const MainButtonInputEvent(
-                            source: MainButtonSource.screen,
-                            gesture: MainButtonGesture.shortPress,
-                          ),
-                        );
-                      },
+                      onPressed: _handleScreenMainShortPress,
                       onLongPressed: _handleScreenMainLongPress,
                       onLongPressReleased: _handleScreenMainRelease,
                     ),
@@ -1763,6 +1776,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onThemeModeChanged: _setThemeMode,
                   onChildAgeChanged: _setChildAge,
                   onMainSpeakingModeStarted: _startMainSpeakingMode,
+                  onScreenMainPressed: _voiceAccessEnabled
+                      ? _handleScreenMainShortPress
+                      : null,
                   onModalVisibilityChanged: _setGlobalModalOpen,
                   privacyConsentGranted: _privacyConsentGranted,
                   voiceAccessEnabled: _voiceAccessEnabled,
@@ -1824,5 +1840,58 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
               },
             ),
     );
+  }
+}
+
+class _MainOverlayNavigatorObserver extends NavigatorObserver {
+  _MainOverlayNavigatorObserver({required this.onVisibilityChanged});
+
+  final ValueChanged<bool> onVisibilityChanged;
+  final Set<Route<dynamic>> _pageRoutes = <Route<dynamic>>{};
+
+  void _notify() {
+    final topRoute = _pageRoutes.isEmpty ? null : _pageRoutes.last;
+    final topName = topRoute?.settings.name;
+    final hasIntegratedMainNavigation =
+        topName == ListeningRouteNames.topicCatalog ||
+        topName == ListeningRouteNames.topicLessons;
+    onVisibilityChanged(_pageRoutes.length > 1 && !hasIntegratedMainNavigation);
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    if (route is PageRoute<dynamic>) {
+      _pageRoutes.add(route);
+      _notify();
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    if (_pageRoutes.remove(route)) {
+      _notify();
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didRemove(route, previousRoute);
+    if (_pageRoutes.remove(route)) {
+      _notify();
+    }
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    if (oldRoute != null) {
+      _pageRoutes.remove(oldRoute);
+    }
+    if (newRoute is PageRoute<dynamic>) {
+      _pageRoutes.add(newRoute);
+    }
+    _notify();
   }
 }

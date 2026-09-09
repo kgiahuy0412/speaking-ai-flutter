@@ -7,9 +7,14 @@ import 'package:ai_speaking_flutter_app/features/conversation/domain/conversatio
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/settings/presentation/history_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(_loadGoldenFonts);
+
   testWidgets(
     'history shows distinct review states and filters rejected items',
     (tester) async {
@@ -59,6 +64,48 @@ void main() {
       expect(find.text('Câu chưa đánh giá'), findsNothing);
     },
   );
+
+  testWidgets('empty history keeps the shared HOMI visual system', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = ConversationController(
+      audioInput: const _FakeAudioInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: _EmptyHistoryRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: Scaffold(body: HistorySheet(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(HistorySheet));
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage('assets/images/mascot/penguin-wave.png'),
+        context,
+      ),
+    );
+    await tester.pump();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/history-empty-390x844.png'),
+    );
+  });
+}
+
+class _EmptyHistoryRepository extends _FakeHistoryRepository {
+  @override
+  Future<List<ConversationHistoryItem>> fetchHistory() async =>
+      const <ConversationHistoryItem>[];
 }
 
 class _FakeHistoryRepository implements ConversationRepository {
@@ -224,4 +271,12 @@ class _FakePlaybackService implements AudioPlaybackService {
 
   @override
   Future<void> stop() async {}
+}
+
+Future<void> _loadGoldenFonts() async {
+  final roboto = FontLoader('Roboto')
+    ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
+  final materialIcons = FontLoader('MaterialIcons')
+    ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
+  await Future.wait<void>(<Future<void>>[roboto.load(), materialIcons.load()]);
 }

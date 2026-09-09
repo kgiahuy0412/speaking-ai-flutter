@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
-import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../listening/domain/listening_catalog.dart';
 
@@ -114,7 +113,10 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     final stepNumber = _step.index + 1;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: LearningScenery(
+      body: ColoredBox(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF0E1630)
+            : Colors.white,
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -158,32 +160,52 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   }
 
   Widget _buildPrivacyStep(ThemeData theme) {
-    return _SetupCard(
-      icon: Icons.family_restroom_rounded,
-      title: 'Khu vực thiết lập của phụ huynh',
+    return _SetupStepLayout(
+      key: const ValueKey<String>('startup-privacy-step'),
+      title: 'Xác nhận của phụ huynh',
       subtitle: 'Phụ huynh hoặc giáo viên thiết lập phiên học tại đây.',
-      child: Column(
+      panel: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          CheckboxListTile(
-            key: const Key('startup-confirm-adult-role'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _adultRoleConfirmed,
-            onChanged: widget.profileLoading
-                ? null
-                : (value) =>
-                      setState(() => _adultRoleConfirmed = value ?? false),
-            title: const Text('Tôi là phụ huynh, người giám hộ hoặc giáo viên'),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: CheckboxListTile(
+              key: const Key('startup-confirm-adult-role'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _adultRoleConfirmed,
+              onChanged: widget.profileLoading
+                  ? null
+                  : (value) =>
+                        setState(() => _adultRoleConfirmed = value ?? false),
+              activeColor: AppColors.coral,
+              checkColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Text(
+                'Tôi là phụ huynh, người giám hộ hoặc giáo viên',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: AppColors.indigoDark,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
-          const Divider(height: 24),
+          const SizedBox(height: 4),
           TextButton.icon(
             key: const Key('startup-review-legal'),
             onPressed: _showLegalReview,
             style: TextButton.styleFrom(
               alignment: Alignment.centerLeft,
-              minimumSize: const Size.fromHeight(48),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              foregroundColor: AppColors.indigoDark,
+              backgroundColor: Colors.white.withValues(alpha: 0.74),
+              minimumSize: const Size.fromHeight(54),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
             ),
             icon: Icon(
               _legalReviewCompleted
@@ -195,119 +217,138 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               _legalReviewCompleted
                   ? 'Đã đọc Điều khoản và Chính sách quyền riêng tư'
                   : 'Đọc Điều khoản và Chính sách quyền riêng tư',
-              style: const TextStyle(decoration: TextDecoration.underline),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          CheckboxListTile(
-            key: const Key('startup-accept-legal'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _voiceDataAccepted,
-            onChanged:
-                !_legalReviewCompleted ||
-                    widget.profileLoading ||
-                    widget.privacyConsentGranted
-                ? null
-                : (value) =>
-                      setState(() => _voiceDataAccepted = value ?? false),
-            title: const Text(
-              'Tôi đồng ý để HOMI gửi dữ liệu giọng nói/audio và transcript tới Railway để vận hành backend; gửi audio khi cần và transcript tới Cloudflare Workers AI để nhận dạng, dịch và tạo giọng đọc; đồng thời gửi bản ghi giọng nói tới Cloudinary để phụ huynh nghe lại.',
-            ),
-            subtitle: !_legalReviewCompleted
-                ? const Text('Đọc hết nội dung trên để mở lựa chọn này.')
-                : null,
-          ),
-          if (!widget.privacyConfigurationComplete) ...<Widget>[
-            const SizedBox(height: 12),
-            const _WarningBox(
-              text:
-                  'Bản build chưa cấu hình đầy đủ URL pháp lý, nhà cung cấp hoặc thời hạn lưu. Chế độ giọng nói đang bị khóa.',
-            ),
-          ],
-          const SizedBox(height: 18),
-          if (widget.privacyConsentGranted)
-            const _GrantedBanner(
-              text: 'Phụ huynh đã đồng ý xử lý, gửi và lưu dữ liệu giọng nói.',
-            )
-          else if (widget.limitedModeSelected)
-            const _GrantedBanner(text: 'Đã chọn chế độ không dùng giọng nói.')
-          else
-            FilledButton.icon(
-              key: const Key('startup-grant-privacy-consent'),
-              onPressed:
-                  !_adultRoleConfirmed ||
-                      !_legalReviewCompleted ||
-                      !_voiceDataAccepted ||
-                      widget.profileLoading ||
-                      !widget.privacyConfigurationComplete
-                  ? null
-                  : _grantConsentAndContinue,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
+          const SizedBox(height: 4),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: CheckboxListTile(
+              key: const Key('startup-accept-legal'),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 4,
               ),
-              icon: const Icon(Icons.verified_user_outlined),
-              label: const Text('Đồng ý và tiếp tục'),
-            ),
-          if (!_privacyChoiceMade) ...<Widget>[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              key: const Key('startup-continue-without-voice'),
-              onPressed:
-                  !_adultRoleConfirmed ||
-                      !_legalReviewCompleted ||
-                      widget.profileLoading
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _voiceDataAccepted,
+              onChanged:
+                  !_legalReviewCompleted ||
+                      widget.profileLoading ||
+                      widget.privacyConsentGranted
                   ? null
-                  : _chooseLimitedMode,
-              icon: const Icon(Icons.mic_off_outlined),
-              label: const Text('Tiếp tục không dùng giọng nói'),
+                  : (value) =>
+                        setState(() => _voiceDataAccepted = value ?? false),
+              activeColor: AppColors.coral,
+              checkColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Text(
+                'Tôi đồng ý để HOMI xử lý dữ liệu giọng nói theo Điều khoản và Chính sách quyền riêng tư đã đọc.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.indigoDark.withValues(alpha: 0.76),
+                  height: 1.4,
+                ),
+              ),
+              subtitle: !_legalReviewCompleted
+                  ? const Text('Đọc hết nội dung trên để mở lựa chọn này.')
+                  : null,
             ),
-          ] else ...<Widget>[
-            const SizedBox(height: 12),
-            _PrimaryNextButton(onPressed: _adultRoleConfirmed ? _goNext : null),
-          ],
+          ),
         ],
       ),
+      footer: <Widget>[
+        if (!widget.privacyConfigurationComplete)
+          const _WarningBox(
+            text:
+                'Bản build chưa cấu hình đầy đủ URL pháp lý, nhà cung cấp hoặc thời hạn lưu. Chế độ giọng nói đang bị khóa.',
+          ),
+        if (!widget.privacyConfigurationComplete) const SizedBox(height: 12),
+        if (widget.privacyConsentGranted)
+          const _GrantedBanner(
+            text: 'Phụ huynh đã đồng ý xử lý, gửi và lưu dữ liệu giọng nói.',
+          )
+        else if (widget.limitedModeSelected)
+          const _GrantedBanner(text: 'Đã chọn chế độ không dùng giọng nói.'),
+        if (_privacyChoiceMade) const SizedBox(height: 14),
+        if (!widget.privacyConsentGranted && !widget.limitedModeSelected)
+          FilledButton.icon(
+            key: const Key('startup-grant-privacy-consent'),
+            onPressed:
+                !_adultRoleConfirmed ||
+                    !_legalReviewCompleted ||
+                    !_voiceDataAccepted ||
+                    widget.profileLoading ||
+                    !widget.privacyConfigurationComplete
+                ? null
+                : _grantConsentAndContinue,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+            ),
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Đồng ý và tiếp tục'),
+          ),
+        if (!_privacyChoiceMade) ...<Widget>[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            key: const Key('startup-continue-without-voice'),
+            onPressed:
+                !_adultRoleConfirmed ||
+                    !_legalReviewCompleted ||
+                    widget.profileLoading
+                ? null
+                : _chooseLimitedMode,
+            icon: const Icon(Icons.mic_off_outlined),
+            label: const Text('Tiếp tục không dùng giọng nói'),
+          ),
+        ] else
+          _PrimaryNextButton(onPressed: _adultRoleConfirmed ? _goNext : null),
+      ],
     );
   }
 
   Widget _buildProfileStep(ThemeData theme) {
-    return _SetupCard(
-      icon: Icons.child_care_rounded,
+    final compact = MediaQuery.sizeOf(context).height < 780;
+    return _SetupStepLayout(
+      key: const ValueKey<String>('startup-profile-step'),
       title: 'Chọn hồ sơ học của trẻ',
       subtitle:
           'Phụ huynh chọn nhóm tuổi để HOMI chuẩn bị từ vựng, chủ đề và cách hướng dẫn phù hợp.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      panel: Column(
         children: <Widget>[
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: <Widget>[
-              for (final catalog in listeningCatalogs)
-                ChoiceChip(
-                  key: ValueKey('startup-age-${catalog.id}'),
-                  label: Text('${catalog.startAge}–${catalog.endAge} tuổi'),
-                  selected:
-                      widget.selectedAge != null &&
-                      widget.selectedAge! >= catalog.startAge &&
-                      widget.selectedAge! <= catalog.endAge,
-                  onSelected: (_) => widget.onAgeSelected(catalog.startAge),
-                  avatar: const Icon(Icons.face_rounded, size: 19),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const _InfoBox(
-            icon: Icons.admin_panel_settings_outlined,
-            text:
-                'Nhóm tuổi chỉ được thay đổi trong Cài đặt dành cho phụ huynh.',
-          ),
-          const SizedBox(height: 18),
-          _PrimaryNextButton(
-            onPressed: widget.selectedAge == null ? null : _goNext,
-          ),
+          for (final catalog in listeningCatalogs)
+            _ProfileAgeOption(
+              key: ValueKey('startup-age-${catalog.id}'),
+              label: '${catalog.startAge}–${catalog.endAge} tuổi',
+              selected:
+                  widget.selectedAge != null &&
+                  widget.selectedAge! >= catalog.startAge &&
+                  widget.selectedAge! <= catalog.endAge,
+              onPressed: () => widget.onAgeSelected(catalog.startAge),
+            ),
         ],
       ),
+      footer: <Widget>[
+        const _InfoBox(
+          icon: Icons.lock_outline_rounded,
+          text: 'Nhóm tuổi chỉ được thay đổi trong Cài đặt dành cho phụ huynh.',
+        ),
+        SizedBox(
+          height: compact ? 104 : 154,
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Image.asset(
+              MascotAssets.wave,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+        ),
+        _PrimaryNextButton(
+          onPressed: widget.selectedAge == null ? null : _goNext,
+        ),
+      ],
     );
   }
 
@@ -315,13 +356,14 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     final permissionsGranted =
         widget.microphoneGranted &&
         (!widget.bluetoothRequired || widget.bluetoothGranted);
-    return _SetupCard(
-      icon: Icons.bluetooth_audio_rounded,
+    return _SetupStepLayout(
+      key: const ValueKey<String>('startup-permissions-step'),
       title: 'Cấp quyền và kết nối thiết bị',
       subtitle: widget.limitedModeSelected
           ? 'Chế độ không giọng nói không cần quyền micro hoặc Bluetooth.'
           : 'HOMI ưu tiên thiết bị đã kết nối và dùng micro điện thoại khi chưa có thiết bị.',
-      child: Column(
+      panelPadding: const EdgeInsets.all(12),
+      panel: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           if (widget.limitedModeSelected)
@@ -380,21 +422,24 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             ],
             if (widget.androidOfflineEnglishModelOptionAvailable) ...<Widget>[
               const SizedBox(height: 14),
-              SwitchListTile.adaptive(
-                // Keep the legacy key so existing automation does not lose
-                // the control while its scope expands to both platforms.
-                key: const Key('startup-android-offline-english-model'),
-                contentPadding: EdgeInsets.zero,
-                value: widget.androidOfflineEnglishModelDownloadAllowed,
-                onChanged: _choiceInProgress
-                    ? null
-                    : _setAndroidOfflineEnglishModelDownload,
-                secondary: const Icon(Icons.download_for_offline_rounded),
-                title: const Text(
-                  'Cho phép tải dữ liệu giọng nói và dịch offline',
-                ),
-                subtitle: const Text(
-                  'HOMI tự tải các gói tiếng Anh, tiếng Việt và model dịch ML Kit của Google trong nền khi có Wi-Fi. Dữ liệu di động không được dùng; nhận dạng và dịch offline chạy trên điện thoại, không gửi bản ghi hoặc transcript tới Google/Vosk. Nhờ đó bài học, thử thách và dịch liên tục vẫn hoạt động khi mất mạng.',
+              Material(
+                color: Colors.transparent,
+                child: SwitchListTile.adaptive(
+                  // Keep the legacy key so existing automation does not lose
+                  // the control while its scope expands to both platforms.
+                  key: const Key('startup-android-offline-english-model'),
+                  contentPadding: EdgeInsets.zero,
+                  value: widget.androidOfflineEnglishModelDownloadAllowed,
+                  onChanged: _choiceInProgress
+                      ? null
+                      : _setAndroidOfflineEnglishModelDownload,
+                  secondary: const Icon(Icons.download_for_offline_rounded),
+                  title: const Text(
+                    'Cho phép tải dữ liệu giọng nói và dịch offline',
+                  ),
+                  subtitle: const Text(
+                    'HOMI tự tải các gói tiếng Anh, tiếng Việt và model dịch ML Kit của Google trong nền khi có Wi-Fi. Dữ liệu di động không được dùng; nhận dạng và dịch offline chạy trên điện thoại, không gửi bản ghi hoặc transcript tới Google/Vosk. Nhờ đó bài học, thử thách và dịch liên tục vẫn hoạt động khi mất mạng.',
+                  ),
                 ),
               ),
             ],
@@ -427,31 +472,33 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               ),
             ],
           ],
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            key: const Key('startup-confirm-age'),
-            onPressed: _canComplete && !_choiceInProgress
-                ? widget.onCompleteSetup
-                : null,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(58),
-              backgroundColor: AppColors.indigo,
-            ),
-            icon: const Icon(Icons.play_circle_outline_rounded),
-            label: const Text('Hoàn tất và bắt đầu phiên học'),
-          ),
-          if (!_canComplete) ...<Widget>[
-            const SizedBox(height: 10),
-            Text(
-              'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ],
       ),
+      footer: <Widget>[
+        const SizedBox(height: 2),
+        FilledButton.icon(
+          key: const Key('startup-confirm-age'),
+          onPressed: _canComplete && !_choiceInProgress
+              ? widget.onCompleteSetup
+              : null,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(58),
+            backgroundColor: AppColors.indigo,
+          ),
+          icon: const Icon(Icons.play_circle_outline_rounded),
+          label: const Text('Hoàn tất và bắt đầu phiên học'),
+        ),
+        if (!_canComplete) ...<Widget>[
+          const SizedBox(height: 10),
+          Text(
+            'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -894,10 +941,24 @@ class _SetupHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: stepNumber / totalSteps,
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(999),
+          Row(
+            children: <Widget>[
+              for (var index = 1; index <= totalSteps; index += 1) ...<Widget>[
+                Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: index <= stepNumber
+                          ? AppColors.indigo
+                          : theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                if (index != totalSteps) const SizedBox(width: 7),
+              ],
+            ],
           ),
         ],
       ),
@@ -911,70 +972,139 @@ class _PrimaryNextButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton.icon(
+    return FilledButton(
       key: const Key('startup-next'),
       onPressed: onPressed,
       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
-      icon: const Icon(Icons.arrow_forward_rounded),
-      label: const Text('Tiếp tục'),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text('Tiếp tục'),
+          SizedBox(width: 10),
+          Icon(Icons.arrow_forward_rounded),
+        ],
+      ),
     );
   }
 }
 
-class _SetupCard extends StatelessWidget {
-  const _SetupCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.child,
+class _ProfileAgeOption extends StatelessWidget {
+  const _ProfileAgeOption({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+    super.key,
   });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Widget child;
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.ink.withValues(alpha: 0.08),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: theme.colorScheme.surface.withValues(alpha: 0.96),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(26),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Icon(icon, size: 34, color: AppColors.indigo),
-              const SizedBox(height: 12),
-              Text(title, style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+        color: selected ? const Color(0xFFFFF0B7) : Colors.transparent,
+        borderRadius: BorderRadius.circular(23),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(23),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 54),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected
+                        ? AppColors.coral
+                        : theme.colorScheme.onSurfaceVariant,
+                    size: 27,
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: AppColors.indigoDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: AppColors.coral,
+                      size: 27,
+                    ),
+                ],
               ),
-              const SizedBox(height: 20),
-              child,
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SetupStepLayout extends StatelessWidget {
+  const _SetupStepLayout({
+    required this.title,
+    required this.subtitle,
+    required this.panel,
+    required this.footer,
+    this.panelPadding = const EdgeInsets.all(8),
+    super.key,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget panel;
+  final List<Widget> footer;
+  final EdgeInsetsGeometry panelPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final compact = MediaQuery.sizeOf(context).height < 780;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          title,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: AppColors.indigoDark,
+            fontSize: compact ? 28 : 32,
+            letterSpacing: -0.7,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: compact ? 15 : 16,
+          ),
+        ),
+        SizedBox(height: compact ? 16 : 24),
+        Container(
+          padding: panelPadding,
+          decoration: BoxDecoration(
+            color: theme.brightness == Brightness.dark
+                ? theme.colorScheme.surfaceContainer
+                : const Color(0xFFFFFBEC),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: panel,
+        ),
+        SizedBox(height: compact ? 14 : 18),
+        ...footer,
+      ],
     );
   }
 }
@@ -1010,14 +1140,8 @@ class _DeviceChoiceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: selected
             ? AppColors.successSoft
-            : theme.colorScheme.surfaceContainer,
+            : theme.colorScheme.surface.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: selected
-              ? AppColors.success
-              : theme.colorScheme.outlineVariant,
-          width: selected ? 1.5 : 1,
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

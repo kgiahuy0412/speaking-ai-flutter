@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../../app/app_theme.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../../core/platform/background_learning_session.dart';
@@ -23,7 +22,7 @@ import '../../vocabulary/domain/vocabulary_entry.dart';
 import '../../vocabulary/presentation/vocabulary_home_screen.dart';
 import '../../voice_navigation/application/voice_navigation_controller.dart';
 import '../../voice_navigation/application/voice_navigation_intent_resolver.dart';
-import 'home_mode_rail.dart';
+import 'homi_bottom_navigation.dart';
 
 class HomeLearningShell extends StatefulWidget {
   const HomeLearningShell({
@@ -34,6 +33,7 @@ class HomeLearningShell extends StatefulWidget {
     this.onThemeModeChanged,
     this.onChildAgeChanged,
     this.onMainSpeakingModeStarted,
+    this.onScreenMainPressed,
     this.onModalVisibilityChanged,
     this.privacyConsentGranted = false,
     this.voiceAccessEnabled = true,
@@ -54,6 +54,7 @@ class HomeLearningShell extends StatefulWidget {
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
+  final Future<void> Function()? onScreenMainPressed;
   final ValueChanged<bool>? onModalVisibilityChanged;
   final bool privacyConsentGranted;
   final bool voiceAccessEnabled;
@@ -263,82 +264,74 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             },
             child: Stack(
               children: <Widget>[
-                PageView(
-                  key: const Key('home-learning-page-view'),
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (page) => setState(() => _page = page),
+                Column(
                   children: <Widget>[
-                    ConversationScreen(
-                      controller: widget.controller,
-                      config: widget.config,
-                      themeMode: widget.themeMode,
-                      onThemeModeChanged: widget.onThemeModeChanged,
-                      onChildAgeChanged: widget.onChildAgeChanged,
-                      onStartTutorial: _startTutorial,
-                      speakActionKey: _speakActionKey,
-                      resultPanelKey: _resultPanelKey,
-                      historyButtonKey: _historyButtonKey,
-                      settingsButtonKey: _settingsButtonKey,
-                      onModalVisibilityChanged: widget.onModalVisibilityChanged,
-                      privacyConsentGranted: widget.privacyConsentGranted,
-                      voiceAccessEnabled: widget.voiceAccessEnabled,
-                      onRequestVoiceAccess: widget.onRequestVoiceAccess,
-                      onManagePrivacyConsent: widget.onManagePrivacyConsent,
-                      onRevokePrivacyConsent: widget.onRevokePrivacyConsent,
-                      onOpenHistory: _showHistory,
-                      onOpenSettings: _showSettings,
+                    Expanded(
+                      child: PageView(
+                        key: const Key('home-learning-page-view'),
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (page) => setState(() => _page = page),
+                        children: <Widget>[
+                          ConversationScreen(
+                            controller: widget.controller,
+                            config: widget.config,
+                            themeMode: widget.themeMode,
+                            onThemeModeChanged: widget.onThemeModeChanged,
+                            onChildAgeChanged: widget.onChildAgeChanged,
+                            onStartTutorial: _startTutorial,
+                            speakActionKey: _speakActionKey,
+                            resultPanelKey: _resultPanelKey,
+                            historyButtonKey: _historyButtonKey,
+                            settingsButtonKey: _settingsButtonKey,
+                            onModalVisibilityChanged:
+                                widget.onModalVisibilityChanged,
+                            privacyConsentGranted: widget.privacyConsentGranted,
+                            voiceAccessEnabled: widget.voiceAccessEnabled,
+                            onRequestVoiceAccess: widget.onRequestVoiceAccess,
+                            onManagePrivacyConsent:
+                                widget.onManagePrivacyConsent,
+                            onRevokePrivacyConsent:
+                                widget.onRevokePrivacyConsent,
+                            onOpenHistory: _showHistory,
+                            onOpenSettings: _showSettings,
+                          ),
+                          VocabularyHomeScreen(
+                            isReady: widget.controller.isInputAvailable,
+                            isActive: _page == 1,
+                            translator: (input) async {
+                              final translation = await widget.controller
+                                  .translateVocabulary(input);
+                              return VocabularyTranslation(
+                                englishText: translation.englishText,
+                                vietnameseText: translation.vietnameseText,
+                              );
+                            },
+                            onReturnToConversation: _showConversation,
+                            onHistory: _showHistory,
+                            onSettings: _showSettings,
+                          ),
+                        ],
+                      ),
                     ),
-                    VocabularyHomeScreen(
-                      isReady: widget.controller.isInputAvailable,
-                      isActive: _page == 1,
-                      translator: (input) async {
-                        final translation = await widget.controller
-                            .translateVocabulary(input);
-                        return VocabularyTranslation(
-                          englishText: translation.englishText,
-                          vietnameseText: translation.vietnameseText,
-                        );
-                      },
-                      onReturnToConversation: _showConversation,
+                    HomiBottomNavigation(
+                      selectedIndex: _page == 0 ? 0 : 3,
+                      onConversation: _showConversation,
+                      onTopics: _openTopicListening,
+                      onMain: widget.onScreenMainPressed == null
+                          ? null
+                          : () => unawaited(widget.onScreenMainPressed!()),
+                      onVocabulary: _showVocabulary,
                       onHistory: _showHistory,
-                      onSettings: _showSettings,
+                      conversationKey: const Key('conversation-bottom-tab'),
+                      topicsKey: const Key('topic-listening-edge-tab'),
+                      mainKey: const Key('main-voice-assistant-button'),
+                      vocabularyKey: const Key('vocabulary-edge-tab'),
+                      historyKey: const Key('history-bottom-tab'),
+                      topicsTutorialKey: _topicTabKey,
+                      vocabularyTutorialKey: _vocabularyTabKey,
                     ),
                   ],
-                ),
-                Align(
-                  alignment: const Alignment(-1, -0.20),
-                  child: KeyedSubtree(
-                    key: _vocabularyTabKey,
-                    child: HomeModeRail(
-                      key: const Key('vocabulary-edge-tab'),
-                      edge: HomeRailEdge.left,
-                      label: _page == 0
-                          ? context.tr('Từ vựng', '词汇')
-                          : context.tr('Giao tiếp', '沟通'),
-                      icon: _page == 0
-                          ? Icons.chat_bubble_rounded
-                          : Icons.mic_rounded,
-                      color: AppColors.indigo,
-                      onPressed: _page == 0
-                          ? _showVocabulary
-                          : _showConversation,
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: const Alignment(1, -0.05),
-                  child: KeyedSubtree(
-                    key: _topicTabKey,
-                    child: HomeModeRail(
-                      key: const Key('topic-listening-edge-tab'),
-                      edge: HomeRailEdge.right,
-                      label: context.tr('Chủ đề', '主题'),
-                      icon: Icons.headphones_rounded,
-                      color: const Color(0xFF7443D8),
-                      onPressed: _openTopicListening,
-                    ),
-                  ),
                 ),
                 if (_tutorialActive)
                   Positioned.fill(
@@ -764,6 +757,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             language: widget.controller.displayLanguage,
             childAge: widget.controller.childAge,
             controller: widget.controller,
+            onMainPressed: widget.onScreenMainPressed,
+            onVocabularyRequested: _showVocabulary,
             onVoiceNavigationPause: () =>
                 _pauseVoiceNavigation('listening_media_opened'),
             onVoiceNavigationResume: _resumeVoiceNavigation,

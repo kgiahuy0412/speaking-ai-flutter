@@ -699,6 +699,7 @@ class ConversationController extends ChangeNotifier {
       h20HardwareTestPhase == H20HardwareTestPhase.playing;
   bool get isRecordingStartBlocked =>
       _preparingMicrophone ||
+      _stopInProgress ||
       _recordingStartOperation != null ||
       _pendingHfpStartOperation != null ||
       bleDiagnosticRunning ||
@@ -3030,6 +3031,13 @@ class ConversationController extends ChangeNotifier {
       _realtimeConnectionFuture = null;
       _realtimeFallbackBuffer.clear();
       _stopInProgress = false;
+      // A completed continuous turn publishes `ready` before entering this
+      // cleanup block. Publish once more after the old microphone/HFP route and
+      // buffers are fully released so the session coordinator can safely start
+      // the next turn without the previous turn tearing it down.
+      if (!_disposed) {
+        notifyListeners();
+      }
       final command = handledSpeechCommand;
       if (command != null) {
         await _onRecognizedSpeechCommand?.call(command);

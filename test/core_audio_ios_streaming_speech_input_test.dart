@@ -313,6 +313,61 @@ void main() {
     expect(route.stopRouteCount, 1);
   });
 
+  test('iOS lesson recording path returns local WAV with transcript', () async {
+    const methodChannel = MethodChannel('test_ios_lesson_recording');
+    final events = StreamController<dynamic>.broadcast();
+    String? receivedRecordingPath;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'speech.isAvailable':
+          return true;
+        case 'speech.start':
+          final arguments = call.arguments as Map<Object?, Object?>?;
+          receivedRecordingPath = arguments?['recordingPath'] as String?;
+          scheduleMicrotask(() {
+            events.add(<String, dynamic>{'type': 'speech.ready'});
+          });
+          return true;
+        case 'speech.stop':
+        case 'speech.cancel':
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      await events.close();
+    });
+
+    final input = IOSStreamingSpeechInput(
+      methodChannel: methodChannel,
+      eventStream: events.stream,
+    );
+    addTearDown(input.dispose);
+    const path = r'C:\recordings\lesson-attempt.wav';
+
+    await input.startLessonEnglishRecognitionWithRecording(path);
+    events.add(<String, dynamic>{
+      'type': 'speech.final',
+      'text': 'Play soccer',
+      'alternatives': <String>['Play soccer'],
+      'audioPath': path,
+      'audioMimeType': 'audio/wav',
+      'audioByteLength': 32044,
+      'audioSampleRate': 16000,
+    });
+    await Future<void>.delayed(Duration.zero);
+    final capture = await input.stop();
+
+    expect(receivedRecordingPath, path);
+    expect(capture.sourceText, 'Play soccer');
+    expect(capture.recordedAudio?.filePath, path);
+    expect(capture.recordedAudio?.mimeType, 'audio/wav');
+    expect(capture.recordedAudio?.recordingSampleRate, 16000);
+  });
+
   test('iOS scopes H20 HFP activation to each consecutive utterance', () async {
     const methodChannel = MethodChannel('test_ios_hfp_route_reuse');
     final events = StreamController<dynamic>.broadcast();

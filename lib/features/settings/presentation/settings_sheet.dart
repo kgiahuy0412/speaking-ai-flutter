@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/homi_ui.dart';
 import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
@@ -90,6 +91,7 @@ class SettingsSheet extends StatelessWidget {
           child: Builder(
             builder: (context) => SafeArea(
               child: SingleChildScrollView(
+                key: const Key('settings-scroll-view'),
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,75 +214,97 @@ class SettingsSheet extends StatelessWidget {
                       stateColor: AppColors.success,
                     ),
                     const SizedBox(height: 10),
-                    _StatusTile(
-                      icon: Icons.headset_mic_rounded,
-                      title: context.tr('Trạng thái H20 tổng hợp', 'H20 综合状态'),
-                      detail: context.tr(
-                        h20State.isH20Ready
-                            ? 'HFP và BLE Control đều sẵn sàng.'
-                            : h20State.hfpReady
-                            ? 'HFP sẵn sàng; BLE Control chưa sẵn sàng.'
-                            : h20State.bleReady
-                            ? 'BLE Control sẵn sàng; HFP chưa sẵn sàng.'
-                            : 'HFP và BLE Control chưa sẵn sàng.',
-                        h20State.isH20Ready
-                            ? 'HFP 与 BLE 控制均已就绪。'
-                            : h20State.hfpReady
-                            ? 'HFP 已就绪；BLE 控制尚未就绪。'
-                            : h20State.bleReady
-                            ? 'BLE 控制已就绪；HFP 尚未就绪。'
-                            : 'HFP 与 BLE 控制均未就绪。',
+                    HomiSurface(
+                      key: const Key('settings-h20-group'),
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                      child: Column(
+                        children: <Widget>[
+                          HomiSectionHeading(
+                            icon: Icons.headset_mic_rounded,
+                            title: context.tr('Kết nối H20', '连接 H20'),
+                            trailing: HomiStatusPill(
+                              label: h20State.isH20Ready
+                                  ? context.tr('Sẵn sàng', '已就绪')
+                                  : context.tr('Chưa sẵn sàng', '未就绪'),
+                              color: h20State.isH20Ready
+                                  ? AppColors.success
+                                  : AppColors.coral,
+                              icon: h20State.isH20Ready
+                                  ? Icons.check_rounded
+                                  : Icons.error_outline_rounded,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              context.tr(
+                                h20State.isH20Ready
+                                    ? 'Âm thanh và nút MAIN đã kết nối.'
+                                    : 'Hoàn tất cả âm thanh HFP và BLE để dùng nút MAIN.',
+                                h20State.isH20Ready
+                                    ? '音频与 MAIN 按钮均已连接。'
+                                    : '请完成 HFP 音频与 BLE 连接以使用 MAIN 按钮。',
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _Aiv0BleControlCard(
+                            embedded: true,
+                            status: controller.aiv0BleStatus,
+                            events: controller.aiv0ButtonEventLog,
+                            mainDispatchStatus:
+                                controller.aiv0MainDispatchStatus,
+                            mainDispatchAt: controller.aiv0MainDispatchAt,
+                            disabled: controller.isBusy,
+                            onScan: () => _scanAndConnectAiv0(context),
+                            onDisconnect: controller.disconnectAiv0Device,
+                          ),
+                          const _SettingsDivider(),
+                          _HfpStatusCard(
+                            embedded: true,
+                            status: controller.hfpAudioStatus,
+                            browserManaged: controller.supportsBrowserHfp,
+                            selected: controller.usesHfpInput,
+                            disabled: controller.isBusy,
+                            onFind: () => _findAndConnectHfp(context),
+                            onDisconnect: controller.disconnectHfpDevice,
+                          ),
+                          if (isAndroid) ...<Widget>[
+                            const _SettingsDivider(),
+                            _H20OfflineHardwareTestCard(
+                              embedded: true,
+                              enabled: controller.h20HardwareTestModeEnabled,
+                              phase: controller.h20HardwareTestPhase,
+                              message: controller.h20HardwareTestMessage,
+                              result: controller.h20HardwareTestResult,
+                              bleConnected: controller.canUseAiv0Ble,
+                              mainProtocolConfirmed:
+                                  controller.aiv0BleStatus.protocolConfirmed,
+                              hfpStatus: controller.hfpAudioStatus,
+                              conversationBusy:
+                                  controller.phase ==
+                                      ConversationPhase.recording ||
+                                  controller.phase ==
+                                      ConversationPhase.processing,
+                              onEnabledChanged: (enabled) =>
+                                  _setH20HardwareTestMode(context, enabled),
+                              onRecord: () =>
+                                  _toggleH20OfflineRecording(context),
+                              onSpeakerTest: () => _playH20SpeakerTest(context),
+                              onPlaybackConfirmed:
+                                  controller.confirmH20PlaybackAudible,
+                            ),
+                          ],
+                        ],
                       ),
-                      trailing: h20State.isH20Ready
-                          ? context.tr('Sẵn sàng', '已就绪')
-                          : context.tr('Chưa đủ', '未完整'),
-                      stateColor: h20State.isH20Ready
-                          ? AppColors.success
-                          : AppColors.coral,
                     ),
-                    ...<Widget>[
-                      const SizedBox(height: 10),
-                      _Aiv0BleControlCard(
-                        status: controller.aiv0BleStatus,
-                        events: controller.aiv0ButtonEventLog,
-                        mainDispatchStatus: controller.aiv0MainDispatchStatus,
-                        mainDispatchAt: controller.aiv0MainDispatchAt,
-                        disabled: controller.isBusy,
-                        onScan: () => _scanAndConnectAiv0(context),
-                        onDisconnect: controller.disconnectAiv0Device,
-                      ),
-                      const SizedBox(height: 10),
-                      _HfpStatusCard(
-                        status: controller.hfpAudioStatus,
-                        browserManaged: controller.supportsBrowserHfp,
-                        selected: controller.usesHfpInput,
-                        disabled: controller.isBusy,
-                        onFind: () => _findAndConnectHfp(context),
-                        onDisconnect: controller.disconnectHfpDevice,
-                      ),
-                    ],
-                    if (isAndroid) ...<Widget>[
-                      const SizedBox(height: 10),
-                      _H20OfflineHardwareTestCard(
-                        enabled: controller.h20HardwareTestModeEnabled,
-                        phase: controller.h20HardwareTestPhase,
-                        message: controller.h20HardwareTestMessage,
-                        result: controller.h20HardwareTestResult,
-                        bleConnected: controller.canUseAiv0Ble,
-                        mainProtocolConfirmed:
-                            controller.aiv0BleStatus.protocolConfirmed,
-                        hfpStatus: controller.hfpAudioStatus,
-                        conversationBusy:
-                            controller.phase == ConversationPhase.recording ||
-                            controller.phase == ConversationPhase.processing,
-                        onEnabledChanged: (enabled) =>
-                            _setH20HardwareTestMode(context, enabled),
-                        onRecord: () => _toggleH20OfflineRecording(context),
-                        onSpeakerTest: () => _playH20SpeakerTest(context),
-                        onPlaybackConfirmed:
-                            controller.confirmH20PlaybackAudible,
-                      ),
-                    ],
                     const SizedBox(height: 24),
                     _SectionLabel(
                       label: kIsWeb
@@ -394,124 +418,135 @@ class SettingsSheet extends StatelessWidget {
                       label: context.tr('Dữ liệu và quyền riêng tư', '数据与隐私'),
                     ),
                     const SizedBox(height: 10),
-                    _SettingsActionTile(
-                      key: const Key('settings-privacy-policy'),
-                      icon: Icons.privacy_tip_outlined,
-                      title: context.tr('Chính sách quyền riêng tư', '隐私政策'),
-                      detail: context.tr(
-                        'Xem dữ liệu được thu thập, nhà cung cấp AI, thời hạn lưu và cách yêu cầu xóa.',
-                        '查看所收集的数据、AI 服务商、保存期限和删除方式。',
+                    HomiSurface(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-                      onTap: () => _openParentLink(
-                        context,
-                        config?.privacyPolicyUri,
-                        context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                      child: Column(
+                        children: <Widget>[
+                          _SettingsActionTile(
+                            key: const Key('settings-privacy-policy'),
+                            icon: Icons.privacy_tip_outlined,
+                            title: context.tr(
+                              'Chính sách quyền riêng tư',
+                              '隐私政策',
+                            ),
+                            detail: context.tr(
+                              'Xem dữ liệu được thu thập, nhà cung cấp AI, thời hạn lưu và cách yêu cầu xóa.',
+                              '查看所收集的数据、AI 服务商、保存期限和删除方式。',
+                            ),
+                            onTap: () => _openParentLink(
+                              context,
+                              config?.privacyPolicyUri,
+                              context.tr('Chính sách quyền riêng tư', '隐私政策'),
+                            ),
+                          ),
+                          const _SettingsDivider(),
+                          _SettingsActionTile(
+                            key: const Key('settings-terms'),
+                            icon: Icons.description_outlined,
+                            title: context.tr('Điều khoản sử dụng', '使用条款'),
+                            detail: context.tr(
+                              'Điều khoản dành cho phụ huynh và người giám hộ.',
+                              '面向家长和监护人的使用条款。',
+                            ),
+                            onTap: () => _openParentLink(
+                              context,
+                              config?.termsUri,
+                              context.tr('Điều khoản sử dụng', '使用条款'),
+                            ),
+                          ),
+                          const _SettingsDivider(),
+                          _SettingsActionTile(
+                            key: const Key('settings-support'),
+                            icon: Icons.support_agent_rounded,
+                            title: context.tr('Hỗ trợ', '支持'),
+                            detail: context.tr(
+                              'Liên hệ HOMI về quyền riêng tư, dữ liệu hoặc lỗi ứng dụng.',
+                              '就隐私、数据或应用问题联系 HOMI。',
+                            ),
+                            onTap: () => _openParentLink(
+                              context,
+                              config?.supportUri,
+                              context.tr('Hỗ trợ', '支持'),
+                            ),
+                          ),
+                          if (privacyConsentGranted &&
+                              !voiceAccessEnabled &&
+                              onRequestVoiceAccess != null) ...<Widget>[
+                            const _SettingsDivider(),
+                            _SettingsActionTile(
+                              key: const Key('settings-enable-voice'),
+                              icon: Icons.mic_rounded,
+                              title: context.tr('Cho phép micro', '允许麦克风'),
+                              detail: context.tr(
+                                'Mở hộp thoại quyền hệ thống. Audio chỉ được gửi sau khi có cả chấp thuận phụ huynh và quyền micro.',
+                                '打开系统权限对话框。只有家长同意并授予麦克风权限后才会发送音频。',
+                              ),
+                              onTap: onRequestVoiceAccess!,
+                            ),
+                          ],
+                          if (!privacyConsentGranted &&
+                              onManagePrivacyConsent != null) ...<Widget>[
+                            const _SettingsDivider(),
+                            _SettingsActionTile(
+                              key: const Key('settings-manage-privacy-consent'),
+                              icon: Icons.verified_user_outlined,
+                              title: context.tr(
+                                'Thiết lập tính năng giọng nói',
+                                '设置语音功能',
+                              ),
+                              detail: context.tr(
+                                'Quay lại màn hình dành cho phụ huynh để đọc thông tin và chọn đồng ý.',
+                                '返回家长设置页面，阅读说明并选择是否同意。',
+                              ),
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                onManagePrivacyConsent!();
+                              },
+                            ),
+                          ],
+                          if (privacyConsentGranted &&
+                              onRevokePrivacyConsent != null) ...<Widget>[
+                            const _SettingsDivider(),
+                            _SettingsActionTile(
+                              key: const Key('settings-revoke-privacy-consent'),
+                              icon: Icons.delete_forever_outlined,
+                              title: context.tr(
+                                'Rút chấp thuận và xóa dữ liệu',
+                                '撤回同意并删除数据',
+                              ),
+                              detail: context.tr(
+                                'Yêu cầu backend xóa lịch sử trước, sau đó xóa nhóm tuổi cục bộ và đặt lại mã cài đặt iOS/Web.',
+                                '先请求后端删除历史记录，再删除本地年龄组并重置 iOS/Web 安装标识。',
+                              ),
+                              onTap: () => _revokeConsent(context),
+                            ),
+                          ],
+                          if (onStartTutorial != null) ...<Widget>[
+                            const _SettingsDivider(),
+                            _SettingsActionTile(
+                              key: const Key('settings-start-user-tutorial'),
+                              icon: Icons.school_rounded,
+                              title: context.tr('Hướng dẫn sử dụng', '使用指南'),
+                              detail: context.tr(
+                                'Xem lại cách giao tiếp, học từ vựng và luyện nghe theo chủ đề',
+                                '重新查看对话、词汇和主题听力的使用方法',
+                              ),
+                              onTap: () {
+                                final startTutorial = onStartTutorial!;
+                                Navigator.of(context).pop();
+                                Future<void>.delayed(
+                                  const Duration(milliseconds: 260),
+                                  startTutorial,
+                                );
+                              },
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _SettingsActionTile(
-                      key: const Key('settings-terms'),
-                      icon: Icons.description_outlined,
-                      title: context.tr('Điều khoản sử dụng', '使用条款'),
-                      detail: context.tr(
-                        'Điều khoản dành cho phụ huynh và người giám hộ.',
-                        '面向家长和监护人的使用条款。',
-                      ),
-                      onTap: () => _openParentLink(
-                        context,
-                        config?.termsUri,
-                        context.tr('Điều khoản sử dụng', '使用条款'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _SettingsActionTile(
-                      key: const Key('settings-support'),
-                      icon: Icons.support_agent_rounded,
-                      title: context.tr('Hỗ trợ', '支持'),
-                      detail: context.tr(
-                        'Liên hệ HOMI về quyền riêng tư, dữ liệu hoặc lỗi ứng dụng.',
-                        '就隐私、数据或应用问题联系 HOMI。',
-                      ),
-                      onTap: () => _openParentLink(
-                        context,
-                        config?.supportUri,
-                        context.tr('Hỗ trợ', '支持'),
-                      ),
-                    ),
-                    if (privacyConsentGranted &&
-                        !voiceAccessEnabled &&
-                        onRequestVoiceAccess != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _SettingsActionTile(
-                        key: const Key('settings-enable-voice'),
-                        icon: Icons.mic_rounded,
-                        title: context.tr('Cho phép micro', '允许麦克风'),
-                        detail: context.tr(
-                          'Mở hộp thoại quyền hệ thống. Audio chỉ được gửi sau khi có cả chấp thuận phụ huynh và quyền micro.',
-                          '打开系统权限对话框。只有家长同意并授予麦克风权限后才会发送音频。',
-                        ),
-                        onTap: onRequestVoiceAccess!,
-                      ),
-                    ],
-                    if (!privacyConsentGranted &&
-                        onManagePrivacyConsent != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _SettingsActionTile(
-                        key: const Key('settings-manage-privacy-consent'),
-                        icon: Icons.verified_user_outlined,
-                        title: context.tr(
-                          'Thiết lập tính năng giọng nói',
-                          '设置语音功能',
-                        ),
-                        detail: context.tr(
-                          'Quay lại màn hình dành cho phụ huynh để đọc thông tin và chọn đồng ý.',
-                          '返回家长设置页面，阅读说明并选择是否同意。',
-                        ),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          onManagePrivacyConsent!();
-                        },
-                      ),
-                    ],
-                    if (privacyConsentGranted &&
-                        onRevokePrivacyConsent != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _SettingsActionTile(
-                        key: const Key('settings-revoke-privacy-consent'),
-                        icon: Icons.delete_forever_outlined,
-                        title: context.tr(
-                          'Rút chấp thuận và xóa dữ liệu',
-                          '撤回同意并删除数据',
-                        ),
-                        detail: context.tr(
-                          'Yêu cầu backend xóa lịch sử trước, sau đó xóa nhóm tuổi cục bộ và đặt lại mã cài đặt iOS/Web.',
-                          '先请求后端删除历史记录，再删除本地年龄组并重置 iOS/Web 安装标识。',
-                        ),
-                        onTap: () => _revokeConsent(context),
-                      ),
-                    ],
-                    if (onStartTutorial != null) ...<Widget>[
-                      const SizedBox(height: 26),
-                      _SectionLabel(label: context.tr('Hỗ trợ', '帮助')),
-                      const SizedBox(height: 10),
-                      _SettingsActionTile(
-                        key: const Key('settings-start-user-tutorial'),
-                        icon: Icons.school_rounded,
-                        title: context.tr('Hướng dẫn sử dụng', '使用指南'),
-                        detail: context.tr(
-                          'Xem lại cách giao tiếp, học từ vựng và luyện nghe theo chủ đề',
-                          '重新查看对话、词汇和主题听力的使用方法',
-                        ),
-                        onTap: () {
-                          final startTutorial = onStartTutorial!;
-                          Navigator.of(context).pop();
-                          Future<void>.delayed(
-                            const Duration(milliseconds: 260),
-                            startTutorial,
-                          );
-                        },
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -1350,35 +1385,15 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final unsupported =
         _status?.state == AndroidOfflineSpeechModelState.unavailable;
-    return Container(
+    return HomiSurface(
       key: const Key('settings-offline-language-packs'),
-      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? theme.colorScheme.surfaceContainerHigh
-            : AppColors.lavenderSoft,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.download_for_offline_rounded,
-              color: theme.colorScheme.primary,
-            ),
-          ),
+          const HomiIconBadge(icon: Icons.download_for_offline_rounded),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1412,6 +1427,22 @@ class _OfflineLanguagePacksCardState extends State<_OfflineLanguagePacksCard> {
   }
 }
 
+class _SettingsDivider extends StatelessWidget {
+  const _SettingsDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 1,
+      indent: 66,
+      endIndent: 10,
+      color: Theme.of(
+        context,
+      ).colorScheme.outlineVariant.withValues(alpha: 0.7),
+    );
+  }
+}
+
 class _SettingsActionTile extends StatelessWidget {
   const _SettingsActionTile({
     required this.icon,
@@ -1429,28 +1460,17 @@ class _SettingsActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return Material(
-      color: isDark
-          ? theme.colorScheme.surfaceContainerHigh
-          : AppColors.lavenderSoft,
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(HomiUi.controlRadius),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(HomiUi.controlRadius),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          padding: const EdgeInsets.fromLTRB(10, 12, 6, 12),
           child: Row(
             children: <Widget>[
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: theme.colorScheme.primary),
-              ),
+              HomiIconBadge(icon: icon),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1496,35 +1516,15 @@ class _ChildAgeGroupSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Container(
+    return HomiSurface(
       key: const Key('settings-child-age-group'),
-      width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? theme.colorScheme.surfaceContainerHigh
-            : AppColors.lavenderSoft,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.child_care_rounded,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
+              const HomiIconBadge(icon: Icons.child_care_rounded),
               const SizedBox(width: 11),
               Expanded(
                 child: Text(
@@ -1633,15 +1633,9 @@ class _AppearanceSelectorState extends State<_AppearanceSelector> {
         .firstWhere((option) => option.mode == _value)
         .label;
 
-    return Container(
+    return HomiSurface(
       key: const Key('appearance-settings-card'),
-      width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.45)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1733,7 +1727,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(label, style: Theme.of(context).textTheme.titleMedium);
+    return HomiSectionHeading(title: label);
   }
 }
 
@@ -1756,19 +1750,15 @@ class _StatusTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
+    return HomiSurface(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(icon, color: colorScheme.primary),
+              HomiIconBadge(icon: icon),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1790,14 +1780,7 @@ class _StatusTile extends StatelessWidget {
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              trailing,
-              style: TextStyle(
-                color: stateColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: HomiStatusPill(label: trailing, color: stateColor),
           ),
         ],
       ),
@@ -1807,6 +1790,7 @@ class _StatusTile extends StatelessWidget {
 
 class _Aiv0BleControlCard extends StatelessWidget {
   const _Aiv0BleControlCard({
+    this.embedded = false,
     required this.status,
     required this.events,
     required this.mainDispatchStatus,
@@ -1816,6 +1800,7 @@ class _Aiv0BleControlCard extends StatelessWidget {
     required this.onDisconnect,
   });
 
+  final bool embedded;
   final Aiv0BleStatus status;
   final List<Aiv0ButtonEvent> events;
   final String mainDispatchStatus;
@@ -1846,28 +1831,35 @@ class _Aiv0BleControlCard extends StatelessWidget {
         status.diagnosticTimeline.isNotEmpty;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: connected
-            ? Color.alphaBlend(
-                AppColors.success.withValues(alpha: 0.12),
-                colorScheme.surfaceContainer,
-              )
-            : colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: stateColor.withValues(alpha: 0.25)),
-      ),
+      padding: embedded
+          ? const EdgeInsets.symmetric(vertical: 10)
+          : const EdgeInsets.all(14),
+      decoration: embedded
+          ? null
+          : BoxDecoration(
+              color: connected
+                  ? Color.alphaBlend(
+                      AppColors.success.withValues(alpha: 0.12),
+                      colorScheme.surfaceContainer,
+                    )
+                  : colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: stateColor.withValues(alpha: 0.25)),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(
-                connected
+              HomiIconBadge(
+                icon: connected
                     ? Icons.bluetooth_connected_rounded
                     : Icons.settings_remote_rounded,
-                color: stateColor,
+                foregroundColor: stateColor,
+                backgroundColor: stateColor.withValues(alpha: 0.11),
+                size: 40,
+                iconSize: 22,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1906,89 +1898,108 @@ class _Aiv0BleControlCard extends StatelessWidget {
           ),
           if (hasNativeDiagnostics) ...<Widget>[
             const SizedBox(height: 9),
-            Container(
-              key: const Key('aiv0-native-diagnostics'),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: colorScheme.surface.withValues(alpha: 0.62),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+            Theme(
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: const Key('aiv0-technical-details'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.monitor_heart_outlined, size: 21),
+                title: Text(
+                  context.tr('Chi tiết kỹ thuật', '技术详情'),
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  _Aiv0DiagnosticLine(
-                    label: context.tr('GATT thực tế', '实际 GATT'),
-                    value:
-                        '${status.peripheralState ?? 'unknown'} • MAIN Notify '
-                        '${status.mainNotificationState ?? 'unknown'}',
-                  ),
-                  if (status.lastDisconnectCode != null ||
-                      status.lastDisconnectMessage != null)
-                    _Aiv0DiagnosticLine(
-                      label: context.tr('Mất BLE gần nhất', '最近 BLE 断开'),
-                      value: <String>[
-                        if (status.lastDisconnectAt != null)
-                          _formatEventTime(status.lastDisconnectAt!),
-                        if (status.lastDisconnectCode != null)
-                          status.lastDisconnectCode!,
-                        if (status.lastDisconnectMessage != null)
-                          status.lastDisconnectMessage!,
-                      ].join(' • '),
-                    ),
-                  if (status.lastNotificationRecovery != null)
-                    _Aiv0DiagnosticLine(
-                      label: context.tr('Khôi phục MAIN', '恢复 MAIN'),
-                      value: status.lastNotificationRecovery!,
-                    ),
-                  _Aiv0DiagnosticLine(
-                    label: context.tr('Retry đang hoãn', '延迟重试'),
-                    value: '${status.deferredRecoveryRepeatCount}',
-                  ),
-                  if (status.diagnosticTimeline.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 10),
-                    Text(
-                      context.tr(
-                        'Timeline BLE / HFP (tối đa 80 sự kiện gần nhất)',
-                        'BLE / HFP 时间线（最近最多 80 个事件）',
-                      ),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Container(
-                      key: const Key('aiv0-ble-hfp-timeline'),
-                      constraints: const BoxConstraints(maxHeight: 360),
-                      padding: const EdgeInsets.all(9),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerLowest.withValues(
-                          alpha: 0.76,
+                  Container(
+                    key: const Key('aiv0-native-diagnostics'),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface.withValues(alpha: 0.62),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.7,
                         ),
-                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: SingleChildScrollView(
-                        child: SelectableText(
-                          status.diagnosticTimeline
-                              .skip(
-                                status.diagnosticTimeline.length > 80
-                                    ? status.diagnosticTimeline.length - 80
-                                    : 0,
-                              )
-                              .map(_formatTimelineEvent)
-                              .join('\n'),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 10.5,
-                            height: 1.45,
-                            color: colorScheme.onSurface,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _Aiv0DiagnosticLine(
+                          label: context.tr('GATT thực tế', '实际 GATT'),
+                          value:
+                              '${status.peripheralState ?? 'unknown'} • MAIN Notify '
+                              '${status.mainNotificationState ?? 'unknown'}',
+                        ),
+                        if (status.lastDisconnectCode != null ||
+                            status.lastDisconnectMessage != null)
+                          _Aiv0DiagnosticLine(
+                            label: context.tr('Mất BLE gần nhất', '最近 BLE 断开'),
+                            value: <String>[
+                              if (status.lastDisconnectAt != null)
+                                _formatEventTime(status.lastDisconnectAt!),
+                              if (status.lastDisconnectCode != null)
+                                status.lastDisconnectCode!,
+                              if (status.lastDisconnectMessage != null)
+                                status.lastDisconnectMessage!,
+                            ].join(' • '),
                           ),
+                        if (status.lastNotificationRecovery != null)
+                          _Aiv0DiagnosticLine(
+                            label: context.tr('Khôi phục MAIN', '恢复 MAIN'),
+                            value: status.lastNotificationRecovery!,
+                          ),
+                        _Aiv0DiagnosticLine(
+                          label: context.tr('Retry đang hoãn', '延迟重试'),
+                          value: '${status.deferredRecoveryRepeatCount}',
                         ),
-                      ),
+                        if (status.diagnosticTimeline.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Text(
+                            context.tr(
+                              'Timeline BLE / HFP (tối đa 80 sự kiện gần nhất)',
+                              'BLE / HFP 时间线（最近最多 80 个事件）',
+                            ),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 5),
+                          Container(
+                            key: const Key('aiv0-ble-hfp-timeline'),
+                            constraints: const BoxConstraints(maxHeight: 360),
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerLowest
+                                  .withValues(alpha: 0.76),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: SingleChildScrollView(
+                              child: SelectableText(
+                                status.diagnosticTimeline
+                                    .skip(
+                                      status.diagnosticTimeline.length > 80
+                                          ? status.diagnosticTimeline.length -
+                                                80
+                                          : 0,
+                                    )
+                                    .map(_formatTimelineEvent)
+                                    .join('\n'),
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 10.5,
+                                  height: 1.45,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -1996,103 +2007,93 @@ class _Aiv0BleControlCard extends StatelessWidget {
           if (connected) ...<Widget>[
             const SizedBox(height: 9),
             _Aiv0DiagnosticLine(
-              label: context.tr('Pin', '电量'),
-              value: status.batteryPercent == null
-                  ? context.tr('Chưa đọc được', '尚未读取')
-                  : '${status.batteryPercent}%',
-            ),
-            _Aiv0DiagnosticLine(
-              label: context.tr('Firmware', '固件'),
+              label: context.tr('Pin & firmware', '电量与固件'),
               value:
-                  status.firmwareRevision ??
-                  context.tr('Chưa đọc được', '尚未读取'),
-            ),
-            _Aiv0DiagnosticLine(
-              label: context.tr('Trạng thái sạc', '充电状态'),
-              value: context.tr(
-                'Chưa được H20 cung cấp qua BLE',
-                'H20 尚未通过 BLE 提供',
-              ),
-            ),
-            _Aiv0DiagnosticLine(
-              label: context.tr('Ghi 9E3B0003', '写入 9E3B0003'),
-              value: status.writeMode == 'withResponse'
-                  ? 'Write with response'
-                  : status.writeMode == 'withoutResponse'
-                  ? context.tr(
-                      'WRITE_NO_RESPONSE • chờ ODM bổ sung ACK',
-                      'WRITE_NO_RESPONSE • 等待 ODM 增加 ACK',
-                    )
-                  : context.tr('Chưa xác định', '尚未确定'),
+                  '${status.batteryPercent == null ? context.tr('Chưa đọc pin', '尚未读取电量') : 'Pin ${status.batteryPercent}%'}'
+                  ' • FW ${status.firmwareRevision ?? context.tr('chưa rõ', '未知')}',
             ),
           ],
           if (status.deviceId != null ||
               events.isNotEmpty ||
               status.packetCount > 0) ...<Widget>[
             const SizedBox(height: 9),
-            _Aiv0DiagnosticLine(
-              label: context.tr('Giao thức packet', '数据包协议'),
-              value: status.protocolConfirmed
-                  ? context.tr('Đã xác nhận', '已确认')
-                  : context.tr(
-                      'MAIN Raw Hex đã điều khiển APP • chưa gửi APP State',
-                      'MAIN Raw Hex 已控制 APP • 尚未发送 APP State',
-                    ),
-            ),
-            _Aiv0DiagnosticLine(
-              label: context.tr('MAIN → trợ lý', 'MAIN → 助手'),
-              value: mainDispatchAt == null
-                  ? mainDispatchStatus
-                  : '${_formatEventTime(mainDispatchAt!)} • '
-                        '$mainDispatchStatus',
-            ),
-            if (events.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(
-                context.tr(
-                  'Log MAIN / Raw Hex gần nhất',
-                  '最近的 MAIN / Raw Hex 日志',
+            Theme(
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: const Key('aiv0-packet-details'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.data_object_rounded, size: 21),
+                title: Text(
+                  context.tr('Dữ liệu MAIN', 'MAIN 数据'),
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              const SizedBox(height: 4),
-              ...events
-                  .take(5)
-                  .map(
-                    (event) => Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: SelectableText(
-                        '${_formatEventTime(event.receivedAt)}  '
-                        '${event.transportSource == 'hfpRemote' ? '[HFP] ' : '[BLE] '}'
-                        '${event.isDuplicate ? '[TRÙNG] ' : ''}${event.rawHex}',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 11.5,
-                          color: event.isDuplicate
-                              ? AppColors.coral
-                              : AppColors.indigo,
-                        ),
-                      ),
-                    ),
+                children: <Widget>[
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('Giao thức packet', '数据包协议'),
+                    value: status.protocolConfirmed
+                        ? context.tr('Đã xác nhận', '已确认')
+                        : context.tr(
+                            'MAIN Raw Hex đã điều khiển APP • chưa gửi APP State',
+                            'MAIN Raw Hex 已控制 APP • 尚未发送 APP State',
+                          ),
                   ),
-            ],
-            const SizedBox(height: 6),
-            Text(
-              context.tr(
-                '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.remoteMainCount} MAIN HFP${status.remoteMainCommandsEnabled ? ' • HFP remote sẵn sàng' : ''} • ${status.reconnectCount} reconnect',
-                '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.remoteMainCount} 次 HFP MAIN${status.remoteMainCommandsEnabled ? ' • HFP remote 已就绪' : ''} • ${status.reconnectCount} 次重连',
+                  _Aiv0DiagnosticLine(
+                    label: context.tr('MAIN → trợ lý', 'MAIN → 助手'),
+                    value: mainDispatchAt == null
+                        ? mainDispatchStatus
+                        : '${_formatEventTime(mainDispatchAt!)} • '
+                              '$mainDispatchStatus',
+                  ),
+                  if (events.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      context.tr(
+                        'Log MAIN / Raw Hex gần nhất',
+                        '最近的 MAIN / Raw Hex 日志',
+                      ),
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    ...events
+                        .take(5)
+                        .map(
+                          (event) => Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: SelectableText(
+                              '${_formatEventTime(event.receivedAt)}  '
+                              '${event.transportSource == 'hfpRemote' ? '[HFP] ' : '[BLE] '}'
+                              '${event.isDuplicate ? '[TRÙNG] ' : ''}${event.rawHex}',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11.5,
+                                color: event.isDuplicate
+                                    ? AppColors.coral
+                                    : AppColors.indigo,
+                              ),
+                            ),
+                          ),
+                        ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    context.tr(
+                      '${status.packetCount} gói • ${status.invalidPacketCount} lỗi • ${status.duplicatePacketCount} trùng • ${status.remoteMainCount} MAIN HFP${status.remoteMainCommandsEnabled ? ' • HFP remote sẵn sàng' : ''} • ${status.reconnectCount} reconnect',
+                      '${status.packetCount} 包 • ${status.invalidPacketCount} 错误 • ${status.duplicatePacketCount} 重复 • ${status.remoteMainCount} 次 HFP MAIN${status.remoteMainCommandsEnabled ? ' • HFP remote 已就绪' : ''} • ${status.reconnectCount} 次重连',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
-              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
           const SizedBox(height: 8),
           if (busy)
             const Align(
               alignment: Alignment.centerRight,
-              child: SizedBox.square(
-                dimension: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
+              child: HomiWaveform(active: true, width: 58, height: 24),
             )
           else
             Align(
@@ -2398,6 +2399,7 @@ class _InnotrikStatusCard extends StatelessWidget {
 
 class _H20OfflineHardwareTestCard extends StatelessWidget {
   const _H20OfflineHardwareTestCard({
+    this.embedded = false,
     required this.enabled,
     required this.phase,
     required this.message,
@@ -2412,6 +2414,7 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
     required this.onPlaybackConfirmed,
   });
 
+  final bool embedded;
   final bool enabled;
   final H20HardwareTestPhase phase;
   final String? message;
@@ -2440,24 +2443,34 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
         phase == H20HardwareTestPhase.recording || canStart;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color:
-              (phase == H20HardwareTestPhase.error
-                      ? AppColors.coral
-                      : AppColors.indigo)
-                  .withValues(alpha: 0.24),
-        ),
-      ),
+      padding: embedded
+          ? const EdgeInsets.symmetric(vertical: 10)
+          : const EdgeInsets.all(14),
+      decoration: embedded
+          ? null
+          : BoxDecoration(
+              color: colors.surfaceContainer,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color:
+                    (phase == H20HardwareTestPhase.error
+                            ? AppColors.coral
+                            : AppColors.indigo)
+                        .withValues(alpha: 0.24),
+              ),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              const HomiIconBadge(
+                icon: Icons.health_and_safety_outlined,
+                size: 40,
+                iconSize: 22,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2612,6 +2625,7 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
 
 class _HfpStatusCard extends StatelessWidget {
   const _HfpStatusCard({
+    this.embedded = false,
     required this.status,
     required this.browserManaged,
     required this.selected,
@@ -2620,6 +2634,7 @@ class _HfpStatusCard extends StatelessWidget {
     required this.onDisconnect,
   });
 
+  final bool embedded;
   final BluetoothAudioStatus status;
   final bool browserManaged;
   final bool selected;
@@ -2642,26 +2657,33 @@ class _HfpStatusCard extends StatelessWidget {
     final deviceName = status.deviceName?.trim();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: connected
-            ? Color.alphaBlend(
-                AppColors.success.withValues(alpha: 0.12),
-                colorScheme.surfaceContainer,
-              )
-            : colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: stateColor.withValues(alpha: 0.22)),
-      ),
+      padding: embedded
+          ? const EdgeInsets.symmetric(vertical: 10)
+          : const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: embedded
+          ? null
+          : BoxDecoration(
+              color: connected
+                  ? Color.alphaBlend(
+                      AppColors.success.withValues(alpha: 0.12),
+                      colorScheme.surfaceContainer,
+                    )
+                  : colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: stateColor.withValues(alpha: 0.22)),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Icon(Icons.headset_mic_rounded, color: stateColor),
+              HomiIconBadge(
+                icon: Icons.headset_mic_rounded,
+                foregroundColor: stateColor,
+                backgroundColor: stateColor.withValues(alpha: 0.11),
+                size: 40,
+                iconSize: 22,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2720,11 +2742,8 @@ class _HfpStatusCard extends StatelessWidget {
             const Align(
               alignment: Alignment.centerRight,
               child: Padding(
-                padding: EdgeInsets.all(10),
-                child: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.4),
-                ),
+                padding: EdgeInsets.all(8),
+                child: HomiWaveform(active: true, width: 58, height: 24),
               ),
             )
           else

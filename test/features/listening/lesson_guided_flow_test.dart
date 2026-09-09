@@ -290,6 +290,75 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('V4 praises before explaining the first earned star', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final voicePrompts = _FakeVoicePromptService();
+    final progressStore = _MemoryProgressStore();
+
+    await tester.pumpWidget(
+      _subject(
+        _lesson(code: 'C35-L1-T01-B01', sentenceCount: 2, v4: true),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        progressStore: progressStore,
+        attemptEvaluator: _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+          LessonAttemptOutcome.good,
+        ]),
+        voicePromptService: voicePrompts,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pumpAndSettle();
+
+    final praiseIndex = voicePrompts.spoken.indexWhere(
+      (message) => message == 'vi-VN|Con làm tốt lắm',
+    );
+    final firstStarIndex = voicePrompts.spoken.indexWhere(
+      (message) => message.contains('Bạn vừa nhận một Ngôi sao!'),
+    );
+    expect(praiseIndex, greaterThanOrEqualTo(0));
+    expect(firstStarIndex, greaterThan(praiseIndex));
+    expect(progressStore.earnedStars, contains('core:GUIDED-FLOW_S1'));
+  });
+
+  testWidgets('plays the stopped recording completely before scoring', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _BlockingAttemptPlaybackMediaService();
+    final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+      LessonAttemptOutcome.good,
+    ]);
+
+    await tester.pumpWidget(
+      _subject(
+        _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        attemptEvaluator: evaluator,
+        voicePromptService: _FakeVoicePromptService(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(mediaService.recording, isTrue);
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await tester.pump();
+    await mediaService.recordingPlaybackStarted.future;
+
+    expect(evaluator.evaluationCalls, 0);
+    mediaService.finishRecordingPlayback();
+    await tester.pumpAndSettle();
+
+    expect(evaluator.evaluationCalls, 1);
+    expect(mediaService.playedUris.last.toString(), contains('latest.m4a'));
+  });
+
   testWidgets('MAIN invalidates an evaluation that finishes after pause', (
     tester,
   ) async {
@@ -487,6 +556,41 @@ void main() {
       );
       expect(progressStore.needsPractice, isEmpty);
       expect(vocabularyStore.entries, isEmpty);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'V2 still reopens recording when unclear feedback playback fails',
+    (tester) async {
+      await _usePhoneSurface(tester);
+      final mediaService = _GuidedMediaService();
+      final voicePrompts = _FailingUnclearVoicePromptService();
+      final evaluator = _ScriptedAttemptEvaluator(<LessonAttemptOutcome>[
+        LessonAttemptOutcome.unclear,
+      ]);
+      await tester.pumpWidget(
+        _subject(
+          _lesson(code: 'A035_T01_L01', sentenceCount: 1),
+          mediaService,
+          guideAudioLibrary: _silentGuideAudioLibrary(),
+          attemptEvaluator: evaluator,
+          voicePromptService: voicePrompts,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+      await tester.pumpAndSettle();
+
+      expect(evaluator.evaluationCalls, 1);
+      expect(mediaService.recording, isTrue);
+      expect(
+        voicePrompts.spoken,
+        contains('vi-VN|Cô chưa nghe rõ. Con nói lại nhé.'),
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -1897,6 +2001,7 @@ class _ScriptedAttemptEvaluator implements LessonAttemptEvaluator {
 
   final List<LessonAttemptOutcome> _outcomes;
   int _index = 0;
+  int get evaluationCalls => _index;
 
   @override
   Future<LessonAttemptOutcome> evaluate({
@@ -1968,6 +2073,16 @@ class _ReadyCueVoicePromptService extends _FakeVoicePromptService
   @override
   Future<void> playSpeechReadyCue() async {
     readyCueCount += 1;
+  }
+}
+
+class _FailingUnclearVoicePromptService extends _FakeVoicePromptService {
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    await speak(text, locale: locale);
+    if (text == LessonGuideFlowV2.unclear.text) {
+      throw StateError('Unclear feedback playback failed.');
+    }
   }
 }
 
@@ -2119,6 +2234,33 @@ class _ControlledLessonAudioMediaService extends _GuidedMediaService {
   }
 }
 
+class _BlockingAttemptPlaybackMediaService extends _GuidedMediaService {
+  final Completer<void> recordingPlaybackStarted = Completer<void>();
+  final Completer<void> _recordingPlaybackFinished = Completer<void>();
+
+  void finishRecordingPlayback() {
+    if (!_recordingPlaybackFinished.isCompleted) {
+      _recordingPlaybackFinished.complete();
+    }
+  }
+
+  @override
+  Future<void> playToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 15),
+    LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {
+    playedUris.add(uri);
+    if (!uri.toString().contains('latest.m4a')) {
+      return;
+    }
+    if (!recordingPlaybackStarted.isCompleted) {
+      recordingPlaybackStarted.complete();
+    }
+    await _recordingPlaybackFinished.future;
+  }
+}
+
 class _BlockingRecordingStartMediaService extends _GuidedMediaService {
   final Completer<void> startRequested = Completer<void>();
   final Completer<void> _startRelease = Completer<void>();
@@ -2256,6 +2398,7 @@ class _MemoryProgressStore extends ListeningProgressStore {
   bool learningGuideOpened = false;
   bool coreStarted = false;
   final Set<int> needsPractice = <int>{};
+  final Set<String> earnedStars = <String>{};
 
   @override
   Future<Map<String, int>> readAll() async => <String, int>{};
@@ -2318,6 +2461,13 @@ class _MemoryProgressStore extends ListeningProgressStore {
   Future<void> clearNeedsPracticeSentences(String lessonId) async {
     needsPractice.clear();
   }
+
+  @override
+  Future<bool> awardStar(String scopeId, String starId) async =>
+      earnedStars.add(starId);
+
+  @override
+  Future<int> readTotalEarnedStars() async => earnedStars.length;
 
   @override
   Future<void> saveLesson(String lessonId, int completedSentences) async {

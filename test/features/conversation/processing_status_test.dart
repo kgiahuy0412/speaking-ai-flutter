@@ -62,6 +62,45 @@ void main() {
 
       expect(find.text(testCase.heroLabel), findsWidgets);
       expect(find.text(testCase.actionLabel), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(
+        find.byKey(const Key('conversation-animated-waveform')),
+        findsOneWidget,
+      );
     });
   }
+
+  testWidgets('active waveform visibly pulses after MAIN is pressed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: VoiceHero(
+          phase: ConversationPhase.processing,
+          processingStage: ConversationProcessingStage.recognizing,
+          amplitude: 0,
+          onStop: () {},
+        ),
+      ),
+    );
+
+    final waveform = find.byKey(const Key('conversation-animated-waveform'));
+    final transform = find.descendant(
+      of: waveform,
+      matching: find.byType(Transform),
+    );
+    final before = tester
+        .widget<Transform>(transform.first)
+        .transform
+        .entry(1, 1);
+
+    await tester.pump(const Duration(milliseconds: 155));
+
+    final after = tester
+        .widget<Transform>(transform.first)
+        .transform
+        .entry(1, 1);
+    expect(after, isNot(before));
+  });
 }

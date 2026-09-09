@@ -120,6 +120,76 @@ ThemeData _buildAppTheme(Brightness brightness) {
         ),
       ),
     ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: isDark ? colorScheme.surfaceContainer : AppColors.lavenderSoft,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.primary, width: 1.6),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: isDark
+          ? colorScheme.surfaceContainer
+          : Colors.white.withValues(alpha: 0.84),
+      selectedColor: isDark ? colorScheme.primaryContainer : AppColors.lavender,
+      disabledColor: colorScheme.surfaceContainer.withValues(alpha: 0.6),
+      side: BorderSide(color: colorScheme.outlineVariant),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      labelStyle: TextStyle(
+        color: colorScheme.onSurface,
+        fontFamily: 'Roboto',
+        fontWeight: FontWeight.w700,
+      ),
+      secondaryLabelStyle: TextStyle(
+        color: isDark ? colorScheme.onPrimaryContainer : AppColors.indigoDark,
+        fontFamily: 'Roboto',
+        fontWeight: FontWeight.w800,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    ),
+    sliderTheme: SliderThemeData(
+      activeTrackColor: colorScheme.primary,
+      inactiveTrackColor: colorScheme.outlineVariant,
+      thumbColor: colorScheme.primary,
+      overlayColor: colorScheme.primary.withValues(alpha: 0.12),
+      trackHeight: 4,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: colorScheme.surface,
+      indicatorColor: isDark
+          ? colorScheme.surfaceContainerHighest
+          : AppColors.lavender,
+      elevation: 0,
+      height: 70,
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          color: states.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant,
+          fontSize: 12,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w800
+              : FontWeight.w600,
+        ),
+      ),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         minimumSize: const Size.square(48),
@@ -149,6 +219,9 @@ ThemeData _buildAppTheme(Brightness brightness) {
               : colorScheme.surfaceContainer,
         ),
         side: WidgetStatePropertyAll(BorderSide(color: colorScheme.outline)),
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w700),
+        ),
       ),
     ),
   );

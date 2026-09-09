@@ -7,13 +7,14 @@ import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
+import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
 import '../application/listening_voice_navigation_target.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'lesson_recording_history_sheet.dart';
-import 'listening_navigation_bar.dart';
+import 'listening_route_names.dart';
 import 'topic_lesson_list_screen.dart';
 
 typedef TopicSelectionAfterCompletionPrompt =
@@ -35,6 +36,8 @@ class TopicListeningScreen extends StatefulWidget {
     required this.language,
     required this.childAge,
     this.controller,
+    this.onMainPressed,
+    this.onVocabularyRequested,
     this.onVoiceNavigationPause,
     this.onVoiceNavigationResume,
     this.initialVoiceTarget,
@@ -51,6 +54,8 @@ class TopicListeningScreen extends StatefulWidget {
   final DisplayLanguage language;
   final int childAge;
   final ConversationController? controller;
+  final Future<void> Function()? onMainPressed;
+  final VoidCallback? onVocabularyRequested;
   final Future<void> Function()? onVoiceNavigationPause;
   final VoidCallback? onVoiceNavigationResume;
   final ListeningVoiceNavigationTarget? initialVoiceTarget;
@@ -117,7 +122,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         backgroundColor: Colors.transparent,
         body: LearningScenery(
           imageAlignment: Alignment.topCenter,
-          overlayOpacity: 0.16,
+          overlayOpacity: 0.36,
           child: SafeArea(
             bottom: false,
             child: CustomScrollView(
@@ -204,9 +209,23 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             ),
           ),
         ),
-        bottomNavigationBar: ListeningNavigationBar(
-          onCommunication: () => Navigator.of(context).pop(),
-          onHistory: _showHistory,
+        bottomNavigationBar: KeyedSubtree(
+          key: const Key('listening-bottom-navigation'),
+          child: HomiBottomNavigation(
+            selectedIndex: 1,
+            onConversation: () => Navigator.of(context).pop(),
+            onTopics: () {},
+            onMain: widget.onMainPressed == null
+                ? null
+                : () => unawaited(widget.onMainPressed!()),
+            onVocabulary: _openVocabulary,
+            onHistory: _showHistory,
+            conversationKey: const Key('listening-conversation-tab'),
+            topicsKey: const Key('listening-topics-tab'),
+            mainKey: const Key('listening-main-button'),
+            vocabularyKey: const Key('listening-vocabulary-tab'),
+            historyKey: const Key('listening-history-tab'),
+          ),
         ),
       ),
     );
@@ -237,9 +256,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             context.tr('Chủ đề', '主题'),
             maxLines: 1,
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontSize: 24),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: isDark ? colorScheme.onSurface : AppColors.indigoDark,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -271,6 +292,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   }
 
   void _showHistory() => unawaited(_openHistory());
+
+  void _openVocabulary() {
+    Navigator.of(context).pop();
+    widget.onVocabularyRequested?.call();
+  }
 
   Future<void> _changeLessonGroup() async {
     final requestParentAccess = widget.onRequestParentAccess;
@@ -473,6 +499,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       var topicCompletedDuringVisit = false;
       final route = Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
+          settings: const RouteSettings(name: ListeningRouteNames.topicLessons),
           builder: (_) => TopicLessonListScreen(
             language: widget.language,
             startAge: selectedAgeCatalog.startAge,
@@ -482,6 +509,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             contentGroup: contentGroup,
             levelContent: contentGroup.level(content.levelNumber),
             controller: widget.controller,
+            onMainPressed: widget.onMainPressed,
+            onVocabularyRequested: widget.onVocabularyRequested,
             onVoiceNavigationPause: widget.onVoiceNavigationPause,
             onVoiceNavigationResume: widget.onVoiceNavigationResume,
             progressStore: widget.progressStore,
@@ -1227,7 +1256,17 @@ class _JourneyPathPainter extends CustomPainter {
     canvas.drawPath(path, haloPaint);
 
     final dashPaint = Paint()
-      ..color = AppColors.indigo.withValues(alpha: 0.92)
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: <Color>[
+          AppColors.coral,
+          AppColors.coral,
+          Color(0xFF31C7B0),
+          Color(0xFF31C7B0),
+        ],
+        stops: <double>[0, 0.10, 0.15, 1],
+      ).createShader(Offset.zero & size)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.8
       ..strokeCap = StrokeCap.round;

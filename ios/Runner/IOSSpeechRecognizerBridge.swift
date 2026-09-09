@@ -200,6 +200,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private var requestedLocale = Locale(identifier: "vi-VN")
   private var lastDiagnosticStage = "idle"
   private var firstAnalyzerInputGeneration: Int?
+  private var activeRecordingPath: String?
+  private var recordingFile: AVAudioFile?
+  private var recordingSampleRate = 0
+  private var recordingUsesBluetoothInput = false
+  private var completedRecordingMetadata: [String: Any] = [:]
 
   init(
     messenger: FlutterBinaryMessenger,
@@ -246,10 +251,13 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
         arguments?["audioSource"]
       )
       let locale = Self.locale(from: arguments?["locale"])
+      let recordingPath = (arguments?["recordingPath"] as? String)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
       start(
         commandMode: commandMode,
         audioSource: audioSource,
-        locale: locale
+        locale: locale,
+        recordingPath: recordingPath?.isEmpty == false ? recordingPath : nil
       )
       // A MethodChannel reply acknowledges that the start request was accepted;
       // readiness and failures are delivered exclusively through speech.ready /
@@ -297,7 +305,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private func start(
     commandMode: Bool,
     audioSource: IOSNativeSpeechAudioSource,
-    locale: Locale
+    locale: Locale,
+    recordingPath: String?
   ) {
     startRequestGeneration += 1
     let requestGeneration = startRequestGeneration
@@ -350,6 +359,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
               commandMode: commandMode,
               audioSource: audioSource,
               locale: locale,
+              recordingPath: recordingPath,
               startRequestGeneration: requestGeneration
             )
             guard self.isCurrentStartRequest(requestGeneration) else {
@@ -429,6 +439,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     commandMode: Bool,
     audioSource: IOSNativeSpeechAudioSource,
     locale: Locale,
+    recordingPath: String?,
     startRequestGeneration: Int
   ) async throws {
     guard isCurrentStartRequest(startRequestGeneration) else {
@@ -456,6 +467,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     latestText = ""
     latestAlternatives = []
     latestConfidence = -1
+    activeRecordingPath = recordingPath
+    recordingFile = nil
+    recordingSampleRate = 0
+    recordingUsesBluetoothInput = audioSource == .hfp
+    completedRecordingMetadata = [:]
     startRequestedAt = startRequestedAt ?? Date()
     readyAt = nil
     firstPartialAt = nil
@@ -587,9 +603,27 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       inputNode.removeTap(onBus: 0)
       inputTapInstalled = false
     }
+    if let path = activeRecordingPath {
+      let url = URL(fileURLWithPath: path)
+      try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+      )
+      if FileManager.default.fileExists(atPath: path) {
+        try FileManager.default.removeItem(at: url)
+      }
+      recordingFile = try AVAudioFile(
+        forWriting: url,
+        settings: format.settings,
+        commonFormat: format.commonFormat,
+        interleaved: format.isInterleaved
+      )
+      recordingSampleRate = Int(format.sampleRate.rounded())
+    }
     inputNode.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
       guard let self, self.active, self.generation == generation else { return }
       do {
+        try self.recordingFile?.write(from: buffer)
         let analyzerInputCount: Int
         if #available(iOS 26.0, *),
           self.activeEngine == .speechAnalyzer,
@@ -705,14 +739,13 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       caller: "IOSSpeechRecognizerBridge.finishSuccessfully",
       message: normalized
     )
-    emit(
-      type: "speech.final",
-      values: [
-        "text": normalized,
-        "alternatives": alternatives.isEmpty ? [normalized] : alternatives,
-        "confidence": confidence,
-      ]
-    )
+    var values: [String: Any] = [
+      "text": normalized,
+      "alternatives": alternatives.isEmpty ? [normalized] : alternatives,
+      "confidence": confidence,
+    ]
+    completedRecordingMetadata.forEach { values[$0.key] = $0.value }
+    emit(type: "speech.final", values: values)
   }
 
   private func finishWithError(code: String, error: Error) {
@@ -749,10 +782,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     audioSessionCoordinator.releaseCapture(
       caller: "IOSSpeechRecognizerBridge.finishWithError"
     )
-    let values: [String: Any] = [
+    var values: [String: Any] = [
       "code": code,
       "message": error.localizedDescription,
     ]
+    completedRecordingMetadata.forEach { values[$0.key] = $0.value }
     emitStage("error", code: code, message: error.localizedDescription)
     emit(type: "speech.error", values: values)
   }
@@ -865,14 +899,41 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       audioEngine.inputNode.removeTap(onBus: 0)
       inputTapInstalled = false
     }
+    finalizeActiveRecording()
     audioEngine.reset()
   }
 
-  private func cancelCurrent(deleteRecording _: Bool, caller: String) {
+  private func finalizeActiveRecording() {
+    let path = activeRecordingPath
+    recordingFile = nil
+    activeRecordingPath = nil
+    guard let path else { return }
+    guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+      let byteLength = (attributes[.size] as? NSNumber)?.intValue,
+      byteLength > 44
+    else {
+      completedRecordingMetadata = [:]
+      return
+    }
+    completedRecordingMetadata = [
+      "audioPath": path,
+      "audioMimeType": "audio/wav",
+      "audioByteLength": byteLength,
+      "audioSampleRate": recordingSampleRate,
+      "isBluetoothInput": recordingUsesBluetoothInput,
+    ]
+  }
+
+  private func cancelCurrent(deleteRecording: Bool, caller: String) {
     audioSessionCoordinator.trace(stage: "speech.cancel_internal", caller: caller)
     generation += 1
     cancelled = true
+    let cancelledRecordingPath = deleteRecording ? activeRecordingPath : nil
     stopAudioCapture()
+    if let cancelledRecordingPath {
+      try? FileManager.default.removeItem(atPath: cancelledRecordingPath)
+      completedRecordingMetadata = [:]
+    }
     recognitionRequest?.endAudio()
     recognitionTask?.cancel()
     recognitionTask = nil

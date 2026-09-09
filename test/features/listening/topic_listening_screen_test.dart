@@ -25,6 +25,8 @@ void main() {
     TopicLessonSelectionPrompt? onLessonSelectionRequested,
     ValueChanged<int>? onChildAgeChanged,
     Future<bool> Function()? onRequestParentAccess,
+    Future<void> Function()? onMainPressed,
+    VoidCallback? onVocabularyRequested,
   }) {
     return MaterialApp(
       theme: buildAppTheme(),
@@ -46,6 +48,8 @@ void main() {
           onLessonSelectionRequested: onLessonSelectionRequested,
           onChildAgeChanged: onChildAgeChanged,
           onRequestParentAccess: onRequestParentAccess,
+          onMainPressed: onMainPressed,
+          onVocabularyRequested: onVocabularyRequested,
         ),
       ),
     );
@@ -66,6 +70,23 @@ void main() {
     expect(theme.brightness, Brightness.dark);
     expect(journeyTitle.style?.color, theme.colorScheme.onSurface);
     expect(groupLabel.style?.color, theme.colorScheme.primary);
+  });
+
+  testWidgets('topic navigation exposes the shared MAIN action', (
+    tester,
+  ) async {
+    var mainPresses = 0;
+    await tester.pumpWidget(
+      buildSubject(onMainPressed: () async => mainPresses += 1),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('listening-main-button')));
+    await tester.pump();
+
+    expect(mainPresses, 1);
+    expect(find.byKey(const Key('listening-topics-tab')), findsOneWidget);
+    expect(find.byKey(const Key('listening-vocabulary-tab')), findsOneWidget);
   });
 
   test(

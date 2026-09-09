@@ -47,11 +47,11 @@ class LearningScenery extends StatelessWidget {
                   if (isDark)
                     const Color(0xFF0E1630).withValues(alpha: 0.48)
                   else
-                    Colors.transparent,
+                    Colors.white.withValues(alpha: overlayOpacity * 0.55),
                   if (isDark)
                     const Color(0xFF0A1127).withValues(alpha: 0.78)
                   else
-                    const Color(0xFFFFFDF7).withValues(alpha: 0.08),
+                    Colors.white.withValues(alpha: overlayOpacity * 0.35),
                 ],
                 stops: const <double>[0, 0.48, 1],
               ),

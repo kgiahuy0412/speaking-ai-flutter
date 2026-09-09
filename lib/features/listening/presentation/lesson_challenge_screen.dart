@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/homi_ui.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
@@ -920,16 +921,36 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        FilledButton.icon(
+                        FilledButton(
                           key: const Key('lesson-challenge-record-button'),
                           onPressed: _busy || _playingPrompt
                               ? null
                               : (_recording ? _stopRecording : _startRecording),
-                          icon: Icon(
-                            _recording ? Icons.stop_rounded : Icons.mic_rounded,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(64),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                HomiUi.controlRadius,
+                              ),
+                            ),
                           ),
-                          label: Text(
-                            _recording ? 'Dừng và chấm' : 'Nói câu trả lời',
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              if (_recording || _busy)
+                                const HomiWaveform(
+                                  active: true,
+                                  width: 48,
+                                  height: 24,
+                                  color: Colors.white,
+                                )
+                              else
+                                const Icon(Icons.mic_rounded, size: 28),
+                              const SizedBox(width: 10),
+                              Text(
+                                _recording ? 'Dừng và chấm' : 'Nói câu trả lời',
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -969,17 +990,11 @@ class _RolePlayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isChild = turn.speaker == ListeningRolePlaySpeaker.child;
-    return Container(
-      width: double.infinity,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return HomiSurface(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: isChild ? AppColors.lavenderSoft : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isChild ? AppColors.periwinkle : AppColors.lavenderBorder,
-          width: 1.5,
-        ),
-      ),
+      color: isChild && !isDark ? AppColors.lavenderSoft : null,
+      borderColor: isChild ? AppColors.periwinkle : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1023,20 +1038,14 @@ class _ChallengeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return HomiSurface(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.lavenderBorder),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            'Nghe và trả lời',
-            style: Theme.of(context).textTheme.titleMedium,
+          const HomiSectionHeading(
+            icon: Icons.headphones_rounded,
+            title: 'Nghe và trả lời',
           ),
           const SizedBox(height: 12),
           Text(challenge.prompt, style: Theme.of(context).textTheme.bodyLarge),
@@ -1045,10 +1054,10 @@ class _ChallengeCard extends StatelessWidget {
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: AppColors.lavenderSoft,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(HomiUi.controlRadius),
               ),
               child: Text(
                 choice,

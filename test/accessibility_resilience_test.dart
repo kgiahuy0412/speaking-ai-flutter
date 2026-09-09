@@ -67,7 +67,9 @@ void main() {
         tester.getTopLeft(topicShortcut) + const Offset(20, 20),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Chủ đề'), findsOneWidget);
+      // The page title and selected bottom-navigation label intentionally share
+      // the same copy in the five-destination HOMI navigation.
+      expect(find.text('Chủ đề'), findsWidgets);
       expect(find.byKey(const Key('topic-listening-screen')), findsOneWidget);
       expect(tester.takeException(), isNull);
 

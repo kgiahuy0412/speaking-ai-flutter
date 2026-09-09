@@ -94,6 +94,53 @@ void main() {
     );
   });
 
+  testWidgets('processing screen uses the waveform instead of a spinner', (
+    tester,
+  ) async {
+    await _loadGoldenFonts();
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final controller =
+        ConversationController(
+            audioInput: const _PreviewAudioInput(),
+            playbackService: const _PreviewPlaybackService(),
+            repository: const _PreviewRepository(),
+            childAge: 6,
+          )
+          ..phase = ConversationPhase.processing
+          ..processingStage = ConversationProcessingStage.recognizing
+          ..result = _previewResult;
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: ConversationScreen(
+          controller: controller,
+          config: AppConfig(
+            backendBaseUri: _previewBackendUri,
+            useDemoBackend: true,
+            childAge: 6,
+          ),
+        ),
+      ),
+    );
+    await _precacheConversationAssets(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(
+      find.byKey(const Key('conversation-animated-waveform')),
+      findsOneWidget,
+    );
+    await expectLater(
+      find.byType(ConversationScreen),
+      matchesGoldenFile('goldens/conversation-processing-waveform-390x844.png'),
+    );
+  });
+
   testWidgets('ready result screen keeps the scenic communication layout', (
     tester,
   ) async {
@@ -149,6 +196,7 @@ void main() {
         home: const TopicListeningScreen(
           language: DisplayLanguage.vietnamese,
           childAge: 6,
+          onMainPressed: _noopMainPress,
         ),
       ),
     );
@@ -176,6 +224,8 @@ void main() {
     );
   });
 }
+
+Future<void> _noopMainPress() async {}
 
 Future<void> _precacheConversationAssets(WidgetTester tester) async {
   await tester.runAsync(() async {

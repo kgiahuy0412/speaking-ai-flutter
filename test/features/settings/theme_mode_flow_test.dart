@@ -11,11 +11,43 @@ import 'package:ai_speaking_flutter_app/features/conversation/presentation/conve
 import 'package:ai_speaking_flutter_app/features/settings/presentation/settings_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(_loadGoldenFonts);
+  const offlineSpeechChannel = MethodChannel('homi_offline_speech');
+  const offlineTranslationChannel = MethodChannel(
+    'homi_offline_translation_models',
+  );
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(offlineSpeechChannel, (call) async {
+          if (call.method == 'model.status') {
+            return <String, Object?>{
+              'state': 'installed',
+              'strictOnDeviceAvailable': true,
+              'appManaged': true,
+              'progress': 100,
+            };
+          }
+          return null;
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          offlineTranslationChannel,
+          (call) async => call.method == 'model.status' ? true : null,
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(offlineSpeechChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(offlineTranslationChannel, null);
+  });
 
   test('theme mode is persisted and restored', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -118,6 +150,118 @@ void main() {
     expect(chip.selected, isTrue);
   });
 
+  testWidgets('turn settings use the shared HOMI visual system', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: Scaffold(body: SettingsSheet(controller: controller)),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/settings-turn-controls-390x844.png'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('H20 settings use one compact shared surface', (tester) async {
+    await _usePhoneSurface(tester);
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      aiv0BleControl: _DiagnosticAiv0BleControl(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: Scaffold(body: SettingsSheet(controller: controller)),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    final settingsScroll = _settingsScrollable();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settings-h20-group')),
+      320,
+      scrollable: settingsScroll,
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/settings-h20-390x844.png'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('audio and data settings keep the shared visual rhythm', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'homi.offline-language-packs-consent.v2': 'allowed',
+    });
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      playbackService: const _FakePlaybackService(),
+      repository: const DemoConversationRepository(),
+      childAge: 6,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(),
+        home: Scaffold(body: SettingsSheet(controller: controller)),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settings-offline-language-packs')),
+      420,
+      scrollable: _settingsScrollable(),
+    );
+    await tester.drag(
+      find.byKey(const Key('settings-scroll-view')),
+      const Offset(0, -470),
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/settings-audio-data-390x844.png'),
+    );
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets(
     'Android settings separates standard recognition from audio source',
     (tester) async {
@@ -176,6 +320,31 @@ void main() {
       ),
     );
 
+    final technicalDetails = find
+        .byKey(const Key('aiv0-technical-details'))
+        .first;
+    final settingsScroll = find
+        .descendant(
+          of: find.byKey(const Key('settings-scroll-view')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      technicalDetails,
+      360,
+      scrollable: settingsScroll,
+    );
+    await tester.tap(technicalDetails);
+    await tester.pumpAndSettle();
+    final packetDetails = find.byKey(const Key('aiv0-packet-details')).first;
+    await tester.scrollUntilVisible(
+      packetDetails,
+      320,
+      scrollable: settingsScroll,
+    );
+    await tester.tap(packetDetails);
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('aiv0-native-diagnostics')), findsOneWidget);
     expect(find.byKey(const Key('aiv0-ble-hfp-timeline')), findsOneWidget);
     expect(find.textContaining('BLE_DISCONNECTED'), findsOneWidget);
@@ -186,6 +355,26 @@ void main() {
     expect(find.textContaining('0 gói'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
+}
+
+Finder _settingsScrollable() => find
+    .descendant(
+      of: find.byKey(const Key('settings-scroll-view')),
+      matching: find.byType(Scrollable),
+    )
+    .first;
+
+Future<void> _usePhoneSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(390, 844));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}
+
+Future<void> _loadGoldenFonts() async {
+  final roboto = FontLoader('Roboto')
+    ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'));
+  final materialIcons = FontLoader('MaterialIcons')
+    ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
+  await Future.wait<void>(<Future<void>>[roboto.load(), materialIcons.load()]);
 }
 
 class _DiagnosticAiv0BleControl implements Aiv0BleControl {

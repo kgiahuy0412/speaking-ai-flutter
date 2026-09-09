@@ -221,6 +221,39 @@ void main() {
     },
   );
 
+  testWidgets('V4 skips an interrupted song and continues the completed flow', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final store = _MemoryProgressStore();
+    final lesson = _v4Lesson(withSong: true);
+    store.completedV4LessonActivities.add(lesson.id);
+    final mediaService = _SilentMediaService(
+      existingRecordingPath: 'C:\\recordings\\saved-v4-attempt.m4a',
+    );
+
+    await tester.pumpWidget(
+      _subject(
+        lesson,
+        store,
+        const Key('v4-interrupted-song'),
+        mediaService: mediaService,
+        voicePromptService: _SilentVoicePromptService(),
+        completionChoiceRecognizer: const _FixedCompletionChoiceRecognizer(
+          'Dừng lại',
+        ),
+        initialResumeStage: ListeningResumeStage.song,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('v4-song-stage-screen')), findsNothing);
+    expect(mediaService.playedUris, isNot(contains(lesson.songAudioUri)));
+    expect(find.byKey(const Key('v4-choice-relearn')), findsOneWidget);
+    expect(store.resumeStage, ListeningResumeStage.completed);
+  });
+
   testWidgets('completion remains usable on a compact phone', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     tester.platformDispatcher.textScaleFactorTestValue = 1.3;
@@ -346,6 +379,7 @@ Widget _subject(
   LessonGuideAudioLibrary? guideAudioLibrary,
   VoicePromptService? voicePromptService,
   LessonCompletionChoiceRecognizer? completionChoiceRecognizer,
+  ListeningResumeStage initialResumeStage = ListeningResumeStage.core,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -361,6 +395,7 @@ Widget _subject(
       mediaService: mediaService ?? _SilentMediaService(),
       voicePromptService: voicePromptService,
       completionChoiceRecognizer: completionChoiceRecognizer,
+      initialResumeStage: initialResumeStage,
       guideAudioLibrary:
           guideAudioLibrary ??
           LessonGuideAudioLibrary(assetPaths: const <String>[]),
@@ -390,8 +425,8 @@ ListeningLessonContent _lessonWithSentences(int count) {
   );
 }
 
-ListeningLessonContent _v4Lesson() {
-  return const ListeningLessonContent(
+ListeningLessonContent _v4Lesson({bool withSong = false}) {
+  return ListeningLessonContent(
     id: 'navigation-test-lesson',
     code: 'C35-L1-T01-B01',
     number: 1,
@@ -405,7 +440,7 @@ ListeningLessonContent _v4Lesson() {
       text: 'Mình cùng học nhé.',
     ),
     challengeBank: <ListeningChallengeContent>[
-      ListeningChallengeContent(
+      const ListeningChallengeContent(
         id: 'v4-challenge-1',
         format: 'VI_TO_EN',
         prompt: 'Chào buổi sáng.',
@@ -414,7 +449,7 @@ ListeningLessonContent _v4Lesson() {
         correctVietnamese: 'Chào buổi sáng.',
         targetId: 'v4-target-1',
       ),
-      ListeningChallengeContent(
+      const ListeningChallengeContent(
         id: 'v4-challenge-2',
         format: 'VI_TO_EN',
         prompt: 'Chào buổi tối.',
@@ -425,13 +460,18 @@ ListeningLessonContent _v4Lesson() {
       ),
     ],
     sentences: <ListeningSentenceContent>[
-      ListeningSentenceContent(
+      const ListeningSentenceContent(
         id: 'v4-target-1',
         number: 1,
         english: 'Good morning.',
         vietnamese: 'Chào buổi sáng.',
       ),
     ],
+    songTitle: withSong ? 'Count with Me' : null,
+    songAudioId: withSong ? 'C35_L1_T01_B01_SONG' : null,
+    songAudioUri: withSong
+        ? Uri.parse('asset:/assets/audio/Count_with_Me.mp3')
+        : null,
   );
 }
 

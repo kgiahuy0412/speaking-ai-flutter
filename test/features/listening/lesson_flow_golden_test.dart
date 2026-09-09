@@ -19,6 +19,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late ListeningTopicContent topicContent;
+  late ListeningTopicContent favoriteFoodContent;
   late _GoldenMediaService mediaService;
   late _GoldenProgressStore progressStore;
 
@@ -26,6 +27,7 @@ void main() {
     await _loadGoldenFonts();
     final catalog = await AssetListeningContentRepository().load();
     topicContent = catalog.topic(startAge: 3, endAge: 5, topicNumber: 1);
+    favoriteFoodContent = catalog.topic(startAge: 6, endAge: 7, topicNumber: 4);
   });
 
   setUp(() {
@@ -47,19 +49,59 @@ void main() {
           content: topicContent,
           progressStore: progressStore,
           mediaService: mediaService,
+          onMainPressed: _noopMainPress,
         ),
       ),
     );
     await _precache(
       tester,
       find.byType(TopicLessonListScreen),
-      const <AssetImage>[AssetImage('assets/images/topics/fun-alphabet.jpg')],
+      const <AssetImage>[
+        AssetImage('assets/images/learning-minimal-sky-background.png'),
+        AssetImage('assets/images/topics/fun-alphabet.jpg'),
+        AssetImage('assets/images/mascot/penguin-wave.png'),
+      ],
     );
     await tester.pumpAndSettle();
 
     await expectLater(
       find.byType(TopicLessonListScreen),
       matchesGoldenFile('goldens/topic-lesson-journey-390x844.png'),
+    );
+  });
+
+  testWidgets('favorite food journey matches the selected HOMI direction', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    await tester.pumpWidget(
+      _GoldenApp(
+        child: TopicLessonListScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 6,
+          endAge: 7,
+          topic: listeningCatalogs[1].topics[3],
+          content: favoriteFoodContent,
+          progressStore: progressStore,
+          mediaService: mediaService,
+          onMainPressed: _noopMainPress,
+        ),
+      ),
+    );
+    await _precache(
+      tester,
+      find.byType(TopicLessonListScreen),
+      const <AssetImage>[
+        AssetImage('assets/images/learning-minimal-sky-background.png'),
+        AssetImage('assets/images/topics/favorite-food.jpg'),
+        AssetImage('assets/images/mascot/penguin-wave.png'),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(TopicLessonListScreen),
+      matchesGoldenFile('goldens/topic-favorite-food-390x844.png'),
     );
   });
 
@@ -404,6 +446,8 @@ void main() {
     );
   });
 }
+
+Future<void> _noopMainPress() async {}
 
 class _GoldenApp extends StatelessWidget {
   const _GoldenApp({required this.child, this.themeMode = ThemeMode.light});

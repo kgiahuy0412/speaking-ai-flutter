@@ -58,7 +58,9 @@ class LessonMediaService {
   Future<String> recordingPath({
     required String lessonId,
     required int sentenceNumber,
-  }) => createLessonRecordingPath(lessonId, sentenceNumber);
+    String? extension,
+  }) =>
+      createLessonRecordingPath(lessonId, sentenceNumber, extension: extension);
 
   Future<String?> existingRecording({
     required String lessonId,
@@ -476,6 +478,41 @@ class LessonMediaService {
           await _releaseHfpRoute();
         }
       });
+
+  /// Adds audio captured by a native speech recognizer to the same local
+  /// lesson history used by recordings produced through the record plugin.
+  Future<void> registerExternalRecording({
+    required LessonRecording recording,
+    required String lessonId,
+    required String lessonTitle,
+    required String sentenceId,
+    required int sentenceNumber,
+    required String english,
+    required String vietnamese,
+  }) async {
+    final resolvedPath = await findLessonRecording(recording.filePath);
+    if (resolvedPath == null) {
+      throw const LessonMediaException('Không tìm thấy bản ghi vừa tạo.');
+    }
+    final createdAt = DateTime.now();
+    final evictedPaths = await historyStore.addSuccessful(
+      LessonRecordingHistoryEntry(
+        id: '$sentenceId-${createdAt.microsecondsSinceEpoch}',
+        lessonId: lessonId,
+        lessonTitle: lessonTitle,
+        sentenceId: sentenceId,
+        sentenceNumber: sentenceNumber,
+        english: english,
+        vietnamese: vietnamese,
+        filePath: resolvedPath,
+        duration: recording.duration,
+        createdAt: createdAt,
+      ),
+    );
+    for (final path in evictedPaths) {
+      await deleteLessonRecording(path);
+    }
+  }
 
   Future<void> cancelRecording() => _serializeRecordingOperation(() async {
     try {

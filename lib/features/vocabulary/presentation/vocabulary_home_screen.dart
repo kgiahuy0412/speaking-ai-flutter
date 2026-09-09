@@ -173,7 +173,10 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: LearningScenery(
+      body: ColoredBox(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF0E1630)
+            : Colors.white,
         child: SafeArea(
           bottom: false,
           child: Column(
@@ -217,7 +220,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
         constraints: const BoxConstraints(maxWidth: 560),
         child: SingleChildScrollView(
           key: const Key('vocabulary-home-scroll'),
-          padding: const EdgeInsets.fromLTRB(40, 36, 40, 104),
+          padding: const EdgeInsets.fromLTRB(36, 14, 36, 24),
           child: Column(
             children: <Widget>[
               Text(
@@ -242,16 +245,15 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 18),
               Align(
                 alignment: Alignment.centerLeft,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 280),
                   child: _JourneyCard(
                     key: const Key('vocabulary-family-card'),
-                    height: 156,
+                    height: 138,
                     backgroundColor: const Color(0xFFFFF0E8),
-                    borderColor: const Color(0xFFF6CDBE),
                     accentColor: const Color(0xFFFF664B),
                     onPressed: () => _openJourney(_VocabularyJourney.family),
                     child: Row(
@@ -287,9 +289,9 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 22),
               SizedBox(
-                height: 158,
+                height: 144,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
@@ -312,9 +314,8 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                       top: 0,
                       child: _JourneyCard(
                         key: const Key('vocabulary-stars-card'),
-                        height: 148,
+                        height: 138,
                         backgroundColor: const Color(0xFFFFF8DD),
-                        borderColor: const Color(0xFFF5DEA2),
                         accentColor: const Color(0xFFFFB719),
                         onPressed: () => _openJourney(_VocabularyJourney.stars),
                         child: Row(
@@ -353,16 +354,15 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Align(
                 alignment: Alignment.centerLeft,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 280),
                   child: _JourneyCard(
                     key: const Key('vocabulary-review-card'),
-                    height: 148,
+                    height: 138,
                     backgroundColor: const Color(0xFFF5F0FF),
-                    borderColor: const Color(0xFFD7C7F3),
                     accentColor: const Color(0xFF8354DF),
                     onPressed: () => _openJourney(_VocabularyJourney.review),
                     child: Row(
@@ -839,7 +839,7 @@ class _VocabularyHeader extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 26, 18, 6),
+          padding: const EdgeInsets.fromLTRB(22, 14, 16, 4),
           child: Row(
             children: <Widget>[
               Expanded(
@@ -852,8 +852,8 @@ class _VocabularyHeader extends StatelessWidget {
                     child: Row(
                       children: <Widget>[
                         Container(
-                          width: 64,
-                          height: 64,
+                          width: 56,
+                          height: 56,
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.92),
@@ -1030,7 +1030,6 @@ class _JourneyCard extends StatelessWidget {
   const _JourneyCard({
     required this.height,
     required this.backgroundColor,
-    required this.borderColor,
     required this.accentColor,
     required this.onPressed,
     required this.child,
@@ -1039,7 +1038,6 @@ class _JourneyCard extends StatelessWidget {
 
   final double height;
   final Color backgroundColor;
-  final Color borderColor;
   final Color accentColor;
   final VoidCallback onPressed;
   final Widget child;
@@ -1055,21 +1053,7 @@ class _JourneyCard extends StatelessWidget {
           height: height,
           decoration: BoxDecoration(
             color: backgroundColor.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(34),
-            border: Border.all(color: borderColor, width: 2),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x21142451),
-                blurRadius: 18,
-                offset: Offset(0, 9),
-              ),
-              BoxShadow(
-                color: Color(0xA6FFFFFF),
-                blurRadius: 1,
-                spreadRadius: 1,
-                offset: Offset(0, -1),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(42),
           ),
           child: Stack(
             fit: StackFit.expand,

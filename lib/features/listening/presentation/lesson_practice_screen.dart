@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/homi_ui.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
@@ -827,6 +828,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     await _runMediaAction(() => widget.mediaService.play(uri));
   }
 
+  Future<void> _playAttemptRecordingToCompletion(
+    LessonRecording recording,
+  ) async {
+    final parsed = Uri.tryParse(recording.filePath);
+    final uri = parsed != null && parsed.hasScheme
+        ? parsed
+        : Uri.file(recording.filePath);
+    final requestedTimeout = recording.duration + const Duration(seconds: 5);
+    final timeout = requestedTimeout < const Duration(seconds: 10)
+        ? const Duration(seconds: 10)
+        : requestedTimeout;
+    try {
+      await widget.mediaService.playToCompletion(uri, timeout: timeout);
+    } catch (error) {
+      // Playback must not discard a valid attempt. Scoring can still continue
+      // and the recording card remains available for a manual replay.
+      debugPrint('HOMI lesson attempt playback failed: $error');
+    }
+  }
+
   Future<void> _runMediaAction(Future<void> Function() action) async {
     if (_mediaBusy || _recording) {
       return;
@@ -884,7 +905,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       final Future<void> deviceStart;
       if (iosSpeechInput != null) {
-        deviceStart = iosSpeechInput.startLessonEnglishRecognition();
+        final recordingPath = await widget.mediaService.recordingPath(
+          lessonId: widget.lesson.id,
+          sentenceNumber: _sentence.number,
+          extension: 'wav',
+        );
+        if (!mounted || request != _recordingStartRequest) {
+          return;
+        }
+        deviceStart = iosSpeechInput.startLessonEnglishRecognitionWithRecording(
+          recordingPath,
+        );
       } else {
         deviceStart = widget.mediaService.startRecording(
           lessonId: widget.lesson.id,
@@ -986,7 +1017,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       setState(() {
         _recording = false;
-        _mediaBusy = false;
         _recordingPath = recording.filePath;
         _recordingDuration = recording.duration;
         _message = null;
@@ -1000,14 +1030,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       } catch (_) {
         // The successful recording remains usable even if progress sync fails.
       }
+      await _playAttemptRecordingToCompletion(recording);
+      if (!mounted ||
+          _pausedForMainAssistant ||
+          recordingGeneration != _recordingLifecycleGeneration) {
+        return;
+      }
+      setState(() => _mediaBusy = false);
       if (_usesGuideV2) {
         final evaluationRequest = ++_attemptEvaluationRequest;
         final evaluatedSentenceIndex = _sentenceIndex;
         final evaluatedSentence = _sentence;
         final evaluatedAttemptNumber = _attemptNumber;
         setState(() => _evaluatingAttempt = true);
+        var shouldOpenMicrophoneAgain = false;
         try {
-          await _evaluateAttempt(
+          shouldOpenMicrophoneAgain = await _evaluateAttempt(
             recording,
             evaluationRequest: evaluationRequest,
             sentenceIndex: evaluatedSentenceIndex,
@@ -1018,6 +1056,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           if (mounted && evaluationRequest == _attemptEvaluationRequest) {
             setState(() => _evaluatingAttempt = false);
           }
+        }
+        if (shouldOpenMicrophoneAgain) {
+          await _reopenRecordingAfterUnclear(
+            evaluationRequest: evaluationRequest,
+            sentenceIndex: evaluatedSentenceIndex,
+            sentenceId: evaluatedSentence.id,
+          );
         }
       } else {
         _showPraiseFireworks();
@@ -1048,9 +1093,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }) async {
     LessonAttemptOutcome outcome;
     Duration? captureDuration;
+    LessonRecording? recording;
     try {
       final capture = await speechInput.stop();
       captureDuration = capture.duration;
+      final recordedAudio = capture.recordedAudio;
+      if (recordedAudio != null) {
+        recording = LessonRecording(
+          filePath: recordedAudio.filePath,
+          duration: recordedAudio.duration,
+        );
+      }
       final recognizedCandidates = <String>{
         capture.sourceText,
         ...capture.alternatives,
@@ -1071,6 +1124,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         'candidateCount=${recognizedCandidates.length}, outcome=$outcome',
       );
     } on StreamingSpeechInputException catch (error) {
+      final recordedAudio = speechInput.takeLessonRecordingAudioCapture();
+      if (recordedAudio != null) {
+        recording = LessonRecording(
+          filePath: recordedAudio.filePath,
+          duration: recordedAudio.duration,
+        );
+        captureDuration = recordedAudio.duration;
+      }
       outcome = LessonAttemptOutcome.unclear;
       debugPrint(
         'HOMI iOS lesson recognition returned no usable speech: '
@@ -1089,11 +1150,39 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     final evaluatedAttemptNumber = _attemptNumber;
     setState(() {
       _recording = false;
-      _mediaBusy = false;
-      _recordingPath = null;
-      _recordingDuration = captureDuration;
+      _recordingPath = recording?.filePath;
+      _recordingDuration = recording?.duration ?? captureDuration;
       _message = null;
       _skippedSentenceIndexes.remove(_sentenceIndex);
+    });
+    final completedRecording = recording;
+    if (completedRecording != null) {
+      try {
+        await widget.mediaService.registerExternalRecording(
+          recording: completedRecording,
+          lessonId: widget.lesson.id,
+          lessonTitle: widget.lesson.titleVi,
+          sentenceId: evaluatedSentence.id,
+          sentenceNumber: evaluatedSentence.number,
+          english: evaluatedSentence.english,
+          vietnamese: evaluatedSentence.vietnamese,
+        );
+      } catch (error) {
+        debugPrint(
+          'HOMI could not archive the Apple Speech lesson WAV: $error',
+        );
+      }
+      await _playAttemptRecordingToCompletion(completedRecording);
+      if (!_isCurrentEvaluation(
+        evaluationRequest,
+        evaluatedSentenceIndex,
+        evaluatedSentence.id,
+      )) {
+        return;
+      }
+    }
+    setState(() {
+      _mediaBusy = false;
       _evaluatingAttempt = true;
     });
     try {
@@ -1104,8 +1193,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (_) {
       // Recognition and scoring do not depend on progress persistence.
     }
+    var shouldOpenMicrophoneAgain = false;
     try {
-      await _applyAttemptOutcome(
+      shouldOpenMicrophoneAgain = await _applyAttemptOutcome(
         outcome,
         evaluationRequest: evaluationRequest,
         sentenceIndex: evaluatedSentenceIndex,
@@ -1117,9 +1207,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         setState(() => _evaluatingAttempt = false);
       }
     }
+    if (shouldOpenMicrophoneAgain) {
+      await _reopenRecordingAfterUnclear(
+        evaluationRequest: evaluationRequest,
+        sentenceIndex: evaluatedSentenceIndex,
+        sentenceId: evaluatedSentence.id,
+      );
+    }
   }
 
-  Future<void> _evaluateAttempt(
+  Future<bool> _evaluateAttempt(
     LessonRecording recording, {
     required int evaluationRequest,
     required int sentenceIndex,
@@ -1138,9 +1235,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       requireAllExpectedTokens: sentence.requiresAllExpectedTokens,
     );
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
-      return;
+      return false;
     }
-    await _applyAttemptOutcome(
+    return _applyAttemptOutcome(
       outcome,
       evaluationRequest: evaluationRequest,
       sentenceIndex: sentenceIndex,
@@ -1149,7 +1246,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     );
   }
 
-  Future<void> _applyAttemptOutcome(
+  Future<bool> _applyAttemptOutcome(
     LessonAttemptOutcome outcome, {
     required int evaluationRequest,
     required int sentenceIndex,
@@ -1157,18 +1254,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     required int attemptNumber,
   }) async {
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
-      return;
+      return false;
     }
     switch (outcome) {
       case LessonAttemptOutcome.good:
-        if (widget.lesson.usesV4Flow) {
-          await _awardLessonStar(
-            starId: 'core:${sentence.id}',
-            english: sentence.english,
-            vietnamese: sentence.vietnamese,
-            vocabularyId: sentence.id,
-          );
-        } else {
+        if (!widget.lesson.usesV4Flow) {
           await _saveSentenceToVocabulary(
             VocabularyCollection.star,
             sentence: sentence,
@@ -1179,7 +1269,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           sentenceIndex,
           sentence.id,
         )) {
-          return;
+          return false;
         }
         try {
           await widget.progressStore.clearNeedsPracticeSentence(
@@ -1194,21 +1284,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           sentenceIndex,
           sentence.id,
         )) {
-          return;
+          return false;
         }
         _needsPracticeSentenceIndexes.remove(sentenceIndex);
         _showPraiseFireworks();
         setState(() => _message = LessonGuideFlowV2.good.text);
         await _playPrompt(LessonGuideFlowV2.good);
+        // V4 introduces a first-ever star only after the normal correct-answer
+        // feedback. This preserves the authored order: praise, star, then the
+        // one-time explanation of what stars mean.
+        if (widget.lesson.usesV4Flow) {
+          await _awardLessonStar(
+            starId: 'core:${sentence.id}',
+            english: sentence.english,
+            vietnamese: sentence.vietnamese,
+            vocabularyId: sentence.id,
+          );
+        }
         if (!_isCurrentEvaluation(
           evaluationRequest,
           sentenceIndex,
           sentence.id,
         )) {
-          return;
+          return false;
         }
         await _advanceToNext(autoPlaySentence: true);
-        return;
+        return false;
       case LessonAttemptOutcome.unclear:
         // NO_RESPONSE/ASR is not a valid scored attempt. Keep the same attempt
         // number and sentence until speech is recognized or the child skips.
@@ -1218,16 +1319,18 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _recordingDuration = null;
           _message = prompt.text;
         });
-        await _playPrompt(prompt);
-        if (!_isCurrentEvaluation(
+        try {
+          await _playPrompt(prompt);
+        } catch (error) {
+          // The child must still get a fresh recording turn when the spoken
+          // feedback ends with a playback/TTS error.
+          debugPrint('HOMI unclear feedback playback failed: $error');
+        }
+        return _isCurrentEvaluation(
           evaluationRequest,
           sentenceIndex,
           sentence.id,
-        )) {
-          return;
-        }
-        await _startRecording();
-        return;
+        );
       case LessonAttemptOutcome.retry:
         if (attemptNumber >= 2) {
           await _markNeedsPracticeAndAdvance(
@@ -1235,7 +1338,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
             sentenceIndex: sentenceIndex,
             sentence: sentence,
           );
-          return;
+          return false;
         }
         const prompt = LessonGuideFlowV2.retryFirst;
         setState(() {
@@ -1250,20 +1353,39 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           sentenceIndex,
           sentence.id,
         )) {
-          return;
+          return false;
         }
         // The authored second attempt begins only after the full model is
         // replayed in English and Vietnamese, followed by the invitation.
         await _playSample();
-        return;
+        return false;
       case LessonAttemptOutcome.needsPractice:
         await _markNeedsPracticeAndAdvance(
           evaluationRequest: evaluationRequest,
           sentenceIndex: sentenceIndex,
           sentence: sentence,
         );
-        return;
+        return false;
     }
+  }
+
+  Future<void> _reopenRecordingAfterUnclear({
+    required int evaluationRequest,
+    required int sentenceIndex,
+    required String sentenceId,
+  }) async {
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentenceId)) {
+      return;
+    }
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
+    await Future<void>.delayed(
+      LessonGuideFlowV2.unclearRetryMicrophoneSettleDelay,
+    );
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentenceId) ||
+        _recording) {
+      return;
+    }
+    await _startRecording();
   }
 
   bool _isCurrentEvaluation(
@@ -1632,6 +1754,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
 
       final shouldOpenSong =
           widget.lesson.hasV4SongStage &&
+          resumeStage != ListeningResumeStage.song &&
           resumeStage != ListeningResumeStage.mission &&
           resumeStage != ListeningResumeStage.reinforcement &&
           resumeStage != ListeningResumeStage.completed;
@@ -1640,7 +1763,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           widget.lesson.id,
           ListeningResumeStage.song,
         );
-        // A song always restarts from its beginning after an interruption.
+        // Persisting `song` before opening it makes an interrupted song
+        // skippable on re-entry, as the lesson itself is already complete.
         if (!await _openV4SongStageIfNeeded()) return;
       }
       final missionCompleted = await _runV4LevelMissionIfNeeded(
@@ -3292,27 +3416,13 @@ class _SentenceCard extends StatelessWidget {
         : sentence.english.length > 30
         ? 34.0
         : 46.0;
-    return Container(
-      width: double.infinity,
+    return HomiSurface(
       constraints: const BoxConstraints(minHeight: 300),
       padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-      decoration: BoxDecoration(
-        color: isDark
-            ? colorScheme.surfaceContainer.withValues(alpha: 0.97)
-            : const Color(0xF8FFFDF9),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
-          width: 1.4,
-        ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x10142451),
-            blurRadius: 20,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
+      color: isDark
+          ? colorScheme.surfaceContainer.withValues(alpha: 0.97)
+          : null,
+      elevated: true,
       child: Column(
         children: <Widget>[
           if (lessonType != ListeningLessonType.standard) ...<Widget>[
@@ -3387,10 +3497,10 @@ class _SentenceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const Icon(
-            Icons.graphic_eq_rounded,
-            size: 52,
-            color: AppColors.periwinkle,
+          const HomiWaveform(
+            width: 230,
+            height: 48,
+            semanticLabel: 'Dạng sóng câu mẫu',
           ),
           const SizedBox(height: 8),
           Row(
@@ -3585,21 +3695,15 @@ class _RecordButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              if (busy)
-                const SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 3,
-                  ),
+              if (busy || recording)
+                const HomiWaveform(
+                  active: true,
+                  width: 50,
+                  height: 26,
+                  color: Colors.white,
                 )
               else
-                Icon(
-                  recording ? Icons.stop_rounded : Icons.mic_rounded,
-                  color: Colors.white,
-                  size: 34,
-                ),
+                const Icon(Icons.mic_rounded, color: Colors.white, size: 34),
               const SizedBox(width: 12),
               Flexible(
                 child: Text(
@@ -3959,27 +4063,13 @@ class _LessonCoachHint extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    return Container(
-      width: double.infinity,
+    return HomiSurface(
       constraints: const BoxConstraints(minHeight: 64),
       padding: const EdgeInsets.fromLTRB(8, 6, 18, 6),
-      decoration: BoxDecoration(
-        color: isDark
-            ? colorScheme.surfaceContainer.withValues(alpha: 0.96)
-            : const Color(0xF2FFFDF9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? colorScheme.outline : const Color(0xCCFFFFFF),
-          width: 1.2,
-        ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x1F142451),
-            blurRadius: 16,
-            offset: Offset(0, 7),
-          ),
-        ],
-      ),
+      color: isDark
+          ? colorScheme.surfaceContainer.withValues(alpha: 0.96)
+          : null,
+      elevated: true,
       child: Row(
         children: <Widget>[
           SizedBox(
@@ -4236,16 +4326,10 @@ class _RecordingCard extends StatelessWidget {
     final durationLabel = seconds == null
         ? context.tr('Đã lưu', '已保存')
         : '00:${seconds.toString().padLeft(2, '0')}';
-    return Container(
-      width: double.infinity,
+    return HomiSurface(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: isDark ? colorScheme.surfaceContainer : AppColors.lavenderSoft,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? colorScheme.outline : AppColors.lavenderBorder,
-        ),
-      ),
+      color: isDark ? colorScheme.surfaceContainer : AppColors.lavenderSoft,
+      borderColor: isDark ? colorScheme.outline : AppColors.lavenderBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -4266,11 +4350,7 @@ class _RecordingCard extends StatelessWidget {
                 tooltip: context.tr('Nghe lại', '回放'),
               ),
               const Expanded(
-                child: Icon(
-                  Icons.graphic_eq_rounded,
-                  color: AppColors.periwinkle,
-                  size: 44,
-                ),
+                child: Center(child: HomiWaveform(width: 160, height: 36)),
               ),
               Text(
                 durationLabel,

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
-import '../../../app/learning_scenery.dart';
 import '../../../config/app_config.dart';
 import '../../../l10n/display_language.dart';
 import '../../home/presentation/scenic_app_header.dart';
@@ -66,7 +65,10 @@ class ConversationScreen extends StatelessWidget {
           language: controller.displayLanguage,
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            body: LearningScenery(
+            body: ColoredBox(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF0E1630)
+                  : Colors.white,
               child: SafeArea(
                 bottom: false,
                 child: Column(
@@ -86,10 +88,10 @@ class ConversationScreen extends StatelessWidget {
                           child: SingleChildScrollView(
                             key: const Key('conversation-home-scroll'),
                             padding: EdgeInsets.fromLTRB(
-                              28,
-                              compact ? 44 : 70,
-                              28,
-                              18,
+                              24,
+                              compact ? 8 : 28,
+                              24,
+                              10,
                             ),
                             child: Column(
                               children: <Widget>[
@@ -103,7 +105,7 @@ class ConversationScreen extends StatelessWidget {
                                     controller.stopRecording(manual: true),
                                   ),
                                 ),
-                                SizedBox(height: compact ? 24 : 28),
+                                SizedBox(height: compact ? 8 : 18),
                                 ResultPanel(
                                   key: resultPanelKey,
                                   result: controller.result,

@@ -7,10 +7,12 @@ String lessonRecordingFileExtension({TargetPlatform? platform}) => 'webm';
 
 Future<String> createLessonRecordingPath(
   String lessonId,
-  int sentenceNumber,
-) async =>
+  int sentenceNumber, {
+  String? extension,
+}) async =>
     '$lessonId-sentence-$sentenceNumber-'
-    '${DateTime.now().microsecondsSinceEpoch}.webm';
+    '${DateTime.now().microsecondsSinceEpoch}.'
+    '${extension?.replaceFirst(RegExp(r'^\.'), '').trim() ?? 'webm'}';
 
 Future<String?> findLessonRecording(String path) async {
   final value = path.trim();

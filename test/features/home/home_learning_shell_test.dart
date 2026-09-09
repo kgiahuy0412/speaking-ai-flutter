@@ -16,7 +16,6 @@ import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabul
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_voice_assistant_flow.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/main_speaking_session_controller.dart';
 import 'package:ai_speaking_flutter_app/features/voice_navigation/application/voice_navigation_controller.dart';
-import 'package:ai_speaking_flutter_app/features/voice_navigation/presentation/main_voice_assistant_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,15 +47,15 @@ void main() {
       find.byKey(const Key('topic-listening-edge-tab')).hitTestable(),
       findsOneWidget,
     );
-    final vocabularyRailRect = tester.getRect(
+    final vocabularyTabRect = tester.getRect(
       find.byKey(const Key('vocabulary-edge-tab')),
     );
-    final topicRailRect = tester.getRect(
+    final topicTabRect = tester.getRect(
       find.byKey(const Key('topic-listening-edge-tab')),
     );
-    expect(vocabularyRailRect.size, const Size(47, 224));
-    expect(topicRailRect.size, const Size(47, 224));
-    expect(vocabularyRailRect.top, lessThan(topicRailRect.top - 40));
+    expect(vocabularyTabRect.height, 78);
+    expect(topicTabRect.height, 78);
+    expect(vocabularyTabRect.top, topicTabRect.top);
     expect(find.byKey(const Key('topic-listening-shortcut')), findsNothing);
     expect(find.text('50 chủ đề'), findsNothing);
 
@@ -71,7 +70,7 @@ void main() {
     await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 180));
-    expect(find.text('Chủ đề'), findsOneWidget);
+    expect(find.text('Chủ đề'), findsWidgets);
     await tester.pumpAndSettle();
     expect(find.byType(TopicListeningScreen), findsOneWidget);
   });
@@ -211,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(VocabularyHomeScreen).hitTestable(), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('vocabulary-edge-tab')));
+    await tester.tap(find.byKey(const Key('conversation-bottom-tab')));
     await tester.pumpAndSettle();
     expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
 
@@ -221,7 +220,7 @@ void main() {
     expect(speechInput.startCount, 1);
     expect(voiceNavigationController.isMainButtonSessionActive, isTrue);
     expect(voiceNavigationController.isListening, isTrue);
-    expect(find.text('Đang nghe...'), findsOneWidget);
+    expect(find.text('MAIN'), findsOneWidget);
 
     // BLE/HFP status and diagnostics are surfaced through ConversationController
     // notifications. On iOS they must not cancel the explicit MAIN recognizer;
@@ -232,7 +231,7 @@ void main() {
     expect(voiceNavigationController.isMainButtonSessionActive, isTrue);
     expect(voiceNavigationController.isListening, isTrue);
     expect(speechInput.cancelCount, 0);
-    expect(find.text('Đang nghe...'), findsOneWidget);
+    expect(find.text('MAIN'), findsOneWidget);
 
     await voiceNavigationController.pause();
     await tester.pump();
@@ -645,6 +644,11 @@ Widget _app(
     voiceNavigationController: voiceNavigationController,
     listeningContentFuture: listeningContentFuture,
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
+    onScreenMainPressed: voiceNavigationController == null
+        ? null
+        : () async {
+            await voiceNavigationController.activateFromMainButton();
+          },
     onModalVisibilityChanged: onModalVisibilityChanged,
     parentAccessGate: useDefaultParentAccessGate
         ? null
@@ -660,29 +664,7 @@ Widget _app(
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
-    home: speakingSessionController == null
-        ? home
-        : Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              home,
-              Positioned(
-                right: 16,
-                bottom: 88,
-                child: MainVoiceAssistantButton(
-                  voiceController: voiceNavigationController!,
-                  conversationController: controller,
-                  speakingSessionController: speakingSessionController,
-                  isActivationPending: false,
-                  onPressed: () async {
-                    await voiceNavigationController.activateFromMainButton();
-                  },
-                  onLongPressed: () async {},
-                  onLongPressReleased: () async {},
-                ),
-              ),
-            ],
-          ),
+    home: home,
   );
 }
 

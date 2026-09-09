@@ -229,7 +229,10 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       } else if (resumeStage == ListeningResumeStage.reinforcement) {
         text = 'Mình luyện nhanh vài phần trước nhé.';
       } else if (resumeStage == ListeningResumeStage.song) {
-        text = 'Mình nghe lại bài hát từ đầu nhé.';
+        // A song is optional enrichment after the lesson has already been
+        // completed. If it was interrupted, continue after it instead of
+        // resuming or replaying a partial song.
+        text = 'Mình tiếp tục phần tiếp theo nhé.';
       } else if (isInProgress) {
         text = 'Mình học tiếp bài ${lesson.titleEn} nhé.';
       } else if (widget.relearnFromBeginning ||

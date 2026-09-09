@@ -76,6 +76,38 @@ void main() {
     expect(find.text('Mình tiếp tục đoạn hội thoại nhé.'), findsOneWidget);
   });
 
+  testWidgets('V4 does not announce replay for an interrupted song', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 8,
+          endAge: 10,
+          topic: listeningCatalogs[2].topics.first,
+          lesson: _lesson,
+          progressStore: _OverviewProgressStore(
+            coreStarted: true,
+            resumeStage: ListeningResumeStage.song,
+          ),
+          mediaService: _OverviewMediaService(),
+          guideAudioLibrary: LessonGuideAudioLibrary(
+            assetPaths: const <String>[],
+          ),
+          voicePromptService: const _ImmediateVoicePromptService(),
+          autoAdvance: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Mình tiếp tục phần tiếp theo nhé.'), findsOneWidget);
+    expect(find.text('Mình nghe lại bài hát từ đầu nhé.'), findsNothing);
+  });
+
   testWidgets(
     'intro handoff does not stop the overview prompt on the shared native engine',
     (tester) async {

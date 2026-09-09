@@ -29,10 +29,11 @@ class SpeakActionBar extends StatelessWidget {
         : AppColors.indigoDark;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 13, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 13, 20, 24),
       decoration: const BoxDecoration(color: Colors.transparent),
       child: SafeArea(
         top: false,
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),

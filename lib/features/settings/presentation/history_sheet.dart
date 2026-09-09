@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/homi_ui.dart';
+import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/domain/conversation_models.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -51,7 +53,9 @@ class _HistorySheetState extends State<HistorySheet> {
     }
 
     try {
-      final items = await widget.controller.loadHistory();
+      final items = List<ConversationHistoryItem>.of(
+        await widget.controller.loadHistory(),
+      );
       if (!mounted) {
         return;
       }
@@ -147,12 +151,6 @@ class _HistorySheetState extends State<HistorySheet> {
                                 '清除搜索内容',
                               ),
                             ),
-                      filled: true,
-                      fillColor: AppColors.lavenderSoft,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -539,7 +537,14 @@ class _HistoryBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: HomiWaveform(
+          active: true,
+          width: 136,
+          height: 38,
+          semanticLabel: 'Đang tải lịch sử',
+        ),
+      );
     }
     if (error != null) {
       return _HistoryMessage(
@@ -552,9 +557,16 @@ class _HistoryBody extends StatelessWidget {
     if (items.isEmpty) {
       return _HistoryMessage(
         icon: hasAnyItems ? Icons.search_off_rounded : Icons.history_rounded,
+        assetPath: hasAnyItems ? null : MascotAssets.wave,
         text: hasAnyItems
             ? context.tr('Không tìm thấy lượt nói phù hợp.', '没有找到符合条件的记录。')
             : context.tr('Chưa có lượt nói nào.', '还没有对话记录。'),
+        subtitle: hasAnyItems
+            ? null
+            : context.tr(
+                'Lịch sử sẽ xuất hiện sau lần luyện đầu tiên.',
+                '完成第一次练习后，记录会显示在这里。',
+              ),
       );
     }
 
@@ -619,28 +631,21 @@ class _HistoryRow extends StatelessWidget {
       label:
           '$localizedStatus. ${item.vietnameseText}. ${item.englishText}. '
           '${_formatTime(item.createdAt)}.',
-      child: Container(
+      child: HomiSurface(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.lavenderBorder),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: status.background,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(status.icon, color: status.color, size: 22),
+                HomiIconBadge(
+                  icon: status.icon,
+                  foregroundColor: status.color,
+                  backgroundColor: status.background,
+                  size: 40,
+                  iconSize: 22,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -695,30 +700,10 @@ class _HistoryRow extends StatelessWidget {
               children: <Widget>[
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: status.background,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(status.icon, color: status.color, size: 17),
-                        const SizedBox(width: 5),
-                        Text(
-                          localizedStatus,
-                          style: TextStyle(
-                            color: status.color,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: HomiStatusPill(
+                    label: localizedStatus,
+                    color: status.color,
+                    icon: status.icon,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -845,12 +830,16 @@ class _HistoryMessage extends StatelessWidget {
   const _HistoryMessage({
     required this.icon,
     required this.text,
+    this.assetPath,
+    this.subtitle,
     this.actionLabel,
     this.onAction,
   });
 
   final IconData icon;
   final String text;
+  final String? assetPath;
+  final String? subtitle;
   final String? actionLabel;
   final VoidCallback? onAction;
 
@@ -862,9 +851,26 @@ class _HistoryMessage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, color: AppColors.muted, size: 38),
+            if (assetPath != null)
+              Image.asset(assetPath!, height: 116, fit: BoxFit.contain)
+            else
+              Icon(icon, color: AppColors.muted, size: 38),
             const SizedBox(height: 10),
-            Text(text, textAlign: TextAlign.center),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (subtitle != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                subtitle!,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+              ),
+            ],
             if (actionLabel != null && onAction != null) ...<Widget>[
               const SizedBox(height: 12),
               OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),

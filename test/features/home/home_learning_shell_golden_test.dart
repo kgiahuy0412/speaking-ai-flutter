@@ -83,6 +83,7 @@ Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
       theme: buildAppTheme(),
       home: HomeLearningShell(
         controller: controller,
+        onScreenMainPressed: () async {},
         config: AppConfig(
           backendBaseUri: Uri.parse('https://example.com'),
           useDemoBackend: true,
@@ -96,10 +97,15 @@ Future<ConversationController> _pumpGoldenApp(WidgetTester tester) async {
     await Future.wait<void>(
       const <AssetImage>[
         AssetImage('assets/images/learning-minimal-sky-background.png'),
+        AssetImage('assets/images/home-hero-blob.png'),
         AssetImage('assets/images/mascot/penguin-avatar.png'),
         AssetImage('assets/images/mascot/penguin-listen.png'),
         AssetImage('assets/images/mascot/penguin-wave.png'),
         AssetImage('assets/images/topics/my-family.jpg'),
+        AssetImage('assets/images/topics/fun-alphabet.jpg'),
+        AssetImage('assets/images/topics/numbers-time.jpg'),
+        AssetImage('assets/images/topics/cute-animals.jpg'),
+        AssetImage('assets/images/topics/favorite-food.jpg'),
         AssetImage('assets/images/vocabulary/golden-star.png'),
         AssetImage('assets/images/vocabulary/review-book.png'),
       ].map((provider) => precacheImage(provider, context)),

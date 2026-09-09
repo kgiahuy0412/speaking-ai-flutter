@@ -10,17 +10,20 @@ String lessonRecordingFileExtension({TargetPlatform? platform}) =>
 
 Future<String> createLessonRecordingPath(
   String lessonId,
-  int sentenceNumber,
-) async {
+  int sentenceNumber, {
+  String? extension,
+}) async {
   final directory = await getApplicationDocumentsDirectory();
   final recordings = Directory(
     '${directory.path}${Platform.pathSeparator}lesson_recordings',
   );
   await recordings.create(recursive: true);
   final timestamp = DateTime.now().microsecondsSinceEpoch;
-  final extension = lessonRecordingFileExtension();
+  final resolvedExtension =
+      extension?.replaceFirst(RegExp(r'^\.'), '').trim() ??
+      lessonRecordingFileExtension();
   return '${recordings.path}${Platform.pathSeparator}'
-      '$lessonId-sentence-$sentenceNumber-$timestamp.$extension';
+      '$lessonId-sentence-$sentenceNumber-$timestamp.$resolvedExtension';
 }
 
 Future<String?> findLessonRecording(String path) async =>

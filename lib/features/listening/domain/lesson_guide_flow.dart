@@ -129,6 +129,12 @@ class LessonGuideFlowV2 {
   /// English sample before its Vietnamese meaning is played.
   static const Duration englishToVietnamesePause = Duration(seconds: 2);
 
+  /// Lets the previous recognition/audio session finish releasing the input
+  /// route before an ASR/no-response retry claims the microphone again.
+  static const Duration unclearRetryMicrophoneSettleDelay = Duration(
+    milliseconds: 300,
+  );
+
   static const LessonGuidePrompt beforeSentence = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_BEFORE_SENTENCE',
     text: 'Nói theo cô nhé.',
