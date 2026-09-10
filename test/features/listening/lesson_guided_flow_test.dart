@@ -2436,6 +2436,9 @@ class _MemoryProgressStore extends ListeningProgressStore {
   }
 
   @override
+  Future<bool> hasLessonPendingRelearn(String lessonId) async => false;
+
+  @override
   Future<Set<int>> readSkippedSentences(String lessonId) async => <int>{};
 
   @override

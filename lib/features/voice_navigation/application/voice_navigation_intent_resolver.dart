@@ -18,6 +18,7 @@ class VoiceNavigationIntent {
     this.childAge,
     this.openLesson = false,
     this.relearnTopic = false,
+    this.relearnLesson = false,
     this.enterMainSpeakingMode = false,
   });
 
@@ -29,6 +30,7 @@ class VoiceNavigationIntent {
   final int? childAge;
   final bool openLesson;
   final bool relearnTopic;
+  final bool relearnLesson;
   final bool enterMainSpeakingMode;
 }
 

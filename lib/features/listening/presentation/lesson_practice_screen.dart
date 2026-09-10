@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/homi_ui.dart';
@@ -25,6 +26,7 @@ import '../domain/listening_content.dart';
 import '../domain/listening_curriculum_flow.dart';
 import '../domain/authored_question_selector.dart';
 import '../domain/lesson_guide_flow.dart';
+import '../domain/lesson_star_flow.dart';
 import '../domain/v4_completion_flow.dart';
 import 'active_learning_navigation.dart';
 import 'lesson_challenge_screen.dart';
@@ -56,6 +58,7 @@ class LessonPracticeScreen extends StatefulWidget {
     this.levelContent,
     this.initialResumeStage = ListeningResumeStage.core,
     this.isRelearn = false,
+    this.relearnTopicSequence = false,
     this.onTopicCompleted,
     super.key,
   });
@@ -78,6 +81,7 @@ class LessonPracticeScreen extends StatefulWidget {
   final ListeningLevelContent? levelContent;
   final ListeningResumeStage initialResumeStage;
   final bool isRelearn;
+  final bool relearnTopicSequence;
   final VoidCallback? onTopicCompleted;
 
   @override
@@ -1611,15 +1615,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     );
     if (!isNew) return false;
     _newStarsThisLesson += 1;
-    if (totalBefore == 0 &&
-        mounted &&
-        !starId.startsWith('roleplay:') &&
-        !starId.contains('-roleplay-')) {
+    if (totalBefore == 0 && mounted) {
+      await _playFirstStarSoundEffect();
+      if (!mounted) return true;
       await _voicePromptService.speakAndWait(
         'Bạn vừa nhận một Ngôi sao! Mỗi khi nghe âm thanh này, HOMI sẽ thêm một Ngôi sao vào bộ sưu tập của bạn.',
       );
     }
     return true;
+  }
+
+  Future<void> _playFirstStarSoundEffect() async {
+    try {
+      final authoredUri = await _guideAudioLibrary.uriForAudioCode('SFX_STAR');
+      if (authoredUri != null && mounted) {
+        await widget.mediaService.playToCompletion(
+          authoredUri,
+          timeout: const Duration(seconds: 5),
+        );
+        return;
+      }
+      unawaited(
+        SystemSound.play(SystemSoundType.click).catchError((Object _) {}),
+      );
+    } catch (_) {
+      // A missing optional SFX must not interrupt Star persistence or narration.
+    }
   }
 
   VocabularySource _vocabularySourceForStar(String starId) {
@@ -1932,13 +1953,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       final earnedStars = await widget.progressStore.readEarnedStars(
         widget.lesson.id,
       );
-      final rolePlayStars =
-          widget.lesson.rolePlay?.turns
-              .where((turn) => turn.speaker == ListeningRolePlaySpeaker.child)
-              .length ??
-          0;
-      final availableStars = widget.lesson.sentences.length + rolePlayStars + 2;
-      if (availableStars > 0 && earnedStars.length >= availableStars) {
+      final remainingStars = LessonStarFlow.remainingStarCount(
+        widget.lesson,
+        earnedStars,
+      );
+      if (remainingStars == 0) {
         await _voicePromptService.speakAndWait(
           'Excellent! Bạn đã hoàn thành bài học và chinh phục đủ tất cả Ngôi sao rồi!',
         );
@@ -2291,6 +2310,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         progressStore: widget.progressStore,
         mediaService: widget.mediaService,
         relearnFromBeginning: relearn,
+        relearnTopicSequence: relearn,
         onTopicCompleted: widget.onTopicCompleted,
       ),
     );
@@ -2381,8 +2401,28 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         level.missionBank.length < LessonMissionResult.requiredQuestionCount) {
       return _reportInvalidMissionContent();
     }
-    if (await widget.progressStore.hasPassedLevelMission(level.id)) {
+    final earnedStars = await widget.progressStore.readEarnedStars(
+      widget.lesson.id,
+    );
+    final hasMissionStarSlots =
+        await widget.progressStore.hasLessonMissionStarSlots(
+          widget.lesson.id,
+        ) ||
+        LessonStarFlow.hasEarnedMissionStar(earnedStars);
+    final missionAlreadyPassed = await widget.progressStore
+        .hasPassedLevelMission(level.id);
+    if (missionAlreadyPassed &&
+        !LessonStarFlow.shouldReplayPassedMission(
+          isRelearn: widget.isRelearn,
+          hasMissionStarSlots: hasMissionStarSlots,
+          earnedStarIds: earnedStars,
+        )) {
       return true;
+    }
+    await widget.progressStore.markLessonMissionStarSlots(widget.lesson.id);
+    if (missionAlreadyPassed) {
+      await widget.progressStore.clearMissionSession(level.id);
+      resumeReinforcement = false;
     }
 
     var missionAttempt = await widget.progressStore.readMissionAttempt(
@@ -2696,6 +2736,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _openNextLesson(ListeningLessonContent lesson) async {
+    final continueRelearn =
+        widget.relearnTopicSequence ||
+        await widget.progressStore.hasLessonPendingRelearn(lesson.id);
     await widget.mediaService.stopPlayback();
     final topicNumber = widget.topicContent?.number;
     if (topicNumber != null) {
@@ -2735,6 +2778,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         levelContent: widget.levelContent,
         progressStore: widget.progressStore,
         mediaService: widget.mediaService,
+        relearnFromBeginning: continueRelearn,
+        relearnTopicSequence: continueRelearn,
         onTopicCompleted: widget.onTopicCompleted,
       ),
     );
@@ -2814,6 +2859,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         progressStore: widget.progressStore,
         mediaService: widget.mediaService,
         relearnFromBeginning: true,
+        relearnTopicSequence: widget.relearnTopicSequence,
         onTopicCompleted: widget.onTopicCompleted,
       ),
     );

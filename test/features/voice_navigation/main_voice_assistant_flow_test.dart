@@ -758,6 +758,7 @@ void main() {
     final replay = await flow.handle('Con muốn học lại');
     expect(replay.continueListening, isFalse);
     expect(replay.navigationAfterPrompt?.lessonNumber, 1);
+    expect(replay.navigationAfterPrompt?.relearnLesson, isTrue);
   });
 }
 

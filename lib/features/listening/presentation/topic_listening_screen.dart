@@ -623,6 +623,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           : null,
       requestVoiceLessonSelection: false,
       forceRelearnTopic: target.relearnTopic,
+      forceRelearnLesson: target.relearnLesson,
     );
   }
 
@@ -632,6 +633,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     int? initialLessonNumber,
     bool requestVoiceLessonSelection = true,
     bool forceRelearnTopic = false,
+    bool forceRelearnLesson = false,
   }) async {
     try {
       final catalog = await _contentFuture;
@@ -683,6 +685,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
         startedLessonIds: progressBefore.startedLessonIds,
       );
       var lessonNumber = initialLessonNumber;
+      var relearnTopicSequence = forceRelearnTopic;
       if (forceRelearnTopic) {
         await widget.progressStore.resetLessonsForRelearn(
           content.lessons.map((lesson) => lesson.id),
@@ -704,6 +707,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             content.lessons.map((lesson) => lesson.id),
           );
           lessonNumber = content.lessons.first.number;
+          relearnTopicSequence = true;
         } else {
           final firstIncomplete = ListeningCurriculumFlow.firstIncompleteLesson(
             content,
@@ -742,6 +746,8 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           progressStore: widget.progressStore,
           voicePromptService: _voicePromptService,
           initialLessonNumber: lessonNumber,
+          relearnInitialLesson: forceRelearnLesson || relearnTopicSequence,
+          relearnTopicSequence: relearnTopicSequence,
           onTopicCompleted: () => topicCompletedDuringVisit = true,
         ),
         settings: const RouteSettings(name: ListeningRouteNames.topicLessons),

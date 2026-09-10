@@ -564,6 +564,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           lessonNumber: intent.lessonNumber,
           childAge: intent.childAge,
           relearnTopic: intent.relearnTopic,
+          relearnLesson: intent.relearnLesson,
           fallbackTopicIndex: fallbackTopicIndex,
         );
         if (_openingTopics) {

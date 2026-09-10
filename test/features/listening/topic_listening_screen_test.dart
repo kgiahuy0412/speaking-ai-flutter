@@ -505,6 +505,9 @@ class _MemoryProgressStore extends ListeningProgressStore {
   }
 
   @override
+  Future<bool> hasLessonPendingRelearn(String lessonId) async => false;
+
+  @override
   Future<Set<String>> readStartedLessonCores() async =>
       coreStarted ? <String>{..._progress.keys} : <String>{};
 

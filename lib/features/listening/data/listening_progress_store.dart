@@ -41,6 +41,9 @@ class ListeningProgressStore {
   static const String _missionWeakMarker = '::mission-weak::';
   static const String _missionAttemptSuffix = '::mission-attempt';
   static const String _starMarker = '::earned-star::';
+  static const String _lessonMissionStarSlotsSuffix =
+      '::lesson-mission-star-slots';
+  static const String _lessonRelearnPendingSuffix = '::relearn-pending';
   static const String _courseCompletedSuffix = '::course-completed';
   static const String _courseCompletionEventSuffix =
       '::course-completion-event-created';
@@ -69,6 +72,8 @@ class ListeningProgressStore {
           key.contains(_missionWeakMarker) ||
           key.endsWith(_missionAttemptSuffix) ||
           key.contains(_starMarker) ||
+          key.endsWith(_lessonMissionStarSlotsSuffix) ||
+          key.endsWith(_lessonRelearnPendingSuffix) ||
           key.endsWith(_courseCompletedSuffix) ||
           key.endsWith(_courseCompletionEventSuffix) ||
           key.endsWith(_topicSelectionLevelSuffix) ||
@@ -267,7 +272,13 @@ class ListeningProgressStore {
   Future<void> markLessonCoreStarted(String lessonId) async {
     final progress = await _readRaw();
     progress['$lessonId$_coreStartedSuffix'] = 1;
+    progress.remove('$lessonId$_lessonRelearnPendingSuffix');
     await _writeRaw(progress);
+  }
+
+  Future<bool> hasLessonPendingRelearn(String lessonId) async {
+    final progress = await _readRaw();
+    return progress['$lessonId$_lessonRelearnPendingSuffix'] == 1;
   }
 
   Future<Set<String>> readStartedLessonCores() async {
@@ -438,6 +449,17 @@ class ListeningProgressStore {
         .length;
   }
 
+  Future<void> markLessonMissionStarSlots(String lessonId) async {
+    final progress = await _readRaw();
+    progress['$lessonId$_lessonMissionStarSlotsSuffix'] = 1;
+    await _writeRaw(progress);
+  }
+
+  Future<bool> hasLessonMissionStarSlots(String lessonId) async {
+    final progress = await _readRaw();
+    return progress['$lessonId$_lessonMissionStarSlotsSuffix'] == 1;
+  }
+
   Future<void> markCourseCompleted(String courseId) async {
     final progress = await _readRaw();
     progress['$courseId$_courseCompletedSuffix'] = 1;
@@ -478,6 +500,7 @@ class ListeningProgressStore {
       progress.remove('$lessonId$_v4LessonActivityPassedMarker');
       progress.remove('$lessonId$_resumeStageSuffix');
       progress.remove('$lessonId$_coreStartedSuffix');
+      progress['$lessonId$_lessonRelearnPendingSuffix'] = 1;
       progress.removeWhere(
         (key, _) =>
             key.startsWith('$lessonId$_skippedMarker') ||
@@ -498,6 +521,7 @@ class ListeningProgressStore {
       progress.remove('$lessonId$_v4LessonActivityPassedMarker');
       progress.remove('$lessonId$_resumeStageSuffix');
       progress.remove('$lessonId$_coreStartedSuffix');
+      progress['$lessonId$_lessonRelearnPendingSuffix'] = 1;
       progress.removeWhere(
         (key, _) =>
             key.startsWith('$lessonId$_skippedMarker') ||

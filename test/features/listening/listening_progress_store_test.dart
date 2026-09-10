@@ -240,6 +240,7 @@ void main() {
       );
     }
     await fixture.store.awardStar('lesson-1', 'core:t1');
+    await fixture.store.markLessonMissionStarSlots('lesson-1');
     await fixture.store.markLevelMissionPassed('level-1');
     await fixture.store.saveMissionSelection('level-1', <String>['m1']);
 
@@ -251,11 +252,18 @@ void main() {
     expect(await fixture.store.readAll(), isEmpty);
     expect(await fixture.store.readStartedLessonCores(), isEmpty);
     expect(await fixture.store.readCompletedV4LessonActivities(), isEmpty);
+    expect(await fixture.store.hasLessonPendingRelearn('lesson-1'), isTrue);
+    expect(await fixture.store.hasLessonPendingRelearn('lesson-2'), isTrue);
     expect(await fixture.store.hasPassedLevelMission('level-1'), isFalse);
     expect(await fixture.store.readMissionSelection('level-1'), isEmpty);
     expect(await fixture.store.readEarnedStars('lesson-1'), <String>{
       'core:t1',
     });
+    expect(await fixture.store.hasLessonMissionStarSlots('lesson-1'), isTrue);
+
+    await fixture.store.markLessonCoreStarted('lesson-1');
+    expect(await fixture.store.hasLessonPendingRelearn('lesson-1'), isFalse);
+    expect(await fixture.store.hasLessonPendingRelearn('lesson-2'), isTrue);
   });
 }
 

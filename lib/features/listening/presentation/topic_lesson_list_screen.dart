@@ -38,6 +38,8 @@ class TopicLessonListScreen extends StatefulWidget {
     this.mediaService,
     this.voicePromptService,
     this.initialLessonNumber,
+    this.relearnInitialLesson = false,
+    this.relearnTopicSequence = false,
     this.onTopicCompleted,
     super.key,
   });
@@ -58,6 +60,8 @@ class TopicLessonListScreen extends StatefulWidget {
   final LessonMediaService? mediaService;
   final VoicePromptService? voicePromptService;
   final int? initialLessonNumber;
+  final bool relearnInitialLesson;
+  final bool relearnTopicSequence;
   final VoidCallback? onTopicCompleted;
 
   bool get showsSongs => startAge >= 6 && content.songs.isNotEmpty;
@@ -381,13 +385,20 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
       );
       return;
     }
-    await _startLesson(lesson, reviewFromBeginning: false);
+    await _startLesson(
+      lesson,
+      reviewFromBeginning: widget.relearnInitialLesson,
+    );
   }
 
   Future<void> _startLesson(
     ListeningLessonContent lesson, {
     required bool reviewFromBeginning,
   }) async {
+    final pendingRelearn = await widget.progressStore.hasLessonPendingRelearn(
+      lesson.id,
+    );
+    final startFromBeginning = reviewFromBeginning || pendingRelearn;
     final lessonIndex = widget.content.lessons.indexWhere(
       (candidate) => candidate.id == lesson.id,
     );
@@ -422,7 +433,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         shouldUseSongKaraoke(startAge: widget.startAge, lesson: lesson)
         ? _mediaService.unlockPlaybackForUserGesture()
         : null;
-    if (reviewFromBeginning) {
+    if (startFromBeginning) {
       await widget.progressStore.saveCurrentSentence(lesson.id, 0);
       if (lesson.usesV4Flow) {
         await widget.progressStore.clearV4LessonActivityCompleted(lesson.id);
@@ -456,7 +467,8 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
           progressStore: widget.progressStore,
           mediaService: _mediaService,
           voicePromptService: _voicePromptService,
-          relearnFromBeginning: reviewFromBeginning,
+          relearnFromBeginning: startFromBeginning,
+          relearnTopicSequence: widget.relearnTopicSequence || pendingRelearn,
           onTopicCompleted: widget.onTopicCompleted,
         ),
       );

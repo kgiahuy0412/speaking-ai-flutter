@@ -15,6 +15,7 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/lesson_star_flow.dart';
 import '../domain/lesson_guide_flow.dart';
 import 'active_learning_navigation.dart';
 import 'lesson_practice_screen.dart';
@@ -37,6 +38,7 @@ class LessonIntroScreen extends StatefulWidget {
     this.voicePromptService,
     this.autoAdvance = true,
     this.relearnFromBeginning = false,
+    this.relearnTopicSequence = false,
     this.onTopicCompleted,
     super.key,
   });
@@ -56,6 +58,7 @@ class LessonIntroScreen extends StatefulWidget {
   final VoicePromptService? voicePromptService;
   final bool autoAdvance;
   final bool relearnFromBeginning;
+  final bool relearnTopicSequence;
   final VoidCallback? onTopicCompleted;
 
   @override
@@ -125,7 +128,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         request != _introPlaybackRequest) {
       return;
     }
-    final uri = widget.lesson.introAudioUri;
+    // An authored intro clip may contain the first-time Hook. Relearn always
+    // uses the dynamic Star line prepared above so the Hook cannot leak back in.
+    final uri = _usesGuideV2 && widget.relearnFromBeginning
+        ? null
+        : widget.lesson.introAudioUri;
     if (uri == null) {
       try {
         await widget.mediaService.prepareSelectedLessonOutput();
@@ -235,18 +242,16 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       } else if (widget.relearnFromBeginning ||
           (completed >= lesson.sentences.length &&
               lesson.sentences.isNotEmpty)) {
-        final rolePlayStars =
-            lesson.rolePlay?.turns
-                .where((turn) => turn.speaker == ListeningRolePlaySpeaker.child)
-                .length ??
-            0;
-        final totalStars = lesson.sentences.length + rolePlayStars + 2;
         final earnedStars = await widget.progressStore.readEarnedStars(
           lesson.id,
         );
-        final remainingStars = (totalStars - earnedStars.length).clamp(
-          0,
-          totalStars,
+        final hasMissionStarSlots =
+            await widget.progressStore.hasLessonMissionStarSlots(lesson.id) ||
+            LessonStarFlow.hasEarnedMissionStar(earnedStars);
+        final remainingStars = LessonStarFlow.remainingStarCount(
+          lesson,
+          earnedStars,
+          includeMission: hasMissionStarSlots,
         );
         text = remainingStars > 0
             ? widget.startAge <= 10
@@ -625,6 +630,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         voicePromptService: _voicePromptService,
         initialResumeStage: _resumeStage,
         isRelearn: widget.relearnFromBeginning,
+        relearnTopicSequence: widget.relearnTopicSequence,
         onTopicCompleted: widget.onTopicCompleted,
       ),
     );
@@ -682,6 +688,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     mediaService: widget.mediaService,
     guideAudioLibrary: _guideAudioLibrary,
     isRelearn: widget.relearnFromBeginning,
+    relearnTopicSequence: widget.relearnTopicSequence,
     onTopicCompleted: widget.onTopicCompleted,
   );
 }

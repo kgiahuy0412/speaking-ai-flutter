@@ -1088,6 +1088,7 @@ class MainVoiceAssistantFlow {
       return _openLessonTurn(
         recognizedText: recognizedText,
         lessonNumber: replayLesson,
+        relearnLesson: true,
       );
     }
     return MainVoiceAssistantTurn(
@@ -1099,6 +1100,7 @@ class MainVoiceAssistantFlow {
   MainVoiceAssistantTurn _openLessonTurn({
     required String recognizedText,
     required int lessonNumber,
+    bool relearnLesson = false,
   }) {
     final age = _selectedAge;
     final topicNumber = _selectedTopicNumber;
@@ -1121,6 +1123,7 @@ class MainVoiceAssistantFlow {
         lessonNumber: lessonNumber,
         childAge: age,
         openLesson: true,
+        relearnLesson: relearnLesson,
       ),
     );
   }
