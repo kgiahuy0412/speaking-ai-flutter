@@ -13,7 +13,7 @@ void main() {
       );
 
       expect(ControlledSpeechLexicon.version, 'V0.2-homi-fallback');
-      expect(phraseCount, 377);
+      expect(phraseCount, 393);
     },
   );
 
