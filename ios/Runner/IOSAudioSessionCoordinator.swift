@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UIKit
 
 enum IOSAudioInputTarget: String {
   case builtInMic
@@ -43,6 +44,18 @@ struct IOSAudioSessionOwnershipState {
   }
 }
 
+struct IOSBackgroundTurnExecutionPolicy {
+  static func shouldRetain(
+    backgroundLearningEnabled: Bool,
+    applicationIsActive: Bool,
+    interactionPendingOrActive: Bool
+  ) -> Bool {
+    backgroundLearningEnabled
+      && !applicationIsActive
+      && interactionPendingOrActive
+  }
+}
+
 /// The single writer for AVAudioSession during an iOS MAIN turn.
 ///
 /// HFP, prompt playback and speech capture may inspect the shared session, but
@@ -62,6 +75,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var activeTurnStartedAt: Date?
   private var sequence = 0
   private var turnTimeout: DispatchWorkItem?
+  private var backgroundTurnTask = UIBackgroundTaskIdentifier.invalid
   private var ownership = IOSAudioSessionOwnershipState()
   private var preferredHfpInputUID: String?
   private var preferredHfpInputName: String?
@@ -106,8 +120,21 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "BackgroundLearningBridge"
     )
     if !enabled {
+      endBackgroundTurnExecution(caller: "BackgroundLearningBridge.stop")
       releaseAudioSessionIfIdle(caller: "BackgroundLearningBridge.stop")
     }
+  }
+
+  func applicationDidEnterBackground() {
+    retainBackgroundTurnExecutionIfNeeded(
+      caller: "BackgroundLearningBridge.didEnterBackground"
+    )
+  }
+
+  func applicationWillEnterForeground() {
+    endBackgroundTurnExecution(
+      caller: "BackgroundLearningBridge.willEnterForeground"
+    )
   }
 
   func notePhysicalMain(rawHex: String, source: String = "ble") {
@@ -127,6 +154,9 @@ final class IOSAudioSessionCoordinator: NSObject {
         "supersedesTurnId": activeTurnId ?? "",
         "transportSource": source,
       ]
+    )
+    retainBackgroundTurnExecutionIfNeeded(
+      caller: "IOSAudioSessionCoordinator.notePhysicalMain"
     )
   }
 
@@ -176,11 +206,13 @@ final class IOSAudioSessionCoordinator: NSObject {
         values: ["previousTurnId": previousTurnId ?? ""]
       )
       scheduleSafetyTimeout()
+      retainBackgroundTurnExecutionIfNeeded(caller: source)
       return pendingTurnId
     }
 
     if isMainTurnActive, let activeTurnId {
       trace(stage: "main_turn_reused", caller: source)
+      retainBackgroundTurnExecutionIfNeeded(caller: source)
       return activeTurnId
     }
 
@@ -198,6 +230,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
     trace(stage: "main_turn_started", caller: source)
     scheduleSafetyTimeout()
+    retainBackgroundTurnExecutionIfNeeded(caller: source)
     return activeTurnId!
   }
 
@@ -236,6 +269,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     // AVAudioSession after the logical MAIN turn ends. Deactivation is safe only
     // when the final owner releases it; otherwise iOS renegotiates HFP mid-flow.
     releaseAudioSessionIfIdle(caller: "IOSAudioSessionCoordinator.endMainTurn")
+    endBackgroundTurnExecutionIfIdle(caller: caller)
     onMainTurnEnded?()
   }
 
@@ -368,6 +402,10 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func releasePrompt(usedHfp _: Bool, caller: String) {
+    // Once native prompt playback ends, iOS can suspend Flutter before Dart
+    // requests the ready cue and Apple Speech. Hold only this bounded MAIN-turn
+    // hand-off; live capture remains governed by the audio background mode.
+    retainBackgroundTurnExecutionIfNeeded(caller: caller)
     trace(stage: "prompt_audio_release", caller: caller)
     let promptWasActive = releaseSessionOwner(.prompt, caller: caller)
     releaseAudioSessionIfIdle(caller: caller)
@@ -471,6 +509,9 @@ final class IOSAudioSessionCoordinator: NSObject {
         .backgroundTransition,
         caller: "BackgroundLearningBridge.activeLearning"
       )
+      retainBackgroundTurnExecutionIfNeeded(
+        caller: "BackgroundLearningBridge.activeLearning"
+      )
       return
     }
     releaseSessionOwner(
@@ -478,6 +519,9 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "BackgroundLearningBridge.activeLearning"
     )
     releaseAudioSessionIfIdle(
+      caller: "BackgroundLearningBridge.activeLearningEnded"
+    )
+    endBackgroundTurnExecutionIfIdle(
       caller: "BackgroundLearningBridge.activeLearningEnded"
     )
   }
@@ -517,6 +561,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func prepareCapture(target: IOSAudioInputTarget, caller: String) throws {
+    retainBackgroundTurnExecutionIfNeeded(caller: caller)
     acquireSessionOwner(.speechCapture, caller: caller)
     trace(stage: "audio_session_prepare", caller: caller, values: ["audioSource": target.rawValue])
     do {
@@ -567,6 +612,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   func dispose() {
     turnTimeout?.cancel()
     turnTimeout = nil
+    endBackgroundTurnExecution(caller: "IOSAudioSessionCoordinator.dispose")
     if let routeChangeToken {
       NotificationCenter.default.removeObserver(routeChangeToken)
     }
@@ -582,6 +628,63 @@ final class IOSAudioSessionCoordinator: NSObject {
     onHfpRouteOwnershipChanged = nil
     onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
+  }
+
+  private func retainBackgroundTurnExecutionIfNeeded(caller: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.retainBackgroundTurnExecutionIfNeeded(caller: caller)
+      }
+      return
+    }
+    let shouldRetain = IOSBackgroundTurnExecutionPolicy.shouldRetain(
+      backgroundLearningEnabled: isBackgroundLearningEnabled,
+      applicationIsActive: UIApplication.shared.applicationState == .active,
+      interactionPendingOrActive: pendingTurnId != nil
+        || isMainTurnActive
+        || isBackgroundTransitionLeaseActive
+    )
+    guard shouldRetain, backgroundTurnTask == .invalid else { return }
+
+    let identifier = UIApplication.shared.beginBackgroundTask(
+      withName: "HOMI MAIN prompt-to-microphone"
+    ) { [weak self] in
+      guard let self else { return }
+      self.trace(
+        stage: "background_turn_execution_expired",
+        caller: "UIApplication"
+      )
+      self.endBackgroundTurnExecution(caller: "UIApplication.expiration")
+    }
+    backgroundTurnTask = identifier
+    trace(
+      stage: identifier == .invalid
+        ? "background_turn_execution_unavailable"
+        : "background_turn_execution_started",
+      caller: caller
+    )
+  }
+
+  private func endBackgroundTurnExecutionIfIdle(caller: String) {
+    guard pendingTurnId == nil,
+      !isMainTurnActive,
+      !isBackgroundTransitionLeaseActive
+    else { return }
+    endBackgroundTurnExecution(caller: caller)
+  }
+
+  private func endBackgroundTurnExecution(caller: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.endBackgroundTurnExecution(caller: caller)
+      }
+      return
+    }
+    guard backgroundTurnTask != .invalid else { return }
+    let identifier = backgroundTurnTask
+    backgroundTurnTask = .invalid
+    trace(stage: "background_turn_execution_ended", caller: caller)
+    UIApplication.shared.endBackgroundTask(identifier)
   }
 
   private func acquireSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) {

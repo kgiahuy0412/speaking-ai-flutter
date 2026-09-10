@@ -31,6 +31,7 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
       object: nil,
       queue: .main
     ) { [weak self] _ in
+      self?.audioSessionCoordinator.applicationDidEnterBackground()
       self?.reconcileBackgroundTransitionLease()
     }
     willEnterForegroundToken = NotificationCenter.default.addObserver(
@@ -38,6 +39,7 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
       object: nil,
       queue: .main
     ) { [weak self] _ in
+      self?.audioSessionCoordinator.applicationWillEnterForeground()
       self?.audioSessionCoordinator.setBackgroundTransitionLeaseActive(false)
     }
 

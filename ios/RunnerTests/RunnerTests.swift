@@ -9,6 +9,37 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testBackgroundTurnExecutionPolicyOnlyBridgesAnEnabledBackgroundInteraction() {
+    XCTAssertTrue(
+      IOSBackgroundTurnExecutionPolicy.shouldRetain(
+        backgroundLearningEnabled: true,
+        applicationIsActive: false,
+        interactionPendingOrActive: true
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundTurnExecutionPolicy.shouldRetain(
+        backgroundLearningEnabled: false,
+        applicationIsActive: false,
+        interactionPendingOrActive: true
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundTurnExecutionPolicy.shouldRetain(
+        backgroundLearningEnabled: true,
+        applicationIsActive: true,
+        interactionPendingOrActive: true
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundTurnExecutionPolicy.shouldRetain(
+        backgroundLearningEnabled: true,
+        applicationIsActive: false,
+        interactionPendingOrActive: false
+      )
+    )
+  }
+
   func testAiv0PendingButtonBufferIsBoundedAndDrainsChronologically() throws {
     var buffer = Aiv0PendingButtonEventBuffer(capacity: 2)
 
