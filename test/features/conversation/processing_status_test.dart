@@ -115,5 +115,7 @@ void main() {
 
     expect(changed, isTrue);
     expect(largestFrameStep, lessThan(3.5));
+    expect(tester.getSize(waveform).width, 292);
+    expect(tester.getSize(waveform).height, 52);
   });
 }

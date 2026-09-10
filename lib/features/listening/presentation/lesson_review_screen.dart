@@ -23,7 +23,7 @@ class LessonReviewScreen extends StatefulWidget {
     required this.mediaService,
     this.unrecordedSentenceIndexes = const <int>{},
     this.learnNowBuilder,
-    this.mode = LessonReviewMode.overview,
+    this.mode = LessonReviewMode.learned,
     this.hasNextLesson = false,
     this.voicePromptService,
     super.key,
@@ -231,7 +231,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
 
   String _title(BuildContext context) => widget.mode == LessonReviewMode.learned
       ? context.tr('Đã học', '已学习')
-      : context.tr('Nghe tổng quan', '整体听一遍');
+      : context.tr('Xem bài học', '查看课程');
 
   Widget _buildOverviewActions(BuildContext context) {
     final theme = Theme.of(context);
@@ -453,7 +453,7 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
         if (widget.mode == LessonReviewMode.overview) {
           if (_completionUnlockSeconds > 0) {
             return const ActiveLearningCommandResult.unavailable(
-              spokenReply: 'Con nghe tổng quan thêm một chút nhé.',
+              spokenReply: 'Con xem bài học thêm một chút nhé.',
             );
           }
           _resumeFromMain();
@@ -492,8 +492,11 @@ class _LessonReviewScreenState extends State<LessonReviewScreen>
           _resumeFromMain(replay: true);
         }
         return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyParentAdded:
       case ActiveLearningCommand.vocabularyPracticeAgain:
       case ActiveLearningCommand.vocabularyStars:
+      case ActiveLearningCommand.vocabularyLatest:
+      case ActiveLearningCommand.vocabularyAll:
         return const ActiveLearningCommandResult.unavailable();
       case ActiveLearningCommand.exitToHome:
         await pauseForMainAssistant();

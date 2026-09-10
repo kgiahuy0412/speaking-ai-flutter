@@ -11,7 +11,9 @@ import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
 import '../../listening/data/active_listening_session_store.dart';
+import '../../listening/data/listening_progress_store.dart';
 import '../../listening/domain/listening_content.dart';
+import '../../listening/presentation/active_learning_navigation.dart';
 import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../onboarding/application/onboarding_progress_store.dart';
@@ -35,6 +37,8 @@ class HomeLearningShell extends StatefulWidget {
     this.onChildAgeChanged,
     this.onMainSpeakingModeStarted,
     this.onScreenMainPressed,
+    this.onVocabularyVoiceChoiceRequested,
+    this.vocabularySuggestionProvider,
     this.onModalVisibilityChanged,
     this.privacyConsentGranted = false,
     this.voiceAccessEnabled = true,
@@ -43,6 +47,7 @@ class HomeLearningShell extends StatefulWidget {
     this.onRevokePrivacyConsent,
     this.onboardingStore,
     this.listeningContentFuture,
+    this.listeningProgressStore = const ListeningProgressStore(),
     this.parentAccessGate,
     this.backgroundLearningSession,
     super.key,
@@ -56,6 +61,12 @@ class HomeLearningShell extends StatefulWidget {
   final ValueChanged<int>? onChildAgeChanged;
   final VoidCallback? onMainSpeakingModeStarted;
   final Future<void> Function()? onScreenMainPressed;
+  final Future<void> Function({
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
+  })?
+  onVocabularyVoiceChoiceRequested;
+  final VocabularySuggestionProvider? vocabularySuggestionProvider;
   final ValueChanged<bool>? onModalVisibilityChanged;
   final bool privacyConsentGranted;
   final bool voiceAccessEnabled;
@@ -64,6 +75,7 @@ class HomeLearningShell extends StatefulWidget {
   final Future<void> Function()? onRevokePrivacyConsent;
   final OnboardingProgressStore? onboardingStore;
   final Future<ListeningContentCatalog>? listeningContentFuture;
+  final ListeningProgressStore listeningProgressStore;
   final Future<bool> Function(BuildContext context)? parentAccessGate;
   final BackgroundLearningSessionControl? backgroundLearningSession;
 
@@ -347,6 +359,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                           VocabularyHomeScreen(
                             isReady: widget.controller.isInputAvailable,
                             isActive: _page == 1,
+                            childAge: widget.controller.childAge,
+                            controller: widget.controller,
+                            autoStartToday: true,
+                            onRequestVoiceChoice:
+                                widget.onVocabularyVoiceChoiceRequested,
+                            suggestionProvider:
+                                widget.vocabularySuggestionProvider,
                             translator: (input) async {
                               final translation = await widget.controller
                                   .translateVocabulary(input);
@@ -544,6 +563,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           topicNumber: intent.topicNumber,
           lessonNumber: intent.lessonNumber,
           childAge: intent.childAge,
+          relearnTopic: intent.relearnTopic,
           fallbackTopicIndex: fallbackTopicIndex,
         );
         if (_openingTopics) {
@@ -805,64 +825,82 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       final routeDuration = MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : const Duration(milliseconds: 260);
-      await Navigator.of(context).push<void>(
-        PageRouteBuilder<void>(
-          settings: const RouteSettings(name: ListeningRouteNames.topicCatalog),
-          transitionDuration: routeDuration,
-          reverseTransitionDuration: routeDuration,
-          pageBuilder: (_, _, _) => TopicListeningScreen(
-            language: widget.controller.displayLanguage,
-            childAge: widget.controller.childAge,
-            controller: widget.controller,
-            onMainPressed: widget.onScreenMainPressed,
-            onVocabularyRequested: _showVocabulary,
-            onVoiceNavigationPause: () =>
-                _pauseVoiceNavigation('listening_media_opened'),
-            onVoiceNavigationResume: _resumeVoiceNavigation,
-            initialVoiceTarget: initialVoiceTarget,
-            onTopicSelected: (index) => _activeVoiceTopicIndex = index,
-            onChildAgeChanged: widget.onChildAgeChanged,
-            onRequestParentAccess: _requestParentAccess,
-            onLessonSelectionRequested:
-                ({
-                  required childAge,
-                  required topicNumber,
-                  required topicContent,
-                  required completedLessonNumbers,
-                }) async {
-                  await widget.voiceNavigationController
-                      ?.activateLessonSelectionForTopic(
-                        childAge: childAge,
-                        topicNumber: topicNumber,
-                        topicContent: topicContent,
-                        completedLessonNumbers: completedLessonNumbers,
-                      );
-                },
-            onTopicSelectionAfterCompletion:
-                ({required childAge, required completedTopicNumbers}) async {
-                  await widget.voiceNavigationController
-                      ?.activateTopicSelectionAfterCompletion(
-                        childAge: childAge,
-                        completedTopicNumbers: completedTopicNumbers,
-                      );
-                },
-            contentFuture: widget.listeningContentFuture,
-          ),
-          transitionsBuilder: (_, animation, secondaryAnimation, child) {
-            final curved = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-              reverseCurve: Curves.easeInCubic,
-            );
-            return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.08, 0),
-                end: Offset.zero,
-              ).animate(curved),
-              child: FadeTransition(opacity: curved, child: child),
-            );
-          },
+      await pushForActiveLearning<void>(
+        context,
+        (_) => TopicListeningScreen(
+          language: widget.controller.displayLanguage,
+          childAge: widget.controller.childAge,
+          controller: widget.controller,
+          onMainPressed: widget.onScreenMainPressed,
+          onVocabularyRequested: _showVocabulary,
+          onVoiceNavigationPause: () =>
+              _pauseVoiceNavigation('listening_media_opened'),
+          onVoiceNavigationResume: _resumeVoiceNavigation,
+          initialVoiceTarget: initialVoiceTarget,
+          onTopicSelected: (index) => _activeVoiceTopicIndex = index,
+          onChildAgeChanged: widget.onChildAgeChanged,
+          onRequestParentAccess: _requestParentAccess,
+          onLessonSelectionRequested:
+              ({
+                required childAge,
+                required topicNumber,
+                required topicContent,
+                required completedLessonNumbers,
+              }) async {
+                await widget.voiceNavigationController
+                    ?.activateLessonSelectionForTopic(
+                      childAge: childAge,
+                      topicNumber: topicNumber,
+                      topicContent: topicContent,
+                      completedLessonNumbers: completedLessonNumbers,
+                    );
+              },
+          onTopicSelectionAfterCompletion:
+              ({required childAge, required completedTopicNumbers}) async {
+                await widget.voiceNavigationController
+                    ?.activateTopicSelectionAfterCompletion(
+                      childAge: childAge,
+                      completedTopicNumbers: completedTopicNumbers,
+                    );
+              },
+          onLevelTopicSelectionRequested:
+              ({
+                required childAge,
+                required levelNumber,
+                required topicNumbers,
+                required completedTopicNumbers,
+                required announceLevel,
+              }) async {
+                await widget.voiceNavigationController
+                    ?.activateLevelTopicSelection(
+                      childAge: childAge,
+                      levelNumber: levelNumber,
+                      topicNumbers: topicNumbers,
+                      completedTopicNumbers: completedTopicNumbers,
+                      announceLevel: announceLevel,
+                    );
+              },
+          contentFuture: widget.listeningContentFuture,
+          progressStore: widget.listeningProgressStore,
         ),
+        settings: const RouteSettings(name: ListeningRouteNames.topicCatalog),
+        foregroundTransitionDuration: routeDuration,
+        foregroundReverseTransitionDuration: routeDuration,
+        foregroundTransitionsBuilder:
+            (_, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              );
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.08, 0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: FadeTransition(opacity: curved, child: child),
+              );
+            },
       );
     } finally {
       await const ActiveListeningSessionStore().clear();

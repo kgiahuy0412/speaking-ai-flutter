@@ -1,6 +1,6 @@
 {
   "schemaVersion": 4,
-  "contentVersion": "4.0",
+  "contentVersion": "4.1",
   "source": "AIV0_HOMI_Spec_Thiet_ke_noi_dung_hoc_tap_IT_V4_FINAL_BAN_TIENg_VIET.txt",
   "audioProvider": "v4-tts-manifest-pending",
   "groups": [
@@ -23,12 +23,12 @@
               "id": "C35-L1-M01",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Mặt trời: S. Sun hay T. Toy?",
+              "prompt": "Mặt trời: Sun hay Toy?",
               "choices": [
-                "S. Sun.",
-                "T. Toy."
+                "Sun.",
+                "Toy."
               ],
-              "correctAnswer": "S. Sun.",
+              "correctAnswer": "Sun.",
               "coverageTargetId": "C35-L1-T01-B03-T01",
               "correctVietnamese": "Mặt trời."
             },
@@ -36,12 +36,12 @@
               "id": "C35-L1-M02",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Cái ô: U. Umbrella hay V. Van?",
+              "prompt": "Cái ô: Umbrella hay Van?",
               "choices": [
-                "U. Umbrella.",
-                "V. Van."
+                "Umbrella.",
+                "Van."
               ],
-              "correctAnswer": "U. Umbrella.",
+              "correctAnswer": "Umbrella.",
               "coverageTargetId": "C35-L1-T01-B03-T03",
               "correctVietnamese": "Cái ô."
             },
@@ -49,12 +49,12 @@
               "id": "C35-L1-M03",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Quả bóng: B. Ball hay C. Cat?",
+              "prompt": "Quả bóng: Ball hay Cat?",
               "choices": [
-                "B. Ball.",
-                "C. Cat."
+                "Ball.",
+                "Cat."
               ],
-              "correctAnswer": "B. Ball.",
+              "correctAnswer": "Ball.",
               "coverageTargetId": "C35-L1-T01-B01-T02",
               "correctVietnamese": "Quả bóng."
             },
@@ -62,12 +62,12 @@
               "id": "C35-L1-M04",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Con thỏ: R. Rabbit hay J. Juice?",
+              "prompt": "Con thỏ: Rabbit hay Juice?",
               "choices": [
-                "R. Rabbit.",
-                "J. Juice."
+                "Rabbit.",
+                "Juice."
               ],
-              "correctAnswer": "R. Rabbit.",
+              "correctAnswer": "Rabbit.",
               "coverageTargetId": "C35-L1-T01-B02-T09",
               "correctVietnamese": "Con thỏ."
             },
@@ -539,107 +539,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T01-B01-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Quả táo: A. Apple hay B. Ball?",
+                  "prompt": "Quả táo: Apple hay Ball?",
                   "choices": [
-                    "A. Apple.",
-                    "B. Ball."
+                    "Apple.",
+                    "Ball."
                   ],
-                  "correctAnswer": "A. Apple.",
+                  "correctAnswer": "Apple.",
                   "correctVietnamese": "Quả táo.",
                   "targetId": "C35-L1-T01-B01-T01"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Quả bóng: B. Ball hay C. Cat?",
+                  "prompt": "Quả bóng: Ball hay Cat?",
                   "choices": [
-                    "B. Ball.",
-                    "C. Cat."
+                    "Ball.",
+                    "Cat."
                   ],
-                  "correctAnswer": "B. Ball.",
+                  "correctAnswer": "Ball.",
                   "correctVietnamese": "Quả bóng.",
                   "targetId": "C35-L1-T01-B01-T02"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Con mèo: C. Cat hay D. Dog?",
+                  "prompt": "Con mèo: Cat hay Dog?",
                   "choices": [
-                    "C. Cat.",
-                    "D. Dog."
+                    "Cat.",
+                    "Dog."
                   ],
-                  "correctAnswer": "C. Cat.",
+                  "correctAnswer": "Cat.",
                   "correctVietnamese": "Con mèo.",
                   "targetId": "C35-L1-T01-B01-T03"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Con chó: D. Dog hay E. Egg?",
+                  "prompt": "Con chó: Dog hay Egg?",
                   "choices": [
-                    "D. Dog.",
-                    "E. Egg."
+                    "Dog.",
+                    "Egg."
                   ],
-                  "correctAnswer": "D. Dog.",
+                  "correctAnswer": "Dog.",
                   "correctVietnamese": "Con chó.",
                   "targetId": "C35-L1-T01-B01-T04"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Con cá: F. Fish hay G. Grape?",
+                  "prompt": "Con cá: Fish hay Grape?",
                   "choices": [
-                    "F. Fish.",
-                    "G. Grape."
+                    "Fish.",
+                    "Grape."
                   ],
-                  "correctAnswer": "F. Fish.",
+                  "correctAnswer": "Fish.",
                   "correctVietnamese": "Con cá.",
                   "targetId": "C35-L1-T01-B01-T06"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Quả nho: G. Grape hay H. Hat?",
+                  "prompt": "Quả nho: Grape hay Hat?",
                   "choices": [
-                    "G. Grape.",
-                    "H. Hat."
+                    "Grape.",
+                    "Hat."
                   ],
-                  "correctAnswer": "G. Grape.",
+                  "correctAnswer": "Grape.",
                   "correctVietnamese": "Quả nho.",
                   "targetId": "C35-L1-T01-B01-T07"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Cái mũ: H. Hat hay I. Ice cream?",
+                  "prompt": "Cái mũ: Hat hay Ice cream?",
                   "choices": [
-                    "H. Hat.",
-                    "I. Ice cream."
+                    "Hat.",
+                    "Ice cream."
                   ],
-                  "correctAnswer": "H. Hat.",
+                  "correctAnswer": "Hat.",
                   "correctVietnamese": "Cái mũ.",
                   "targetId": "C35-L1-T01-B01-T08"
                 },
                 {
                   "id": "C35-L1-T01-B01-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Kem: I. Ice cream hay A. Apple?",
+                  "prompt": "Kem: Ice cream hay Apple?",
                   "choices": [
-                    "I. Ice cream.",
-                    "A. Apple."
+                    "Ice cream.",
+                    "Apple."
                   ],
-                  "correctAnswer": "I. Ice cream.",
+                  "correctAnswer": "Ice cream.",
                   "correctVietnamese": "Kem.",
                   "targetId": "C35-L1-T01-B01-T09"
                 }
@@ -658,9 +655,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "A. Apple."
+                    "A. Apple.",
+                    "Apple."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T02",
@@ -673,9 +671,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "B. Ball."
+                    "B. Ball.",
+                    "Ball."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T03",
@@ -688,9 +687,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "C. Cat."
+                    "C. Cat.",
+                    "Cat."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T04",
@@ -703,9 +703,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "D. Dog."
+                    "D. Dog.",
+                    "Dog."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T05",
@@ -718,9 +719,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "E. Egg."
+                    "E. Egg.",
+                    "Egg."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T06",
@@ -733,9 +735,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "F. Fish."
+                    "F. Fish.",
+                    "Fish."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T07",
@@ -748,9 +751,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "G. Grape."
+                    "G. Grape.",
+                    "Grape."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T08",
@@ -763,9 +767,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "H. Hat."
+                    "H. Hat.",
+                    "Hat."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B01-T09",
@@ -778,9 +783,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "I. Ice cream."
+                    "I. Ice cream.",
+                    "Ice cream."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             },
@@ -800,107 +806,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T01-B02-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Nước ép: J. Juice hay K. Kite?",
+                  "prompt": "Nước ép: Juice hay Kite?",
                   "choices": [
-                    "J. Juice.",
-                    "K. Kite."
+                    "Juice.",
+                    "Kite."
                   ],
-                  "correctAnswer": "J. Juice.",
+                  "correctAnswer": "Juice.",
                   "correctVietnamese": "Nước ép.",
                   "targetId": "C35-L1-T01-B02-T01"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Cái diều: K. Kite hay L. Lion?",
+                  "prompt": "Cái diều: Kite hay Lion?",
                   "choices": [
-                    "K. Kite.",
-                    "L. Lion."
+                    "Kite.",
+                    "Lion."
                   ],
-                  "correctAnswer": "K. Kite.",
+                  "correctAnswer": "Kite.",
                   "correctVietnamese": "Cái diều.",
                   "targetId": "C35-L1-T01-B02-T02"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Con sư tử: L. Lion hay M. Milk?",
+                  "prompt": "Con sư tử: Lion hay Milk?",
                   "choices": [
-                    "L. Lion.",
-                    "M. Milk."
+                    "Lion.",
+                    "Milk."
                   ],
-                  "correctAnswer": "L. Lion.",
+                  "correctAnswer": "Lion.",
                   "correctVietnamese": "Con sư tử.",
                   "targetId": "C35-L1-T01-B02-T03"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Sữa: M. Milk hay N. Nose?",
+                  "prompt": "Sữa: Milk hay Nose?",
                   "choices": [
-                    "M. Milk.",
-                    "N. Nose."
+                    "Milk.",
+                    "Nose."
                   ],
-                  "correctAnswer": "M. Milk.",
+                  "correctAnswer": "Milk.",
                   "correctVietnamese": "Sữa.",
                   "targetId": "C35-L1-T01-B02-T04"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Quả cam: O. Orange hay P. Pig?",
+                  "prompt": "Quả cam: Orange hay Pig?",
                   "choices": [
-                    "O. Orange.",
-                    "P. Pig."
+                    "Orange.",
+                    "Pig."
                   ],
-                  "correctAnswer": "O. Orange.",
+                  "correctAnswer": "Orange.",
                   "correctVietnamese": "Quả cam.",
                   "targetId": "C35-L1-T01-B02-T06"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Con lợn: P. Pig hay Q. Queen?",
+                  "prompt": "Con lợn: Pig hay Queen?",
                   "choices": [
-                    "P. Pig.",
-                    "Q. Queen."
+                    "Pig.",
+                    "Queen."
                   ],
-                  "correctAnswer": "P. Pig.",
+                  "correctAnswer": "Pig.",
                   "correctVietnamese": "Con lợn.",
                   "targetId": "C35-L1-T01-B02-T07"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Nữ hoàng: Q. Queen hay R. Rabbit?",
+                  "prompt": "Nữ hoàng: Queen hay Rabbit?",
                   "choices": [
-                    "Q. Queen.",
-                    "R. Rabbit."
+                    "Queen.",
+                    "Rabbit."
                   ],
-                  "correctAnswer": "Q. Queen.",
+                  "correctAnswer": "Queen.",
                   "correctVietnamese": "Nữ hoàng.",
                   "targetId": "C35-L1-T01-B02-T08"
                 },
                 {
                   "id": "C35-L1-T01-B02-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Con thỏ: R. Rabbit hay J. Juice?",
+                  "prompt": "Con thỏ: Rabbit hay Juice?",
                   "choices": [
-                    "R. Rabbit.",
-                    "J. Juice."
+                    "Rabbit.",
+                    "Juice."
                   ],
-                  "correctAnswer": "R. Rabbit.",
+                  "correctAnswer": "Rabbit.",
                   "correctVietnamese": "Con thỏ.",
                   "targetId": "C35-L1-T01-B02-T09"
                 }
@@ -919,9 +922,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "J. Juice."
+                    "J. Juice.",
+                    "Juice."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T02",
@@ -934,9 +938,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "K. Kite."
+                    "K. Kite.",
+                    "Kite."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T03",
@@ -949,9 +954,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "L. Lion."
+                    "L. Lion.",
+                    "Lion."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T04",
@@ -964,9 +970,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "M. Milk."
+                    "M. Milk.",
+                    "Milk."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T05",
@@ -979,9 +986,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "N. Nose."
+                    "N. Nose.",
+                    "Nose."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T06",
@@ -994,9 +1002,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "O. Orange."
+                    "O. Orange.",
+                    "Orange."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T07",
@@ -1009,9 +1018,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "P. Pig."
+                    "P. Pig.",
+                    "Pig."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T08",
@@ -1024,9 +1034,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Q. Queen."
+                    "Q. Queen.",
+                    "Queen."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B02-T09",
@@ -1039,9 +1050,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "R. Rabbit."
+                    "R. Rabbit.",
+                    "Rabbit."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             },
@@ -1061,107 +1073,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T01-B03-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Mặt trời: S. Sun hay T. Toy?",
+                  "prompt": "Mặt trời: Sun hay Toy?",
                   "choices": [
-                    "S. Sun.",
-                    "T. Toy."
+                    "Sun.",
+                    "Toy."
                   ],
-                  "correctAnswer": "S. Sun.",
+                  "correctAnswer": "Sun.",
                   "correctVietnamese": "Mặt trời.",
                   "targetId": "C35-L1-T01-B03-T01"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Đồ chơi: T. Toy hay U. Umbrella?",
+                  "prompt": "Đồ chơi: Toy hay Umbrella?",
                   "choices": [
-                    "T. Toy.",
-                    "U. Umbrella."
+                    "Toy.",
+                    "Umbrella."
                   ],
-                  "correctAnswer": "T. Toy.",
+                  "correctAnswer": "Toy.",
                   "correctVietnamese": "Đồ chơi.",
                   "targetId": "C35-L1-T01-B03-T02"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Cái ô: U. Umbrella hay V. Van?",
+                  "prompt": "Cái ô: Umbrella hay Van?",
                   "choices": [
-                    "U. Umbrella.",
-                    "V. Van."
+                    "Umbrella.",
+                    "Van."
                   ],
-                  "correctAnswer": "U. Umbrella.",
+                  "correctAnswer": "Umbrella.",
                   "correctVietnamese": "Cái ô.",
                   "targetId": "C35-L1-T01-B03-T03"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Xe van: V. Van hay W. Water?",
+                  "prompt": "Xe van: Van hay Water?",
                   "choices": [
-                    "V. Van.",
-                    "W. Water."
+                    "Van.",
+                    "Water."
                   ],
-                  "correctAnswer": "V. Van.",
+                  "correctAnswer": "Van.",
                   "correctVietnamese": "Xe van.",
                   "targetId": "C35-L1-T01-B03-T04"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Nước: W. Water hay X. X-ray?",
+                  "prompt": "Nước: Water hay X-ray?",
                   "choices": [
-                    "W. Water.",
-                    "X. X-ray."
+                    "Water.",
+                    "X-ray."
                   ],
-                  "correctAnswer": "W. Water.",
+                  "correctAnswer": "Water.",
                   "correctVietnamese": "Nước.",
                   "targetId": "C35-L1-T01-B03-T05"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Ảnh X-quang: X. X-ray hay Y. Yo-yo?",
+                  "prompt": "Ảnh X-quang: X-ray hay Yo-yo?",
                   "choices": [
-                    "X. X-ray.",
-                    "Y. Yo-yo."
+                    "X-ray.",
+                    "Yo-yo."
                   ],
-                  "correctAnswer": "X. X-ray.",
+                  "correctAnswer": "X-ray.",
                   "correctVietnamese": "Ảnh X-quang.",
                   "targetId": "C35-L1-T01-B03-T06"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Đồ chơi yo-yo: Y. Yo-yo hay Z. Zebra?",
+                  "prompt": "Đồ chơi yo-yo: Yo-yo hay Zebra?",
                   "choices": [
-                    "Y. Yo-yo.",
-                    "Z. Zebra."
+                    "Yo-yo.",
+                    "Zebra."
                   ],
-                  "correctAnswer": "Y. Yo-yo.",
+                  "correctAnswer": "Yo-yo.",
                   "correctVietnamese": "Đồ chơi yo-yo.",
                   "targetId": "C35-L1-T01-B03-T07"
                 },
                 {
                   "id": "C35-L1-T01-B03-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Ngựa vằn: Z. Zebra hay S. Sun?",
+                  "prompt": "Ngựa vằn: Zebra hay Sun?",
                   "choices": [
-                    "Z. Zebra.",
-                    "S. Sun."
+                    "Zebra.",
+                    "Sun."
                   ],
-                  "correctAnswer": "Z. Zebra.",
+                  "correctAnswer": "Zebra.",
                   "correctVietnamese": "Ngựa vằn.",
                   "targetId": "C35-L1-T01-B03-T08"
                 }
@@ -1180,9 +1189,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "S. Sun."
+                    "S. Sun.",
+                    "Sun."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T02",
@@ -1195,9 +1205,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "T. Toy."
+                    "T. Toy.",
+                    "Toy."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T03",
@@ -1210,9 +1221,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "U. Umbrella."
+                    "U. Umbrella.",
+                    "Umbrella."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T04",
@@ -1225,9 +1237,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "V. Van."
+                    "V. Van.",
+                    "Van."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T05",
@@ -1240,9 +1253,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "W. Water."
+                    "W. Water.",
+                    "Water."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T06",
@@ -1255,9 +1269,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "X. X-ray."
+                    "X. X-ray.",
+                    "X-ray."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T07",
@@ -1270,9 +1285,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Y. Yo-yo."
+                    "Y. Yo-yo.",
+                    "Yo-yo."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C35-L1-T01-B03-T08",
@@ -1285,9 +1301,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Z. Zebra."
+                    "Z. Zebra.",
+                    "Zebra."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             }
@@ -1317,13 +1334,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách đếm số nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T02-B01-Q01",
@@ -1593,13 +1607,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Nghe thật kỹ nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T02-B02-Q01",
@@ -1806,13 +1817,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học màu sắc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T03-B01-Q01",
@@ -2022,13 +2030,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học màu sắc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L1-T03-B02-Q01",
@@ -2254,13 +2259,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học hình dạng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T04-B01-Q01",
@@ -2440,13 +2442,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học hình dạng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T04-B02-Q01",
@@ -2640,13 +2639,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Bạn đoán xem con gì?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T05-B01-Q01",
@@ -2841,13 +2837,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các con vật nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T05-B02-Q01",
@@ -3057,13 +3050,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các bộ phận và động tác cơ thể nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T06-B01-Q01",
@@ -3258,13 +3248,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các bộ phận và động tác cơ thể nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L2-T06-B02-Q01",
@@ -3469,13 +3456,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học đồ ăn và đồ uống nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T07-B01-Q01",
@@ -3670,13 +3654,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học đồ ăn và đồ uống nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T07-B02-Q01",
@@ -3881,13 +3862,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách nói về gia đình nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T08-B01-Q01",
@@ -4082,13 +4060,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách nói về gia đình nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T08-B02-Q01",
@@ -4293,13 +4268,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học thời tiết và trang phục nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T09-B01-Q01",
@@ -4479,13 +4451,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Mưa rồi. Mặc gì nhỉ?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T09-B02-Q01",
@@ -4677,13 +4646,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các hoạt động trong ngày nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T10-B01-Q01",
@@ -4878,13 +4844,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Một ngày mới bắt đầu rồi!"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C35-L3-T10-B02-Q01",
@@ -5091,12 +5054,12 @@
               "id": "C67-L1-M01",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Trường học: S. School hay T. Table?",
+              "prompt": "Trường học: School hay Table?",
               "choices": [
-                "S. School.",
-                "T. Table."
+                "School.",
+                "Table."
               ],
-              "correctAnswer": "S. School.",
+              "correctAnswer": "School.",
               "coverageTargetId": "C67-L1-T01-B03-T01",
               "correctVietnamese": "Trường học."
             },
@@ -5104,12 +5067,12 @@
               "id": "C67-L1-M02",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Đồng phục: U. Uniform hay V. Violin?",
+              "prompt": "Đồng phục: Uniform hay Violin?",
               "choices": [
-                "U. Uniform.",
-                "V. Violin."
+                "Uniform.",
+                "Violin."
               ],
-              "correctAnswer": "U. Uniform.",
+              "correctAnswer": "Uniform.",
               "coverageTargetId": "C67-L1-T01-B03-T03",
               "correctVietnamese": "Đồng phục."
             },
@@ -5117,12 +5080,12 @@
               "id": "C67-L1-M03",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Quyển sách: B. Book hay C. Cake?",
+              "prompt": "Quyển sách: Book hay Cake?",
               "choices": [
-                "B. Book.",
-                "C. Cake."
+                "Book.",
+                "Cake."
               ],
-              "correctAnswer": "B. Book.",
+              "correctAnswer": "Book.",
               "coverageTargetId": "C67-L1-T01-B01-T02",
               "correctVietnamese": "Quyển sách."
             },
@@ -5130,12 +5093,12 @@
               "id": "C67-L1-M04",
               "topicNumber": 1,
               "format": "VI_TO_EN",
-              "prompt": "Rô-bốt: R. Robot hay J. Jacket?",
+              "prompt": "Rô-bốt: Robot hay Jacket?",
               "choices": [
-                "R. Robot.",
-                "J. Jacket."
+                "Robot.",
+                "Jacket."
               ],
-              "correctAnswer": "R. Robot.",
+              "correctAnswer": "Robot.",
               "coverageTargetId": "C67-L1-T01-B02-T09",
               "correctVietnamese": "Rô-bốt."
             },
@@ -5607,107 +5570,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T01-B01-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Con kiến: A. Ant hay B. Book?",
+                  "prompt": "Con kiến: Ant hay Book?",
                   "choices": [
-                    "A. Ant.",
-                    "B. Book."
+                    "Ant.",
+                    "Book."
                   ],
-                  "correctAnswer": "A. Ant.",
+                  "correctAnswer": "Ant.",
                   "correctVietnamese": "Con kiến.",
                   "targetId": "C67-L1-T01-B01-T01"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Quyển sách: B. Book hay C. Cake?",
+                  "prompt": "Quyển sách: Book hay Cake?",
                   "choices": [
-                    "B. Book.",
-                    "C. Cake."
+                    "Book.",
+                    "Cake."
                   ],
-                  "correctAnswer": "B. Book.",
+                  "correctAnswer": "Book.",
                   "correctVietnamese": "Quyển sách.",
                   "targetId": "C67-L1-T01-B01-T02"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Bánh ngọt: C. Cake hay D. Desk?",
+                  "prompt": "Bánh ngọt: Cake hay Desk?",
                   "choices": [
-                    "C. Cake.",
-                    "D. Desk."
+                    "Cake.",
+                    "Desk."
                   ],
-                  "correctAnswer": "C. Cake.",
+                  "correctAnswer": "Cake.",
                   "correctVietnamese": "Bánh ngọt.",
                   "targetId": "C67-L1-T01-B01-T03"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Bàn học: D. Desk hay E. Elephant?",
+                  "prompt": "Bàn học: Desk hay Elephant?",
                   "choices": [
-                    "D. Desk.",
-                    "E. Elephant."
+                    "Desk.",
+                    "Elephant."
                   ],
-                  "correctAnswer": "D. Desk.",
+                  "correctAnswer": "Desk.",
                   "correctVietnamese": "Bàn học.",
                   "targetId": "C67-L1-T01-B01-T04"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Bông hoa: F. Flower hay G. Game?",
+                  "prompt": "Bông hoa: Flower hay Game?",
                   "choices": [
-                    "F. Flower.",
-                    "G. Game."
+                    "Flower.",
+                    "Game."
                   ],
-                  "correctAnswer": "F. Flower.",
+                  "correctAnswer": "Flower.",
                   "correctVietnamese": "Bông hoa.",
                   "targetId": "C67-L1-T01-B01-T06"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Trò chơi: G. Game hay H. House?",
+                  "prompt": "Trò chơi: Game hay House?",
                   "choices": [
-                    "G. Game.",
-                    "H. House."
+                    "Game.",
+                    "House."
                   ],
-                  "correctAnswer": "G. Game.",
+                  "correctAnswer": "Game.",
                   "correctVietnamese": "Trò chơi.",
                   "targetId": "C67-L1-T01-B01-T07"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Ngôi nhà: H. House hay I. Insect?",
+                  "prompt": "Ngôi nhà: House hay Insect?",
                   "choices": [
-                    "H. House.",
-                    "I. Insect."
+                    "House.",
+                    "Insect."
                   ],
-                  "correctAnswer": "H. House.",
+                  "correctAnswer": "House.",
                   "correctVietnamese": "Ngôi nhà.",
                   "targetId": "C67-L1-T01-B01-T08"
                 },
                 {
                   "id": "C67-L1-T01-B01-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Côn trùng: I. Insect hay A. Ant?",
+                  "prompt": "Côn trùng: Insect hay Ant?",
                   "choices": [
-                    "I. Insect.",
-                    "A. Ant."
+                    "Insect.",
+                    "Ant."
                   ],
-                  "correctAnswer": "I. Insect.",
+                  "correctAnswer": "Insect.",
                   "correctVietnamese": "Côn trùng.",
                   "targetId": "C67-L1-T01-B01-T09"
                 }
@@ -5726,9 +5686,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "A. Ant."
+                    "A. Ant.",
+                    "Ant."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T02",
@@ -5741,9 +5702,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "B. Book."
+                    "B. Book.",
+                    "Book."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T03",
@@ -5756,9 +5718,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "C. Cake."
+                    "C. Cake.",
+                    "Cake."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T04",
@@ -5771,9 +5734,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "D. Desk."
+                    "D. Desk.",
+                    "Desk."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T05",
@@ -5786,9 +5750,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "E. Elephant."
+                    "E. Elephant.",
+                    "Elephant."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T06",
@@ -5801,9 +5766,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "F. Flower."
+                    "F. Flower.",
+                    "Flower."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T07",
@@ -5816,9 +5782,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "G. Game."
+                    "G. Game.",
+                    "Game."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T08",
@@ -5831,9 +5798,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "H. House."
+                    "H. House.",
+                    "House."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B01-T09",
@@ -5846,9 +5814,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "I. Insect."
+                    "I. Insect.",
+                    "Insect."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             },
@@ -5868,107 +5837,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T01-B02-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Áo khoác: J. Jacket hay K. Key?",
+                  "prompt": "Áo khoác: Jacket hay Key?",
                   "choices": [
-                    "J. Jacket.",
-                    "K. Key."
+                    "Jacket.",
+                    "Key."
                   ],
-                  "correctAnswer": "J. Jacket.",
+                  "correctAnswer": "Jacket.",
                   "correctVietnamese": "Áo khoác.",
                   "targetId": "C67-L1-T01-B02-T01"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Chìa khóa: K. Key hay L. Lamp?",
+                  "prompt": "Chìa khóa: Key hay Lamp?",
                   "choices": [
-                    "K. Key.",
-                    "L. Lamp."
+                    "Key.",
+                    "Lamp."
                   ],
-                  "correctAnswer": "K. Key.",
+                  "correctAnswer": "Key.",
                   "correctVietnamese": "Chìa khóa.",
                   "targetId": "C67-L1-T01-B02-T02"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Cái đèn: L. Lamp hay M. Moon?",
+                  "prompt": "Cái đèn: Lamp hay Moon?",
                   "choices": [
-                    "L. Lamp.",
-                    "M. Moon."
+                    "Lamp.",
+                    "Moon."
                   ],
-                  "correctAnswer": "L. Lamp.",
+                  "correctAnswer": "Lamp.",
                   "correctVietnamese": "Cái đèn.",
                   "targetId": "C67-L1-T01-B02-T03"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Mặt trăng: M. Moon hay N. Notebook?",
+                  "prompt": "Mặt trăng: Moon hay Notebook?",
                   "choices": [
-                    "M. Moon.",
-                    "N. Notebook."
+                    "Moon.",
+                    "Notebook."
                   ],
-                  "correctAnswer": "M. Moon.",
+                  "correctAnswer": "Moon.",
                   "correctVietnamese": "Mặt trăng.",
                   "targetId": "C67-L1-T01-B02-T04"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Bạch tuộc: O. Octopus hay P. Pencil?",
+                  "prompt": "Bạch tuộc: Octopus hay Pencil?",
                   "choices": [
-                    "O. Octopus.",
-                    "P. Pencil."
+                    "Octopus.",
+                    "Pencil."
                   ],
-                  "correctAnswer": "O. Octopus.",
+                  "correctAnswer": "Octopus.",
                   "correctVietnamese": "Bạch tuộc.",
                   "targetId": "C67-L1-T01-B02-T06"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Bút chì: P. Pencil hay Q. Quiz?",
+                  "prompt": "Bút chì: Pencil hay Quiz?",
                   "choices": [
-                    "P. Pencil.",
-                    "Q. Quiz."
+                    "Pencil.",
+                    "Quiz."
                   ],
-                  "correctAnswer": "P. Pencil.",
+                  "correctAnswer": "Pencil.",
                   "correctVietnamese": "Bút chì.",
                   "targetId": "C67-L1-T01-B02-T07"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Câu đố: Q. Quiz hay R. Robot?",
+                  "prompt": "Câu đố: Quiz hay Robot?",
                   "choices": [
-                    "Q. Quiz.",
-                    "R. Robot."
+                    "Quiz.",
+                    "Robot."
                   ],
-                  "correctAnswer": "Q. Quiz.",
+                  "correctAnswer": "Quiz.",
                   "correctVietnamese": "Câu đố.",
                   "targetId": "C67-L1-T01-B02-T08"
                 },
                 {
                   "id": "C67-L1-T01-B02-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Rô-bốt: R. Robot hay J. Jacket?",
+                  "prompt": "Rô-bốt: Robot hay Jacket?",
                   "choices": [
-                    "R. Robot.",
-                    "J. Jacket."
+                    "Robot.",
+                    "Jacket."
                   ],
-                  "correctAnswer": "R. Robot.",
+                  "correctAnswer": "Robot.",
                   "correctVietnamese": "Rô-bốt.",
                   "targetId": "C67-L1-T01-B02-T09"
                 }
@@ -5987,9 +5953,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "J. Jacket."
+                    "J. Jacket.",
+                    "Jacket."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T02",
@@ -6002,9 +5969,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "K. Key."
+                    "K. Key.",
+                    "Key."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T03",
@@ -6017,9 +5985,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "L. Lamp."
+                    "L. Lamp.",
+                    "Lamp."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T04",
@@ -6032,9 +6001,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "M. Moon."
+                    "M. Moon.",
+                    "Moon."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T05",
@@ -6047,9 +6017,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "N. Notebook."
+                    "N. Notebook.",
+                    "Notebook."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T06",
@@ -6062,9 +6033,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "O. Octopus."
+                    "O. Octopus.",
+                    "Octopus."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T07",
@@ -6077,9 +6049,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "P. Pencil."
+                    "P. Pencil.",
+                    "Pencil."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T08",
@@ -6092,9 +6065,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Q. Quiz."
+                    "Q. Quiz.",
+                    "Quiz."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B02-T09",
@@ -6107,9 +6081,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "R. Robot."
+                    "R. Robot.",
+                    "Robot."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             },
@@ -6129,107 +6104,104 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T01-B03-Q01",
                   "format": "VI_TO_EN",
-                  "prompt": "Trường học: S. School hay T. Table?",
+                  "prompt": "Trường học: School hay Table?",
                   "choices": [
-                    "S. School.",
-                    "T. Table."
+                    "School.",
+                    "Table."
                   ],
-                  "correctAnswer": "S. School.",
+                  "correctAnswer": "School.",
                   "correctVietnamese": "Trường học.",
                   "targetId": "C67-L1-T01-B03-T01"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q02",
                   "format": "VI_TO_EN",
-                  "prompt": "Cái bàn: T. Table hay U. Uniform?",
+                  "prompt": "Cái bàn: Table hay Uniform?",
                   "choices": [
-                    "T. Table.",
-                    "U. Uniform."
+                    "Table.",
+                    "Uniform."
                   ],
-                  "correctAnswer": "T. Table.",
+                  "correctAnswer": "Table.",
                   "correctVietnamese": "Cái bàn.",
                   "targetId": "C67-L1-T01-B03-T02"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q03",
                   "format": "VI_TO_EN",
-                  "prompt": "Đồng phục: U. Uniform hay V. Violin?",
+                  "prompt": "Đồng phục: Uniform hay Violin?",
                   "choices": [
-                    "U. Uniform.",
-                    "V. Violin."
+                    "Uniform.",
+                    "Violin."
                   ],
-                  "correctAnswer": "U. Uniform.",
+                  "correctAnswer": "Uniform.",
                   "correctVietnamese": "Đồng phục.",
                   "targetId": "C67-L1-T01-B03-T03"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q04",
                   "format": "VI_TO_EN",
-                  "prompt": "Đàn vi-ô-lông: V. Violin hay W. Window?",
+                  "prompt": "Đàn vi-ô-lông: Violin hay Window?",
                   "choices": [
-                    "V. Violin.",
-                    "W. Window."
+                    "Violin.",
+                    "Window."
                   ],
-                  "correctAnswer": "V. Violin.",
+                  "correctAnswer": "Violin.",
                   "correctVietnamese": "Đàn vi-ô-lông.",
                   "targetId": "C67-L1-T01-B03-T04"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q05",
                   "format": "VI_TO_EN",
-                  "prompt": "Cửa sổ: W. Window hay X. X-ray?",
+                  "prompt": "Cửa sổ: Window hay X-ray?",
                   "choices": [
-                    "W. Window.",
-                    "X. X-ray."
+                    "Window.",
+                    "X-ray."
                   ],
-                  "correctAnswer": "W. Window.",
+                  "correctAnswer": "Window.",
                   "correctVietnamese": "Cửa sổ.",
                   "targetId": "C67-L1-T01-B03-T05"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q06",
                   "format": "VI_TO_EN",
-                  "prompt": "Ảnh X-quang: X. X-ray hay Y. Yogurt?",
+                  "prompt": "Ảnh X-quang: X-ray hay Yogurt?",
                   "choices": [
-                    "X. X-ray.",
-                    "Y. Yogurt."
+                    "X-ray.",
+                    "Yogurt."
                   ],
-                  "correctAnswer": "X. X-ray.",
+                  "correctAnswer": "X-ray.",
                   "correctVietnamese": "Ảnh X-quang.",
                   "targetId": "C67-L1-T01-B03-T06"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q07",
                   "format": "VI_TO_EN",
-                  "prompt": "Sữa chua: Y. Yogurt hay Z. Zoo?",
+                  "prompt": "Sữa chua: Yogurt hay Zoo?",
                   "choices": [
-                    "Y. Yogurt.",
-                    "Z. Zoo."
+                    "Yogurt.",
+                    "Zoo."
                   ],
-                  "correctAnswer": "Y. Yogurt.",
+                  "correctAnswer": "Yogurt.",
                   "correctVietnamese": "Sữa chua.",
                   "targetId": "C67-L1-T01-B03-T07"
                 },
                 {
                   "id": "C67-L1-T01-B03-Q08",
                   "format": "VI_TO_EN",
-                  "prompt": "Sở thú: Z. Zoo hay S. School?",
+                  "prompt": "Sở thú: Zoo hay School?",
                   "choices": [
-                    "Z. Zoo.",
-                    "S. School."
+                    "Zoo.",
+                    "School."
                   ],
-                  "correctAnswer": "Z. Zoo.",
+                  "correctAnswer": "Zoo.",
                   "correctVietnamese": "Sở thú.",
                   "targetId": "C67-L1-T01-B03-T08"
                 }
@@ -6248,9 +6220,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "S. School."
+                    "S. School.",
+                    "School."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T02",
@@ -6263,9 +6236,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "T. Table."
+                    "T. Table.",
+                    "Table."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T03",
@@ -6278,9 +6252,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "U. Uniform."
+                    "U. Uniform.",
+                    "Uniform."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T04",
@@ -6293,9 +6268,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "V. Violin."
+                    "V. Violin.",
+                    "Violin."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T05",
@@ -6308,9 +6284,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "W. Window."
+                    "W. Window.",
+                    "Window."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T06",
@@ -6323,9 +6300,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "X. X-ray."
+                    "X. X-ray.",
+                    "X-ray."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T07",
@@ -6338,9 +6316,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Y. Yogurt."
+                    "Y. Yogurt.",
+                    "Yogurt."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 },
                 {
                   "id": "C67-L1-T01-B03-T08",
@@ -6353,9 +6332,10 @@
                   "audioUrl": null,
                   "vietnameseAudioUrl": null,
                   "recognitionVariants": [
-                    "Z. Zoo."
+                    "Z. Zoo.",
+                    "Zoo."
                   ],
-                  "requiresAllExpectedTokens": true
+                  "requiresAllExpectedTokens": false
                 }
               ]
             }
@@ -6385,13 +6365,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các số trong đời sống nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T02-B01-Q01",
@@ -6661,13 +6638,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các số trong đời sống nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T02-B02-Q01",
@@ -6937,13 +6911,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các số trong đời sống nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T02-B03-Q01",
@@ -7148,13 +7119,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học con vật và khả năng của chúng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T03-B01-Q01",
@@ -7364,13 +7332,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Nó có thể làm gì nhỉ?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L1-T03-B02-Q01",
@@ -7575,13 +7540,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách nói về món mình thích nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T04-B01-Q01",
@@ -7776,13 +7738,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách nói về món mình thích nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T04-B02-Q01",
@@ -7989,13 +7948,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học màu sắc và hình dạng của đồ vật nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T05-B01-Q01",
@@ -8190,13 +8146,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học màu sắc và hình dạng của đồ vật nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T05-B02-Q01",
@@ -8401,13 +8354,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các hoạt động giữ cơ thể sạch khỏe nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T06-B01-Q01",
@@ -8602,13 +8552,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các hoạt động giữ cơ thể sạch khỏe nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L2-T06-B02-Q01",
@@ -8813,13 +8760,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học ngôn ngữ dùng ở lớp nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T07-B01-Q01",
@@ -9014,13 +8958,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Đến giờ vào lớp rồi."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T07-B02-Q01",
@@ -9225,13 +9166,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách rủ bạn chơi, cuối bài còn có bài hát nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T08-B01-Q01",
@@ -9430,13 +9368,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học cách chơi và tương tác với bạn nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T08-B02-Q01",
@@ -9641,13 +9576,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học các địa điểm quen thuộc nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T09-B01-Q01",
@@ -9842,13 +9774,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "HOMI đang ở đâu nhỉ?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T09-B02-Q01",
@@ -10053,13 +9982,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học hoạt động cuối tuần nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T10-B01-Q01",
@@ -10254,13 +10180,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng học hoạt động cuối tuần nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C67-L3-T10-B02-Q01",
@@ -10979,13 +10902,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Mấy giờ rồi nhỉ?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T01-B01-Q01",
@@ -11180,13 +11100,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng nói về lịch hằng ngày, cuối bài còn có bài hát nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T01-B02-Q01",
@@ -11393,13 +11310,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách giao tiếp ở trường nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T02-B01-Q01",
@@ -11594,13 +11508,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Cửa lớp đang đóng."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T02-B02-Q01",
@@ -11825,13 +11736,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện sở thích và khả năng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T03-B01-Q01",
@@ -12026,13 +11934,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện sở thích và khả năng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L1-T03-B02-Q01",
@@ -12237,13 +12142,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện địa điểm và cách hỏi đường nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T04-B01-Q01",
@@ -12438,13 +12340,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện địa điểm và cách hỏi đường nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T04-B02-Q01",
@@ -12639,13 +12538,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện địa điểm và cách hỏi đường nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T04-B03-Q01",
@@ -12871,13 +12767,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Hôm nay trời thế nào?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T05-B01-Q01",
@@ -13072,13 +12965,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách chọn hoạt động theo thời tiết nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T05-B02-Q01",
@@ -13283,13 +13173,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện thiết bị và cách sử dụng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T06-B01-Q01",
@@ -13484,13 +13371,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện thiết bị và cách sử dụng nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L2-T06-B02-Q01",
@@ -13695,13 +13579,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách hỏi giá và chọn món nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T07-B01-Q01",
@@ -13896,13 +13777,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách hỏi giá và chọn món nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T07-B02-Q01",
@@ -14119,13 +13997,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách hỏi giá và chọn món nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T07-B03-Q01",
@@ -14330,13 +14205,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cảm xúc và cách giúp bạn nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T08-B01-Q01",
@@ -14536,13 +14408,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Bạn của bạn trông không vui."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T08-B02-Q01",
@@ -14773,13 +14642,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách kể việc đã xảy ra nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T09-B01-Q01",
@@ -14974,13 +14840,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện cách kể việc đã xảy ra nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T09-B02-Q01",
@@ -15185,13 +15048,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Hôm nay được đi chơi. Chọn gì nhỉ?"
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T10-B01-Q01",
@@ -15386,13 +15246,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": null,
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình cùng luyện kế hoạch đi chơi và cách di chuyển nhé."
               },
-              "overviewMode": "bilingual",
               "challengeBank": [
                 {
                   "id": "C810-L3-T10-B02-Q01",
@@ -16111,13 +15968,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T01-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói về lịch trong tuần."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T01-B01-Q01",
@@ -16312,13 +16166,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T01-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói về lịch trong tuần."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T01-B02-Q01",
@@ -16523,13 +16374,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T02-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Làm sao học tập trung hơn?"
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T02-B01-Q01",
@@ -16724,13 +16572,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T02-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện thói quen học tập hiệu quả."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T02-B02-Q01",
@@ -16935,13 +16780,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T03-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói về điểm mạnh."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T03-B01-Q01",
@@ -17136,13 +16978,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L1-T03-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói về điểm mạnh."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L1-T03-B02-Q01",
@@ -17351,13 +17190,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T04-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách di chuyển và so sánh phương tiện."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T04-B01-Q01",
@@ -17552,13 +17388,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T04-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách di chuyển và so sánh phương tiện."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T04-B02-Q01",
@@ -17753,13 +17586,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T04-B03_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách di chuyển và so sánh phương tiện."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T04-B03-Q01",
@@ -17964,13 +17794,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T05-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện thói quen tốt cho sức khỏe."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T05-B01-Q01",
@@ -18165,13 +17992,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T05-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện thói quen tốt cho sức khỏe."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T05-B02-Q01",
@@ -18376,13 +18200,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T06-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách an toàn khi dùng mạng."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T06-B01-Q01",
@@ -18577,13 +18398,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L2-T06-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Có một tin nhắn lạ."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L2-T06-B02-Q01",
@@ -18790,13 +18608,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T07-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hẹn và phản hồi lịch sự."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T07-B01-Q01",
@@ -18991,13 +18806,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T07-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hẹn và phản hồi lịch sự."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T07-B02-Q01",
@@ -19219,13 +19031,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T07-B03_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hẹn và phản hồi lịch sự."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T07-B03-Q01",
@@ -19432,13 +19241,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T08-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hỏi giá và chọn mua."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T08-B01-Q01",
@@ -19633,13 +19439,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T08-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hỏi giá và chọn mua."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T08-B02-Q01",
@@ -19857,13 +19660,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T08-B03_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hỏi giá và chọn mua."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T08-B03-Q01",
@@ -20069,13 +19869,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T09-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói vấn đề nhỏ và xin giúp đỡ."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T09-B01-Q01",
@@ -20271,13 +20068,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T09-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói vấn đề nhỏ và xin giúp đỡ."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T09-B02-Q01",
@@ -20472,13 +20266,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T09-B03_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nói vấn đề nhỏ và xin giúp đỡ."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T09-B03-Q01",
@@ -20683,13 +20474,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T10-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện các hành động thân thiện môi trường."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T10-B01-Q01",
@@ -20884,13 +20672,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1112-L3-T10-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện các hành động thân thiện môi trường."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1112-L3-T10-B02-Q01",
@@ -21609,13 +21394,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T01-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách sắp xếp thời gian."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T01-B01-Q01",
@@ -21825,13 +21607,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T01-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách sắp xếp thời gian."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T01-B02-Q01",
@@ -22051,13 +21830,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T02-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Bạn muốn cải thiện điều gì?"
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T02-B01-Q01",
@@ -22267,13 +22043,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T02-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện mục tiêu học tập và bước thực hiện."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T02-B02-Q01",
@@ -22493,13 +22266,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T03-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nêu ý kiến và lý do."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T03-B01-Q01",
@@ -22737,13 +22507,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L1-T03-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nêu ý kiến và lý do."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L1-T03-B02-Q01",
@@ -22967,13 +22734,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T04-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách cân nhắc chi tiêu."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T04-B01-Q01",
@@ -23183,13 +22947,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T04-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách cân nhắc chi tiêu."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T04-B02-Q01",
@@ -23413,13 +23174,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T05-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nhận biết và xử lý căng thẳng."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T05-B01-Q01",
@@ -23633,13 +23391,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T05-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách nhận biết và xử lý căng thẳng."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T05-B02-Q01",
@@ -23859,13 +23614,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T06-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách bảo vệ thông tin cá nhân."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T06-B01-Q01",
@@ -24075,13 +23827,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L2-T06-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Có nên tự do chia sẻ thông tin không?"
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L2-T06-B02-Q01",
@@ -24304,13 +24053,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T07-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách hỏi thông tin ở nhà ga."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T07-B01-Q01",
@@ -24520,13 +24266,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T07-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Sắp đến giờ tàu chạy."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T07-B02-Q01",
@@ -24772,13 +24515,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T08-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách gọi món."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T08-B01-Q01",
@@ -24988,13 +24728,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T08-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "hook",
                 "text": "Đến lúc gọi món rồi."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T08-B02-Q01",
@@ -25251,13 +24988,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T09-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách so sánh và lựa chọn."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T09-B01-Q01",
@@ -25467,13 +25201,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T09-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện cách so sánh và lựa chọn."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T09-B02-Q01",
@@ -25720,13 +25451,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T10-B01_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện kế hoạch tương lai và bước tiếp theo."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T10-B01-Q01",
@@ -25936,13 +25664,10 @@
               "outroAudioUrl": null,
               "fullAudioId": null,
               "fullAudioUrl": null,
-              "overviewAudioId": "C1315-L3-T10-B02_OVERVIEW_EN",
-              "overviewAudioUrl": null,
               "entry": {
                 "kind": "microObjective",
                 "text": "Mình luyện kế hoạch tương lai và bước tiếp theo."
               },
-              "overviewMode": "englishOnly",
               "challengeBank": [
                 {
                   "id": "C1315-L3-T10-B02-Q01",

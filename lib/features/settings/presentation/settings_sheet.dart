@@ -294,7 +294,25 @@ class SettingsSheet extends StatelessWidget {
                             disabled: controller.isBusy,
                             onFind: () => _findAndConnectHfp(context),
                             onDisconnect: controller.disconnectHfpDevice,
+                            onOpenMediaAudioSettings: () =>
+                                _openH20MediaAudioSettings(context),
                           ),
+                          if (isAndroid || isIOS) ...<Widget>[
+                            const _SettingsDivider(),
+                            _OdmDiagnosticReportCard(
+                              active: controller.odmDiagnosticActive,
+                              eventCount: controller.odmDiagnosticEventCount,
+                              lastReportPath:
+                                  controller.odmDiagnosticLastReportPath,
+                              disabled:
+                                  controller.isBusy ||
+                                  controller.h20HardwareTestActive,
+                              onStart: controller.startOdmDiagnosticSession,
+                              onCancel: controller.cancelOdmDiagnosticSession,
+                              onExport: () =>
+                                  _exportOdmDiagnosticReport(context),
+                            ),
+                          ],
                           if (isAndroid) ...<Widget>[
                             const _SettingsDivider(),
                             _H20OfflineHardwareTestCard(
@@ -692,6 +710,25 @@ class SettingsSheet extends StatelessWidget {
     }
   }
 
+  Future<void> _exportOdmDiagnosticReport(BuildContext context) async {
+    try {
+      final path = await controller.exportOdmDiagnosticReport();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Đã tạo báo cáo chẩn đoán: $path', '诊断报告已生成：$path'),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   Future<void> _scanAndConnectAiv0(BuildContext context) async {
     try {
       final devices = await controller.scanAiv0Devices();
@@ -929,6 +966,8 @@ class SettingsSheet extends StatelessWidget {
   }
 
   Future<void> _findAndConnectHfp(BuildContext context) async {
+    final isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
     try {
       final devices = await controller.findHfpDevices();
@@ -1056,6 +1095,9 @@ class SettingsSheet extends StatelessWidget {
         return;
       }
       await controller.connectHfpDevice(selected);
+      if (isAndroid && controller.hfpMediaAudioConnected && context.mounted) {
+        await _showAndroidMediaAudioWarning(context);
+      }
     } catch (error) {
       if (context.mounted) {
         await _showHfpMessage(
@@ -1064,6 +1106,50 @@ class SettingsSheet extends StatelessWidget {
           message: error.toString(),
         );
       }
+    }
+  }
+
+  Future<void> _showAndroidMediaAudioWarning(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          context.tr('Tắt Âm thanh đa phương tiện của H20', '关闭 H20 的媒体音频'),
+        ),
+        content: Text(
+          context.tr(
+            'H20 đang kết nối thêm bằng A2DP nên Facebook, YouTube và ứng dụng khác cũng phát qua loa H20. Trong trang Bluetooth, hãy tắt “Âm thanh đa phương tiện” nhưng vẫn giữ “Âm thanh cuộc gọi”. BLE và mic HFP của HOMI vẫn hoạt động.',
+            'H20 还通过 A2DP 连接，因此 Facebook、YouTube 和其他应用也会通过 H20 播放。请在蓝牙页面关闭“媒体音频”，但保留“通话音频”。HOMI 的 BLE 和 HFP 麦克风仍可使用。',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(context.tr('Để sau', '稍后')),
+          ),
+          FilledButton(
+            key: const Key('open-h20-media-audio-settings-dialog'),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              unawaited(_openH20MediaAudioSettings(context));
+            },
+            child: Text(context.tr('Mở Bluetooth', '打开蓝牙')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openH20MediaAudioSettings(BuildContext context) async {
+    try {
+      await controller.openHfpMediaAudioSettings();
+    } catch (error) {
+      if (!context.mounted) return;
+      await _showHfpMessage(
+        context,
+        title: context.tr('Không mở được Bluetooth', '无法打开蓝牙'),
+        message: error.toString(),
+      );
     }
   }
 
@@ -2429,6 +2515,141 @@ class _InnotrikStatusCard extends StatelessWidget {
   }
 }
 
+class _OdmDiagnosticReportCard extends StatelessWidget {
+  const _OdmDiagnosticReportCard({
+    required this.active,
+    required this.eventCount,
+    required this.lastReportPath,
+    required this.disabled,
+    required this.onStart,
+    required this.onCancel,
+    required this.onExport,
+  });
+
+  final bool active;
+  final int eventCount;
+  final String? lastReportPath;
+  final bool disabled;
+  final VoidCallback onStart;
+  final VoidCallback onCancel;
+  final Future<void> Function() onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              HomiIconBadge(
+                icon: Icons.bug_report_outlined,
+                foregroundColor: active ? AppColors.coral : AppColors.indigo,
+                backgroundColor: (active ? AppColors.coral : AppColors.indigo)
+                    .withValues(alpha: 0.11),
+                size: 40,
+                iconSize: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      context.tr('Chẩn đoán thiết bị ODM', 'ODM 设备诊断'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      context.tr(
+                        'Ghi trạng thái BLE, HFP/SCO và Raw Hex. Không ghi giọng nói, transcript, token hoặc dữ liệu backend.',
+                        '记录 BLE、HFP/SCO 状态和 Raw Hex。不记录语音、转写文本、令牌或后端数据。',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLowest.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (active ? AppColors.coral : colors.outlineVariant)
+                    .withValues(alpha: 0.55),
+              ),
+            ),
+            child: Text(
+              active
+                  ? context.tr(
+                      'Đang ghi $eventCount sự kiện. Hãy kết nối BLE/HFP, test loa, thu micro 5 giây và bấm từng nút vật lý; sau đó xuất báo cáo.',
+                      '正在记录 $eventCount 个事件。请连接 BLE/HFP、测试扬声器、录音 5 秒并逐个按下物理按键，然后导出报告。',
+                    )
+                  : context.tr(
+                      'Nhấn “Bắt đầu ghi log” trước khi thực hiện toàn bộ quy trình kiểm tra.',
+                      '请在执行完整测试流程之前点击“开始记录日志”。',
+                    ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (!active && lastReportPath != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              context.tr(
+                'Báo cáo gần nhất: $lastReportPath',
+                '最近报告：$lastReportPath',
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+          const SizedBox(height: 9),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              if (!active)
+                FilledButton.icon(
+                  key: const Key('odm-diagnostic-start'),
+                  onPressed: disabled ? null : onStart,
+                  icon: const Icon(Icons.fiber_manual_record_rounded),
+                  label: Text(context.tr('Bắt đầu ghi log', '开始记录日志')),
+                )
+              else ...<Widget>[
+                TextButton.icon(
+                  key: const Key('odm-diagnostic-cancel'),
+                  onPressed: disabled ? null : onCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  label: Text(context.tr('Hủy', '取消')),
+                ),
+                FilledButton.icon(
+                  key: const Key('odm-diagnostic-export'),
+                  onPressed: disabled ? null : () => onExport(),
+                  icon: const Icon(Icons.ios_share_rounded),
+                  label: Text(context.tr('Kết thúc & xuất', '结束并导出')),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _H20OfflineHardwareTestCard extends StatelessWidget {
   const _H20OfflineHardwareTestCard({
     this.embedded = false,
@@ -2664,6 +2885,7 @@ class _HfpStatusCard extends StatelessWidget {
     required this.disabled,
     required this.onFind,
     required this.onDisconnect,
+    required this.onOpenMediaAudioSettings,
   });
 
   final bool embedded;
@@ -2673,6 +2895,7 @@ class _HfpStatusCard extends StatelessWidget {
   final bool disabled;
   final VoidCallback onFind;
   final Future<void> Function() onDisconnect;
+  final Future<void> Function() onOpenMediaAudioSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -2767,6 +2990,52 @@ class _HfpStatusCard extends StatelessWidget {
               value: status.routeActive
                   ? context.tr('Đang hoạt động', '正在使用')
                   : context.tr('Chưa mở', '未打开'),
+            ),
+          ],
+          if (status.mediaAudioConnected && !browserManaged) ...<Widget>[
+            const SizedBox(height: 10),
+            Container(
+              key: const Key('h20-media-audio-warning'),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.coral.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.coral.withValues(alpha: 0.24),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    context.tr(
+                      'H20 đang bật Âm thanh đa phương tiện',
+                      'H20 已开启媒体音频',
+                    ),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.coral,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.tr(
+                      'Video và nhạc từ ứng dụng khác sẽ phát qua H20. Hãy tắt “Âm thanh đa phương tiện”, nhưng giữ “Âm thanh cuộc gọi”.',
+                      '其他应用的视频和音乐会通过 H20 播放。请关闭“媒体音频”，但保留“通话音频”。',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    key: const Key('open-h20-media-audio-settings'),
+                    onPressed: disabled
+                        ? null
+                        : () => unawaited(onOpenMediaAudioSettings()),
+                    icon: const Icon(Icons.settings_bluetooth_rounded),
+                    label: Text(context.tr('Mở Bluetooth', '打开蓝牙')),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 6),

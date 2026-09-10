@@ -68,6 +68,65 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets('keeps a custom transition only in the foreground', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final observer = _RouteObserver();
+    late BuildContext pageContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: <NavigatorObserver>[observer],
+        home: Builder(
+          builder: (context) {
+            pageContext = context;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+
+    pushForActiveLearning<void>(
+      pageContext,
+      (_) => const Scaffold(body: Text('custom lesson')),
+      foregroundTransitionDuration: const Duration(milliseconds: 260),
+      foregroundTransitionsBuilder:
+          (context, animation, secondaryAnimation, child) =>
+              FadeTransition(opacity: animation, child: child),
+    );
+    await tester.pump();
+
+    final foregroundRoute = observer.lastPushed as PageRouteBuilder<void>;
+    expect(
+      foregroundRoute.transitionDuration,
+      const Duration(milliseconds: 260),
+    );
+
+    await tester.pumpAndSettle();
+    Navigator.of(pageContext).pop();
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+
+    pushForActiveLearning<void>(
+      pageContext,
+      (_) => const Scaffold(body: Text('background lesson')),
+      foregroundTransitionDuration: const Duration(milliseconds: 260),
+      foregroundTransitionsBuilder:
+          (context, animation, secondaryAnimation, child) =>
+              FadeTransition(opacity: animation, child: child),
+    );
+    await tester.pump();
+
+    final backgroundRoute = observer.lastPushed as PageRouteBuilder<void>;
+    expect(backgroundRoute.transitionDuration, Duration.zero);
+    expect(find.text('background lesson'), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    debugDefaultTargetPlatformOverride = null;
+  });
 }
 
 class _RouteObserver extends NavigatorObserver {

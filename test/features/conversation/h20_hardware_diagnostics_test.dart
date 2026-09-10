@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
@@ -10,6 +9,7 @@ import 'package:ai_speaking_flutter_app/core/device/main_button_coordinator.dart
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -405,6 +405,51 @@ void main() {
       controller.dispose();
     },
   );
+
+  test('Android reopens HFP while translated speech is playing', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final speechInput = _FakeContinuousHfpStreamingSpeechInput();
+    final hfp = _FakeHfpAudioControl();
+    final playback = _FakePlaybackService();
+    final controller = ConversationController(
+      audioInput: _FakeAudioInput(),
+      streamingSpeechInput: speechInput,
+      hfpAudioControl: hfp,
+      playbackService: playback,
+      repository: _NoNetworkRepository(),
+      childAge: 6,
+      initialAsrMode: AsrMode.hfpStreaming,
+    );
+    controller.result = ConversationResult(
+      conversationId: 'android-hfp-playback',
+      sessionId: 'android-hfp-session',
+      context: PracticeContext.home,
+      vietnameseText: 'Con khát nước.',
+      englishText: 'I am thirsty.',
+      audioUri: Uri.parse('https://example.com/i-am-thirsty.mp3'),
+      processingMode: 'rule',
+      textSource: 'phrase_rule',
+      audioSource: 'cache',
+      asrMode: 'android_streaming',
+      latency: const ConversationLatency(
+        asrMs: 1,
+        llmMs: 0,
+        ttsMs: 0,
+        timeToFirstAudioMs: 1,
+      ),
+    );
+
+    await controller.playResult().timeout(const Duration(seconds: 1));
+
+    expect(hfp.startRouteCount, 1);
+    expect(hfp.stopRouteCount, 1);
+    expect(playback.playedUris, <Uri>[
+      Uri.parse('https://example.com/i-am-thirsty.mp3'),
+    ]);
+    expect(playback.communicationRouteActive, isFalse);
+    controller.dispose();
+  });
 
   test(
     'completed turn stays blocked until its microphone cleanup finishes',

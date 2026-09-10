@@ -402,6 +402,25 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (age == null || (!_privacyConsentGranted && !_limitedModeSelected)) {
       return;
     }
+    if (_privacyConsentGranted &&
+        !_limitedModeSelected &&
+        _bluetoothPermissionRequired) {
+      final controller = _controller;
+      final h20Ready =
+          controller != null &&
+          controller.aiv0BleStatus.isConnected &&
+          controller.hfpAudioStatus.isConnected;
+      if (!_bluetoothPermissionGranted || !h20Ready) {
+        if (mounted) {
+          setState(() {
+            _startupPermissionError = !_bluetoothPermissionGranted
+                ? 'Cần cấp quyền Bluetooth và bật Bluetooth để kết nối H20.'
+                : 'Bluetooth đã sẵn sàng nhưng H20 chưa kết nối đủ điều khiển và micro/loa.';
+          });
+        }
+        return;
+      }
+    }
     _setChildAge(age);
     await _parentSetupProgressStore.markComplete();
     if (!mounted) {
@@ -657,6 +676,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _lastAiv0AutoConnectAttempt = null;
     await _autoConnectH20Ble(reason: _H20AutoConnectReason.parentSetup);
     if (defaultTargetPlatform == TargetPlatform.android) {
+      final controller = _controller;
+      if (controller != null && !controller.hfpAudioStatus.isConnected) {
+        final hfpConnected = await controller.autoConnectH20Hfp(
+          bleDeviceName:
+              _aiv0BleControl?.status.deviceName ??
+              controller.aiv0BleStatus.deviceName,
+        );
+        if (!hfpConnected && mounted) {
+          setState(() {
+            _startupPermissionError =
+                'H20 chưa kết nối phần “Âm thanh cuộc gọi”. Hãy kết nối H20 trong Bluetooth rồi quay lại nhấn “Kết nối thiết bị”.';
+          });
+        }
+      }
       final deviceId = _aiv0BleControl?.status.deviceId?.trim();
       if (deviceId != null && deviceId.isNotEmpty) {
         final associated = await MethodChannelBackgroundLearningSession()
@@ -671,6 +704,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  Future<void> _openH20MediaAudioSettingsForParentSetup() async {
+    try {
+      await _controller?.openHfpMediaAudioSettings();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _startupPermissionError = error.toString();
+      });
     }
   }
 
@@ -758,7 +802,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     final AndroidStreamingSpeechInput? streamingSpeechInput =
         supportsAndroidNativeSpeech
-        ? AndroidStreamingSpeechInput(preferOnDevice: true)
+        ? AndroidHfpStreamingSpeechInput(audioRouteControl: hfpAudioControl)
         : supportsAppleNativeSpeech
         ? IOSStreamingSpeechInput(audioRouteControl: hfpAudioControl)
         : null;
@@ -931,7 +975,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
   }
 
-  Future<bool> _activateMainAssistant({String? inputLabelOverride}) async {
+  Future<bool> _activateMainAssistant({
+    String? inputLabelOverride,
+    bool promptAlreadySpoken = false,
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
+  }) async {
     if (!_startupReady || !_voiceAccessEnabled) {
       return false;
     }
@@ -982,6 +1031,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         activeLearning: hasActiveModule,
         activeLearningKind: activeLearningKind,
         inputLabelOverride: inputLabelOverride,
+        promptAlreadySpoken: promptAlreadySpoken,
+        noSpeechRetryPrompt: noSpeechRetryPrompt,
+        noSpeechExitPrompt: noSpeechExitPrompt,
       );
       if (!activated && _activeModulePausedForMain) {
         await _resumeActiveModuleAfterMain();
@@ -1354,6 +1406,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         source: MainButtonSource.screen,
         gesture: MainButtonGesture.shortPress,
       ),
+    );
+  }
+
+  Future<void> _requestVocabularyVoiceChoice({
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
+  }) async {
+    await _activateMainAssistant(
+      promptAlreadySpoken: true,
+      noSpeechRetryPrompt: noSpeechRetryPrompt,
+      noSpeechExitPrompt: noSpeechExitPrompt,
     );
   }
 
@@ -1808,6 +1871,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onScreenMainPressed: _voiceAccessEnabled
                       ? _handleScreenMainShortPress
                       : null,
+                  onVocabularyVoiceChoiceRequested: _voiceAccessEnabled
+                      ? _requestVocabularyVoiceChoice
+                      : null,
                   onModalVisibilityChanged: _setGlobalModalOpen,
                   privacyConsentGranted: _privacyConsentGranted,
                   voiceAccessEnabled: _voiceAccessEnabled,
@@ -1837,6 +1903,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   h20BleConnected: bleStatus.isConnected,
                   h20HfpConfigured: hfpStatus.isConnected,
                   h20DeviceName: hfpStatus.deviceName ?? bleStatus.deviceName,
+                  h20MediaAudioConnected: hfpStatus.mediaAudioConnected,
+                  onOpenH20MediaAudioSettings:
+                      _openH20MediaAudioSettingsForParentSetup,
                   selectedAge: _pendingStartupAge,
                   aiSubprocessors: _config.disclosedAiSubprocessors,
                   dataRetentionSummary: _config.disclosedDataRetention,

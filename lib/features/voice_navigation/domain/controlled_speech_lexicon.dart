@@ -24,8 +24,12 @@ enum ControlledSpeechIntent {
   courseRestartCurrent,
   courseNextLesson,
   coursePreviousLesson,
+  vocabularyParentAdded,
   vocabularyPracticeAgain,
   vocabularyStars,
+  vocabularyLatest,
+  vocabularyAll,
+  vocabularyOtherContent,
 }
 
 class ControlledSpeechRule {
@@ -191,6 +195,7 @@ class ControlledSpeechLexicon {
       states: <ControlledSpeechState>{
         ControlledSpeechState.root,
         ControlledSpeechState.course,
+        ControlledSpeechState.vocabulary,
       },
       priority: 1,
       phrases: _mergePhrases('INT-007', <String>[
@@ -199,6 +204,9 @@ class ControlledSpeechLexicon {
         'Tiếp tục bài này',
         'Học tiếp đi',
         'Con muốn học nữa',
+        'Nghe tiếp',
+        'Nghe thêm',
+        'Luyện tiếp',
       ]),
     ),
     ControlledSpeechRule(
@@ -286,6 +294,17 @@ class ControlledSpeechLexicon {
       ]),
     ),
     ControlledSpeechRule(
+      intent: ControlledSpeechIntent.vocabularyParentAdded,
+      states: <ControlledSpeechState>{ControlledSpeechState.vocabulary},
+      priority: 1,
+      phrases: <String>[
+        'Ba mẹ đã thêm',
+        'Học Ba mẹ đã thêm',
+        'Nghe Ba mẹ đã thêm',
+        'Nội dung Ba mẹ đã thêm',
+      ],
+    ),
+    ControlledSpeechRule(
       intent: ControlledSpeechIntent.vocabularyPracticeAgain,
       states: <ControlledSpeechState>{ControlledSpeechState.vocabulary},
       priority: 1,
@@ -313,6 +332,24 @@ class ControlledSpeechLexicon {
         'Muốn ngôi sao',
         'Nhìn ngôi sao',
       ]),
+    ),
+    ControlledSpeechRule(
+      intent: ControlledSpeechIntent.vocabularyLatest,
+      states: <ControlledSpeechState>{ControlledSpeechState.vocabulary},
+      priority: 1,
+      phrases: <String>['Nội dung mới nhất', 'Ngôi sao mới nhất', 'Mới nhất'],
+    ),
+    ControlledSpeechRule(
+      intent: ControlledSpeechIntent.vocabularyAll,
+      states: <ControlledSpeechState>{ControlledSpeechState.vocabulary},
+      priority: 1,
+      phrases: <String>['Nghe lại tất cả', 'Nghe tất cả', 'Tất cả'],
+    ),
+    ControlledSpeechRule(
+      intent: ControlledSpeechIntent.vocabularyOtherContent,
+      states: <ControlledSpeechState>{ControlledSpeechState.vocabulary},
+      priority: 1,
+      phrases: <String>['Học nội dung khác', 'Nội dung khác', 'Học phần khác'],
     ),
     ControlledSpeechRule(
       intent: ControlledSpeechIntent.globalHelp,

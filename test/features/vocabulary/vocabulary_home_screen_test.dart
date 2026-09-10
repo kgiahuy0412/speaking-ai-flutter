@@ -12,6 +12,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   testWidgets('opens the three vocabulary journeys from the redesigned home', (
     tester,
   ) async {
@@ -44,7 +48,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('vocabulary-family-card')));
     await tester.pumpAndSettle();
-    expect(find.text('Gia đình'), findsOneWidget);
+    expect(find.text('Ba mẹ đã thêm'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('vocabulary-back-to-journeys')));
     await tester.pumpAndSettle();
@@ -91,6 +95,9 @@ void main() {
     final confirm = find.byKey(const Key('confirm-add-vocabulary'));
     await tester.ensureVisible(confirm);
     await tester.tap(confirm);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const Key('confirm-vocabulary-suggestions')));
     await tester.pumpAndSettle();
 
     expect(store.entries.first.word, 'Apple');
@@ -199,7 +206,7 @@ void main() {
   });
 
   testWidgets(
-    'translates an unknown Vietnamese word and speaks only its English text',
+    'keeps a newly added parent entry silent until it has been learned',
     (tester) async {
       final store = _MemoryVocabularyStore();
       final voice = _RecordingVoicePromptService();
@@ -238,6 +245,9 @@ void main() {
       final confirm = find.byKey(const Key('confirm-add-vocabulary'));
       await tester.ensureVisible(confirm);
       await tester.tap(confirm);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const Key('confirm-vocabulary-suggestions')));
       await tester.pumpAndSettle();
 
       expect(store.entries, hasLength(1));
@@ -249,8 +259,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.volume_up_rounded));
       await tester.pump();
 
-      expect(voice.spokenTexts, <String>['Cat']);
-      expect(voice.locales, <String>['en-US']);
+      expect(voice.spokenTexts, isEmpty);
+      expect(voice.locales, isEmpty);
     },
   );
 

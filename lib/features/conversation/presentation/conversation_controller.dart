@@ -16,6 +16,7 @@ import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/aiv0_ble_control.dart';
 import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
+import '../../../core/device/odm_diagnostic_report.dart';
 import '../../../l10n/display_language.dart';
 import '../application/offline_language_service.dart';
 import '../application/vietnamese_transcript_corrector.dart';
@@ -203,6 +204,11 @@ class ConversationController extends ChangeNotifier {
     final hfpControl = _hfpAudioControl;
     if (hfpControl != null) {
       _hfpStatusSubscription = hfpControl.statusChanges.listen((status) {
+        _odmDiagnosticRecorder.record(
+          category: 'hfp',
+          stage: 'HFP_STATUS_${status.phase.name.toUpperCase()}',
+          data: _hfpDiagnosticSnapshot(status),
+        );
         if (_hfpInputSelected &&
             status.deviceId == null &&
             !status.isConnected &&
@@ -221,7 +227,12 @@ class ConversationController extends ChangeNotifier {
     }
     final aiv0Control = _aiv0BleControl;
     if (aiv0Control != null) {
-      _aiv0StatusSubscription = aiv0Control.statusStream.listen((_) {
+      _aiv0StatusSubscription = aiv0Control.statusStream.listen((status) {
+        _odmDiagnosticRecorder.record(
+          category: 'ble',
+          stage: 'BLE_STATUS_${status.phase.name.toUpperCase()}',
+          data: _bleDiagnosticSnapshot(status),
+        );
         if (!_disposed) notifyListeners();
       });
       _aiv0ButtonSubscription = aiv0Control.buttonEvents.listen(
@@ -352,6 +363,7 @@ class ConversationController extends ChangeNotifier {
   DateTime? _aiv0MainDispatchAt;
   final List<NativeSpeechDiagnostic> _nativeSpeechDiagnosticLog =
       <NativeSpeechDiagnostic>[];
+  final OdmDiagnosticRecorder _odmDiagnosticRecorder = OdmDiagnosticRecorder();
 
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
@@ -371,6 +383,11 @@ class ConversationController extends ChangeNotifier {
   H20HardwareTestResult? h20HardwareTestResult;
   String? h20HardwareTestMessage;
   NativeSpeechDiagnostic? nativeSpeechDiagnostic;
+
+  bool get odmDiagnosticActive => _odmDiagnosticRecorder.isActive;
+  int get odmDiagnosticEventCount => _odmDiagnosticRecorder.eventCount;
+  String? get odmDiagnosticLastReportPath =>
+      _odmDiagnosticRecorder.lastReportPath;
 
   int get childAge => _childAge;
 
@@ -780,6 +797,7 @@ class ConversationController extends ChangeNotifier {
   bool get canUseHfp =>
       hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;
   bool get hasSelectedHfpInput => hfpAudioStatus.deviceId != null;
+  bool get hfpMediaAudioConnected => hfpAudioStatus.mediaAudioConnected;
   Aiv0BleStatus get aiv0BleStatus =>
       _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
   bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
@@ -1090,6 +1108,11 @@ class ConversationController extends ChangeNotifier {
 
   void _onAiv0ButtonEvent(Aiv0ButtonEvent event) {
     if (_disposed) return;
+    _odmDiagnosticRecorder.record(
+      category: 'button',
+      stage: 'PHYSICAL_BUTTON_PACKET',
+      data: _buttonDiagnosticSnapshot(event),
+    );
     _aiv0ButtonEventLog.insert(0, event);
     if (_aiv0ButtonEventLog.length > 12) {
       _aiv0ButtonEventLog.removeRange(12, _aiv0ButtonEventLog.length);
@@ -1593,6 +1616,17 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> openHfpMediaAudioSettings() async {
+    final control = _hfpAudioControl;
+    if (control is! BluetoothMediaAudioSettingsControl) {
+      throw const HfpAudioException(
+        'Thiết bị này không hỗ trợ mở cài đặt Âm thanh đa phương tiện.',
+      );
+    }
+    await (control as BluetoothMediaAudioSettingsControl)
+        .openMediaAudioSettings();
+  }
+
   Future<void> setH20HardwareTestMode(bool enabled) async {
     if (enabled == h20HardwareTestModeEnabled) return;
     if (!enabled && h20HardwareTestActive) {
@@ -1606,6 +1640,155 @@ class ConversationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void startOdmDiagnosticSession() {
+    if (_odmDiagnosticRecorder.isActive) return;
+    _odmDiagnosticRecorder.start();
+    _odmDiagnosticRecorder.record(
+      category: 'ble',
+      stage: 'BLE_INITIAL_SNAPSHOT',
+      data: _bleDiagnosticSnapshot(aiv0BleStatus),
+    );
+    _odmDiagnosticRecorder.record(
+      category: 'hfp',
+      stage: 'HFP_INITIAL_SNAPSHOT',
+      data: _hfpDiagnosticSnapshot(hfpAudioStatus),
+    );
+    transientMessage =
+        'Đã bắt đầu ghi log ODM. Hãy thử kết nối, loa, micro và từng nút vật lý.';
+    notifyListeners();
+  }
+
+  void cancelOdmDiagnosticSession() {
+    _odmDiagnosticRecorder.cancel();
+    transientMessage = 'Đã hủy phiên chẩn đoán ODM.';
+    notifyListeners();
+  }
+
+  Future<String> exportOdmDiagnosticReport() async {
+    if (!_odmDiagnosticRecorder.isActive) {
+      throw StateError('Hãy bắt đầu ghi log ODM trước.');
+    }
+    _odmDiagnosticRecorder.record(
+      category: 'hardware_test',
+      stage: 'HARDWARE_TEST_FINAL_SNAPSHOT',
+      data: _hardwareDiagnosticSnapshot(),
+    );
+    try {
+      final file = await _odmDiagnosticRecorder.exportAndShare(
+        ble: _bleDiagnosticSnapshot(aiv0BleStatus),
+        hfp: _hfpDiagnosticSnapshot(hfpAudioStatus),
+        hardwareTest: _hardwareDiagnosticSnapshot(),
+        buttonPackets: _aiv0ButtonEventLog.reversed
+            .map(_buttonDiagnosticSnapshot)
+            .toList(growable: false),
+      );
+      transientMessage = 'Đã tạo báo cáo ODM: ${file.path}';
+      notifyListeners();
+      return file.path;
+    } catch (error) {
+      transientMessage =
+          'Không xuất được báo cáo ODM: ${_friendlyError(error)}';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Map<String, Object?> _bleDiagnosticSnapshot(Aiv0BleStatus status) =>
+      <String, Object?>{
+        'phase': status.phase.name,
+        'protocolConfirmed': status.protocolConfirmed,
+        'deviceId': status.deviceId,
+        'deviceName': status.deviceName,
+        'message': status.message,
+        'writeMode': status.writeMode,
+        'batteryPercent': status.batteryPercent,
+        'firmwareRevision': status.firmwareRevision,
+        'lastRawHex': status.lastRawHex,
+        'packetCount': status.packetCount,
+        'invalidPacketCount': status.invalidPacketCount,
+        'duplicatePacketCount': status.duplicatePacketCount,
+        'reconnectCount': status.reconnectCount,
+        'peripheralState': status.peripheralState,
+        'mainNotificationState': status.mainNotificationState,
+        'lastDisconnectCode': status.lastDisconnectCode,
+        'lastDisconnectMessage': status.lastDisconnectMessage,
+        'lastDisconnectAt': status.lastDisconnectAt,
+        'lastNotificationRecovery': status.lastNotificationRecovery,
+        'diagnosticDetails': status.diagnosticDetails,
+        'nativeTimeline': status.diagnosticTimeline
+            .map(
+              (event) => <String, Object?>{
+                'timestamp': event.occurredAt,
+                'stage': event.stage,
+                'caller': event.caller,
+                'code': event.code,
+                'message': event.message,
+                'audioRoute': event.audioRoute,
+                'turnId': event.turnId,
+                'metadata': event.metadata,
+              },
+            )
+            .toList(growable: false),
+      };
+
+  Map<String, Object?> _hfpDiagnosticSnapshot(BluetoothAudioStatus status) {
+    final details = <String, Object?>{
+      ...status.diagnosticDetails,
+      'profileConnected':
+          status.diagnosticDetails['profileConnected'] ?? status.isConnected,
+    };
+    return <String, Object?>{
+      'phase': status.phase.name,
+      'deviceId': status.deviceId,
+      'deviceName': status.deviceName,
+      'message': status.message,
+      'routeActive': status.routeActive,
+      'inputDeviceName': status.inputDeviceName,
+      'outputDeviceName': status.outputDeviceName,
+      'audioRoute': status.audioRoute,
+      'mediaAudioConnected': status.mediaAudioConnected,
+      'diagnosticDetails': details,
+      'selectedByFlutter': _hfpInputSelected,
+    };
+  }
+
+  Map<String, Object?> _hardwareDiagnosticSnapshot() {
+    final testResult = h20HardwareTestResult;
+    return <String, Object?>{
+      'enabled': h20HardwareTestModeEnabled,
+      'phase': h20HardwareTestPhase.name,
+      'message': h20HardwareTestMessage,
+      if (testResult != null)
+        'result': <String, Object?>{
+          'completedAt': testResult.completedAt,
+          'inputRouteVerified': testResult.inputRouteVerified,
+          'outputRouteVerified': testResult.outputRouteVerified,
+          'recordedDurationMs': testResult.recordedDuration?.inMilliseconds,
+          'inputDeviceName': testResult.inputDeviceName,
+          'outputDeviceName': testResult.outputDeviceName,
+          'playbackAudible': testResult.playbackAudible,
+        },
+    };
+  }
+
+  Map<String, Object?> _buttonDiagnosticSnapshot(Aiv0ButtonEvent event) =>
+      <String, Object?>{
+        'timestamp': event.receivedAt,
+        'rawHex': event.rawHex,
+        'deviceId': event.deviceId,
+        'transportSource': event.transportSource,
+        'button': event.button.name,
+        'gesture': event.gesture.name,
+        'sequence': event.sequence,
+        'flags': event.flags,
+        'batteryPercent': event.batteryPercent,
+        'uptimeMilliseconds': event.uptimeMilliseconds,
+        'isObservedH20Packet': event.isObservedH20Packet,
+        'isDraftPacket': event.isDraftPacket,
+        'isDuplicate': event.isDuplicate,
+        'isActionable': event.isActionable,
+      };
+
   /// Opens the verified HFP/SCO route and records locally. No repository or
   /// network API is touched. A second tap (or MAIN after ODM confirmation)
   /// stops capture and immediately replays the local file through H20.
@@ -1618,6 +1801,11 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> startH20OfflineRecording() async {
+    _odmDiagnosticRecorder.record(
+      category: 'hardware_test',
+      stage: 'MIC_TEST_REQUESTED',
+      data: _hfpDiagnosticSnapshot(hfpAudioStatus),
+    );
     if (!h20HardwareTestModeEnabled) {
       throw StateError('Hãy bật chế độ kiểm tra phần cứng offline trước.');
     }
@@ -1643,6 +1831,11 @@ class ConversationController extends ChangeNotifier {
       _usingHfpRoute = true;
       _setPlaybackCommunicationRoute(true);
       final route = hfp.status;
+      _odmDiagnosticRecorder.record(
+        category: 'hardware_test',
+        stage: 'MIC_SCO_ROUTE_OPENED',
+        data: _hfpDiagnosticSnapshot(route),
+      );
       if (!route.routeActive || route.inputDeviceName == null) {
         throw StateError('Android chưa xác nhận micro H20 trên đường HFP/SCO.');
       }
@@ -1699,6 +1892,11 @@ class ConversationController extends ChangeNotifier {
         outputDeviceName: outputName,
       );
       h20HardwareTestPhase = H20HardwareTestPhase.completed;
+      _odmDiagnosticRecorder.record(
+        category: 'hardware_test',
+        stage: 'MIC_RECORDING_REPLAY_COMPLETED',
+        data: _hardwareDiagnosticSnapshot(),
+      );
       h20HardwareTestMessage =
           'Đã thu và phát lại hoàn toàn offline. Hãy xác nhận bạn có nghe giọng từ loa H20.';
       notifyListeners();
@@ -1713,6 +1911,11 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> playH20BundledSpeakerTest() async {
+    _odmDiagnosticRecorder.record(
+      category: 'hardware_test',
+      stage: 'SPEAKER_TEST_REQUESTED',
+      data: _hfpDiagnosticSnapshot(hfpAudioStatus),
+    );
     if (!h20HardwareTestModeEnabled) {
       throw StateError('Hãy bật chế độ kiểm tra phần cứng offline trước.');
     }
@@ -1755,6 +1958,11 @@ class ConversationController extends ChangeNotifier {
         outputDeviceName: route.outputDeviceName,
       );
       h20HardwareTestPhase = H20HardwareTestPhase.completed;
+      _odmDiagnosticRecorder.record(
+        category: 'hardware_test',
+        stage: 'SPEAKER_TEST_COMPLETED',
+        data: _hardwareDiagnosticSnapshot(),
+      );
       h20HardwareTestMessage =
           'Đã phát file offline. Hãy xác nhận âm thanh phát từ loa H20.';
       notifyListeners();
@@ -1774,6 +1982,11 @@ class ConversationController extends ChangeNotifier {
     h20HardwareTestMessage = audible
         ? 'Đã xác nhận: âm thanh nghe được từ loa H20.'
         : 'Không nghe từ loa H20. Chưa đạt; cần kiểm tra lại route HFP/SCO.';
+    _odmDiagnosticRecorder.record(
+      category: 'hardware_test',
+      stage: audible ? 'PLAYBACK_AUDIBLE_CONFIRMED' : 'PLAYBACK_NOT_AUDIBLE',
+      data: _hardwareDiagnosticSnapshot(),
+    );
     notifyListeners();
   }
 
@@ -1815,6 +2028,14 @@ class ConversationController extends ChangeNotifier {
     }
     h20HardwareTestPhase = H20HardwareTestPhase.error;
     h20HardwareTestMessage = _friendlyError(error);
+    _odmDiagnosticRecorder.record(
+      category: 'hardware_test',
+      stage: 'HARDWARE_TEST_FAILED',
+      data: <String, Object?>{
+        'error': _friendlyError(error),
+        ..._hfpDiagnosticSnapshot(hfpAudioStatus),
+      },
+    );
     await _closeH20HardwareAudioRoute();
     if (!_disposed) notifyListeners();
   }
@@ -3530,7 +3751,10 @@ class ConversationController extends ChangeNotifier {
       // next recording turn will explicitly reopen its HFP microphone lease.
       final useContinuousHfpSession = _continuousHfpSessionActive;
       final useSelectedMediaOutput =
-          _usesNativeUtteranceScopedHfpCapture && !useContinuousHfpSession;
+          !_isWebRuntime &&
+          defaultTargetPlatform == TargetPlatform.iOS &&
+          _usesNativeUtteranceScopedHfpCapture &&
+          !useContinuousHfpSession;
       if (useSelectedMediaOutput) {
         _setPlaybackCommunicationRoute(false);
       } else if (useContinuousHfpSession) {
@@ -3918,11 +4142,20 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> _speakUnclearSpeechPrompt() async {
-    await _voicePromptService?.speak(_unclearSpeechMessage);
+    await speakAssistantPrompt(_unclearSpeechMessage);
   }
 
   Future<void> speakAssistantPrompt(String text) async {
-    await _voicePromptService?.speakAndWait(text);
+    final promptService = _voicePromptService;
+    if (promptService == null) return;
+    if (!_isWebRuntime &&
+        usesHfpInput &&
+        promptService is SelectedMediaOutputVoicePromptService) {
+      await (promptService as SelectedMediaOutputVoicePromptService)
+          .speakAndWaitOnSelectedMediaOutput(text);
+      return;
+    }
+    await promptService.speakAndWait(text);
   }
 
   String _friendlyError(Object error) {

@@ -188,17 +188,6 @@ class ListeningLessonEntry {
   final String text;
 }
 
-enum ListeningOverviewMode {
-  bilingual,
-  englishOnly;
-
-  static ListeningOverviewMode fromJson(Object? value) {
-    return value == 'englishOnly'
-        ? ListeningOverviewMode.englishOnly
-        : ListeningOverviewMode.bilingual;
-  }
-}
-
 @immutable
 class ListeningChallengeContent {
   const ListeningChallengeContent({
@@ -351,9 +340,6 @@ class ListeningLessonContent {
     this.fullAudioId,
     this.fullAudioUri,
     this.entry,
-    this.overviewMode = ListeningOverviewMode.bilingual,
-    this.overviewAudioId,
-    this.overviewAudioUri,
     this.challengeBank = const <ListeningChallengeContent>[],
     this.rolePlay,
     this.songTitle,
@@ -396,9 +382,6 @@ class ListeningLessonContent {
       entry: json['entry'] is Map<String, Object?>
           ? ListeningLessonEntry.fromJson(json['entry'] as Map<String, Object?>)
           : null,
-      overviewMode: ListeningOverviewMode.fromJson(json['overviewMode']),
-      overviewAudioId: json['overviewAudioId'] as String?,
-      overviewAudioUri: _readUri(json['overviewAudioUrl']),
       challengeBank:
           (json['challengeBank'] as List<Object?>? ?? const <Object?>[])
               .whereType<Map<String, Object?>>()
@@ -435,9 +418,6 @@ class ListeningLessonContent {
   final String? fullAudioId;
   final Uri? fullAudioUri;
   final ListeningLessonEntry? entry;
-  final ListeningOverviewMode overviewMode;
-  final String? overviewAudioId;
-  final Uri? overviewAudioUri;
   final List<ListeningChallengeContent> challengeBank;
   final ListeningRolePlayContent? rolePlay;
   final String? songTitle;

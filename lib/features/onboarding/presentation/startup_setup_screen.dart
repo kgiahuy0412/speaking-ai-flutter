@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -34,6 +36,8 @@ class StartupSetupScreen extends StatefulWidget {
     this.androidOfflineEnglishModelDownloadAllowed = false,
     this.onAndroidOfflineEnglishModelDownloadChanged,
     this.h20DeviceName,
+    this.h20MediaAudioConnected = false,
+    this.onOpenH20MediaAudioSettings,
     this.privacyPolicyUri,
     this.termsUri,
     this.supportUri,
@@ -55,6 +59,8 @@ class StartupSetupScreen extends StatefulWidget {
   final String aiSubprocessors;
   final String dataRetentionSummary;
   final String? h20DeviceName;
+  final bool h20MediaAudioConnected;
+  final Future<void> Function()? onOpenH20MediaAudioSettings;
   final Uri? privacyPolicyUri;
   final Uri? termsUri;
   final Uri? supportUri;
@@ -87,8 +93,22 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
 
   bool get _h20Ready => widget.h20BleConnected && widget.h20HfpConfigured;
 
-  bool get _canComplete =>
-      widget.limitedModeSelected || widget.microphoneGranted;
+  bool get _canComplete {
+    if (widget.limitedModeSelected) return true;
+    if (!widget.microphoneGranted) return false;
+    if (!widget.bluetoothRequired) return true;
+    return widget.bluetoothGranted && _h20Ready;
+  }
+
+  String get _completionRequirementMessage {
+    if (!widget.microphoneGranted) {
+      return 'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.';
+    }
+    if (!widget.bluetoothGranted) {
+      return 'Cần cấp quyền Bluetooth và bật Bluetooth để kết nối H20.';
+    }
+    return 'Cần kết nối H20 thành công trước khi bắt đầu phiên học.';
+  }
 
   @override
   void initState() {
@@ -388,7 +408,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
       title: 'Cấp quyền và kết nối thiết bị',
       subtitle: widget.limitedModeSelected
           ? 'Chế độ không giọng nói không cần quyền micro hoặc Bluetooth.'
-          : 'HOMI ưu tiên thiết bị đã kết nối và dùng micro điện thoại khi chưa có thiết bị.',
+          : 'HOMI sẽ kiểm tra đủ kết nối điều khiển và âm thanh H20 trước khi bắt đầu.',
       panelPadding: const EdgeInsets.all(12),
       panel: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -474,9 +494,9 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             _DeviceChoiceCard(
               key: const Key('startup-h20-choice'),
               icon: Icons.bluetooth_audio_rounded,
-              title: 'Kết nối thiết bị (tùy chọn)',
+              title: 'Kết nối H20 (bắt buộc)',
               description:
-                  'Bật thiết bị và Bluetooth trên điện thoại, sau đó nhấn nút bên dưới. HOMI sẽ tự kiểm tra kết nối.',
+                  'Bật H20 và Bluetooth trên điện thoại, sau đó nhấn nút bên dưới. HOMI chỉ xác nhận khi thiết bị đã kết nối cả điều khiển và micro/loa.',
               selected: _h20Ready,
               status: _h20Ready
                   ? 'Đã kết nối và sẵn sàng'
@@ -484,18 +504,37 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
                   ? 'Đang hoàn tất kết nối…'
                   : _h20SetupRequested
                   ? 'Chưa kết nối • kiểm tra thiết bị đã bật và ở gần'
-                  : 'Chưa kết nối • có thể thực hiện ngay hoặc để sau',
+                  : 'Chưa kết nối • cần thực hiện trước khi bắt đầu',
               actionKey: const Key('startup-setup-h20'),
               actionLabel: _h20Ready ? 'Đã kết nối' : 'Kết nối thiết bị',
               busy: _choiceInProgress,
               onPressed: _choiceInProgress || _h20Ready ? null : _setupH20,
             ),
+            if (widget.h20MediaAudioConnected) ...<Widget>[
+              const SizedBox(height: 12),
+              const _InfoBox(
+                icon: Icons.volume_off_rounded,
+                text:
+                    'H20 đang bật “Âm thanh đa phương tiện”. Hãy tắt mục này trong Bluetooth nhưng giữ “Âm thanh cuộc gọi”, để Facebook và YouTube vẫn phát bằng loa điện thoại.',
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const Key('startup-open-h20-media-audio-settings'),
+                onPressed:
+                    _choiceInProgress ||
+                        widget.onOpenH20MediaAudioSettings == null
+                    ? null
+                    : () =>
+                          unawaited(widget.onOpenH20MediaAudioSettings!.call()),
+                icon: const Icon(Icons.settings_bluetooth_rounded),
+                label: const Text('Mở cài đặt Bluetooth'),
+              ),
+            ],
             if (widget.microphoneGranted && !_h20Ready) ...<Widget>[
               const SizedBox(height: 12),
               const _InfoBox(
-                icon: Icons.phone_iphone_rounded,
-                text:
-                    'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
+                icon: Icons.bluetooth_disabled_rounded,
+                text: 'Cần kết nối H20 thành công trước khi bắt đầu phiên học.',
               ),
             ],
           ],
@@ -523,7 +562,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
         if (!_canComplete) ...<Widget>[
           const SizedBox(height: 10),
           Text(
-            'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
+            _completionRequirementMessage,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,

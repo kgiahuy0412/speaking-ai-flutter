@@ -14,8 +14,25 @@ Route<T> _activeLearningRoute<T extends Object?>(
   WidgetBuilder builder, {
   required bool androidBackground,
   RouteSettings? settings,
+  Duration? foregroundTransitionDuration,
+  Duration? foregroundReverseTransitionDuration,
+  RouteTransitionsBuilder? foregroundTransitionsBuilder,
 }) {
   if (!androidBackground) {
+    if (foregroundTransitionsBuilder != null) {
+      return PageRouteBuilder<T>(
+        settings: settings,
+        transitionDuration:
+            foregroundTransitionDuration ?? const Duration(milliseconds: 300),
+        reverseTransitionDuration:
+            foregroundReverseTransitionDuration ??
+            foregroundTransitionDuration ??
+            const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            builder(context),
+        transitionsBuilder: foregroundTransitionsBuilder,
+      );
+    }
     return MaterialPageRoute<T>(builder: builder, settings: settings);
   }
 
@@ -38,6 +55,9 @@ Future<T?> pushForActiveLearning<T extends Object?>(
   BuildContext context,
   WidgetBuilder builder, {
   RouteSettings? settings,
+  Duration? foregroundTransitionDuration,
+  Duration? foregroundReverseTransitionDuration,
+  RouteTransitionsBuilder? foregroundTransitionsBuilder,
 }) {
   final binding = WidgetsBinding.instance;
   final androidBackground = _isAndroidBackground();
@@ -46,6 +66,9 @@ Future<T?> pushForActiveLearning<T extends Object?>(
       builder,
       androidBackground: androidBackground,
       settings: settings,
+      foregroundTransitionDuration: foregroundTransitionDuration,
+      foregroundReverseTransitionDuration: foregroundReverseTransitionDuration,
+      foregroundTransitionsBuilder: foregroundTransitionsBuilder,
     ),
   );
   if (androidBackground) {

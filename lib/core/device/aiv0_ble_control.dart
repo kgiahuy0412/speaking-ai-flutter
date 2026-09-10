@@ -314,6 +314,7 @@ class Aiv0BleStatus {
     this.lastNotificationRecovery,
     this.deferredRecoveryRepeatCount = 0,
     this.diagnosticTimeline = const <Aiv0BleDiagnosticEvent>[],
+    this.diagnosticDetails = const <String, Object?>{},
   });
 
   const Aiv0BleStatus.disabled()
@@ -387,6 +388,7 @@ class Aiv0BleStatus {
       deferredRecoveryRepeatCount:
           (map['deferredRecoveryRepeatCount'] as num?)?.toInt() ?? 0,
       diagnosticTimeline: diagnosticTimeline,
+      diagnosticDetails: _diagnosticDetailsFromMap(map),
     );
   }
 
@@ -417,8 +419,47 @@ class Aiv0BleStatus {
   final String? lastNotificationRecovery;
   final int deferredRecoveryRepeatCount;
   final List<Aiv0BleDiagnosticEvent> diagnosticTimeline;
+  final Map<String, Object?> diagnosticDetails;
 
   bool get isConnected => phase == Aiv0BlePhase.connected;
+
+  static Map<String, Object?> _diagnosticDetailsFromMap(
+    Map<Object?, Object?> map,
+  ) {
+    const keys = <String>{
+      'platformManufacturer',
+      'platformModel',
+      'platformApiLevel',
+      'platformSystemVersion',
+      'controlServiceUuid',
+      'buttonCharacteristicUuid',
+      'buttonCharacteristicProperties',
+      'appStateCharacteristicUuid',
+      'appStateCharacteristicProperties',
+      'buttonIndicationEnabled',
+      'advertisesControlService',
+    };
+    return <String, Object?>{
+      for (final key in keys)
+        if (map.containsKey(key)) key: _jsonSafeDiagnosticValue(map[key]),
+    };
+  }
+
+  static Object? _jsonSafeDiagnosticValue(Object? value) {
+    if (value == null || value is String || value is num || value is bool) {
+      return value;
+    }
+    if (value is Map) {
+      return <String, Object?>{
+        for (final entry in value.entries)
+          '${entry.key}': _jsonSafeDiagnosticValue(entry.value),
+      };
+    }
+    if (value is Iterable) {
+      return value.map(_jsonSafeDiagnosticValue).toList(growable: false);
+    }
+    return '$value';
+  }
 
   static String? _normalizePeripheralState(String? value) {
     final state = value?.trim();

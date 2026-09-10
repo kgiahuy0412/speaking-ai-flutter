@@ -190,7 +190,7 @@ void main() {
       containsAllInOrder(<String>[
         'en-US|Sentence 1',
         'vi-VN|Câu 1',
-        'vi-VN|Bạn nói lại tiếng Anh nhé.',
+        'vi-VN|Bạn nói lại nhé.',
       ]),
     );
     expect(voicePrompts.spoken, isNot(contains('vi-VN|Nói theo cô nhé.')));
@@ -316,7 +316,7 @@ void main() {
     await _pumpGuidedSpeechTurn(tester);
 
     final praiseIndex = voicePrompts.spoken.indexWhere(
-      (message) => message == 'vi-VN|Con làm tốt lắm',
+      (message) => message == 'vi-VN|Đúng rồi!',
     );
     final firstStarIndex = voicePrompts.spoken.indexWhere(
       (message) => message.contains('Bạn vừa nhận một Ngôi sao!'),
@@ -1417,6 +1417,7 @@ void main() {
           language: DisplayLanguage.vietnamese,
           lesson: _lesson(sentenceCount: 2),
           mediaService: mediaService,
+          mode: LessonReviewMode.overview,
           unrecordedSentenceIndexes: const <int>{1},
         ),
       ),
@@ -1428,7 +1429,7 @@ void main() {
     expect(find.text('Sentence 2'), findsOneWidget);
     expect(find.text('Câu 1'), findsNothing);
     expect(find.text('Câu 2'), findsNothing);
-    expect(find.text('Nghe tổng quan'), findsOneWidget);
+    expect(find.text('Xem bài học'), findsOneWidget);
     expect(find.textContaining('câu tiếng Anh đã học'), findsNothing);
     expect(find.text('Chưa ghi âm'), findsNothing);
     expect(find.text('Sẵn sàng nghe lại'), findsNothing);
@@ -1516,6 +1517,7 @@ void main() {
           language: DisplayLanguage.vietnamese,
           lesson: _lesson(sentenceCount: 2, sentenceAudioUri: audioUri),
           mediaService: mediaService,
+          mode: LessonReviewMode.overview,
         ),
       ),
     );
@@ -1729,6 +1731,7 @@ void main() {
             language: DisplayLanguage.vietnamese,
             lesson: _lesson(sentenceCount: 2, sentenceAudioUri: audioUri),
             mediaService: mediaService,
+            mode: LessonReviewMode.overview,
           ),
         ),
       ),

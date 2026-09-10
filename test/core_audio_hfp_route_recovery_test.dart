@@ -108,4 +108,48 @@ void main() {
     expect(startCalls, 1);
     expect(stopCalls, 1);
   });
+
+  test('reports Android A2DP media and opens its system settings', () async {
+    const methodChannel = MethodChannel('test_hfp_media_audio');
+    const eventChannel = EventChannel('test_hfp_media_audio/events');
+    const eventMethodChannel = MethodChannel('test_hfp_media_audio/events');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var settingsCalls = 0;
+    messenger.setMockMethodCallHandler(eventMethodChannel, (_) async => null);
+    messenger.setMockMethodCallHandler(methodChannel, (call) async {
+      switch (call.method) {
+        case 'initialize':
+          return <String, dynamic>{
+            'phase': 'ready',
+            'deviceId': 'h20',
+            'deviceName': 'H20',
+            'routeActive': false,
+            'mediaAudioConnected': true,
+          };
+        case 'openMediaAudioSettings':
+          settingsCalls += 1;
+          return null;
+        case 'stopAudioRoute':
+          return null;
+      }
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(methodChannel, null);
+      messenger.setMockMethodCallHandler(eventMethodChannel, null);
+    });
+    final control = MethodChannelHfpAudioControl(
+      enabled: true,
+      methodChannel: methodChannel,
+      eventChannel: eventChannel,
+    );
+    addTearDown(control.dispose);
+
+    await control.initialize();
+    expect(control.status.mediaAudioConnected, isTrue);
+
+    await control.openMediaAudioSettings();
+    expect(settingsCalls, 1);
+  });
 }

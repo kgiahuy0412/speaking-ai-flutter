@@ -79,12 +79,19 @@ abstract interface class HfpAudioControl {
   Future<void> dispose();
 }
 
+/// Optional Android-only action that opens the system page where a parent can
+/// disable A2DP "Media audio" without disconnecting HOMI's HFP/BLE profiles.
+abstract interface class BluetoothMediaAudioSettingsControl {
+  Future<void> openMediaAudioSettings();
+}
+
 /// Controls the native Bluetooth HFP microphone route.
 ///
 /// Android exposes paired HFP devices and routes SCO. iOS exposes the HFP
 /// inputs already connected in Settings and lets the bridge select a preferred
 /// input through AVAudioSession. Neither platform pairs a headset in-app.
-class MethodChannelHfpAudioControl implements HfpAudioControl {
+class MethodChannelHfpAudioControl
+    implements HfpAudioControl, BluetoothMediaAudioSettingsControl {
   MethodChannelHfpAudioControl({
     required this.enabled,
     MethodChannel methodChannel = const MethodChannel('ailingo_hfp_audio'),
@@ -272,6 +279,17 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
     }
   }
 
+  @override
+  Future<void> openMediaAudioSettings() async {
+    await initialize();
+    _requireSupport();
+    try {
+      await _methodChannel.invokeMethod<void>('openMediaAudioSettings');
+    } on PlatformException catch (error) {
+      throw HfpAudioException(_friendlyError(error));
+    }
+  }
+
   void _requireSupport() {
     if (!_status.isBridgeSupported) {
       throw HfpAudioException(
@@ -308,7 +326,47 @@ class MethodChannelHfpAudioControl implements HfpAudioControl {
       inputDeviceName: _nullableString(map['inputDeviceName']),
       outputDeviceName: _nullableString(map['outputDeviceName']),
       audioRoute: _nullableString(map['audioRoute']),
+      mediaAudioConnected: map['mediaAudioConnected'] == true,
+      diagnosticDetails: _diagnosticDetailsFromMap(map),
     );
+  }
+
+  Map<String, Object?> _diagnosticDetailsFromMap(Map<dynamic, dynamic> map) {
+    const keys = <String>{
+      'platformManufacturer',
+      'platformModel',
+      'platformApiLevel',
+      'platformSystemVersion',
+      'profileProxyAvailable',
+      'profileConnected',
+      'connectedHeadsets',
+      'bondedHfpCandidates',
+      'availableCommunicationDevices',
+      'communicationDevice',
+      'audioMode',
+      'ownsCommunicationRoute',
+      'routeAudioFocusRequested',
+    };
+    return <String, Object?>{
+      for (final key in keys)
+        if (map.containsKey(key)) key: _jsonSafeDiagnosticValue(map[key]),
+    };
+  }
+
+  Object? _jsonSafeDiagnosticValue(Object? value) {
+    if (value == null || value is String || value is num || value is bool) {
+      return value;
+    }
+    if (value is Map) {
+      return <String, Object?>{
+        for (final entry in value.entries)
+          '${entry.key}': _jsonSafeDiagnosticValue(entry.value),
+      };
+    }
+    if (value is Iterable) {
+      return value.map(_jsonSafeDiagnosticValue).toList(growable: false);
+    }
+    return '$value';
   }
 
   String? _nullableString(dynamic value) {

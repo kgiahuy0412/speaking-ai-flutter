@@ -36,6 +36,65 @@ void main() {
     expect(receivedArguments, <String, bool>{'onlyWhenOffline': true});
   });
 
+  test(
+    'Android reopens H20 SCO before command recognition and releases it',
+    () async {
+      const methodChannel = MethodChannel('test_android_hfp_command_speech');
+      final events = StreamController<dynamic>.broadcast();
+      final route = _FakeHfpAudioControl();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      String? receivedAudioSource;
+      var routeWasActiveWhenSpeechStarted = false;
+      messenger.setMockMethodCallHandler(methodChannel, (call) async {
+        switch (call.method) {
+          case 'speech.isAvailable':
+            return true;
+          case 'speech.start':
+            routeWasActiveWhenSpeechStarted = route.status.routeActive;
+            receivedAudioSource =
+                (call.arguments as Map<Object?, Object?>?)?['audioSource']
+                    as String?;
+            scheduleMicrotask(() {
+              events.add(<String, dynamic>{
+                'type': 'speech.ready',
+                'audioSource': 'hfp',
+                'audioRoute': 'H20',
+              });
+            });
+            return true;
+          case 'speech.cancel':
+            return true;
+        }
+        return null;
+      });
+
+      final input = AndroidHfpStreamingSpeechInput(
+        methodChannel: methodChannel,
+        eventStream: events.stream,
+        audioRouteControl: route,
+      );
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(methodChannel, null);
+        await input.dispose();
+        await route.dispose();
+        await events.close();
+      });
+
+      await input.startCommandRecognition();
+
+      expect(route.startRouteCount, 1);
+      expect(routeWasActiveWhenSpeechStarted, isTrue);
+      expect(receivedAudioSource, 'hfp');
+      expect(route.stopRouteCount, 0);
+
+      await input.cancel();
+
+      expect(route.stopRouteCount, 1);
+      expect(route.status.routeActive, isFalse);
+    },
+  );
+
   test('iOS forwards native speech activity and preserves dBFS', () async {
     final events = StreamController<dynamic>.broadcast();
     final input = AndroidStreamingSpeechInput(

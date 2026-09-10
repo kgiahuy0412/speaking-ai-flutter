@@ -297,10 +297,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(
-      find.byKey(const Key('review-first-sentence-mascot')),
-      findsOneWidget,
-    );
+    expect(find.text('Đã học'), findsOneWidget);
+    expect(find.byKey(const Key('review-first-sentence-mascot')), findsNothing);
 
     await expectLater(
       find.byType(LessonReviewScreen),
@@ -308,7 +306,7 @@ void main() {
     );
   });
 
-  testWidgets('overview play controls fit a compact phone', (tester) async {
+  testWidgets('learned review controls fit a compact phone', (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 568));
     tester.platformDispatcher.textScaleFactorTestValue = 1.3;
     addTearDown(() {
@@ -330,12 +328,10 @@ void main() {
     ]);
     await tester.pump(const Duration(milliseconds: 300));
 
+    expect(find.text('Đã học'), findsOneWidget);
+    expect(find.byKey(const Key('review-first-sentence-mascot')), findsNothing);
     expect(
-      find.byKey(const Key('review-first-sentence-mascot')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('review-sentence-play-5')),
+      find.byKey(const ValueKey('review-sentence-tile-1')),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

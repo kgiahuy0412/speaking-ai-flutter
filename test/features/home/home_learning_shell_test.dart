@@ -11,6 +11,7 @@ import 'package:ai_speaking_flutter_app/features/conversation/presentation/conve
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
 import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/active_listening_session_store.dart';
+import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabulary_home_screen.dart';
@@ -270,10 +271,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      await voiceNavigationController.dispatchRecognizedText('Hey HOMI'),
-      isTrue,
-    );
+    expect(await voiceNavigationController.activateFromMainButton(), isTrue);
     final handled = await voiceNavigationController.dispatchRecognizedText(
       'Con muốn học từ vựng',
     );
@@ -288,10 +286,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TopicListeningScreen), findsOneWidget);
 
-    expect(
-      await voiceNavigationController.dispatchRecognizedText('Hey HOMI'),
-      isTrue,
-    );
+    expect(await voiceNavigationController.activateFromMainButton(), isTrue);
     final returnToVocabulary = voiceNavigationController.dispatchRecognizedText(
       'Con muốn học từ vựng',
     );
@@ -688,25 +683,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
 
-    expect(find.text('Động vật thú vị'), findsWidgets);
-    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-
-    final openLesson = voiceNavigationController.dispatchRecognizedText(
-      'Con học bài số 1',
-    );
-    for (var index = 0; index < 40; index += 1) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    expect(await openLesson, isTrue);
-    for (var index = 0; index < 40; index += 1) {
-      await tester.pump(const Duration(milliseconds: 100));
-    }
     final openedLessonScreenCount = <Key>[
       const Key('lesson-intro-screen'),
       const Key('lesson-review-screen'),
       const Key('lesson-practice-screen'),
     ].fold<int>(0, (count, key) => count + find.byKey(key).evaluate().length);
     expect(openedLessonScreenCount, 1);
+    expect(
+      find.byKey(const Key('topic-lesson-list-screen'), skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -818,6 +804,7 @@ Widget _app(
     controller: controller,
     voiceNavigationController: voiceNavigationController,
     listeningContentFuture: listeningContentFuture,
+    listeningProgressStore: _HomeListeningProgressStore(),
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
     onScreenMainPressed: voiceNavigationController == null
         ? null
@@ -841,6 +828,63 @@ Widget _app(
     theme: buildAppTheme(),
     home: home,
   );
+}
+
+class _HomeListeningProgressStore extends ListeningProgressStore {
+  ListeningTopicSelectionCheckpoint? _selectionCheckpoint;
+
+  @override
+  Future<Map<String, int>> readAll() async => <String, int>{};
+
+  @override
+  Future<Set<String>> readCompletedV4LessonActivities() async => <String>{};
+
+  @override
+  Future<Set<String>> readStartedLessonCores() async => <String>{};
+
+  @override
+  Future<bool> hasPassedLevelMission(String levelId) async => false;
+
+  @override
+  Future<ListeningTopicSelectionCheckpoint?> readTopicSelectionCheckpoint(
+    String courseId,
+  ) async => _selectionCheckpoint;
+
+  @override
+  Future<void> saveTopicSelectionCheckpoint(
+    String courseId, {
+    required int levelNumber,
+    required bool announceLevel,
+  }) async {
+    _selectionCheckpoint = ListeningTopicSelectionCheckpoint(
+      levelNumber: levelNumber,
+      announceLevel: announceLevel,
+    );
+  }
+
+  @override
+  Future<void> clearTopicSelectionCheckpoint(String courseId) async {
+    _selectionCheckpoint = null;
+  }
+
+  @override
+  Future<int> readLesson(String lessonId) async => 0;
+
+  @override
+  Future<int> readCurrentSentence(String lessonId) async => 0;
+
+  @override
+  Future<ListeningResumeStage> readResumeStage(String lessonId) async =>
+      ListeningResumeStage.core;
+
+  @override
+  Future<bool> hasStartedLessonCore(String lessonId) async => false;
+
+  @override
+  Future<bool> hasCompletedV4LessonActivity(String lessonId) async => false;
+
+  @override
+  Future<bool> hasOpenedLearningGuide() async => true;
 }
 
 class _FakeBackgroundLearningSession

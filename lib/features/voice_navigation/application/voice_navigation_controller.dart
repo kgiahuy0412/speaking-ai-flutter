@@ -127,6 +127,8 @@ class VoiceNavigationController extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   int _mainNoSpeechRetryCount = 0;
+  String? _mainNoSpeechRetryPromptOverride;
+  String? _mainNoSpeechExitPromptOverride;
   Object? _lastError;
   String? _activeInputLabelOverride;
   String? _nativeMainTurnId;
@@ -186,6 +188,9 @@ class VoiceNavigationController extends ChangeNotifier {
     bool activeLearning = false,
     ActiveLearningModuleKind? activeLearningKind,
     String? inputLabelOverride,
+    bool promptAlreadySpoken = false,
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
   }) async {
     return _activateMainAssistantFlow(
       activeLearning
@@ -193,6 +198,9 @@ class VoiceNavigationController extends ChangeNotifier {
                 _mainAssistantFlow.beginActiveLearning(kind: activeLearningKind)
           : _mainAssistantFlow.begin,
       inputLabelOverride: inputLabelOverride,
+      promptAlreadySpoken: promptAlreadySpoken,
+      noSpeechRetryPrompt: noSpeechRetryPrompt,
+      noSpeechExitPrompt: noSpeechExitPrompt,
     );
   }
 
@@ -224,6 +232,24 @@ class VoiceNavigationController extends ChangeNotifier {
     );
   }
 
+  Future<bool> activateLevelTopicSelection({
+    required int childAge,
+    required int levelNumber,
+    required List<int> topicNumbers,
+    required List<int> completedTopicNumbers,
+    required bool announceLevel,
+  }) async {
+    return _activateMainAssistantFlow(
+      () => _mainAssistantFlow.beginLevelTopicSelection(
+        childAge: childAge,
+        levelNumber: levelNumber,
+        topicNumbers: topicNumbers,
+        completedTopicNumbers: completedTopicNumbers,
+        announceLevel: announceLevel,
+      ),
+    );
+  }
+
   /// Continues a topic selected on screen using the child's real lesson
   /// progress, so MAIN can offer the next lesson or confirm a replay.
   Future<bool> activateLessonSelectionForTopic({
@@ -245,6 +271,9 @@ class VoiceNavigationController extends ChangeNotifier {
   Future<bool> _activateMainAssistantFlow(
     String Function() beginFlow, {
     String? inputLabelOverride,
+    bool promptAlreadySpoken = false,
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
   }) async {
     if (_disposed) {
       return false;
@@ -261,11 +290,15 @@ class VoiceNavigationController extends ChangeNotifier {
       _lastError = null;
       _buttonCommandSession = true;
       _mainNoSpeechRetryCount = 0;
+      _mainNoSpeechRetryPromptOverride = noSpeechRetryPrompt;
+      _mainNoSpeechExitPromptOverride = noSpeechExitPrompt;
       _continuousRequested = true;
       final generation = _generation;
+      final promptText = beginFlow();
       final acknowledged = await _acknowledgeWakeWord(
         generation,
-        promptText: beginFlow(),
+        promptText: promptText,
+        speakPrompt: !promptAlreadySpoken,
       );
       if (!acknowledged || _disposed || generation != _generation) {
         _buttonCommandSession = false;
@@ -415,12 +448,15 @@ class VoiceNavigationController extends ChangeNotifier {
       }
     }
 
-    final promptCompleted = await _acknowledgeWakeWord(
-      generation,
-      promptText: turn.promptText,
-      promptSequence: turn.promptSequence,
-      openCommandWindow: turn.continueListening,
-    );
+    final promptCompleted =
+        turn.promptText.trim().isEmpty && turn.promptSequence.isEmpty
+        ? true
+        : await _acknowledgeWakeWord(
+            generation,
+            promptText: turn.promptText,
+            promptSequence: turn.promptSequence,
+            openCommandWindow: turn.continueListening,
+          );
     if (!promptCompleted || _disposed || generation != _generation) {
       return false;
     }
@@ -478,6 +514,7 @@ class VoiceNavigationController extends ChangeNotifier {
     List<MainVoiceAssistantUtterance> promptSequence =
         const <MainVoiceAssistantUtterance>[],
     bool openCommandWindow = true,
+    bool speakPrompt = true,
   }) async {
     if (_acknowledgingWakeWord) {
       return true;
@@ -489,7 +526,7 @@ class VoiceNavigationController extends ChangeNotifier {
     notifyListeners();
     try {
       final promptService = _voicePromptService;
-      if (promptService != null) {
+      if (promptService != null && speakPrompt) {
         final resolvedPromptText =
             promptText ?? HomiFallbackCatalog.assistantPromptById['AI-069']!;
         final utterances = promptSequence.isEmpty
@@ -502,9 +539,7 @@ class VoiceNavigationController extends ChangeNotifier {
             return false;
           }
           final promptPlayback =
-              !kIsWeb &&
-                  defaultTargetPlatform == TargetPlatform.iOS &&
-                  promptService is SelectedMediaOutputVoicePromptService
+              !kIsWeb && promptService is SelectedMediaOutputVoicePromptService
               ? (promptService as SelectedMediaOutputVoicePromptService)
                     .speakAndWaitOnSelectedMediaOutput(
                       utterance.text,
@@ -635,7 +670,9 @@ class VoiceNavigationController extends ChangeNotifier {
       _mainNoSpeechRetryCount = 1;
       final prompted = await _acknowledgeWakeWord(
         generation,
-        promptText: MainVoiceAssistantFlow.noSpeechRetryPrompt,
+        promptText:
+            _mainNoSpeechRetryPromptOverride ??
+            MainVoiceAssistantFlow.noSpeechRetryPrompt,
       );
       if (prompted && !_disposed && generation == _generation) {
         await _runStartSession(generation);
@@ -644,7 +681,9 @@ class VoiceNavigationController extends ChangeNotifier {
     }
     await _acknowledgeWakeWord(
       generation,
-      promptText: MainVoiceAssistantFlow.noSpeechExitPrompt,
+      promptText:
+          _mainNoSpeechExitPromptOverride ??
+          MainVoiceAssistantFlow.noSpeechExitPrompt,
       openCommandWindow: false,
     );
     if (_disposed || generation != _generation || !_buttonCommandSession) {
@@ -653,6 +692,8 @@ class VoiceNavigationController extends ChangeNotifier {
     _buttonCommandSession = false;
     _continuousRequested = false;
     _mainNoSpeechRetryCount = 0;
+    _mainNoSpeechRetryPromptOverride = null;
+    _mainNoSpeechExitPromptOverride = null;
     _mainAssistantFlow.reset();
     await _endNativeMainTurn(
       'main_assistant_no_speech_exit',

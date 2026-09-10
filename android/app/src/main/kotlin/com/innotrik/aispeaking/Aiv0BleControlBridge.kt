@@ -713,6 +713,19 @@ class Aiv0BleControlBridge(
         "invalidPacketCount" to invalidPacketCount,
         "duplicatePacketCount" to duplicatePacketCount,
         "reconnectCount" to reconnectCount,
+        "platformManufacturer" to Build.MANUFACTURER,
+        "platformModel" to Build.MODEL,
+        "platformApiLevel" to Build.VERSION.SDK_INT,
+        "platformSystemVersion" to Build.VERSION.RELEASE,
+        "controlServiceUuid" to Aiv0BleProtocol.CONTROL_SERVICE,
+        "buttonCharacteristicUuid" to Aiv0BleProtocol.BUTTON_EVENT,
+        "buttonCharacteristicProperties" to buttonCharacteristic?.properties,
+        "appStateCharacteristicUuid" to Aiv0BleProtocol.APP_STATE,
+        "appStateCharacteristicProperties" to stateCharacteristic?.properties,
+        "buttonIndicationEnabled" to
+            (phase == "connected" && buttonCharacteristic != null),
+        "advertisesControlService" to
+            deviceId?.let { scanDevices[it]?.advertisesControlService },
     )
 
     private fun emitStatus() {

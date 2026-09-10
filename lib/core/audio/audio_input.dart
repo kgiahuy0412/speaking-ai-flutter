@@ -124,6 +124,8 @@ class BluetoothAudioStatus {
     this.inputDeviceName,
     this.outputDeviceName,
     this.audioRoute,
+    this.mediaAudioConnected = false,
+    this.diagnosticDetails = const <String, Object?>{},
   });
 
   final BluetoothAudioConnectionPhase phase;
@@ -138,6 +140,14 @@ class BluetoothAudioStatus {
   final String? inputDeviceName;
   final String? outputDeviceName;
   final String? audioRoute;
+
+  /// Whether the selected HFP device is also connected as Android's A2DP
+  /// media output. Android routes other apps' music/video to that profile.
+  final bool mediaAudioConnected;
+
+  /// Native-only transport details used by the parent-started ODM report.
+  /// Normal speech, learning, and routing decisions must not depend on it.
+  final Map<String, Object?> diagnosticDetails;
 
   bool get isBridgeSupported =>
       phase != BluetoothAudioConnectionPhase.disabled &&

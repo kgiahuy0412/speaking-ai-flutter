@@ -52,8 +52,31 @@ void main() {
       'AI_GUIDE_BEFORE_SENTENCE',
     );
     expect(LessonGuideFlowV2.afterSample.audioCode, 'AI_GUIDE_AFTER_SAMPLE');
-    expect(LessonGuideFlowV2.repeatTarget.audioCode, 'REPEAT_TARGET');
-    expect(LessonGuideFlowV2.repeatTarget.text, 'Bạn nói lại tiếng Anh nhé.');
+    expect(
+      LessonGuideFlowV2.coreSpeakCues.map((cue) => cue.audioCode),
+      <String>[
+        'CORE_SPEAK_01',
+        'CORE_SPEAK_02',
+        'CORE_SPEAK_03',
+        'CORE_SPEAK_04',
+        'CORE_SPEAK_05',
+      ],
+    );
+    expect(
+      List<String>.generate(
+        7,
+        (index) => LessonGuideFlowV2.coreSpeakCue(index).text,
+      ),
+      <String>[
+        'Bạn nói lại nhé.',
+        'Đến lượt bạn.',
+        'Bạn thử nói nhé.',
+        'Nói lại câu này.',
+        'Bạn nói tiếng Anh nhé.',
+        'Bạn nói lại nhé.',
+        'Đến lượt bạn.',
+      ],
+    );
     expect(
       LessonGuideFlowV2.completionChoiceUnclear.audioCode,
       'AI_GUIDE_COMPLETION_CHOICE_UNCLEAR',

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
@@ -13,6 +14,7 @@ import '../data/listening_progress_store.dart';
 import '../data/active_listening_session_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/listening_curriculum_flow.dart';
 import 'active_learning_navigation.dart';
 import 'lesson_intro_screen.dart';
 import 'lesson_recording_history_sheet.dart';
@@ -34,6 +36,7 @@ class TopicLessonListScreen extends StatefulWidget {
     this.onVoiceNavigationResume,
     this.progressStore = const ListeningProgressStore(),
     this.mediaService,
+    this.voicePromptService,
     this.initialLessonNumber,
     this.onTopicCompleted,
     super.key,
@@ -53,6 +56,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final VoidCallback? onVoiceNavigationResume;
   final ListeningProgressStore progressStore;
   final LessonMediaService? mediaService;
+  final VoicePromptService? voicePromptService;
   final int? initialLessonNumber;
   final VoidCallback? onTopicCompleted;
 
@@ -66,6 +70,8 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
   late final LessonMediaService _mediaService;
   late Future<_TopicLessonProgressSnapshot> _progressFuture;
   late final bool _ownsMediaService;
+  late final VoicePromptService _voicePromptService;
+  late final bool _ownsVoicePromptService;
   bool _initialLessonOpened = false;
 
   @override
@@ -77,6 +83,9 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
         LessonMediaService(
           hfpAudioControl: widget.controller?.learningAudioRouteControl,
         );
+    _ownsVoicePromptService = widget.voicePromptService == null;
+    _voicePromptService =
+        widget.voicePromptService ?? createVoicePromptService();
     _progressFuture = _loadProgress();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_openInitialLesson());
@@ -85,6 +94,9 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
 
   @override
   void dispose() {
+    if (_ownsVoicePromptService) {
+      unawaited(_voicePromptService.dispose());
+    }
     if (_ownsMediaService) {
       _mediaService.dispose();
     }
@@ -188,11 +200,19 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                                 completed,
                                 progress.completedV4LessonActivities,
                               );
+                              final lessonUnlocked =
+                                  ListeningCurriculumFlow.lessonUnlocked(
+                                    widget.content,
+                                    index,
+                                    progress.lessonProgress,
+                                    progress.completedV4LessonActivities,
+                                  );
                               return _LessonPathCard(
                                 key: ValueKey('lesson-${lesson.id}'),
                                 lesson: lesson,
                                 completedSentences: completed,
                                 isCompleted: lessonCompleted,
+                                isLocked: !lessonUnlocked,
                                 needsV4Challenge:
                                     lesson.usesV4Flow &&
                                     completed >= lesson.sentences.length &&
@@ -263,6 +283,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
                                   lesson: song,
                                   completedSentences: completed,
                                   isCompleted: lessonCompleted,
+                                  isLocked: false,
                                   needsV4Challenge:
                                       song.usesV4Flow &&
                                       completed >= song.sentences.length &&
@@ -367,6 +388,29 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     ListeningLessonContent lesson, {
     required bool reviewFromBeginning,
   }) async {
+    final lessonIndex = widget.content.lessons.indexWhere(
+      (candidate) => candidate.id == lesson.id,
+    );
+    if (lessonIndex > 0) {
+      final progress = await _loadProgress();
+      final unlocked = ListeningCurriculumFlow.lessonUnlocked(
+        widget.content,
+        lessonIndex,
+        progress.lessonProgress,
+        progress.completedV4LessonActivities,
+      );
+      if (!unlocked) {
+        final previous = widget.content.lessons[lessonIndex - 1];
+        final message = 'Bạn cần học xong Bài ${previous.number} trước nhé.';
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
+        await _voicePromptService.speakAndWait(message);
+        return;
+      }
+    }
     unawaited(
       const ActiveListeningSessionStore().save(
         childAge: widget.startAge,
@@ -411,6 +455,7 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
           levelContent: widget.levelContent,
           progressStore: widget.progressStore,
           mediaService: _mediaService,
+          voicePromptService: _voicePromptService,
           relearnFromBeginning: reviewFromBeginning,
           onTopicCompleted: widget.onTopicCompleted,
         ),
@@ -685,6 +730,7 @@ class _LessonPathCard extends StatelessWidget {
     required this.lesson,
     required this.completedSentences,
     required this.isCompleted,
+    required this.isLocked,
     required this.needsV4Challenge,
     required this.isLast,
     required this.onPressed,
@@ -694,6 +740,7 @@ class _LessonPathCard extends StatelessWidget {
   final ListeningLessonContent lesson;
   final int completedSentences;
   final bool isCompleted;
+  final bool isLocked;
   final bool needsV4Challenge;
   final bool isLast;
   final VoidCallback onPressed;
@@ -741,12 +788,16 @@ class _LessonPathCard extends StatelessWidget {
                           ],
                         ),
                         child: Icon(
-                          lesson.type == ListeningLessonType.song
+                          isLocked
+                              ? Icons.lock_rounded
+                              : lesson.type == ListeningLessonType.song
                               ? Icons.music_note_rounded
                               : lesson.type == ListeningLessonType.dialogue
                               ? Icons.forum_rounded
                               : Icons.star_rounded,
-                          color: lesson.type == ListeningLessonType.song
+                          color: isLocked
+                              ? Colors.white
+                              : lesson.type == ListeningLessonType.song
                               ? Colors.white
                               : const Color(0xFFFFD36A),
                           size: 28,
@@ -839,14 +890,18 @@ class _LessonPathCard extends StatelessWidget {
                           child: Text(
                             context.tr(
                               completedSentences == 0
-                                  ? 'Học ngay'
+                                  ? isLocked
+                                        ? 'Chưa mở khóa'
+                                        : 'Học ngay'
                                   : needsV4Challenge
                                   ? 'Hoàn thành thử thách'
                                   : completed
                                   ? 'Ôn lại'
                                   : 'Học tiếp',
                               completedSentences == 0
-                                  ? '立即学习'
+                                  ? isLocked
+                                        ? '尚未解锁'
+                                        : '立即学习'
                                   : needsV4Challenge
                                   ? '完成挑战'
                                   : completed

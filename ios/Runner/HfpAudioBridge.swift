@@ -1,6 +1,7 @@
 import AVFoundation
 import Flutter
 import Foundation
+import UIKit
 
 struct IOSHfpRoutePolicy {
   static let categoryOptions: AVAudioSession.CategoryOptions = [.allowBluetooth]
@@ -813,7 +814,35 @@ final class HfpAudioBridge: NSObject, FlutterStreamHandler {
       "routeActive": routeActive,
       "audioRoute": routeDescription(),
       "hasSelectedInput": selectedInputId != nil,
+      "platformManufacturer": "Apple",
+      "platformModel": UIDevice.current.model,
+      "platformSystemVersion": UIDevice.current.systemVersion,
+      "profileProxyAvailable": !bluetoothInputs().isEmpty,
+      "profileConnected": activeTwoWayHfpInput() != nil || !bluetoothInputs().isEmpty,
+      "connectedHeadsets": bluetoothInputs().map {
+        ["id": $0.uid, "name": $0.portName, "connected": true]
+      },
+      "bondedHfpCandidates": bluetoothInputs().map {
+        ["id": $0.uid, "name": $0.portName, "connected": true]
+      },
+      "availableCommunicationDevices": bluetoothInputs().map {
+        [
+          "id": $0.uid,
+          "typeName": $0.portType.rawValue,
+          "name": $0.portName,
+          "isSource": true,
+        ] as [String: Any]
+      },
+      "audioMode": audioSession.mode.rawValue,
+      "ownsCommunicationRoute": routeActive,
     ]
+    if let activeInput = audioSession.currentRoute.inputs.first {
+      value["communicationDevice"] = [
+        "id": activeInput.uid,
+        "typeName": activeInput.portType.rawValue,
+        "name": activeInput.portName,
+      ]
+    }
     if let selectedInputId { value["deviceId"] = selectedInputId }
     if let selectedInputName { value["deviceName"] = selectedInputName }
     if let message { value["message"] = message }

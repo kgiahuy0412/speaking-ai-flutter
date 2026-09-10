@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'finishes in three steps with phone microphone while H20 is optional',
+    'requires a complete H20 connection before voice setup can finish',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -13,6 +13,8 @@ void main() {
       var permissionsGranted = false;
       var limitedModeSelected = false;
       var offlineEnglishModelAllowed = false;
+      var h20BleConnected = false;
+      var h20HfpConfigured = false;
       int? selectedAge;
       var completed = false;
 
@@ -29,8 +31,8 @@ void main() {
               microphoneGranted: permissionsGranted,
               bluetoothRequired: true,
               bluetoothGranted: permissionsGranted,
-              h20BleConnected: false,
-              h20HfpConfigured: false,
+              h20BleConnected: h20BleConnected,
+              h20HfpConfigured: h20HfpConfigured,
               selectedAge: selectedAge,
               aiSubprocessors: 'HOMI backend trên Railway và Cloudflare',
               dataRetentionSummary: 'Audio được xóa sau 24 giờ.',
@@ -52,7 +54,12 @@ void main() {
               onRetryPermissions: () {
                 setState(() => permissionsGranted = true);
               },
-              onSetupH20: () async {},
+              onSetupH20: () async {
+                setState(() {
+                  h20BleConnected = true;
+                  h20HfpConfigured = true;
+                });
+              },
               onAgeSelected: (age) => setState(() => selectedAge = age),
               onCompleteSetup: () async {
                 setState(() => completed = true);
@@ -100,10 +107,7 @@ void main() {
 
       expect(find.text('Cấp quyền và kết nối thiết bị'), findsOneWidget);
       expect(find.text('Bước 3/3 • Dành cho phụ huynh'), findsOneWidget);
-      expect(find.text('Kết nối thiết bị (tùy chọn)'), findsOneWidget);
-      expect(find.textContaining('H20'), findsNothing);
-      expect(find.textContaining('BLE'), findsNothing);
-      expect(find.textContaining('HFP'), findsNothing);
+      expect(find.text('Kết nối H20 (bắt buộc)'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const Key('startup-request-permissions')),
       );
@@ -123,14 +127,20 @@ void main() {
 
       final completeButton = find.byKey(const Key('startup-confirm-age'));
       await tester.ensureVisible(completeButton);
-      expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
+      expect(tester.widget<FilledButton>(completeButton).onPressed, isNull);
       expect(find.byKey(const Key('startup-use-phone-mic')), findsNothing);
       expect(
-        find.text(
-          'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
-        ),
-        findsOneWidget,
+        find.text('Cần kết nối H20 thành công trước khi bắt đầu phiên học.'),
+        findsWidgets,
       );
+
+      final connectButton = find.byKey(const Key('startup-setup-h20'));
+      await tester.ensureVisible(connectButton);
+      await tester.tap(connectButton);
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(completeButton);
+      expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
       await tester.tap(completeButton);
 
       expect(selectedAge, 8);
@@ -266,6 +276,64 @@ void main() {
           .onPressed,
       isNull,
     );
+  });
+
+  testWidgets('parent setup explains how to keep other app audio on phone', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var settingsOpened = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: StartupSetupScreen(
+          profileLoading: false,
+          permissionRequestInProgress: false,
+          privacyConfigurationComplete: true,
+          privacyConsentGranted: true,
+          limitedModeSelected: false,
+          microphoneGranted: true,
+          bluetoothRequired: true,
+          bluetoothGranted: true,
+          h20BleConnected: true,
+          h20HfpConfigured: true,
+          h20MediaAudioConnected: true,
+          selectedAge: 6,
+          aiSubprocessors: 'Railway và Cloudflare',
+          dataRetentionSummary: 'Theo chính sách công khai.',
+          onGrantPrivacyConsent: () async {},
+          onContinueWithoutVoice: () async {},
+          onRetryPermissions: () {},
+          onSetupH20: () async {},
+          onOpenH20MediaAudioSettings: () async {
+            settingsOpened = true;
+          },
+          onAgeSelected: (_) {},
+          onCompleteSetup: () async {},
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('startup-next')));
+    await tester.tap(find.byKey(const Key('startup-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chọn hồ sơ học của trẻ'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('startup-next')));
+    await tester.tap(find.byKey(const Key('startup-next')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Âm thanh đa phương tiện'), findsOneWidget);
+    final openSettings = find.byKey(
+      const Key('startup-open-h20-media-audio-settings'),
+    );
+    await tester.ensureVisible(openSettings);
+    await tester.tap(openSettings);
+    await tester.pump();
+
+    expect(settingsOpened, isTrue);
   });
 }
 

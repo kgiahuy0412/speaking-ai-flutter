@@ -1,6 +1,7 @@
 enum V4CompletionStage {
   lessonEnd,
   topicEnd,
+  topicEndOneRemaining,
   topicRelearnScope,
   nextLevel,
   courseEnd,
@@ -25,7 +26,9 @@ String v4CompletionPrompt(V4CompletionStage stage, {int? nextLevel}) {
   return switch (stage) {
     V4CompletionStage.lessonEnd =>
       'Bạn muốn học bài tiếp theo hay học lại bài này?',
-    V4CompletionStage.topicEnd => 'Bạn muốn học chủ đề tiếp theo hay học lại?',
+    V4CompletionStage.topicEnd => 'Bạn muốn học chủ đề khác hay học lại?',
+    V4CompletionStage.topicEndOneRemaining =>
+      'Bạn còn một Chủ đề chưa học. Bạn muốn học tiếp hay học lại?',
     V4CompletionStage.topicRelearnScope =>
       'Bạn muốn học lại toàn bộ chủ đề hay chỉ học lại bài này?',
     V4CompletionStage.nextLevel =>
@@ -44,7 +47,7 @@ String v4CompletionActionLabel(V4CompletionAction action) {
     V4CompletionAction.nextLesson => 'Bài tiếp theo',
     V4CompletionAction.relearnCurrentLesson => 'Học lại bài này',
     V4CompletionAction.stop => 'Dừng lại',
-    V4CompletionAction.nextTopic => 'Chủ đề tiếp theo',
+    V4CompletionAction.nextTopic => 'Chủ đề khác',
     V4CompletionAction.relearnTopic => 'Học lại toàn bộ chủ đề',
     V4CompletionAction.startNextLevel => 'Bắt đầu Level tiếp theo',
     V4CompletionAction.requestNewCourse => 'Học khóa mới',
@@ -87,7 +90,7 @@ class V4CompletionChoiceResolver {
                 ])
               ? V4CompletionAction.relearnCurrentLesson
               : null,
-        V4CompletionStage.topicEnd =>
+        V4CompletionStage.topicEnd || V4CompletionStage.topicEndOneRemaining =>
           _hasAny(value, const <String>[
                 'chu de tiep theo',
                 'hoc tiep chu de',

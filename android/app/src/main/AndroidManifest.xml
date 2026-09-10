@@ -42,7 +42,7 @@
 
     <application
         android:name=".HomiApplication"
-        android:label="Trợ lý giao tiếp"
+        android:label="HOMI App"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
         <activity

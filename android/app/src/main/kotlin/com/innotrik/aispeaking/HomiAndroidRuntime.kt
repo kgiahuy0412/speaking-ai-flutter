@@ -82,7 +82,11 @@ object HomiAndroidRuntime {
         private val innotrikBleAudioBridge = InnotrikBleAudioBridge(host, messenger)
         private val aiv0BleControlBridge = Aiv0BleControlBridge(host, messenger)
         private val hfpAudioBridge = HfpAudioBridge(host, messenger)
-        private val voicePromptBridge = VoicePromptBridge(host.applicationContext, messenger)
+        private val voicePromptBridge = VoicePromptBridge(
+            host.applicationContext,
+            messenger,
+            hfpAudioBridge,
+        )
         private val backgroundLearningBridge = AndroidBackgroundLearningBridge(host, messenger)
         private val installationCredentialStore =
             AndroidInstallationCredentialStore(host.applicationContext)

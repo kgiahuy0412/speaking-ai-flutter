@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
@@ -14,6 +13,7 @@ import 'package:ai_speaking_flutter_app/features/conversation/application/offlin
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_models.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/domain/conversation_repository.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
@@ -1648,6 +1648,8 @@ void main() {
   test(
     'iOS native HFP capture uses selected media output for playback',
     () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       final hfp = _FakeHfpAudioControl();
       final recognizer = _FakeRouteOwningIOSStreamingSpeechInput(hfp);
       final resultCompleter = Completer<ConversationResult>()

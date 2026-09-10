@@ -12,6 +12,7 @@ class ListeningVoiceNavigationTarget {
     this.lessonNumber,
     this.childAge,
     this.fallbackTopicIndex,
+    this.relearnTopic = false,
   });
 
   final String recognizedText;
@@ -19,6 +20,7 @@ class ListeningVoiceNavigationTarget {
   final int? topicNumber;
   final int? lessonNumber;
   final int? childAge;
+  final bool relearnTopic;
 
   /// The topic currently visible when a child only says "Mở bài 2".
   final int? fallbackTopicIndex;

@@ -201,6 +201,62 @@ void main() {
       expect(await fixture.store.readAll(), isEmpty);
     },
   );
+
+  test(
+    'topic-selection checkpoint survives interruption but not totals',
+    () async {
+      final fixture = await _ProgressFixture.create();
+      addTearDown(fixture.dispose);
+
+      await fixture.store.saveTopicSelectionCheckpoint(
+        '3-5',
+        levelNumber: 2,
+        announceLevel: true,
+      );
+
+      final checkpoint = await fixture.store.readTopicSelectionCheckpoint(
+        '3-5',
+      );
+      expect(checkpoint?.levelNumber, 2);
+      expect(checkpoint?.announceLevel, isTrue);
+      expect(await fixture.store.readAll(), isEmpty);
+
+      await fixture.store.clearTopicSelectionCheckpoint('3-5');
+      expect(await fixture.store.readTopicSelectionCheckpoint('3-5'), isNull);
+    },
+  );
+
+  test('full-topic and full-level relearn preserve earned stars', () async {
+    final fixture = await _ProgressFixture.create();
+    addTearDown(fixture.dispose);
+
+    for (final lessonId in <String>['lesson-1', 'lesson-2']) {
+      await fixture.store.saveLesson(lessonId, 3);
+      await fixture.store.markLessonCoreStarted(lessonId);
+      await fixture.store.markV4LessonActivityCompleted(lessonId);
+      await fixture.store.saveResumeStage(
+        lessonId,
+        ListeningResumeStage.completed,
+      );
+    }
+    await fixture.store.awardStar('lesson-1', 'core:t1');
+    await fixture.store.markLevelMissionPassed('level-1');
+    await fixture.store.saveMissionSelection('level-1', <String>['m1']);
+
+    await fixture.store.resetLevelForRelearn(
+      levelId: 'level-1',
+      lessonIds: const <String>['lesson-1', 'lesson-2'],
+    );
+
+    expect(await fixture.store.readAll(), isEmpty);
+    expect(await fixture.store.readStartedLessonCores(), isEmpty);
+    expect(await fixture.store.readCompletedV4LessonActivities(), isEmpty);
+    expect(await fixture.store.hasPassedLevelMission('level-1'), isFalse);
+    expect(await fixture.store.readMissionSelection('level-1'), isEmpty);
+    expect(await fixture.store.readEarnedStars('lesson-1'), <String>{
+      'core:t1',
+    });
+  });
 }
 
 class _ProgressFixture {

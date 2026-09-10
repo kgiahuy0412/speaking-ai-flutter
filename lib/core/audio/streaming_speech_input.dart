@@ -1154,6 +1154,169 @@ class AndroidStreamingSpeechInput
   }
 }
 
+/// Owns the short Android HFP/SCO lease for each native recognition turn.
+///
+/// Assistant playback deliberately releases SCO when it finishes so media in
+/// another foreground app returns to the phone speaker. Native recognition
+/// must therefore acquire a new lease immediately before SpeechRecognizer is
+/// started, then release it again as soon as the utterance is stopped.
+class AndroidHfpStreamingSpeechInput extends AndroidStreamingSpeechInput
+    implements HfpRouteOwningStreamingSpeechInput {
+  AndroidHfpStreamingSpeechInput({
+    super.methodChannel = const MethodChannel('ailingo_speech'),
+    super.eventChannel = const EventChannel('ailingo_speech/events'),
+    super.eventStream,
+    super.nativeCommandTimeout,
+    HfpAudioControl? audioRouteControl,
+  }) : _audioRouteControl = audioRouteControl,
+       super(
+         preferOnDevice: true,
+         // Opening Android SCO and receiving SpeechRecognizer.onReadyForSpeech
+         // can legitimately take longer than the generic two-second budget.
+         readyTimeout: const Duration(seconds: 6),
+       );
+
+  final HfpAudioControl? _audioRouteControl;
+  int _audioRouteGeneration = 0;
+  int? _pendingAudioRouteGeneration;
+  int? _activeAudioRouteGeneration;
+
+  @override
+  Future<void> start() => _startWithAudioRoute(commandMode: false);
+
+  @override
+  Future<void> startCommandRecognition() =>
+      _startWithAudioRoute(commandMode: true);
+
+  Future<void> _startWithAudioRoute({required bool commandMode}) async {
+    await _cancelCurrentRecognition();
+    int? routeGeneration;
+
+    final routeControl = _audioRouteControl;
+    final audioSource = takeNativeSpeechAudioSource(
+      routeControl != null &&
+              (routeControl.status.deviceId != null ||
+                  routeControl.status.isConnected)
+          ? NativeSpeechAudioSource.hfp
+          : NativeSpeechAudioSource.builtInMic,
+    );
+
+    try {
+      if (audioSource == NativeSpeechAudioSource.hfp &&
+          routeControl != null &&
+          (routeControl.status.deviceId != null ||
+              routeControl.status.isConnected)) {
+        routeGeneration = ++_audioRouteGeneration;
+        _pendingAudioRouteGeneration = routeGeneration;
+        await routeControl.startAudioRoute();
+        if (routeGeneration != _audioRouteGeneration) {
+          await _releaseStaleAudioRouteIfUnowned();
+          throw const StreamingSpeechInputException(
+            'Đã dừng trước khi micro HFP sẵn sàng.',
+            code: 'SPEECH_START_CANCELLED',
+          );
+        }
+        if (_pendingAudioRouteGeneration == routeGeneration) {
+          _pendingAudioRouteGeneration = null;
+        }
+        _activeAudioRouteGeneration = routeGeneration;
+        if (!routeControl.status.routeActive ||
+            routeControl.status.phase !=
+                BluetoothAudioConnectionPhase.recording) {
+          throw const HfpAudioException(
+            'Android chưa xác nhận đường HFP/SCO tới H20.',
+          );
+        }
+      }
+
+      await super.startWithNativeAudioSource(
+        commandMode: commandMode,
+        audioSource: audioSource,
+      );
+    } catch (_) {
+      if (routeGeneration != null) {
+        await _releaseAudioRouteLease(routeGeneration);
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<StreamingSpeechCapture> stop() async {
+    final routeGeneration =
+        _activeAudioRouteGeneration ?? _pendingAudioRouteGeneration;
+    try {
+      return await super.stop();
+    } finally {
+      if (routeGeneration != null) {
+        await _releaseAudioRouteLease(routeGeneration);
+      }
+    }
+  }
+
+  @override
+  Future<void> cancel() => _cancelCurrentRecognition();
+
+  Future<void> _cancelCurrentRecognition() async {
+    final routeGeneration = _detachAudioRouteLease();
+    final routeStop = _stopDetachedAudioRoute(routeGeneration);
+    try {
+      await super.cancel();
+    } finally {
+      await routeStop;
+    }
+  }
+
+  int? _detachAudioRouteLease() {
+    final routeGeneration =
+        _activeAudioRouteGeneration ?? _pendingAudioRouteGeneration;
+    _audioRouteGeneration += 1;
+    _pendingAudioRouteGeneration = null;
+    _activeAudioRouteGeneration = null;
+    return routeGeneration;
+  }
+
+  Future<void> _stopDetachedAudioRoute(int? routeGeneration) async {
+    if (routeGeneration == null) return;
+    await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
+  }
+
+  Future<void> _releaseAudioRouteLease(int routeGeneration) async {
+    final ownsPending = _pendingAudioRouteGeneration == routeGeneration;
+    final ownsActive = _activeAudioRouteGeneration == routeGeneration;
+    if (!ownsPending && !ownsActive) return;
+    _audioRouteGeneration += 1;
+    if (ownsPending) {
+      _pendingAudioRouteGeneration = null;
+    }
+    if (ownsActive) {
+      _activeAudioRouteGeneration = null;
+    }
+    if (_pendingAudioRouteGeneration == null &&
+        _activeAudioRouteGeneration == null) {
+      await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
+    }
+  }
+
+  Future<void> _releaseStaleAudioRouteIfUnowned() async {
+    if (_pendingAudioRouteGeneration != null ||
+        _activeAudioRouteGeneration != null) {
+      return;
+    }
+    await _audioRouteControl?.stopAudioRoute().catchError((Object _) {});
+  }
+
+  @override
+  Future<void> dispose() async {
+    try {
+      await super.dispose();
+    } finally {
+      final routeGeneration = _detachAudioRouteLease();
+      await _stopDetachedAudioRoute(routeGeneration);
+    }
+  }
+}
+
 class IOSStreamingSpeechInput extends AndroidStreamingSpeechInput
     implements
         HfpRouteOwningStreamingSpeechInput,
