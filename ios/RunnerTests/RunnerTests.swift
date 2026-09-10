@@ -383,6 +383,13 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(ownership.canDeactivate)
   }
 
+  func testIOSAudioEngineStartupPolicyAllowsExactlyOneBoundedRetry() {
+    XCTAssertEqual(IOSAudioEngineStartupPolicy.maxAttempts, 2)
+    XCTAssertTrue(IOSAudioEngineStartupPolicy.shouldRetry(afterAttempt: 1))
+    XCTAssertFalse(IOSAudioEngineStartupPolicy.shouldRetry(afterAttempt: 2))
+    XCTAssertGreaterThan(IOSAudioEngineStartupPolicy.retryDelayNanoseconds, 0)
+  }
+
   func testIOSAudioOwnershipKeepsActiveLessonAcrossBackgroundAudioGap() {
     var ownership = IOSAudioSessionOwnershipState()
 

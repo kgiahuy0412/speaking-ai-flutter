@@ -213,6 +213,18 @@ struct IOSSpeechStopSalvagePolicy {
   }
 }
 
+/// AVAudioEngine can retain an obsolete I/O graph while iOS changes from
+/// A2DP/prompt playback to the HFP voice route. Rebuild the graph after the
+/// route is confirmed and allow one bounded retry for that transient hand-off.
+struct IOSAudioEngineStartupPolicy {
+  static let maxAttempts = 2
+  static let retryDelayNanoseconds: UInt64 = 150_000_000
+
+  static func shouldRetry(afterAttempt attempt: Int) -> Bool {
+    attempt < maxAttempts
+  }
+}
+
 /// Native, on-device-first speech recognition for iOS.
 ///
 /// iOS 26 uses SpeechAnalyzer when the Vietnamese model is supported. Older
@@ -226,7 +238,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
   private let eventChannel: FlutterEventChannel
   private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private var audioSession: AVAudioSession { audioSessionCoordinator.session }
-  private let audioEngine = AVAudioEngine()
+  private var audioEngine = AVAudioEngine()
 
   private var eventSink: FlutterEventSink?
   private var recognizer: SFSpeechRecognizer?
@@ -581,12 +593,11 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     guard isCurrentStartRequest(startRequestGeneration) else {
       throw IOSSpeechBridgeError.startCancelled
     }
-    try installAudioTap(generation: currentGeneration)
-    audioEngine.prepare()
-    guard isCurrentStartRequest(startRequestGeneration) else {
-      throw IOSSpeechBridgeError.startCancelled
-    }
-    try audioEngine.start()
+    try await startAudioEngineForCurrentRoute(
+      audioSource: audioSource,
+      generation: currentGeneration,
+      startRequestGeneration: startRequestGeneration
+    )
     try await waitForRequestedAudioRoute(audioSource)
     emitStage("engine_started")
     try await waitForFirstAnalyzerInput(generation: currentGeneration)
@@ -720,6 +731,96 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       "audio_tap_installed",
       message: "sampleRate=\(Int(format.sampleRate)) channels=\(format.channelCount) format=\(format.commonFormat.rawValue)"
     )
+  }
+
+  private func startAudioEngineForCurrentRoute(
+    audioSource: IOSNativeSpeechAudioSource,
+    generation: Int,
+    startRequestGeneration: Int
+  ) async throws {
+    var lastStartError: Error?
+
+    for attempt in 1 ... IOSAudioEngineStartupPolicy.maxAttempts {
+      guard isCurrentStartRequest(startRequestGeneration) else {
+        throw IOSSpeechBridgeError.startCancelled
+      }
+
+      if attempt > 1 {
+        try await Task<Never, Never>.sleep(
+          nanoseconds: IOSAudioEngineStartupPolicy.retryDelayNanoseconds
+        )
+        guard isCurrentStartRequest(startRequestGeneration) else {
+          throw IOSSpeechBridgeError.startCancelled
+        }
+        // Reassert the requested input after the failed graph has been torn
+        // down. This is idempotent in the shared coordinator and does not close
+        // the HFP lease held by the current turn.
+        try await configureAudioSession(audioSource: audioSource)
+      }
+
+      rebuildAudioEngineForCurrentRoute()
+      try installAudioTap(generation: generation)
+      audioEngine.prepare()
+      guard isCurrentStartRequest(startRequestGeneration) else {
+        throw IOSSpeechBridgeError.startCancelled
+      }
+
+      do {
+        try audioEngine.start()
+        if attempt > 1 {
+          emitStage(
+            "audio_engine_start_recovered",
+            message: "attempt=\(attempt)"
+          )
+        }
+        return
+      } catch {
+        lastStartError = error
+        let nsError = error as NSError
+        emitStage(
+          "audio_engine_start_failed",
+          code: "\(nsError.domain):\(nsError.code)",
+          message: "attempt=\(attempt) \(error.localizedDescription)"
+        )
+        tearDownAudioEngineGraphForRetry()
+        guard IOSAudioEngineStartupPolicy.shouldRetry(afterAttempt: attempt) else {
+          break
+        }
+      }
+    }
+
+    let detail: String
+    if let lastStartError {
+      let nsError = lastStartError as NSError
+      detail = "\(nsError.domain):\(nsError.code) \(nsError.localizedDescription)"
+    } else {
+      detail = "unknown"
+    }
+    throw IOSSpeechBridgeError.audioEngineStartFailed(
+      detail: detail
+    )
+  }
+
+  private func rebuildAudioEngineForCurrentRoute() {
+    tearDownAudioEngineGraphForRetry()
+    // Constructing the engine only after AVAudioSession confirms its route is
+    // important for HFP. A bridge-lifetime engine may still describe the
+    // built-in/A2DP hardware format and fail immediately on start.
+    audioEngine = AVAudioEngine()
+    emitStage("audio_engine_recreated")
+  }
+
+  private func tearDownAudioEngineGraphForRetry() {
+    if audioEngine.isRunning {
+      audioEngine.stop()
+    }
+    if inputTapInstalled {
+      audioEngine.inputNode.removeTap(onBus: 0)
+      inputTapInstalled = false
+    }
+    recordingFile = nil
+    recordingSampleRate = 0
+    audioEngine.reset()
   }
 
   private func copyForSpeechAnalyzer(_ source: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
@@ -1233,6 +1334,8 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       return "AUDIO_CONVERSION_FAILED"
     case .audioBufferTimeout:
       return "AUDIO_BUFFER_TIMEOUT"
+    case .audioEngineStartFailed(_):
+      return "AUDIO_ENGINE_START_FAILED"
     case .noSpeech:
       return "NO_SPEECH"
     }
@@ -1512,6 +1615,7 @@ private enum IOSSpeechBridgeError: LocalizedError {
   case audioConversionUnavailable
   case audioConversionFailed
   case audioBufferTimeout
+  case audioEngineStartFailed(detail: String)
   case noSpeech
   case startCancelled
 
@@ -1535,6 +1639,8 @@ private enum IOSSpeechBridgeError: LocalizedError {
       return "iOS chưa chuyển đổi được âm thanh cho Apple Speech."
     case .audioBufferTimeout:
       return "Audio route đã mở nhưng Apple Speech chưa nhận được dữ liệu micro."
+    case let .audioEngineStartFailed(detail):
+      return "iOS chưa khởi động được luồng micro Apple Speech (\(detail))."
     case .noSpeech:
       return "Mình chưa nghe rõ. Con thử nói lại gần micro hơn nhé."
     case .startCancelled:

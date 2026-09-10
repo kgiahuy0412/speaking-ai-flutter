@@ -68,6 +68,8 @@ class SettingsSheet extends StatelessWidget {
                 if (item.elapsedMs != null) '+${item.elapsedMs}ms',
                 item.stage,
                 if (item.caller != null) '@${item.caller}',
+                if (item.code != null) 'code=${item.code}',
+                if (item.isError && item.message != null) item.message!,
               ].join(' '),
             )
             .join('\n');
