@@ -122,36 +122,21 @@ void main() {
         91,
       );
 
-      final youngLessons = catalog.groups
-          .where((group) => group.endAge <= 10)
-          .expand((group) => group.topics)
-          .expand((topic) => topic.lessons);
-      final olderLessons = catalog.groups
-          .where((group) => group.startAge >= 11)
-          .expand((group) => group.topics)
-          .expand((topic) => topic.lessons);
-      expect(
-        youngLessons.every(
-          (lesson) => lesson.overviewMode == ListeningOverviewMode.bilingual,
-        ),
-        isTrue,
-      );
-      expect(
-        olderLessons.every(
-          (lesson) => lesson.overviewMode == ListeningOverviewMode.englishOnly,
-        ),
-        isTrue,
-      );
-
       final alphabet = lessons.singleWhere(
         (lesson) => lesson.id == 'c35-l1-t01-b01',
       );
       expect(alphabet.titleEn, 'A to I Letters');
       expect(
-        alphabet.sentences.every((target) => target.requiresAllExpectedTokens),
+        alphabet.sentences.every(
+          (target) =>
+              !target.requiresAllExpectedTokens &&
+              target.recognitionVariants.contains(
+                target.english.replaceFirst(RegExp(r'^[A-Z]\.\s*'), ''),
+              ),
+        ),
         isTrue,
         reason:
-            'Alphabet targets must retain the letter-and-word recognition rule.',
+            'Alphabet Core accepts both letter + keyword and keyword-only speech.',
       );
     },
   );

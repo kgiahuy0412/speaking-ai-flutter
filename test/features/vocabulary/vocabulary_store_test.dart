@@ -97,6 +97,25 @@ void main() {
     expect(entries.single.collection, VocabularyCollection.saved);
   });
 
+  test('migrates an introduced legacy parent entry as learned well', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'innotrik.vocabulary.v1': jsonEncode(<Object>[
+        <String, Object>{
+          'id': 'legacy-learned',
+          'word': 'Apple',
+          'meaning': 'Quả táo',
+          'addedAt': DateTime(2026, 8, 14).toIso8601String(),
+          'introducedAt': DateTime(2026, 8, 15).toIso8601String(),
+        },
+      ]),
+    });
+
+    final entry = (await const VocabularyStore().read()).single;
+
+    expect(entry.status, VocabularyLearningStatus.learnedWell);
+    expect(entry.isParentAdded, isTrue);
+  });
+
   test(
     'marks parent vocabulary as introduced and persists the state',
     () async {

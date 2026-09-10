@@ -23,7 +23,7 @@ void main() {
           numericTemplateCount,
           HomiFallbackCatalog.numericChildTemplateCount,
         );
-        expect(HomiFallbackCatalog.assistantPromptById, hasLength(69));
+        expect(HomiFallbackCatalog.assistantPromptById, hasLength(68));
         expect(HomiFallbackCatalog.silencePromptById, hasLength(9));
         expect(HomiFallbackCatalog.fallbackPolicyById, hasLength(8));
 

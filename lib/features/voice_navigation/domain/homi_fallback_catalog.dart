@@ -725,7 +725,6 @@ class HomiFallbackCatalog {
         'Giỏi lắm! Bạn đã học xong bài “{tên bài}”. Bạn muốn luyện lại từ đầu hay học bài tiếp theo?',
     'AI-063': 'Bạn đang ở câu đầu tiên rồi.',
     'AI-064': 'Bạn đang ở bài đầu tiên rồi.',
-    'AI-065': 'Bạn nghe phần tổng quan thêm một chút nha.',
     'AI-066': 'Đây là phần tổng kết của bài học rồi.',
     'AI-067': 'HOMI chưa có bài tiếp theo.',
     'AI-068': 'Mình học xong bài hát này trước rồi chuyển phần khác.',

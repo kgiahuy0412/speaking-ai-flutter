@@ -80,6 +80,9 @@ class LessonMissionScreen extends StatefulWidget {
     this.iosSpeechInput,
     this.onStarEarned,
     this.onStarEarnedWithResult,
+    this.onStarEarnedWithAudioResult,
+    this.onNeedsPractice,
+    this.onMastered,
     this.initialAnswers = const <String, bool>{},
     this.onAnswerResolved,
     this.isReinforcement = false,
@@ -110,6 +113,20 @@ class LessonMissionScreen extends StatefulWidget {
   onStarEarned;
   final Future<bool> Function(String starId, String english, String vietnamese)?
   onStarEarnedWithResult;
+  final Future<bool> Function(
+    String starId,
+    String english,
+    String vietnamese,
+    String? correctAudioPath,
+  )?
+  onStarEarnedWithAudioResult;
+  final Future<void> Function(
+    String targetId,
+    String english,
+    String vietnamese,
+  )?
+  onNeedsPractice;
+  final Future<void> Function(String english)? onMastered;
   final Map<String, bool> initialAnswers;
   final Future<void> Function(LessonMissionAnswer answer)? onAnswerResolved;
   final bool isReinforcement;
@@ -143,6 +160,8 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
   Timer? _promptCompletionTimer;
   Completer<void>? _promptCompletionWaiter;
   bool _pausedForMainAssistant = false;
+  String? _activeAttemptAudioPath;
+  String? _latestCorrectAudioPath;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -319,8 +338,11 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       case ActiveLearningCommand.nextLesson:
       case ActiveLearningCommand.previousLesson:
       case ActiveLearningCommand.restart:
+      case ActiveLearningCommand.vocabularyParentAdded:
       case ActiveLearningCommand.vocabularyPracticeAgain:
       case ActiveLearningCommand.vocabularyStars:
+      case ActiveLearningCommand.vocabularyLatest:
+      case ActiveLearningCommand.vocabularyAll:
         return const ActiveLearningCommandResult.unavailable(
           spokenReply:
               'Các nút câu trước, câu sau và nghe lại chỉ dùng trong phần luyện câu.',
@@ -435,6 +457,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       _busy = true;
       _message = null;
     });
+    _latestCorrectAudioPath = null;
     try {
       await _prompt.stop();
       var usesIosSpeech = false;
@@ -443,7 +466,19 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
           : null;
       if (iosSpeechInput != null) {
         try {
-          await iosSpeechInput.startLessonEnglishRecognition();
+          if (iosSpeechInput is IOSStreamingSpeechInput) {
+            _activeAttemptAudioPath = await widget.mediaService.recordingPath(
+              lessonId: '${widget.lesson.id}-mission',
+              sentenceNumber: _missionIndex + 1,
+              extension: 'wav',
+            );
+            await iosSpeechInput.startLessonEnglishRecognitionWithRecording(
+              _activeAttemptAudioPath!,
+            );
+          } else {
+            _activeAttemptAudioPath = null;
+            await iosSpeechInput.startLessonEnglishRecognition();
+          }
           usesIosSpeech = true;
           widget.mediaService.handoffSelectedLessonOutputToNativeCapture();
         } on StreamingSpeechInputException catch (error) {
@@ -458,6 +493,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
         }
       }
       if (!usesIosSpeech) {
+        _activeAttemptAudioPath = null;
         await widget.mediaService.startRecording(
           lessonId: '${widget.lesson.id}-mission',
           sentenceNumber: _missionIndex + 1,
@@ -529,11 +565,15 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
           childAge: widget.startAge,
           requireAllExpectedTokens: false,
         );
+        if (outcome == LessonAttemptOutcome.good) {
+          _latestCorrectAudioPath = recording.filePath;
+        }
       }
       if (!mounted || _pausedForMainAssistant || request != _promptRequest) {
         return;
       }
-      if (outcome != LessonAttemptOutcome.unclear) {
+      if (outcome != LessonAttemptOutcome.unclear &&
+          outcome != LessonAttemptOutcome.noResponse) {
         _attemptNumber = evaluatedAttemptNumber;
       }
       setState(() {
@@ -570,8 +610,9 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
         capture.sourceText,
         ...capture.alternatives,
       }.where((candidate) => candidate.trim().isNotEmpty);
-      if (candidates.isEmpty) return LessonAttemptOutcome.unclear;
-      return candidates.any(
+      if (candidates.isEmpty) return LessonAttemptOutcome.noResponse;
+      final outcome =
+          candidates.any(
             (candidate) => matchesRecognizedLessonEnglish(
               _mission.correctAnswer,
               candidate,
@@ -580,6 +621,11 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
           )
           ? LessonAttemptOutcome.good
           : LessonAttemptOutcome.retry;
+      if (outcome == LessonAttemptOutcome.good) {
+        _latestCorrectAudioPath =
+            capture.recordedAudio?.filePath ?? _activeAttemptAudioPath;
+      }
+      return outcome;
     } on StreamingSpeechInputException catch (error) {
       debugPrint(
         'HOMI iOS mission recognition returned no usable speech: '
@@ -597,13 +643,19 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       case LessonAttemptOutcome.good:
         await _speakFeedback(LessonFeedbackKind.correct);
         if (_pausedForMainAssistant) return false;
-        if (!widget.isReinforcement) await _awardStar();
+        if (widget.isReinforcement) {
+          await _saveMastered();
+        } else {
+          await _awardStar();
+        }
         return _resolveCurrent(correct: true, outcome: outcome);
       case LessonAttemptOutcome.needsPractice:
       case LessonAttemptOutcome.retry:
         if (_attemptNumber >= 2) {
           if (widget.isReinforcement) {
             await _speakFeedback(LessonFeedbackKind.give);
+            await _saveNeedsPractice();
+            if (!mounted || _pausedForMainAssistant) return false;
             return _resolveCurrent(correct: false, outcome: outcome);
           }
           return _giveAnswerAndResolve(outcome: outcome, skip: false);
@@ -615,6 +667,9 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
         return mounted;
       case LessonAttemptOutcome.unclear:
         await _speakFeedback(LessonFeedbackKind.asr);
+        return mounted;
+      case LessonAttemptOutcome.noResponse:
+        await _speakFeedback(LessonFeedbackKind.noResponse);
         return mounted;
     }
   }
@@ -634,6 +689,20 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
   }
 
   Future<void> _awardStar() async {
+    final callbackWithAudioResult = widget.onStarEarnedWithAudioResult;
+    if (callbackWithAudioResult != null) {
+      try {
+        await callbackWithAudioResult(
+          'mission:${_missionIndex + 1}',
+          _mission.correctAnswer,
+          _mission.correctVietnamese,
+          _latestCorrectAudioPath,
+        );
+      } catch (_) {
+        // Local Star persistence must never interrupt Level Mission scoring.
+      }
+      return;
+    }
     final callbackWithResult = widget.onStarEarnedWithResult;
     if (callbackWithResult != null) {
       try {
@@ -675,7 +744,35 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       // The correct authored answer remains visible on screen.
     }
     if (!mounted || _pausedForMainAssistant) return false;
+    if (!skip) {
+      await _saveNeedsPractice();
+      if (!mounted || _pausedForMainAssistant) return false;
+    }
     return _resolveCurrent(correct: false, outcome: outcome);
+  }
+
+  Future<void> _saveNeedsPractice() async {
+    final callback = widget.onNeedsPractice;
+    if (callback == null) return;
+    try {
+      await callback(
+        'mission:${_missionIndex + 1}',
+        _mission.correctAnswer,
+        _mission.correctVietnamese,
+      );
+    } catch (_) {
+      // Vocabulary persistence must never interrupt the authored lesson.
+    }
+  }
+
+  Future<void> _saveMastered() async {
+    final callback = widget.onMastered;
+    if (callback == null) return;
+    try {
+      await callback(_mission.correctAnswer);
+    } catch (_) {
+      // Vocabulary persistence must never interrupt the authored lesson.
+    }
   }
 
   Future<void> _skipCurrent() async {

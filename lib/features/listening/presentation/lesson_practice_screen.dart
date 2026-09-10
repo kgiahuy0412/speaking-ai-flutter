@@ -22,6 +22,7 @@ import '../data/active_listening_session_store.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/listening_curriculum_flow.dart';
 import '../domain/authored_question_selector.dart';
 import '../domain/lesson_guide_flow.dart';
 import '../domain/v4_completion_flow.dart';
@@ -143,7 +144,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   bool get _usesGuideV2 => widget.lesson.usesGuidedPractice;
 
   LessonGuidePrompt get _repeatTargetPrompt => widget.lesson.usesV4Flow
-      ? LessonGuideFlowV2.repeatTarget
+      ? LessonGuideFlowV2.coreSpeakCue(_sentenceIndex)
       : LessonGuideFlowV2.afterSample;
 
   IOSStreamingSpeechInput? get _iosLessonSpeechInput =>
@@ -496,8 +497,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _pausedForMainAssistant = false;
         await _restartCurrentLesson();
         return const ActiveLearningCommandResult.handled();
+      case ActiveLearningCommand.vocabularyParentAdded:
       case ActiveLearningCommand.vocabularyPracticeAgain:
       case ActiveLearningCommand.vocabularyStars:
+      case ActiveLearningCommand.vocabularyLatest:
+      case ActiveLearningCommand.vocabularyAll:
         return const ActiveLearningCommandResult.unavailable();
       case ActiveLearningCommand.exitToHome:
         await pauseForMainAssistant();
@@ -1290,8 +1294,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         }
         _needsPracticeSentenceIndexes.remove(sentenceIndex);
         _showPraiseFireworks();
-        setState(() => _message = LessonGuideFlowV2.good.text);
-        await _playPrompt(LessonGuideFlowV2.good);
+        final correctPrompt = widget.lesson.usesV4Flow
+            ? LessonGuidePrompt(
+                audioCode: 'CORRECT',
+                text: LessonAgeFeedbackLibrary.message(
+                  age: widget.startAge,
+                  kind: LessonFeedbackKind.correct,
+                ),
+              )
+            : LessonGuideFlowV2.good;
+        setState(() => _message = correctPrompt.text);
+        await _playPrompt(correctPrompt);
         // V4 introduces a first-ever star only after the normal correct-answer
         // feedback. This preserves the authored order: praise, star, then the
         // one-time explanation of what stars mean.
@@ -1315,7 +1328,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       case LessonAttemptOutcome.unclear:
         // NO_RESPONSE/ASR is not a valid scored attempt. Keep the same attempt
         // number and sentence until speech is recognized or the child skips.
-        const prompt = LessonGuideFlowV2.unclear;
+        final prompt = widget.lesson.usesV4Flow
+            ? LessonGuidePrompt(
+                audioCode: 'ASR',
+                text: LessonAgeFeedbackLibrary.message(
+                  age: widget.startAge,
+                  kind: LessonFeedbackKind.asr,
+                ),
+              )
+            : LessonGuideFlowV2.unclear;
         setState(() {
           _recordingPath = null;
           _recordingDuration = null;
@@ -1333,6 +1354,24 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           sentenceIndex,
           sentence.id,
         );
+      case LessonAttemptOutcome.noResponse:
+        final feedback = LessonAgeFeedbackLibrary.message(
+          age: widget.startAge,
+          kind: LessonFeedbackKind.noResponse,
+        );
+        setState(() {
+          _recordingPath = null;
+          _recordingDuration = null;
+          _message = feedback;
+        });
+        await _playPrompt(
+          LessonGuidePrompt(audioCode: 'NO_RESPONSE', text: feedback),
+        );
+        return _isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        );
       case LessonAttemptOutcome.retry:
         if (attemptNumber >= 2) {
           await _markNeedsPracticeAndAdvance(
@@ -1342,7 +1381,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           );
           return false;
         }
-        const prompt = LessonGuideFlowV2.retryFirst;
+        final prompt = widget.lesson.usesV4Flow
+            ? LessonGuidePrompt(
+                audioCode: 'RETRY',
+                text: LessonAgeFeedbackLibrary.message(
+                  age: widget.startAge,
+                  kind: LessonFeedbackKind.retry,
+                ),
+              )
+            : LessonGuideFlowV2.retryFirst;
         setState(() {
           _attemptNumber = 2;
           _recordingPath = null;
@@ -1429,12 +1476,21 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
       return;
     }
+    final prompt = widget.lesson.usesV4Flow
+        ? LessonGuidePrompt(
+            audioCode: 'GIVE',
+            text: LessonAgeFeedbackLibrary.message(
+              age: widget.startAge,
+              kind: LessonFeedbackKind.give,
+            ),
+          )
+        : LessonGuideFlowV2.needsPractice;
     setState(() {
       _recordingPath = null;
       _recordingDuration = null;
-      _message = LessonGuideFlowV2.needsPractice.text;
+      _message = prompt.text;
     });
-    await _playPrompt(LessonGuideFlowV2.needsPractice);
+    await _playPrompt(prompt);
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
       return;
     }
@@ -1452,24 +1508,55 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         english: sentence.english,
         vietnamese: sentence.vietnamese,
         collection: collection,
+        source: VocabularySource.topicCore,
+        starSlotId: collection == VocabularyCollection.star
+            ? '${widget.lesson.code}:core:${sentence.id}'
+            : null,
+        correctAudioPath: collection == VocabularyCollection.star
+            ? _recordingPath
+            : null,
       );
     } catch (_) {
       // Local vocabulary persistence must never interrupt the active lesson.
     }
   }
 
-  Future<bool> _saveAuthoredAnswerToStarsResult(
+  Future<bool> _saveAuthoredAnswerToStarsWithAudioResult(
     String starId,
     String english,
     String vietnamese,
+    String? correctAudioPath,
   ) {
     return _awardLessonStar(
       starId: starId,
       english: english,
       vietnamese: vietnamese,
       vocabularyId: starId,
+      correctAudioPath: correctAudioPath,
     );
   }
+
+  Future<void> _saveAuthoredNeedsPractice(
+    String targetId,
+    String english,
+    String vietnamese,
+  ) async {
+    try {
+      await widget.vocabularyStore.upsertLessonSentence(
+        lessonCode: widget.lesson.code,
+        sentenceId: targetId,
+        english: english,
+        vietnamese: vietnamese,
+        collection: VocabularyCollection.review,
+        source: _vocabularySourceForStar(targetId),
+      );
+    } catch (_) {
+      // Vocabulary persistence must never interrupt the active lesson.
+    }
+  }
+
+  Future<void> _clearAuthoredNeedsPractice(String english) =>
+      widget.vocabularyStore.clearTopicReviewTarget(english);
 
   V4CompletionAction? _completionActionForMainCommand(
     ActiveLearningCommand command,
@@ -1505,6 +1592,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     required String english,
     required String vietnamese,
     required String vocabularyId,
+    String? correctAudioPath,
   }) async {
     final totalBefore = await widget.progressStore.readTotalEarnedStars();
     final isNew = await widget.progressStore.awardStar(
@@ -1517,6 +1605,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       english: english,
       vietnamese: vietnamese,
       collection: VocabularyCollection.star,
+      source: _vocabularySourceForStar(starId),
+      starSlotId: '${widget.lesson.code}:$starId',
+      correctAudioPath: correctAudioPath ?? _recordingPath,
     );
     if (!isNew) return false;
     _newStarsThisLesson += 1;
@@ -1529,6 +1620,22 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       );
     }
     return true;
+  }
+
+  VocabularySource _vocabularySourceForStar(String starId) {
+    final normalized = starId.toLowerCase();
+    if (normalized.startsWith('roleplay:') ||
+        normalized.contains('-roleplay-')) {
+      return VocabularySource.topicRolePlay;
+    }
+    if (normalized.startsWith('challenge:') ||
+        normalized.contains('-challenge-')) {
+      return VocabularySource.topicChallenge;
+    }
+    if (normalized.startsWith('mission:') || normalized.contains('-mission-')) {
+      return VocabularySource.topicMission;
+    }
+    return VocabularySource.topicCore;
   }
 
   Future<void> _continue() => _advanceToNext(autoPlaySentence: false);
@@ -1732,7 +1839,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
               mediaService: widget.mediaService,
               attemptEvaluator: _attemptEvaluator,
               voicePromptService: _voicePromptService,
-              onStarEarnedWithResult: _saveAuthoredAnswerToStarsResult,
+              onStarEarnedWithAudioResult:
+                  _saveAuthoredAnswerToStarsWithAudioResult,
+              onNeedsPractice: _saveAuthoredNeedsPractice,
               startAfterRolePlay: startAfterRolePlay,
               onRolePlayCompleted: () => widget.progressStore.saveResumeStage(
                 widget.lesson.id,
@@ -1846,9 +1955,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       );
       return;
     }
-    if (_isLastLessonInLevel) {
+    if (await _allTopicsInCurrentLevelCompleted()) {
       await _voicePromptService.speakAndWait(
-        'Tuyệt lắm! Bạn đã hoàn thành chủ đề cuối của Level này rồi!',
+        'Bạn đã hoàn thành tất cả Chủ đề rồi!',
       );
       return;
     }
@@ -1860,7 +1969,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   Future<void> _showV4CompletionChoice({bool announceLevel = true}) async {
     if (!mounted || _v4CompletionChoiceVisible) return;
     final level = widget.levelContent;
-    if (_isLastLessonInLevel && level != null) {
+    final levelCompleted =
+        level != null &&
+        await _allTopicsInCurrentLevelCompleted() &&
+        await widget.progressStore.hasPassedLevelMission(level.id);
+    if (levelCompleted) {
       if (level.number >= 3) {
         final courseId = '${widget.startAge}-${widget.endAge}';
         await widget.progressStore.markCourseCompleted(courseId);
@@ -1934,8 +2047,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
 
     widget.onTopicCompleted?.call();
+    final remainingTopics = await _incompleteTopicsInCurrentLevel();
     final action = await _showV4Choice(
-      V4CompletionStage.topicEnd,
+      remainingTopics.length == 1
+          ? V4CompletionStage.topicEndOneRemaining
+          : V4CompletionStage.topicEnd,
       const <V4CompletionAction>[
         V4CompletionAction.nextTopic,
         V4CompletionAction.relearn,
@@ -2064,8 +2180,18 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await _openRelearnCurrentLesson();
         return;
       case V4CompletionAction.nextTopic:
-        final nextTopic = _adjacentTopic(1);
-        if (nextTopic != null) await _openContentTopic(nextTopic);
+        final remaining = await _incompleteTopicsInCurrentLevel();
+        if (remaining.length == 1) {
+          final topic = widget.contentGroup?.topics
+              .where((candidate) => candidate.number == remaining.single)
+              .firstOrNull;
+          if (topic != null) await _openContentTopic(topic);
+          return;
+        }
+        await _returnToTopicSelection(
+          levelNumber: widget.levelContent?.number ?? 1,
+          announceLevel: false,
+        );
         return;
       case V4CompletionAction.relearnTopic:
         final topic = widget.topicContent;
@@ -2097,29 +2223,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
   }
 
-  ListeningTopicContent? _adjacentTopic(int offset) {
-    final group = widget.contentGroup;
-    final current = widget.topicContent;
-    if (group == null || current == null) return null;
-    final index = group.topics.indexWhere((topic) => topic.id == current.id);
-    final nextIndex = index + offset;
-    if (index < 0 || nextIndex < 0 || nextIndex >= group.topics.length) {
-      return null;
-    }
-    return group.topics[nextIndex];
-  }
-
   Future<void> _openLevel(
     ListeningLevelContent level, {
     bool relearn = false,
   }) async {
     final group = widget.contentGroup;
     if (group == null || level.topicNumbers.isEmpty) return;
-    final firstTopicNumber = level.topicNumbers.first;
-    final topic = group.topics
-        .where((candidate) => candidate.number == firstTopicNumber)
-        .firstOrNull;
-    if (topic != null) await _openContentTopic(topic, relearn: relearn);
+    if (relearn) {
+      final lessonIds = group.topics
+          .where((topic) => level.topicNumbers.contains(topic.number))
+          .expand((topic) => topic.lessons)
+          .map((lesson) => lesson.id);
+      await widget.progressStore.resetLevelForRelearn(
+        levelId: level.id,
+        lessonIds: lessonIds,
+      );
+    }
+    await _returnToTopicSelection(
+      levelNumber: level.number,
+      announceLevel: true,
+    );
   }
 
   Future<void> _openContentTopic(
@@ -2127,6 +2250,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     bool relearn = false,
   }) async {
     if (topic.lessons.isEmpty || !mounted) return;
+    if (relearn) {
+      await widget.progressStore.resetLessonsForRelearn(
+        topic.lessons.map((lesson) => lesson.id),
+      );
+    }
     final lesson = topic.lessons.first;
     unawaited(
       const ActiveListeningSessionStore().save(
@@ -2136,13 +2264,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       ),
     );
     await widget.progressStore.saveCurrentSentence(lesson.id, 0);
-    if (relearn) {
-      await widget.progressStore.clearV4LessonActivityCompleted(lesson.id);
-      await widget.progressStore.saveResumeStage(
-        lesson.id,
-        ListeningResumeStage.core,
-      );
-    }
     final ageCatalog = listeningCatalogs.firstWhere(
       (catalog) =>
           catalog.startAge == widget.startAge &&
@@ -2199,23 +2320,61 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     return value.codeUnits.fold<int>(0, (seed, unit) => seed * 31 + unit);
   }
 
-  bool get _isLastLessonInLevel {
+  bool get _isLastLessonInTopic {
     final topic = widget.topicContent;
-    final level = widget.levelContent;
     return widget.lesson.usesV4Flow &&
         topic != null &&
-        level != null &&
-        level.topicNumbers.isNotEmpty &&
-        level.topicNumbers.last == topic.number &&
         topic.lessons.isNotEmpty &&
         topic.lessons.last.id == widget.lesson.id;
+  }
+
+  Future<bool> _allTopicsInCurrentLevelCompleted() async {
+    final group = widget.contentGroup;
+    final level = widget.levelContent;
+    if (group == null || level == null || !_isLastLessonInTopic) return false;
+    final progress = await widget.progressStore.readAll();
+    final activities = await widget.progressStore
+        .readCompletedV4LessonActivities();
+    return ListeningCurriculumFlow.allTopicsInLevelCompleted(
+      group,
+      level,
+      progress,
+      activities,
+    );
+  }
+
+  Future<List<int>> _incompleteTopicsInCurrentLevel() async {
+    final group = widget.contentGroup;
+    final level = widget.levelContent;
+    if (group == null || level == null) return const <int>[];
+    final progress = await widget.progressStore.readAll();
+    final activities = await widget.progressStore
+        .readCompletedV4LessonActivities();
+    return ListeningCurriculumFlow.incompleteTopicNumbers(
+      group,
+      level,
+      progress,
+      activities,
+    );
+  }
+
+  Future<void> _returnToTopicSelection({
+    required int levelNumber,
+    required bool announceLevel,
+  }) async {
+    await widget.progressStore.saveTopicSelectionCheckpoint(
+      '${widget.startAge}-${widget.endAge}',
+      levelNumber: levelNumber,
+      announceLevel: announceLevel,
+    );
+    if (mounted) _returnToListening();
   }
 
   Future<bool> _runV4LevelMissionIfNeeded({
     bool resumeReinforcement = false,
   }) async {
     final level = widget.levelContent;
-    if (!_isLastLessonInLevel) {
+    if (!await _allTopicsInCurrentLevelCompleted()) {
       return true;
     }
     if (level == null ||
@@ -2326,7 +2485,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
             mediaService: widget.mediaService,
             attemptEvaluator: _attemptEvaluator,
             voicePromptService: _voicePromptService,
-            onStarEarnedWithResult: _saveAuthoredAnswerToStarsResult,
+            onStarEarnedWithAudioResult:
+                _saveAuthoredAnswerToStarsWithAudioResult,
+            onNeedsPractice: _saveAuthoredNeedsPractice,
             initialAnswers: savedAnswers,
             onAnswerResolved: (answer) =>
                 widget.progressStore.saveMissionAnswer(
@@ -2482,6 +2643,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           mediaService: widget.mediaService,
           attemptEvaluator: _attemptEvaluator,
           voicePromptService: _voicePromptService,
+          onNeedsPractice: _saveAuthoredNeedsPractice,
+          onMastered: _clearAuthoredNeedsPractice,
           iosSpeechInput: _usesIosNativeLessonRecognition
               ? _iosLessonSpeechInput
               : null,
@@ -3165,9 +3328,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     String locale = 'vi-VN',
   }) async {
     final promptService = _voicePromptService;
-    if (!kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.iOS &&
-        promptService is SelectedMediaOutputVoicePromptService) {
+    if (!kIsWeb && promptService is SelectedMediaOutputVoicePromptService) {
       await (promptService as SelectedMediaOutputVoicePromptService)
           .speakAndWaitOnSelectedMediaOutput(text, locale: locale);
       return;

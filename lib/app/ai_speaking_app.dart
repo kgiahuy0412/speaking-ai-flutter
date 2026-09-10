@@ -931,7 +931,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
   }
 
-  Future<bool> _activateMainAssistant({String? inputLabelOverride}) async {
+  Future<bool> _activateMainAssistant({
+    String? inputLabelOverride,
+    bool promptAlreadySpoken = false,
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
+  }) async {
     if (!_startupReady || !_voiceAccessEnabled) {
       return false;
     }
@@ -982,6 +987,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         activeLearning: hasActiveModule,
         activeLearningKind: activeLearningKind,
         inputLabelOverride: inputLabelOverride,
+        promptAlreadySpoken: promptAlreadySpoken,
+        noSpeechRetryPrompt: noSpeechRetryPrompt,
+        noSpeechExitPrompt: noSpeechExitPrompt,
       );
       if (!activated && _activeModulePausedForMain) {
         await _resumeActiveModuleAfterMain();
@@ -1363,6 +1371,17 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         source: MainButtonSource.screen,
         gesture: MainButtonGesture.release,
       ),
+    );
+  }
+
+  Future<void> _requestVocabularyVoiceChoice({
+    String? noSpeechRetryPrompt,
+    String? noSpeechExitPrompt,
+  }) async {
+    await _activateMainAssistant(
+      promptAlreadySpoken: true,
+      noSpeechRetryPrompt: noSpeechRetryPrompt,
+      noSpeechExitPrompt: noSpeechExitPrompt,
     );
   }
 
@@ -1807,6 +1826,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   onMainSpeakingModeStarted: _startMainSpeakingMode,
                   onScreenMainPressed: _voiceAccessEnabled
                       ? _handleScreenMainShortPress
+                      : null,
+                  onVocabularyVoiceChoiceRequested: _voiceAccessEnabled
+                      ? _requestVocabularyVoiceChoice
                       : null,
                   onModalVisibilityChanged: _setGlobalModalOpen,
                   privacyConsentGranted: _privacyConsentGranted,

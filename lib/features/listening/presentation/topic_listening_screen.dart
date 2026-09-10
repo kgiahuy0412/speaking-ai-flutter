@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
+import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
@@ -13,6 +14,8 @@ import '../application/listening_voice_navigation_target.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
+import '../domain/listening_curriculum_flow.dart';
+import 'active_learning_navigation.dart';
 import 'lesson_recording_history_sheet.dart';
 import 'listening_route_names.dart';
 import 'topic_lesson_list_screen.dart';
@@ -31,6 +34,15 @@ typedef TopicLessonSelectionPrompt =
       required List<int> completedLessonNumbers,
     });
 
+typedef LevelTopicSelectionPrompt =
+    Future<void> Function({
+      required int childAge,
+      required int levelNumber,
+      required List<int> topicNumbers,
+      required List<int> completedTopicNumbers,
+      required bool announceLevel,
+    });
+
 class TopicListeningScreen extends StatefulWidget {
   const TopicListeningScreen({
     required this.language,
@@ -44,10 +56,12 @@ class TopicListeningScreen extends StatefulWidget {
     this.onTopicSelected,
     this.onTopicSelectionAfterCompletion,
     this.onLessonSelectionRequested,
+    this.onLevelTopicSelectionRequested,
     this.onChildAgeChanged,
     this.onRequestParentAccess,
     this.contentFuture,
     this.progressStore = const ListeningProgressStore(),
+    this.voicePromptService,
     super.key,
   });
 
@@ -62,10 +76,12 @@ class TopicListeningScreen extends StatefulWidget {
   final ValueChanged<int>? onTopicSelected;
   final TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion;
   final TopicLessonSelectionPrompt? onLessonSelectionRequested;
+  final LevelTopicSelectionPrompt? onLevelTopicSelectionRequested;
   final ValueChanged<int>? onChildAgeChanged;
   final Future<bool> Function()? onRequestParentAccess;
   final Future<ListeningContentCatalog>? contentFuture;
   final ListeningProgressStore progressStore;
+  final VoicePromptService? voicePromptService;
 
   @override
   State<TopicListeningScreen> createState() => _TopicListeningScreenState();
@@ -79,7 +95,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
   ListeningContentCatalog? _contentCatalog;
   Map<String, int> _lessonProgress = const <String, int>{};
   Set<String> _completedV4LessonActivities = const <String>{};
+  Set<String> _startedLessonIds = const <String>{};
+  Set<String> _passedLevelIds = const <String>{};
   late final LessonMediaService _historyMediaService;
+  late final VoicePromptService _voicePromptService;
+  late final bool _ownsVoicePromptService;
   bool _initialVoiceTargetHandled = false;
 
   ListeningAgeCatalog get _catalog => listeningCatalogs[_selectedCatalogIndex];
@@ -105,11 +125,17 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     _historyMediaService = LessonMediaService(
       hfpAudioControl: widget.controller?.learningAudioRouteControl,
     );
+    _ownsVoicePromptService = widget.voicePromptService == null;
+    _voicePromptService =
+        widget.voicePromptService ?? createVoicePromptService();
     unawaited(_loadContentAndProgress());
   }
 
   @override
   void dispose() {
+    if (_ownsVoicePromptService) {
+      unawaited(_voicePromptService.dispose());
+    }
     unawaited(_historyMediaService.dispose());
     super.dispose();
   }
@@ -201,6 +227,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
                       catalogId: _catalog.id,
                       topics: _catalog.topics,
                       progressFor: _topicProgress,
+                      lockedFor: _topicLocked,
                       onTopicPressed: _openTopic,
                     ),
                   ),
@@ -372,43 +399,76 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _contentCatalog = catalog);
-      unawaited(_openInitialVoiceTarget());
-    } catch (_) {
-      // The topic catalog remains usable while lesson content is unavailable.
-    }
-    try {
-      final progress = await _readProgressSnapshot();
+      final progress = await _readProgressSnapshot(catalog);
       if (!mounted) {
         return;
       }
       setState(() {
+        _contentCatalog = catalog;
         _lessonProgress = progress.lessonProgress;
         _completedV4LessonActivities = progress.completedV4LessonActivities;
+        _startedLessonIds = progress.startedLessonIds;
+        _passedLevelIds = progress.passedLevelIds;
       });
-    } catch (_) {
-      // A fresh device simply starts without local lesson progress.
+      if (widget.initialVoiceTarget != null) {
+        unawaited(_openInitialVoiceTarget());
+      } else {
+        unawaited(_resumeTopicSelectionIfNeeded(catalog));
+      }
+    } catch (error, stackTrace) {
+      debugPrint(
+        'HOMI topic content/progress load failed: $error\n$stackTrace',
+      );
+      // The topic catalog remains usable while lesson content is unavailable.
     }
   }
 
-  Future<_ListeningProgressSnapshot> _readProgressSnapshot() async {
-    final lessonProgress = await widget.progressStore.readAll();
-    final completedV4LessonActivities = await widget.progressStore
+  Future<_ListeningProgressSnapshot> _readProgressSnapshot(
+    ListeningContentCatalog catalog,
+  ) async {
+    // Start the independent persistence reads together. Native path lookup may
+    // be comparatively slow during app resume, and topic navigation should not
+    // wait for the same progress file several times in sequence.
+    final lessonProgressFuture = widget.progressStore.readAll();
+    final completedActivitiesFuture = widget.progressStore
         .readCompletedV4LessonActivities();
+    final startedLessonsFuture = widget.progressStore.readStartedLessonCores();
+    final group = catalog.groups.firstWhere(
+      (candidate) =>
+          candidate.startAge == _catalog.startAge &&
+          candidate.endAge == _catalog.endAge,
+    );
+    final passedLevelFlagsFuture = Future.wait<bool>(
+      group.levels.map(
+        (level) => widget.progressStore.hasPassedLevelMission(level.id),
+      ),
+    );
+    final lessonProgress = await lessonProgressFuture;
+    final completedV4LessonActivities = await completedActivitiesFuture;
+    final startedLessonIds = await startedLessonsFuture;
+    final passedLevelFlags = await passedLevelFlagsFuture;
+    final passedLevelIds = <String>{
+      for (var index = 0; index < group.levels.length; index += 1)
+        if (passedLevelFlags[index]) group.levels[index].id,
+    };
     return _ListeningProgressSnapshot(
       lessonProgress: lessonProgress,
       completedV4LessonActivities: completedV4LessonActivities,
+      startedLessonIds: startedLessonIds,
+      passedLevelIds: passedLevelIds,
     );
   }
 
   Future<_ListeningProgressSnapshot> _reloadProgress() async {
-    final progress = await _readProgressSnapshot();
+    final progress = await _readProgressSnapshot(await _contentFuture);
     if (!mounted) {
       return progress;
     }
     setState(() {
       _lessonProgress = progress.lessonProgress;
       _completedV4LessonActivities = progress.completedV4LessonActivities;
+      _startedLessonIds = progress.startedLessonIds;
+      _passedLevelIds = progress.passedLevelIds;
     });
     return progress;
   }
@@ -449,6 +509,98 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
   }
 
+  bool _topicLocked(int topicIndex) {
+    final catalog = _contentCatalog;
+    if (catalog == null) return false;
+    try {
+      final group = catalog.groups.firstWhere(
+        (candidate) =>
+            candidate.startAge == _catalog.startAge &&
+            candidate.endAge == _catalog.endAge,
+      );
+      final content = group.topics.firstWhere(
+        (candidate) => candidate.number == topicIndex + 1,
+      );
+      final level = group.level(content.levelNumber);
+      return level != null &&
+          !ListeningCurriculumFlow.levelUnlocked(group, level, _passedLevelIds);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _resumeTopicSelectionIfNeeded(
+    ListeningContentCatalog catalog,
+  ) async {
+    if (!mounted || widget.initialVoiceTarget != null) return;
+    final group = catalog.groups.firstWhere(
+      (candidate) =>
+          candidate.startAge == _catalog.startAge &&
+          candidate.endAge == _catalog.endAge,
+    );
+    if (group.levels.isEmpty) return;
+    final courseId = '${_catalog.startAge}-${_catalog.endAge}';
+    final saved = await widget.progressStore.readTopicSelectionCheckpoint(
+      courseId,
+    );
+    final currentLevel = ListeningCurriculumFlow.currentUnlockedLevelNumber(
+      group,
+      _passedLevelIds,
+    );
+    final hasStarted =
+        _lessonProgress.values.any((value) => value > 0) ||
+        _startedLessonIds.isNotEmpty ||
+        _completedV4LessonActivities.isNotEmpty;
+    await _startLevelTopicSelection(
+      group,
+      levelNumber: saved?.levelNumber ?? currentLevel,
+      announceLevel: saved?.announceLevel ?? !hasStarted,
+    );
+  }
+
+  Future<void> _startLevelTopicSelection(
+    ListeningContentAgeGroup group, {
+    required int levelNumber,
+    required bool announceLevel,
+  }) async {
+    final level = group.level(levelNumber);
+    if (level == null) return;
+    await widget.progressStore.saveTopicSelectionCheckpoint(
+      '${_catalog.startAge}-${_catalog.endAge}',
+      levelNumber: level.number,
+      announceLevel: announceLevel,
+    );
+    final callback = widget.onLevelTopicSelectionRequested;
+    final completedTopics = level.topicNumbers
+        .where((number) {
+          final topic = group.topics.firstWhere(
+            (candidate) => candidate.number == number,
+          );
+          return ListeningCurriculumFlow.topicState(
+                topic,
+                _lessonProgress,
+                _completedV4LessonActivities,
+                startedLessonIds: _startedLessonIds,
+              ) ==
+              ListeningTopicLearningState.completed;
+        })
+        .toList(growable: false);
+    if (callback != null) {
+      await callback(
+        childAge: _catalog.startAge,
+        levelNumber: level.number,
+        topicNumbers: level.topicNumbers,
+        completedTopicNumbers: completedTopics,
+        announceLevel: announceLevel,
+      );
+      return;
+    }
+    final lead = announceLevel ? 'Bắt đầu Level ${level.number}. ' : '';
+    await _voicePromptService.speakAndWait(
+      '${lead}Có ${level.topicNumbers.length} Chủ đề. Bạn muốn học Chủ đề số mấy?',
+    );
+  }
+
   Future<void> _openInitialVoiceTarget() async {
     final target = widget.initialVoiceTarget;
     if (_initialVoiceTargetHandled || target == null || !mounted) {
@@ -470,6 +622,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
           ? target.resolvedLessonNumber
           : null,
       requestVoiceLessonSelection: false,
+      forceRelearnTopic: target.relearnTopic,
     );
   }
 
@@ -478,6 +631,7 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     int topicIndex, {
     int? initialLessonNumber,
     bool requestVoiceLessonSelection = true,
+    bool forceRelearnTopic = false,
   }) async {
     try {
       final catalog = await _contentFuture;
@@ -496,68 +650,120 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
             group.startAge == selectedAgeCatalog.startAge &&
             group.endAge == selectedAgeCatalog.endAge,
       );
-      var topicCompletedDuringVisit = false;
-      final route = Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          settings: const RouteSettings(name: ListeningRouteNames.topicLessons),
-          builder: (_) => TopicLessonListScreen(
-            language: widget.language,
-            startAge: selectedAgeCatalog.startAge,
-            endAge: selectedAgeCatalog.endAge,
-            topic: topic,
-            content: content,
-            contentGroup: contentGroup,
-            levelContent: contentGroup.level(content.levelNumber),
-            controller: widget.controller,
-            onMainPressed: widget.onMainPressed,
-            onVocabularyRequested: widget.onVocabularyRequested,
-            onVoiceNavigationPause: widget.onVoiceNavigationPause,
-            onVoiceNavigationResume: widget.onVoiceNavigationResume,
-            progressStore: widget.progressStore,
-            initialLessonNumber: initialLessonNumber,
-            onTopicCompleted: () => topicCompletedDuringVisit = true,
-          ),
-        ),
-      );
-      final lessonPrompt = widget.onLessonSelectionRequested;
-      if (requestVoiceLessonSelection &&
-          initialLessonNumber == null &&
-          lessonPrompt != null) {
-        await Future<void>.delayed(Duration.zero);
-        try {
-          await lessonPrompt(
-            childAge: selectedAgeCatalog.startAge,
-            topicNumber: topicIndex + 1,
-            topicContent: content,
-            completedLessonNumbers: _completedLessonNumbers(content),
-          );
-        } catch (error, stackTrace) {
-          debugPrint('Could not start the lesson selection prompt: $error');
-          debugPrintStack(stackTrace: stackTrace);
-        }
-      }
-      await route;
-      final progressAfter = await _reloadProgress();
-      if (topicCompletedDuringVisit) {
-        final completedTopicNumbers = _completedTopicNumbers(
-          catalog,
-          selectedAgeCatalog,
-          progressAfter,
+      final level = contentGroup.level(content.levelNumber);
+      if (level != null &&
+          !ListeningCurriculumFlow.levelUnlocked(
+            contentGroup,
+            level,
+            _passedLevelIds,
+          )) {
+        final current = ListeningCurriculumFlow.currentUnlockedLevelNumber(
+          contentGroup,
+          _passedLevelIds,
         );
-        final prompt = widget.onTopicSelectionAfterCompletion;
-        if (prompt != null) {
-          try {
-            await prompt(
-              childAge: selectedAgeCatalog.startAge,
-              completedTopicNumbers: completedTopicNumbers,
+        final message = 'Bạn cần hoàn thành Level $current trước nhé.';
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
+        await _voicePromptService.speakAndWait(message);
+        return;
+      }
+      final progressBefore = _ListeningProgressSnapshot(
+        lessonProgress: _lessonProgress,
+        completedV4LessonActivities: _completedV4LessonActivities,
+        startedLessonIds: _startedLessonIds,
+        passedLevelIds: _passedLevelIds,
+      );
+      final state = ListeningCurriculumFlow.topicState(
+        content,
+        progressBefore.lessonProgress,
+        progressBefore.completedV4LessonActivities,
+        startedLessonIds: progressBefore.startedLessonIds,
+      );
+      var lessonNumber = initialLessonNumber;
+      if (forceRelearnTopic) {
+        await widget.progressStore.resetLessonsForRelearn(
+          content.lessons.map((lesson) => lesson.id),
+        );
+        lessonNumber = content.lessons.first.number;
+      } else if (lessonNumber == null) {
+        if (state == ListeningTopicLearningState.completed) {
+          final relearn = await _askCompletedTopicAction(content.number);
+          if (relearn == null) return;
+          if (!relearn) {
+            await _startLevelTopicSelection(
+              contentGroup,
+              levelNumber: content.levelNumber,
+              announceLevel: false,
             );
-          } catch (error, stackTrace) {
-            debugPrint(
-              'Could not start the post-completion topic prompt: $error',
+            return;
+          }
+          await widget.progressStore.resetLessonsForRelearn(
+            content.lessons.map((lesson) => lesson.id),
+          );
+          lessonNumber = content.lessons.first.number;
+        } else {
+          final firstIncomplete = ListeningCurriculumFlow.firstIncompleteLesson(
+            content,
+            progressBefore.lessonProgress,
+            progressBefore.completedV4LessonActivities,
+          );
+          lessonNumber =
+              firstIncomplete?.number ?? content.lessons.first.number;
+          if (state == ListeningTopicLearningState.inProgress) {
+            await _voicePromptService.speakAndWait(
+              'Mình học tiếp Chủ đề ${content.number} nhé.',
             );
-            debugPrintStack(stackTrace: stackTrace);
           }
         }
+      }
+      await widget.progressStore.clearTopicSelectionCheckpoint(
+        '${_catalog.startAge}-${_catalog.endAge}',
+      );
+      if (!mounted) return;
+      var topicCompletedDuringVisit = false;
+      final route = pushForActiveLearning<void>(
+        context,
+        (_) => TopicLessonListScreen(
+          language: widget.language,
+          startAge: selectedAgeCatalog.startAge,
+          endAge: selectedAgeCatalog.endAge,
+          topic: topic,
+          content: content,
+          contentGroup: contentGroup,
+          levelContent: level,
+          controller: widget.controller,
+          onMainPressed: widget.onMainPressed,
+          onVocabularyRequested: widget.onVocabularyRequested,
+          onVoiceNavigationPause: widget.onVoiceNavigationPause,
+          onVoiceNavigationResume: widget.onVoiceNavigationResume,
+          progressStore: widget.progressStore,
+          voicePromptService: _voicePromptService,
+          initialLessonNumber: lessonNumber,
+          onTopicCompleted: () => topicCompletedDuringVisit = true,
+        ),
+        settings: const RouteSettings(name: ListeningRouteNames.topicLessons),
+      );
+      await route;
+      await _reloadProgress();
+      final checkpoint = await widget.progressStore
+          .readTopicSelectionCheckpoint(
+            '${selectedAgeCatalog.startAge}-${selectedAgeCatalog.endAge}',
+          );
+      if (checkpoint != null && mounted) {
+        await _startLevelTopicSelection(
+          contentGroup,
+          levelNumber: checkpoint.levelNumber,
+          announceLevel: checkpoint.announceLevel,
+        );
+      } else if (topicCompletedDuringVisit && level != null && mounted) {
+        await _startLevelTopicSelection(
+          contentGroup,
+          levelNumber: level.number,
+          announceLevel: false,
+        );
       }
     } catch (_) {
       if (!mounted) {
@@ -576,16 +782,40 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     }
   }
 
-  bool _isTopicCompleted(
-    ListeningTopicContent content,
-    Map<String, int> progress,
-    Set<String> completedV4LessonActivities,
-  ) {
-    return content.lessons.isNotEmpty &&
-        content.lessons.every(
-          (lesson) =>
-              _isLessonCompleted(lesson, progress, completedV4LessonActivities),
-        );
+  Future<bool?> _askCompletedTopicAction(int topicNumber) async {
+    final message =
+        'Chủ đề $topicNumber bạn đã học xong rồi. Bạn muốn học chủ đề khác hay học lại?';
+    await _voicePromptService.speakAndWait(message);
+    if (!mounted) return null;
+    return showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: () => Navigator.of(sheetContext).pop(false),
+                child: const Text('Chủ đề khác'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: () => Navigator.of(sheetContext).pop(true),
+                child: const Text('Học lại'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   bool _isLessonCompleted(
@@ -597,56 +827,20 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     return completedCore &&
         (!lesson.usesV4Flow || completedV4LessonActivities.contains(lesson.id));
   }
-
-  List<int> _completedLessonNumbers(ListeningTopicContent content) {
-    return content.lessons
-        .where(
-          (lesson) => _isLessonCompleted(
-            lesson,
-            _lessonProgress,
-            _completedV4LessonActivities,
-          ),
-        )
-        .map((lesson) => lesson.number)
-        .toList(growable: false);
-  }
-
-  List<int> _completedTopicNumbers(
-    ListeningContentCatalog catalog,
-    ListeningAgeCatalog ageCatalog,
-    _ListeningProgressSnapshot progress,
-  ) {
-    final completed = <int>[];
-    for (var index = 0; index < ageCatalog.topics.length; index += 1) {
-      try {
-        final content = catalog.topic(
-          startAge: ageCatalog.startAge,
-          endAge: ageCatalog.endAge,
-          topicNumber: index + 1,
-        );
-        if (_isTopicCompleted(
-          content,
-          progress.lessonProgress,
-          progress.completedV4LessonActivities,
-        )) {
-          completed.add(index + 1);
-        }
-      } catch (_) {
-        // Topics without loadable lesson content cannot be marked completed.
-      }
-    }
-    return completed;
-  }
 }
 
 class _ListeningProgressSnapshot {
   const _ListeningProgressSnapshot({
     required this.lessonProgress,
     required this.completedV4LessonActivities,
+    required this.startedLessonIds,
+    required this.passedLevelIds,
   });
 
   final Map<String, int> lessonProgress;
   final Set<String> completedV4LessonActivities;
+  final Set<String> startedLessonIds;
+  final Set<String> passedLevelIds;
 }
 
 class _CenteredSection extends StatelessWidget {
@@ -892,6 +1086,7 @@ class _LessonGroupPickerSheetState extends State<_LessonGroupPickerSheet> {
 }
 
 typedef _TopicProgressResolver = _TopicProgress Function(int index);
+typedef _TopicLockedResolver = bool Function(int index);
 typedef _TopicPressed = Future<void> Function(ListeningTopic topic, int index);
 
 class _TopicJourney extends StatelessWidget {
@@ -899,12 +1094,14 @@ class _TopicJourney extends StatelessWidget {
     required this.catalogId,
     required this.topics,
     required this.progressFor,
+    required this.lockedFor,
     required this.onTopicPressed,
   });
 
   final String catalogId;
   final List<ListeningTopic> topics;
   final _TopicProgressResolver progressFor;
+  final _TopicLockedResolver lockedFor;
   final _TopicPressed onTopicPressed;
 
   @override
@@ -938,6 +1135,7 @@ class _TopicJourney extends StatelessWidget {
                 children: List<Widget>.generate(topics.length, (index) {
                   final topic = topics[index];
                   final progress = progressFor(index);
+                  final locked = lockedFor(index);
                   return SizedBox(
                     height: rowHeight,
                     child: _JourneyTopicStop(
@@ -945,6 +1143,7 @@ class _TopicJourney extends StatelessWidget {
                       actionKey: ValueKey('topic-action-$catalogId-$index'),
                       topic: topic,
                       progress: progress,
+                      locked: locked,
                       imageSize: imageSize,
                       sideWidth: sideWidth,
                       checkpointWidth: checkpointWidth,
@@ -968,6 +1167,7 @@ class _JourneyTopicStop extends StatelessWidget {
     required this.actionKey,
     required this.topic,
     required this.progress,
+    required this.locked,
     required this.imageSize,
     required this.sideWidth,
     required this.checkpointWidth,
@@ -979,6 +1179,7 @@ class _JourneyTopicStop extends StatelessWidget {
   final Key actionKey;
   final ListeningTopic topic;
   final _TopicProgress progress;
+  final bool locked;
   final double imageSize;
   final double sideWidth;
   final double checkpointWidth;
@@ -992,7 +1193,21 @@ class _JourneyTopicStop extends StatelessWidget {
       width: sideWidth,
       child: Align(
         alignment: imageOnLeft ? Alignment.centerRight : Alignment.centerLeft,
-        child: _TopicCircleImage(key: topicKey, topic: topic, size: imageSize),
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            Opacity(
+              opacity: locked ? 0.48 : 1,
+              child: _TopicCircleImage(
+                key: topicKey,
+                topic: topic,
+                size: imageSize,
+              ),
+            ),
+            if (locked)
+              const Icon(Icons.lock_rounded, color: Colors.white, size: 34),
+          ],
+        ),
       ),
     );
     final checkpoint = SizedBox(
@@ -1011,7 +1226,8 @@ class _JourneyTopicStop extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: '$title, ${progress.completed}/${progress.total}',
+      label:
+          '$title, ${progress.completed}/${progress.total}${locked ? ', chưa mở khóa' : ''}',
       child: Material(
         color: Colors.transparent,
         child: InkWell(

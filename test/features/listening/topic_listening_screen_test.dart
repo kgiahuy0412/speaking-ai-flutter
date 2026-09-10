@@ -1,9 +1,11 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
+import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/data/listening_progress_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_catalog.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_lesson_list_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
+import 'package:ai_speaking_flutter_app/features/listening/presentation/listening_route_names.dart';
 import 'package:ai_speaking_flutter_app/l10n/display_language.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,7 +22,7 @@ void main() {
     Future<void> Function()? onVoiceNavigationPause,
     VoidCallback? onVoiceNavigationResume,
     Future<ListeningContentCatalog>? contentFuture,
-    ListeningProgressStore progressStore = const ListeningProgressStore(),
+    ListeningProgressStore? progressStore,
     TopicSelectionAfterCompletionPrompt? onTopicSelectionAfterCompletion,
     TopicLessonSelectionPrompt? onLessonSelectionRequested,
     ValueChanged<int>? onChildAgeChanged,
@@ -43,13 +45,14 @@ void main() {
           onVoiceNavigationPause: onVoiceNavigationPause,
           onVoiceNavigationResume: onVoiceNavigationResume,
           contentFuture: contentFuture,
-          progressStore: progressStore,
+          progressStore: progressStore ?? _MemoryProgressStore(),
           onTopicSelectionAfterCompletion: onTopicSelectionAfterCompletion,
           onLessonSelectionRequested: onLessonSelectionRequested,
           onChildAgeChanged: onChildAgeChanged,
           onRequestParentAccess: onRequestParentAccess,
           onMainPressed: onMainPressed,
           onVocabularyRequested: onVocabularyRequested,
+          voicePromptService: _ImmediateVoicePromptService(),
         ),
       ),
     );
@@ -201,7 +204,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final topic = find.byKey(const ValueKey('topic-3-5-0'));
+      final topic = find.byKey(const ValueKey('topic-action-3-5-0'));
       await tester.scrollUntilVisible(
         topic,
         180,
@@ -213,36 +216,19 @@ void main() {
             .first,
       );
       await tester.tap(topic);
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-      expect(find.text('Bảng chữ cái'), findsWidgets);
-      expect(find.text('3 bài nhỏ'), findsOneWidget);
-      expect(find.text('26 câu'), findsOneWidget);
-      expect(voiceNavigationPauseCount, 0);
-      expect(lessonPrompts, hasLength(1));
-      expect(lessonPrompts.single.childAge, 3);
-      expect(lessonPrompts.single.topicNumber, 1);
-      expect(lessonPrompts.single.completedLessonNumbers, isEmpty);
-
-      await tester.tap(
-        find.byKey(const ValueKey('start-lesson-c35-l1-t01-b01')),
-      );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byKey(const Key('lesson-intro-screen')), findsOneWidget);
-      expect(find.byKey(const Key('skip-lesson-intro')), findsOneWidget);
+      expect(
+        find.byType(TopicLessonListScreen, skipOffstage: false),
+        findsOneWidget,
+      );
       expect(voiceNavigationPauseCount, 1);
       expect(voiceNavigationResumeCount, 0);
+      expect(lessonPrompts, isEmpty);
 
-      await tester.tap(find.byKey(const Key('skip-lesson-intro')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(find.byKey(const Key('lesson-overview-screen')), findsOneWidget);
-      expect(find.text('Nghe tổng quan'), findsOneWidget);
-      expect(find.text('A to I Letters'), findsOneWidget);
+      expect(find.byKey(const Key('lesson-overview-screen')), findsNothing);
+      expect(find.text('Nghe tổng quan'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -252,7 +238,6 @@ void main() {
   ) async {
     final content = await AssetListeningContentRepository().load();
     final progressStore = _MemoryProgressStore();
-    final requests = <({int childAge, List<int> completedTopicNumbers})>[];
     final topic = content.topic(startAge: 6, endAge: 7, topicNumber: 1);
     for (final lesson in topic.lessons) {
       await progressStore.saveLesson(lesson.id, lesson.sentences.length);
@@ -265,35 +250,28 @@ void main() {
         childAge: 6,
         contentFuture: Future<ListeningContentCatalog>.value(content),
         progressStore: progressStore,
-        onTopicSelectionAfterCompletion:
-            ({required childAge, required completedTopicNumbers}) async {
-              requests.add((
-                childAge: childAge,
-                completedTopicNumbers: completedTopicNumbers,
-              ));
-            },
       ),
     );
     await tester.pumpAndSettle();
 
-    final firstTopic = find.byKey(const ValueKey('topic-6-7-0'));
+    final firstTopic = find.byKey(const ValueKey('topic-action-6-7-0'));
     await tester.ensureVisible(firstTopic);
     await tester.tap(firstTopic);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
-
-    tester
-        .widget<TopicLessonListScreen>(find.byType(TopicLessonListScreen))
-        .onTopicCompleted
-        ?.call();
-    Navigator.of(
-      tester.element(find.byKey(const Key('topic-lesson-list-screen'))),
-    ).pop();
-    await tester.pumpAndSettle();
-
-    expect(requests, hasLength(1));
-    expect(requests.single.childAge, 6);
-    expect(requests.single.completedTopicNumbers, <int>[1]);
+    expect(
+      find.text(
+        'Chủ đề 1 bạn đã học xong rồi. Bạn muốn học chủ đề khác hay học lại?',
+      ),
+      findsWidgets,
+    );
+    await tester.tap(find.text('Học lại').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      find.byType(TopicLessonListScreen, skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(await progressStore.readLesson(topic.lessons.first.id), 0);
   });
 
   testWidgets(
@@ -301,7 +279,6 @@ void main() {
     (tester) async {
       final content = await AssetListeningContentRepository().load();
       final progressStore = _MemoryProgressStore();
-      final requests = <({int childAge, List<int> completedTopicNumbers})>[];
       final topic = content.topic(startAge: 6, endAge: 7, topicNumber: 1);
       for (final lesson in topic.lessons) {
         await progressStore.saveLesson(lesson.id, lesson.sentences.length);
@@ -313,36 +290,26 @@ void main() {
           childAge: 6,
           contentFuture: Future<ListeningContentCatalog>.value(content),
           progressStore: progressStore,
-          onTopicSelectionAfterCompletion:
-              ({required childAge, required completedTopicNumbers}) async {
-                requests.add((
-                  childAge: childAge,
-                  completedTopicNumbers: completedTopicNumbers,
-                ));
-              },
         ),
       );
       await tester.pumpAndSettle();
 
-      final firstTopic = find.byKey(const ValueKey('topic-6-7-0'));
+      final firstTopic = find.byKey(const ValueKey('topic-action-6-7-0'));
       await tester.ensureVisible(firstTopic);
       await tester.tap(firstTopic);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Hoàn thành thử thách'), findsWidgets);
-
-      tester
-          .widget<TopicLessonListScreen>(find.byType(TopicLessonListScreen))
-          .onTopicCompleted
-          ?.call();
-      Navigator.of(
-        tester.element(find.byKey(const Key('topic-lesson-list-screen'))),
-      ).pop();
-      await tester.pumpAndSettle();
-
-      expect(requests, hasLength(1));
-      expect(requests.single.childAge, 6);
-      expect(requests.single.completedTopicNumbers, isEmpty);
+      expect(
+        find.byType(TopicLessonListScreen, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        await progressStore.hasCompletedV4LessonActivity(
+          topic.lessons.first.id,
+        ),
+        isFalse,
+      );
     },
   );
 
@@ -354,7 +321,9 @@ void main() {
       await tester.pumpWidget(buildSubject(childAge: 3));
       await tester.pumpAndSettle();
 
-      final topicWithSongMilestone = find.byKey(const ValueKey('topic-3-5-1'));
+      final topicWithSongMilestone = find.byKey(
+        const ValueKey('topic-action-3-5-1'),
+      );
       await tester.scrollUntilVisible(
         topicWithSongMilestone,
         180,
@@ -366,8 +335,18 @@ void main() {
             .first,
       );
       await tester.tap(topicWithSongMilestone);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
+      final lessonList = find.byType(
+        TopicLessonListScreen,
+        skipOffstage: false,
+      );
+      expect(lessonList, findsOneWidget);
+      Navigator.of(tester.element(lessonList)).popUntil(
+        (route) => route.settings.name == ListeningRouteNames.topicLessons,
+      );
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('topic-lesson-list-screen')), findsOneWidget);
       expect(find.text('Bài hát & chant'), findsNothing);
       expect(find.byKey(const ValueKey('song-c35-l1-t02-b02')), findsNothing);
@@ -420,7 +399,7 @@ void main() {
       expect(alphabet.lessons.first.sentences.first.english, 'A. Apple.');
       expect(
         alphabet.lessons.first.sentences.first.requiresAllExpectedTokens,
-        isTrue,
+        isFalse,
       );
 
       final classroomTalk = lessons.singleWhere(
@@ -436,10 +415,7 @@ void main() {
       final advanced = content.topic(startAge: 13, endAge: 15, topicNumber: 3);
       expect(advanced.titleVi, 'Nêu ý kiến');
       expect(advanced.levelNumber, 1);
-      expect(
-        advanced.lessons.first.overviewMode,
-        ListeningOverviewMode.englishOnly,
-      );
+      expect(advanced.lessons.first.usesGuidedPractice, isTrue);
     },
   );
 
@@ -451,7 +427,7 @@ void main() {
       await tester.pumpWidget(buildSubject(childAge: 3, textScale: 1.3));
       await tester.pumpAndSettle();
 
-      final compactTopic = find.byKey(const ValueKey('topic-3-5-0'));
+      final compactTopic = find.byKey(const ValueKey('topic-action-3-5-0'));
       await tester.scrollUntilVisible(
         compactTopic,
         180,
@@ -469,24 +445,13 @@ void main() {
       );
       await tester.pump();
       await tester.tap(compactTopic);
-      await tester.pumpAndSettle();
-
-      final startLesson = find.byKey(
-        const ValueKey('start-lesson-c35-l1-t01-b01'),
-      );
-      await tester.scrollUntilVisible(startLesson, 180);
-      await Scrollable.ensureVisible(
-        tester.element(startLesson),
-        alignment: 0.45,
-        duration: Duration.zero,
-      );
       await tester.pump();
-      await tester.tap(startLesson);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byKey(const Key('lesson-intro-screen')), findsOneWidget);
-      expect(find.byKey(const Key('skip-lesson-intro')), findsOneWidget);
+      expect(
+        find.byType(TopicLessonListScreen, skipOffstage: false),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );
@@ -529,6 +494,7 @@ void main() {
 
 class _MemoryProgressStore extends ListeningProgressStore {
   bool coreStarted = false;
+  ListeningTopicSelectionCheckpoint? checkpoint;
 
   @override
   Future<bool> hasStartedLessonCore(String lessonId) async => coreStarted;
@@ -537,6 +503,10 @@ class _MemoryProgressStore extends ListeningProgressStore {
   Future<void> markLessonCoreStarted(String lessonId) async {
     coreStarted = true;
   }
+
+  @override
+  Future<Set<String>> readStartedLessonCores() async =>
+      coreStarted ? <String>{..._progress.keys} : <String>{};
 
   final Map<String, int> _progress = <String, int>{};
   final Set<String> _completedV4LessonActivities = <String>{};
@@ -547,6 +517,10 @@ class _MemoryProgressStore extends ListeningProgressStore {
   @override
   Future<Set<String>> readCompletedV4LessonActivities() async =>
       Set<String>.of(_completedV4LessonActivities);
+
+  @override
+  Future<bool> hasCompletedV4LessonActivity(String lessonId) async =>
+      _completedV4LessonActivities.contains(lessonId);
 
   @override
   Future<void> markV4LessonActivityCompleted(String lessonId) async {
@@ -560,4 +534,54 @@ class _MemoryProgressStore extends ListeningProgressStore {
       _progress[lessonId] = completedSentences;
     }
   }
+
+  @override
+  Future<int> readLesson(String lessonId) async => _progress[lessonId] ?? 0;
+
+  @override
+  Future<bool> hasPassedLevelMission(String levelId) async => false;
+
+  @override
+  Future<void> resetLessonsForRelearn(Iterable<String> lessonIds) async {
+    for (final lessonId in lessonIds) {
+      _progress.remove(lessonId);
+      _completedV4LessonActivities.remove(lessonId);
+    }
+  }
+
+  @override
+  Future<void> saveTopicSelectionCheckpoint(
+    String courseId, {
+    required int levelNumber,
+    required bool announceLevel,
+  }) async {
+    checkpoint = ListeningTopicSelectionCheckpoint(
+      levelNumber: levelNumber,
+      announceLevel: announceLevel,
+    );
+  }
+
+  @override
+  Future<ListeningTopicSelectionCheckpoint?> readTopicSelectionCheckpoint(
+    String courseId,
+  ) async => checkpoint;
+
+  @override
+  Future<void> clearTopicSelectionCheckpoint(String courseId) async {
+    checkpoint = null;
+  }
+}
+
+class _ImmediateVoicePromptService implements VoicePromptService {
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+
+  @override
+  Future<void> stop() async {}
 }

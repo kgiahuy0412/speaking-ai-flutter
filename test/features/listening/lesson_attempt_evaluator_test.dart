@@ -492,16 +492,19 @@ void main() {
       },
     );
 
-    test('maps silence, no match, and timeout to unclear', () async {
+    test('separates silence and timeout from unclear ASR', () async {
       final empty = BackendFirstLessonAttemptEvaluator(
         backendEvaluator: _offlineBackend(),
         recognizer: _FakeLessonRecordedSpeechRecognizer(
           const LessonRecordedSpeechRecognition(transcript: ''),
         ),
       );
-      expect(await _evaluateBackendFirst(empty), LessonAttemptOutcome.unclear);
+      expect(
+        await _evaluateBackendFirst(empty),
+        LessonAttemptOutcome.noResponse,
+      );
 
-      for (final code in <String>['SPEECH_NO_MATCH', 'SPEECH_TIMEOUT']) {
+      for (final code in <String>['SPEECH_NO_MATCH']) {
         final evaluator = BackendFirstLessonAttemptEvaluator(
           backendEvaluator: _offlineBackend(),
           recognizer: _FakeLessonRecordedSpeechRecognizer.error(code),
@@ -511,6 +514,14 @@ void main() {
           LessonAttemptOutcome.unclear,
         );
       }
+      final timeout = BackendFirstLessonAttemptEvaluator(
+        backendEvaluator: _offlineBackend(),
+        recognizer: _FakeLessonRecordedSpeechRecognizer.error('SPEECH_TIMEOUT'),
+      );
+      expect(
+        await _evaluateBackendFirst(timeout),
+        LessonAttemptOutcome.noResponse,
+      );
     });
 
     test(

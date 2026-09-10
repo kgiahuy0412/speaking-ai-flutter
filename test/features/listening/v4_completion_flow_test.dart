@@ -9,7 +9,11 @@ void main() {
     );
     expect(
       v4CompletionPrompt(V4CompletionStage.topicEnd),
-      'Bạn muốn học chủ đề tiếp theo hay học lại?',
+      'Bạn muốn học chủ đề khác hay học lại?',
+    );
+    expect(
+      v4CompletionPrompt(V4CompletionStage.topicEndOneRemaining),
+      'Bạn còn một Chủ đề chưa học. Bạn muốn học tiếp hay học lại?',
     );
     expect(
       v4CompletionPrompt(V4CompletionStage.topicRelearnScope),

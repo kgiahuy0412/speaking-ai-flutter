@@ -152,6 +152,28 @@ void main() {
     expect(voicePrompt.regularOutputTexts, isEmpty);
   });
 
+  test('Android MAIN prompts use the selected H20 HFP output', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _SelectedMediaVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+    );
+    addTearDown(() async {
+      controller.dispose();
+      await speechInput.dispose();
+    });
+
+    expect(await controller.activateFromMainButton(), isTrue);
+
+    expect(voicePrompt.mediaOutputTexts, <String>[
+      MainVoiceAssistantFlow.openingPrompt,
+    ]);
+    expect(voicePrompt.regularOutputTexts, isEmpty);
+  });
+
   test(
     'Main opens the microphone when the native ready cue never completes',
     () async {
@@ -535,13 +557,9 @@ void main() {
     );
     expect(
       voicePrompt.spokenTexts.last,
-      'Con muốn luyện lại hay nghe những ngôi sao của con?',
+      MainVoiceAssistantFlow.otherLearningPrompt,
     );
     expect(receivedIntent?.destination, VoiceNavigationDestination.vocabulary);
-    expect(controller.isMainButtonSessionActive, isTrue);
-
-    expect(await controller.dispatchRecognizedText('Luyện lại'), isTrue);
-    expect(voicePrompt.spokenTexts, contains('Phần luyện lại chưa có từ nào.'));
     expect(controller.isMainButtonSessionActive, isFalse);
 
     controller.dispose();
@@ -571,48 +589,43 @@ void main() {
     await speechInput.dispose();
   });
 
-  test(
-    'Main reads parent vocabulary in the correct language sequence',
-    () async {
-      final speechInput = _FakeNavigationSpeechInput();
-      final voicePrompt = _FakeVoicePromptService();
-      final introducedIds = <String>[];
-      final controller = VoiceNavigationController(
-        speechInput: speechInput,
-        voicePromptService: voicePrompt,
-        mainAssistantFlow: MainVoiceAssistantFlow(
-          vocabularyLoader: () async => <VocabularyEntry>[
-            VocabularyEntry(
-              id: 'parent-cat',
-              word: 'Cat',
-              meaning: 'Con mèo',
-              addedAt: DateTime(2026, 8, 18),
-            ),
-          ],
-          vocabularyIntroducedMarker: (ids) async => introducedIds.addAll(ids),
-        ),
-      );
-      VoiceNavigationIntent? receivedIntent;
-      controller.setIntentHandler((intent) => receivedIntent = intent);
+  test('Main opens today practice when parent vocabulary is pending', () async {
+    final speechInput = _FakeNavigationSpeechInput();
+    final voicePrompt = _FakeVoicePromptService();
+    final introducedIds = <String>[];
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      mainAssistantFlow: MainVoiceAssistantFlow(
+        vocabularyLoader: () async => <VocabularyEntry>[
+          VocabularyEntry(
+            id: 'parent-cat',
+            word: 'Cat',
+            meaning: 'Con mèo',
+            addedAt: DateTime(2026, 8, 18),
+          ),
+        ],
+        vocabularyIntroducedMarker: (ids) async => introducedIds.addAll(ids),
+      ),
+    );
+    VoiceNavigationIntent? receivedIntent;
+    controller.setIntentHandler((intent) => receivedIntent = intent);
 
-      expect(await controller.activateFromMainButton(), isTrue);
-      expect(await controller.dispatchRecognizedText('Học từ mới'), isTrue);
+    expect(await controller.activateFromMainButton(), isTrue);
+    expect(await controller.dispatchRecognizedText('Học từ mới'), isTrue);
 
-      expect(
-        receivedIntent?.destination,
-        VoiceNavigationDestination.vocabulary,
-      );
-      final englishIndex = voicePrompt.spokenTexts.indexOf('Cat');
-      expect(englishIndex, greaterThanOrEqualTo(0));
-      expect(voicePrompt.spokenLocales[englishIndex], 'en-US');
-      expect(voicePrompt.spokenTexts, contains('Con mèo'));
-      expect(introducedIds, <String>['parent-cat']);
-      expect(controller.isMainButtonSessionActive, isFalse);
+    expect(receivedIntent?.destination, VoiceNavigationDestination.vocabulary);
+    expect(
+      voicePrompt.spokenTexts,
+      isNot(contains('Đã có nội dung mới cho bạn. Bắt đầu học thôi!')),
+    );
+    expect(voicePrompt.spokenTexts, isNot(contains('Cat')));
+    expect(introducedIds, isEmpty);
+    expect(controller.isMainButtonSessionActive, isFalse);
 
-      controller.dispose();
-      await speechInput.dispose();
-    },
-  );
+    controller.dispose();
+    await speechInput.dispose();
+  });
 
   test(
     'active lesson Main next answer advances through the module bridge',
@@ -842,6 +855,38 @@ void main() {
       await speechInput.dispose();
     },
   );
+
+  test('vocabulary star branch uses its exact silence prompts', () async {
+    final speechInput = _FakeNavigationSpeechInput(stopText: '');
+    final voicePrompt = _FakeMainTurnVoicePromptService();
+    final controller = VoiceNavigationController(
+      speechInput: speechInput,
+      voicePromptService: voicePrompt,
+      commandWindowDuration: const Duration(milliseconds: 8),
+      restartDelay: const Duration(milliseconds: 1),
+    );
+
+    expect(
+      await controller.activateFromMainButton(
+        activeLearning: true,
+        activeLearningKind: ActiveLearningModuleKind.vocabulary,
+        promptAlreadySpoken: true,
+        noSpeechRetryPrompt:
+            'Bạn chọn Ngôi sao mới nhất hoặc nghe lại tất cả nhé.',
+        noSpeechExitPrompt: 'Mình dừng ở đây nhé.',
+      ),
+      isTrue,
+    );
+    await _waitUntil(() => voicePrompt.spokenTexts.length >= 2);
+
+    expect(voicePrompt.spokenTexts, <String>[
+      'Bạn chọn Ngôi sao mới nhất hoặc nghe lại tất cả nhé.',
+      'Mình dừng ở đây nhé.',
+    ]);
+
+    controller.dispose();
+    await speechInput.dispose();
+  });
 
   test(
     'pauses navigation recognizer before conversation can reuse it',

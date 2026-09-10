@@ -30,10 +30,18 @@ class ActiveLearningCommandResolver {
         ActiveLearningCommand.nextLesson,
       ControlledSpeechIntent.coursePreviousLesson =>
         ActiveLearningCommand.previousLesson,
+      ControlledSpeechIntent.vocabularyParentAdded =>
+        ActiveLearningCommand.vocabularyParentAdded,
       ControlledSpeechIntent.vocabularyPracticeAgain =>
         ActiveLearningCommand.vocabularyPracticeAgain,
       ControlledSpeechIntent.vocabularyStars =>
         ActiveLearningCommand.vocabularyStars,
+      ControlledSpeechIntent.vocabularyLatest =>
+        ActiveLearningCommand.vocabularyLatest,
+      ControlledSpeechIntent.vocabularyAll =>
+        ActiveLearningCommand.vocabularyAll,
+      ControlledSpeechIntent.vocabularyOtherContent =>
+        ActiveLearningCommand.exitToHome,
       _ => null,
     };
     if (controlledCommand != null) {

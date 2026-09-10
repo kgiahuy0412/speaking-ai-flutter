@@ -16,8 +16,11 @@ enum ActiveLearningCommand {
   nextLesson,
   previousLesson,
   restart,
+  vocabularyParentAdded,
   vocabularyPracticeAgain,
   vocabularyStars,
+  vocabularyLatest,
+  vocabularyAll,
   stop,
   exitToHome,
 }

@@ -35,6 +35,8 @@ class LessonChallengeScreen extends StatefulWidget {
     this.iosSpeechInput,
     this.onStarEarned,
     this.onStarEarnedWithResult,
+    this.onStarEarnedWithAudioResult,
+    this.onNeedsPractice,
     this.onRolePlayCompleted,
     this.showRolePlayOpeningHint = true,
     this.startAfterRolePlay = false,
@@ -57,6 +59,19 @@ class LessonChallengeScreen extends StatefulWidget {
   onStarEarned;
   final Future<bool> Function(String starId, String english, String vietnamese)?
   onStarEarnedWithResult;
+  final Future<bool> Function(
+    String starId,
+    String english,
+    String vietnamese,
+    String? correctAudioPath,
+  )?
+  onStarEarnedWithAudioResult;
+  final Future<void> Function(
+    String targetId,
+    String english,
+    String vietnamese,
+  )?
+  onNeedsPractice;
   final Future<void> Function()? onRolePlayCompleted;
   final bool showRolePlayOpeningHint;
   final bool startAfterRolePlay;
@@ -90,6 +105,8 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   Completer<void>? _promptCompletionWaiter;
   bool _pausedForMainAssistant = false;
   int _newRolePlayStars = 0;
+  String? _activeAttemptAudioPath;
+  String? _latestCorrectAudioPath;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -259,8 +276,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       case ActiveLearningCommand.nextLesson:
       case ActiveLearningCommand.previousLesson:
       case ActiveLearningCommand.restart:
+      case ActiveLearningCommand.vocabularyParentAdded:
       case ActiveLearningCommand.vocabularyPracticeAgain:
       case ActiveLearningCommand.vocabularyStars:
+      case ActiveLearningCommand.vocabularyLatest:
+      case ActiveLearningCommand.vocabularyAll:
         return const ActiveLearningCommandResult.unavailable(
           spokenReply:
               'Các nút câu trước, câu sau và nghe lại chỉ dùng trong phần luyện câu.',
@@ -425,6 +445,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       _busy = true;
       _message = null;
     });
+    _latestCorrectAudioPath = null;
     try {
       await _prompt.stop();
       var usesIosSpeech = false;
@@ -433,7 +454,19 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
           : null;
       if (iosSpeechInput != null) {
         try {
-          await iosSpeechInput.startLessonEnglishRecognition();
+          if (iosSpeechInput is IOSStreamingSpeechInput) {
+            _activeAttemptAudioPath = await widget.mediaService.recordingPath(
+              lessonId: '${widget.lesson.id}-challenge',
+              sentenceNumber: _recordingNumber,
+              extension: 'wav',
+            );
+            await iosSpeechInput.startLessonEnglishRecognitionWithRecording(
+              _activeAttemptAudioPath!,
+            );
+          } else {
+            _activeAttemptAudioPath = null;
+            await iosSpeechInput.startLessonEnglishRecognition();
+          }
           usesIosSpeech = true;
           // startLessonEnglishRecognition now owns the same native HFP lease
           // that kept the question on H20. Future prompts must reacquire it.
@@ -450,6 +483,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
         }
       }
       if (!usesIosSpeech) {
+        _activeAttemptAudioPath = null;
         await widget.mediaService.startRecording(
           lessonId: widget.lesson.id,
           sentenceNumber: _recordingNumber,
@@ -522,9 +556,13 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
           acceptedVariants: _acceptedRecognitionVariants,
           requireAllExpectedTokens: false,
         );
+        if (outcome == LessonAttemptOutcome.good) {
+          _latestCorrectAudioPath = recording.filePath;
+        }
       }
       if (!mounted || _pausedForMainAssistant || request != _request) return;
-      if (outcome != LessonAttemptOutcome.unclear) {
+      if (outcome != LessonAttemptOutcome.unclear &&
+          outcome != LessonAttemptOutcome.noResponse) {
         _attemptNumber = evaluatedAttemptNumber;
       }
       setState(() {
@@ -562,8 +600,9 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
         capture.sourceText,
         ...capture.alternatives,
       }.where((candidate) => candidate.trim().isNotEmpty);
-      if (candidates.isEmpty) return LessonAttemptOutcome.unclear;
-      return candidates.any(
+      if (candidates.isEmpty) return LessonAttemptOutcome.noResponse;
+      final outcome =
+          candidates.any(
             (candidate) => matchesRecognizedLessonEnglish(
               _expectedEnglish,
               candidate,
@@ -573,6 +612,11 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
           )
           ? LessonAttemptOutcome.good
           : LessonAttemptOutcome.retry;
+      if (outcome == LessonAttemptOutcome.good) {
+        _latestCorrectAudioPath =
+            capture.recordedAudio?.filePath ?? _activeAttemptAudioPath;
+      }
+      return outcome;
     } on StreamingSpeechInputException catch (error) {
       debugPrint(
         'HOMI iOS challenge recognition returned no usable speech: '
@@ -600,6 +644,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       await _speakFeedback(LessonFeedbackKind.asr);
       return mounted;
     }
+    if (outcome == LessonAttemptOutcome.noResponse) {
+      await _speakFeedback(LessonFeedbackKind.noResponse);
+      return mounted;
+    }
     if (_attemptNumber >= 2) {
       return _giveAnswerAndAdvance(skip: false);
     }
@@ -623,6 +671,22 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   }
 
   Future<bool> _awardStar() async {
+    final callbackWithAudioResult = widget.onStarEarnedWithAudioResult;
+    if (callbackWithAudioResult != null) {
+      try {
+        final stableId = _inRolePlay
+            ? 'roleplay:${_rolePlayTurnIndex + 1}'
+            : 'challenge:${_challengeIndex + 1}';
+        return await callbackWithAudioResult(
+          stableId,
+          _expectedEnglish,
+          _expectedVietnamese,
+          _latestCorrectAudioPath,
+        );
+      } catch (_) {
+        return false;
+      }
+    }
     final callbackWithResult = widget.onStarEarnedWithResult;
     if (callbackWithResult != null) {
       try {
@@ -661,7 +725,24 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       // The written answer remains visible in the authored card.
     }
     if (!mounted || _pausedForMainAssistant) return false;
+    if (!skip) {
+      await _saveNeedsPractice();
+      if (!mounted || _pausedForMainAssistant) return false;
+    }
     return _advance();
+  }
+
+  Future<void> _saveNeedsPractice() async {
+    final callback = widget.onNeedsPractice;
+    if (callback == null) return;
+    final stableId = _inRolePlay
+        ? 'roleplay:${_rolePlayTurnIndex + 1}'
+        : 'challenge:${_challengeIndex + 1}';
+    try {
+      await callback(stableId, _expectedEnglish, _expectedVietnamese);
+    } catch (_) {
+      // Vocabulary persistence must never interrupt the authored lesson.
+    }
   }
 
   Future<void> _skipCurrent() async {

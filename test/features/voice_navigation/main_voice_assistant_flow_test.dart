@@ -100,30 +100,10 @@ void main() {
       VoiceNavigationDestination.vocabulary,
     );
     expect(vocabulary.continueListening, isFalse);
-    expect(
-      vocabulary.promptSequence.map((item) => item.text),
-      containsAllInOrder(<String>[
-        'Ở đây đã có từ mới. Chúng mình cùng học nhé.',
-        'Apple',
-        'Quả táo',
-        'Mình qua phần luyện lại và ngôi sao nhé.',
-        'Phần luyện lại.',
-        'Open your book',
-        'Mở sách ra',
-        'Phần ngôi sao.',
-        'Good morning',
-        'Chào buổi sáng',
-      ]),
-    );
-    expect(
-      vocabulary.promptSequence
-          .firstWhere((item) => item.text == 'Apple')
-          .locale,
-      'en-US',
-    );
+    expect(vocabulary.promptText, isEmpty);
     expect(introducedIds, isEmpty);
     await vocabulary.onPromptCompleted?.call();
-    expect(introducedIds, <String>['parent-apple']);
+    expect(introducedIds, isEmpty);
 
     final translationFlow = MainVoiceAssistantFlow(contentLoader: _loadContent);
     translationFlow.begin();
@@ -140,7 +120,7 @@ void main() {
     expect(translation.navigationAfterPrompt?.enterMainSpeakingMode, isTrue);
   });
 
-  test('already introduced Family words follow the no-new branch', () async {
+  test('learned parent words hand off to the shared vocabulary flow', () async {
     final flow = MainVoiceAssistantFlow(
       contentLoader: _loadContent,
       vocabularyLoader: () async => <VocabularyEntry>[
@@ -149,6 +129,7 @@ void main() {
           word: 'Apple',
           meaning: 'Quả táo',
           addedAt: DateTime(2026, 8, 18),
+          status: VocabularyLearningStatus.learnedWell,
           introducedAt: DateTime(2026, 8, 18, 9),
         ),
       ],
@@ -157,12 +138,13 @@ void main() {
 
     final turn = await flow.handle('Học từ mới');
 
+    expect(turn.promptText, isEmpty);
+    expect(turn.continueListening, isFalse);
     expect(
-      turn.promptText,
-      'Con muốn luyện lại hay nghe những ngôi sao của con?',
+      turn.navigationBeforePrompt?.destination,
+      VoiceNavigationDestination.vocabulary,
     );
-    expect(turn.continueListening, isTrue);
-    expect(flow.stage, MainVoiceAssistantStage.chooseVocabularyCollection);
+    expect(flow.stage, MainVoiceAssistantStage.idle);
   });
 
   test('accepts every D04 topic-learning synonym from Main', () async {
@@ -201,45 +183,33 @@ void main() {
         VoiceNavigationDestination.vocabulary,
         reason: command,
       );
-      expect(turn.continueListening, isTrue, reason: command);
-      expect(
-        turn.promptText,
-        'Con muốn luyện lại hay nghe những ngôi sao của con?',
-        reason: command,
-      );
-      expect(
-        flow.stage,
-        MainVoiceAssistantStage.chooseVocabularyCollection,
-        reason: command,
-      );
+      expect(turn.continueListening, isFalse, reason: command);
+      expect(turn.promptText, isEmpty, reason: command);
+      expect(flow.stage, MainVoiceAssistantStage.idle, reason: command);
     }
   });
 
-  test('without new family words the child chooses Review or Stars', () async {
-    for (final choice in <String, String>{
-      'Luyện lại': 'Open your book',
-      'Ngôi sao của con': 'Good morning',
-    }.entries) {
-      final flow = MainVoiceAssistantFlow(
-        contentLoader: _loadContent,
-        vocabularyLoader: _loadReviewAndStarsVocabulary,
-      );
-      flow.begin();
+  test(
+    'vocabulary content selection belongs to the destination screen',
+    () async {
+      for (final choice in <String>['Luyện lại', 'Ngôi sao của con']) {
+        final flow = MainVoiceAssistantFlow(
+          contentLoader: _loadContent,
+          vocabularyLoader: _loadReviewAndStarsVocabulary,
+        );
+        flow.begin();
 
-      final menu = await flow.handle('Học từ mới');
-      expect(menu.continueListening, isTrue);
-      expect(flow.canHandle(choice.key), isTrue);
-
-      final selected = await flow.handle(choice.key);
-
-      expect(selected.continueListening, isFalse);
-      expect(
-        selected.promptSequence.map((item) => item.text),
-        contains(choice.value),
-      );
-      expect(flow.stage, MainVoiceAssistantStage.idle);
-    }
-  });
+        final menu = await flow.handle('Học từ mới');
+        expect(menu.continueListening, isFalse);
+        expect(
+          menu.navigationBeforePrompt?.destination,
+          VoiceNavigationDestination.vocabulary,
+        );
+        expect(flow.canHandle(choice), isFalse);
+        expect(flow.stage, MainVoiceAssistantStage.idle);
+      }
+    },
+  );
 
   test('moves to the next sentence in an active lesson', () async {
     final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
@@ -342,11 +312,8 @@ void main() {
       );
 
       final vocabularyTurn = await flow.handle('Con muốn học từ vựng');
-      expect(
-        vocabularyTurn.promptText,
-        'Con muốn luyện lại hay nghe những ngôi sao của con?',
-      );
-      expect(vocabularyTurn.continueListening, isTrue);
+      expect(vocabularyTurn.promptText, isEmpty);
+      expect(vocabularyTurn.continueListening, isFalse);
       expect(
         vocabularyTurn.navigationBeforePrompt?.destination,
         VoiceNavigationDestination.vocabulary,
@@ -435,11 +402,8 @@ void main() {
       MainVoiceAssistantFlow.otherLearningPrompt,
     );
     final vocabularyTurn = await vocabularyFlow.handle('Con muốn học từ vựng');
-    expect(
-      vocabularyTurn.promptText,
-      'Con muốn luyện lại hay nghe những ngôi sao của con?',
-    );
-    expect(vocabularyTurn.continueListening, isTrue);
+    expect(vocabularyTurn.promptText, isEmpty);
+    expect(vocabularyTurn.continueListening, isFalse);
     expect(
       vocabularyTurn.navigationBeforePrompt?.destination,
       VoiceNavigationDestination.vocabulary,
@@ -539,6 +503,41 @@ void main() {
       expect(replayTurn.navigationBeforePrompt?.childAge, 6);
       expect(replayTurn.navigationBeforePrompt?.topicNumber, 3);
       expect(flow.stage, MainVoiceAssistantStage.chooseLesson);
+    },
+  );
+
+  test(
+    'uses Level-scoped topic selection and opens the mic-ready flow',
+    () async {
+      final flow = MainVoiceAssistantFlow(contentLoader: _loadContent);
+
+      expect(
+        flow.beginLevelTopicSelection(
+          childAge: 6,
+          levelNumber: 1,
+          topicNumbers: const <int>[1, 2, 3],
+          completedTopicNumbers: const <int>[3],
+          announceLevel: true,
+        ),
+        'Bắt đầu Level 1. Có 3 Chủ đề. Bạn muốn học Chủ đề số mấy?',
+      );
+
+      final locked = await flow.handle('Chủ đề số 4');
+      expect(locked.promptText, 'Bạn cần hoàn thành Level 1 trước nhé.');
+      expect(locked.continueListening, isTrue);
+
+      final completed = await flow.handle('Chủ đề số 3');
+      expect(
+        completed.promptText,
+        'Chủ đề 3 bạn đã học xong rồi. Bạn muốn học chủ đề khác hay học lại?',
+      );
+      expect(completed.continueListening, isTrue);
+
+      final replay = await flow.handle('Học lại');
+      expect(replay.promptText, isEmpty);
+      expect(replay.continueListening, isFalse);
+      expect(replay.navigationBeforePrompt?.topicNumber, 3);
+      expect(replay.navigationBeforePrompt?.relearnTopic, isTrue);
     },
   );
 

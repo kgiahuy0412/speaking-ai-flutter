@@ -17,7 +17,6 @@ import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import '../domain/lesson_guide_flow.dart';
 import 'active_learning_navigation.dart';
-import 'lesson_overview_screen.dart';
 import 'lesson_practice_screen.dart';
 import 'song_karaoke_screen.dart';
 
@@ -76,7 +75,6 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   bool _ownsVoicePromptService = false;
   String? _guideText;
   ListeningResumeStage _resumeStage = ListeningResumeStage.core;
-  bool _resumeCoreDirectly = false;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -133,9 +131,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         await widget.mediaService.prepareSelectedLessonOutput();
         final prompt = _activeVoicePromptService;
         final text = _guideText ?? widget.lesson.intro;
-        if (!kIsWeb &&
-            defaultTargetPlatform == TargetPlatform.iOS &&
-            prompt is SelectedMediaOutputVoicePromptService) {
+        if (!kIsWeb && prompt is SelectedMediaOutputVoicePromptService) {
           await (prompt as SelectedMediaOutputVoicePromptService)
               .speakAndWaitOnSelectedMediaOutput(text);
         } else {
@@ -185,7 +181,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return;
     }
     if (widget.autoAdvance && !_movingForward) {
-      await _openOverview();
+      await _openLesson();
     }
   }
 
@@ -259,27 +255,20 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
             : 'Mình học lại bài ${lesson.titleEn} nhé.';
       } else {
         final isFirstLessonInTopic = lesson.number == 1;
-        final isFirstTopicInLevel =
-            topicContent != null &&
-            isFirstLessonInTopic &&
-            const <int>{1, 4, 7}.contains(topicContent.number);
-        final levelLead = isFirstTopicInLevel
-            ? 'Bắt đầu Level ${topicContent.levelNumber} nhé. '
-            : '';
         final topicLead = isFirstLessonInTopic && topicContent != null
-            ? 'Chủ đề ${topicContent.number}: ${topicContent.titleEn}. '
+            ? 'Chủ đề ${topicContent.number}. '
             : '';
         final lessonLead = isFirstLessonInTopic
             ? 'Bài đầu tiên là ${lesson.titleEn}. '
             : 'Bài này là ${lesson.titleEn}. ';
-        text = '$levelLead$topicLead$lessonLead${lesson.entry?.text ?? ''}'
+        text = '$topicLead$lessonLead${lesson.entry?.text ?? ''} Bắt đầu nhé.'
+            .replaceAll(RegExp(r'\s+'), ' ')
             .trim();
       }
       if (mounted && !_pausedForMainAssistant) {
         setState(() {
           _guideText = text;
           _resumeStage = resumeStage;
-          _resumeCoreDirectly = isInProgress;
         });
       }
       return;
@@ -362,7 +351,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
                                 const Spacer(),
                                 TextButton(
                                   key: const Key('skip-lesson-intro'),
-                                  onPressed: _openOverview,
+                                  onPressed: _openLesson,
                                   style: TextButton.styleFrom(
                                     backgroundColor: isDark
                                         ? colorScheme.surfaceContainerHighest
@@ -544,7 +533,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         return const ActiveLearningCommandResult.handled();
       case ActiveLearningCommand.nextItem:
         _pausedForMainAssistant = false;
-        await _openOverview();
+        await _openLesson();
         return const ActiveLearningCommandResult.handled();
       case ActiveLearningCommand.previousItem:
         return const ActiveLearningCommandResult.unavailable(
@@ -552,8 +541,11 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         );
       case ActiveLearningCommand.nextLesson:
       case ActiveLearningCommand.previousLesson:
+      case ActiveLearningCommand.vocabularyParentAdded:
       case ActiveLearningCommand.vocabularyPracticeAgain:
       case ActiveLearningCommand.vocabularyStars:
+      case ActiveLearningCommand.vocabularyLatest:
+      case ActiveLearningCommand.vocabularyAll:
         return const ActiveLearningCommandResult.unavailable(
           spokenReply: 'Con hãy vào bài học trước nhé.',
         );
@@ -567,9 +559,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     }
   }
 
-  Future<void> _openOverview() async {
+  Future<void> _openLesson() async {
     if (widget.lesson.usesV4Flow) {
-      await _openV4Overview();
+      await _openV4Practice();
       return;
     }
     if (_usesSongKaraoke) {
@@ -605,7 +597,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     );
   }
 
-  Future<void> _openV4Overview() async {
+  Future<void> _openV4Practice() async {
     if (_movingForward || !mounted) {
       return;
     }
@@ -615,32 +607,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       _movingForward = false;
       return;
     }
-    if (_resumeCoreDirectly || _resumeStage != ListeningResumeStage.core) {
-      await pushReplacementForActiveLearning<void, void>(
-        context,
-        (_) => LessonPracticeScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          endAge: widget.endAge,
-          topic: widget.topic,
-          lesson: widget.lesson,
-          controller: widget.controller,
-          topicContent: widget.topicContent,
-          contentGroup: widget.contentGroup,
-          levelContent: widget.levelContent,
-          progressStore: widget.progressStore,
-          mediaService: widget.mediaService,
-          guideAudioLibrary: _guideAudioLibrary,
-          initialResumeStage: _resumeStage,
-          isRelearn: widget.relearnFromBeginning,
-          onTopicCompleted: widget.onTopicCompleted,
-        ),
-      );
-      return;
-    }
     await pushReplacementForActiveLearning<void, void>(
       context,
-      (_) => LessonOverviewScreen(
+      (_) => LessonPracticeScreen(
         language: widget.language,
         startAge: widget.startAge,
         endAge: widget.endAge,
@@ -653,7 +622,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         progressStore: widget.progressStore,
         mediaService: widget.mediaService,
         guideAudioLibrary: _guideAudioLibrary,
-        voicePromptService: widget.voicePromptService,
+        voicePromptService: _voicePromptService,
+        initialResumeStage: _resumeStage,
         isRelearn: widget.relearnFromBeginning,
         onTopicCompleted: widget.onTopicCompleted,
       ),

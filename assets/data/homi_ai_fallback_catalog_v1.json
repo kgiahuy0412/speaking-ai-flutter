@@ -2856,43 +2856,6 @@
       }
     },
     {
-      "id": "AI-065",
-      "flow": "Luyện nghe / Tổng kết",
-      "state": "Chưa đủ thời gian",
-      "trigger": "Yêu cầu đi tiếp khi tổng quan chưa mở khóa",
-      "message": {
-        "kind": "literal",
-        "raw": "Bạn nghe phần tổng quan thêm một chút nha."
-      },
-      "kind": "Đang dùng trong code",
-      "channel": "Loa/TTS",
-      "postAction": "Tiếp tục tổng quan",
-      "reopenMic": "Không",
-      "platform": "APK + Web",
-      "source": {
-        "sheet": "Câu trợ lý",
-        "row": 68,
-        "id": "AI-065"
-      },
-      "sourceFields": {
-        "ID": "AI-065",
-        "Nhóm luồng": "Luyện nghe / Tổng kết",
-        "Trạng thái": "Chưa đủ thời gian",
-        "Kích hoạt": "Yêu cầu đi tiếp khi tổng quan chưa mở khóa",
-        "Câu trợ lý HOMI (VI)": "Bạn nghe phần tổng quan thêm một chút nha.",
-        "Loại": "Đang dùng trong code",
-        "Kênh": "Loa/TTS",
-        "Hành động sau câu": "Tiếp tục tổng quan",
-        "Mở mic lại?": "Không",
-        "Nền tảng": "APK + Web",
-        "Nguồn code": "lib/features/listening/presentation/lesson_review_screen.dart",
-        "Dòng": 431,
-        "Ghi chú": "Thông báo giới hạn",
-        "Câu gốc trong code": "Con nghe tổng quan thêm một chút nhé.",
-        "Việc IT cần làm": "CẬP NHẬT câu TTS/template"
-      }
-    },
-    {
       "id": "AI-066",
       "flow": "Luyện nghe / Tổng kết",
       "state": "Không có mục trước",

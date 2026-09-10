@@ -380,6 +380,7 @@ void main() {
     ]);
     final voicePrompt = _RecordingVoicePromptService();
     final earnedStars = <String>[];
+    final needsPractice = <String>[];
     await tester.pumpWidget(
       _subject(
         startAge: 7,
@@ -387,6 +388,7 @@ void main() {
         attemptEvaluator: evaluator,
         voicePromptService: voicePrompt,
         onStarEarned: (starId, _, _) async => earnedStars.add(starId),
+        onNeedsPractice: (targetId, _, _) async => needsPractice.add(targetId),
         challenges: const <ListeningChallengeContent>[
           ListeningChallengeContent(
             id: 'challenge-1',
@@ -425,6 +427,7 @@ void main() {
     expect(evaluator.evaluationCalls, 2);
     expect(mediaService.recordingStarts, 3);
     expect(earnedStars, isEmpty);
+    expect(needsPractice, <String>['challenge:1']);
     expect(
       voicePrompt.spoken,
       containsAllInOrder(<String>[
@@ -535,6 +538,7 @@ Widget _subject({
   LessonAttemptEvaluator? attemptEvaluator,
   LessonEnglishSpeechInput? iosSpeechInput,
   Future<void> Function(String, String, String)? onStarEarned,
+  Future<void> Function(String, String, String)? onNeedsPractice,
   Future<void> Function()? onRolePlayCompleted,
   bool showRolePlayOpeningHint = true,
   bool startAfterRolePlay = false,
@@ -564,6 +568,7 @@ Widget _subject({
       voicePromptService: voicePromptService ?? const _FakeVoicePromptService(),
       iosSpeechInput: iosSpeechInput,
       onStarEarned: onStarEarned,
+      onNeedsPractice: onNeedsPractice,
       onRolePlayCompleted: onRolePlayCompleted,
       showRolePlayOpeningHint: showRolePlayOpeningHint,
       startAfterRolePlay: startAfterRolePlay,

@@ -1,6 +1,6 @@
 enum LessonEntryGuideKind { first, newLesson, resume }
 
-enum LessonAttemptOutcome { good, unclear, retry, needsPractice }
+enum LessonAttemptOutcome { good, unclear, noResponse, retry, needsPractice }
 
 enum LessonFeedbackKind { correct, retry, give, noResponse, asr, skip }
 
@@ -145,11 +145,21 @@ class LessonGuideFlowV2 {
     text: 'Bây giờ đến lượt con. Con nói lại nhé.',
   );
 
-  /// Exact V4 cue after English -> pause -> Vietnamese.
-  static const LessonGuidePrompt repeatTarget = LessonGuidePrompt(
-    audioCode: 'REPEAT_TARGET',
-    text: 'Bạn nói lại tiếng Anh nhé.',
-  );
+  /// The approved V4 Core speak-cue library. Callers rotate by target index;
+  /// adjacent targets therefore never repeat the same cue.
+  static const List<LessonGuidePrompt> coreSpeakCues = <LessonGuidePrompt>[
+    LessonGuidePrompt(audioCode: 'CORE_SPEAK_01', text: 'Bạn nói lại nhé.'),
+    LessonGuidePrompt(audioCode: 'CORE_SPEAK_02', text: 'Đến lượt bạn.'),
+    LessonGuidePrompt(audioCode: 'CORE_SPEAK_03', text: 'Bạn thử nói nhé.'),
+    LessonGuidePrompt(audioCode: 'CORE_SPEAK_04', text: 'Nói lại câu này.'),
+    LessonGuidePrompt(
+      audioCode: 'CORE_SPEAK_05',
+      text: 'Bạn nói tiếng Anh nhé.',
+    ),
+  ];
+
+  static LessonGuidePrompt coreSpeakCue(int targetIndex) =>
+      coreSpeakCues[targetIndex.abs() % coreSpeakCues.length];
 
   static const LessonGuidePrompt completionChoice = LessonGuidePrompt(
     audioCode: 'AI_GUIDE_COMPLETION_CHOICE',

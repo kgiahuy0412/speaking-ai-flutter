@@ -127,8 +127,12 @@ void main() {
               contains(challenge.correctAnswer),
               reason: challenge.id,
             );
+            final expected =
+                target!.id.startsWith(RegExp(r'C(?:35|67)-L1-T01-'))
+                ? target.english.replaceFirst(RegExp(r'^[A-Z]\.\s*'), '')
+                : target.english;
             expect(
-              target!.english,
+              expected,
               challenge.correctAnswer,
               reason: 'Challenge ${challenge.id} changed its authored target.',
             );
@@ -145,8 +149,12 @@ void main() {
               contains(mission.correctAnswer),
               reason: mission.id,
             );
+            final expected =
+                target!.id.startsWith(RegExp(r'C(?:35|67)-L1-T01-'))
+                ? target.english.replaceFirst(RegExp(r'^[A-Z]\.\s*'), '')
+                : target.english;
             expect(
-              target!.english,
+              expected,
               mission.correctAnswer,
               reason: 'Mission ${mission.id} changed its authored target.',
             );
@@ -156,41 +164,22 @@ void main() {
       },
     );
 
-    test('uses the V4 age-specific overview rules', () {
-      for (final group in groups) {
-        final groupLessons = group.topics
-            .expand((topic) => topic.lessons)
-            .toList(growable: false);
-        final expectsBilingualOverview = group.endAge <= 10;
-
-        expect(groupLessons, isNotEmpty);
+    test('removes the listen-first pass and adds the approved Core cues', () {
+      expect(
+        audioManifestEntries.any(
+          (entry) =>
+              entry['audioId'] == 'OVERVIEW_CUE' ||
+              (entry['audioId'] as String? ?? '').endsWith('_OVERVIEW_EN'),
+        ),
+        isFalse,
+      );
+      for (var index = 1; index <= 5; index += 1) {
         expect(
-          groupLessons.every(
-            (lesson) =>
-                lesson.overviewMode ==
-                (expectsBilingualOverview
-                    ? ListeningOverviewMode.bilingual
-                    : ListeningOverviewMode.englishOnly),
+          audioManifestEntries.any(
+            (entry) => entry['audioId'] == 'CORE_SPEAK_0$index',
           ),
           isTrue,
-          reason: '${group.startAge}-${group.endAge}',
         );
-
-        if (expectsBilingualOverview) {
-          expect(
-            groupLessons.every((lesson) => lesson.overviewAudioId == null),
-            isTrue,
-          );
-        } else {
-          expect(
-            groupLessons.every(
-              (lesson) =>
-                  lesson.overviewAudioId != null &&
-                  lesson.overviewAudioId!.endsWith('_OVERVIEW_EN'),
-            ),
-            isTrue,
-          );
-        }
       }
     });
 

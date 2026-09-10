@@ -205,7 +205,7 @@ class BackendFirstLessonAttemptEvaluator
         recognition.transcript,
         ...recognition.alternatives,
       }.where((candidate) => candidate.trim().isNotEmpty);
-      if (candidates.isEmpty) return LessonAttemptOutcome.unclear;
+      if (candidates.isEmpty) return LessonAttemptOutcome.noResponse;
       return candidates.any(
             (candidate) => matchesRecognizedLessonEnglish(
               expectedEnglish,
@@ -217,6 +217,9 @@ class BackendFirstLessonAttemptEvaluator
           ? LessonAttemptOutcome.good
           : LessonAttemptOutcome.retry;
     } on LessonRecordedSpeechRecognitionException catch (error) {
+      if (_isNoResponseRecognitionFailure(error.code)) {
+        return LessonAttemptOutcome.noResponse;
+      }
       if (_isUnclearRecognitionFailure(error.code)) {
         return LessonAttemptOutcome.unclear;
       }
@@ -226,9 +229,13 @@ class BackendFirstLessonAttemptEvaluator
 
   bool _isUnclearRecognitionFailure(String code) =>
       code == 'SPEECH_NO_MATCH' ||
-      code == 'SPEECH_TIMEOUT' ||
       code == 'RECORDED_AUDIO_UNCLEAR' ||
       code == 'RECORDED_AUDIO_RECOGNITION_TIMEOUT';
+
+  bool _isNoResponseRecognitionFailure(String code) =>
+      code == 'SPEECH_TIMEOUT' ||
+      code == 'NO_RESPONSE' ||
+      code == 'AUDIO_TOO_SHORT';
 
   @override
   void dispose() {
@@ -419,9 +426,12 @@ class BackendLessonAttemptEvaluator
       final code = errorPayload is Map<String, dynamic>
           ? errorPayload['code']
           : null;
-      if (code == 'ASR_LOW_CONFIDENCE' ||
-          code == 'AUDIO_TOO_SHORT' ||
-          code == 'ASR_FAILED') {
+      if (code == 'AUDIO_TOO_SHORT' ||
+          code == 'NO_RESPONSE' ||
+          code == 'SPEECH_TIMEOUT') {
+        return LessonAttemptOutcome.noResponse;
+      }
+      if (code == 'ASR_LOW_CONFIDENCE' || code == 'ASR_FAILED') {
         return LessonAttemptOutcome.unclear;
       }
       final message = errorPayload is Map<String, dynamic>
@@ -531,9 +541,12 @@ class BackendLessonAttemptEvaluator
       final code = errorPayload is Map<String, dynamic>
           ? errorPayload['code']
           : null;
-      if (code == 'ASR_LOW_CONFIDENCE' ||
-          code == 'AUDIO_TOO_SHORT' ||
-          code == 'ASR_FAILED') {
+      if (code == 'AUDIO_TOO_SHORT' ||
+          code == 'NO_RESPONSE' ||
+          code == 'SPEECH_TIMEOUT') {
+        return LessonAttemptOutcome.noResponse;
+      }
+      if (code == 'ASR_LOW_CONFIDENCE' || code == 'ASR_FAILED') {
         return LessonAttemptOutcome.unclear;
       }
       final message = errorPayload is Map<String, dynamic>
@@ -550,7 +563,7 @@ class BackendLessonAttemptEvaluator
         ? decoded['englishText']
         : null;
     if (transcript is! String || transcript.trim().isEmpty) {
-      return LessonAttemptOutcome.unclear;
+      return LessonAttemptOutcome.noResponse;
     }
     return matchesRecognizedLessonEnglish(
           expectedEnglish,

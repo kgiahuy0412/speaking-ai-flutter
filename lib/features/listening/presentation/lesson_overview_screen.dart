@@ -2,9 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../app/app_theme.dart';
-import '../../../app/learning_scenery.dart';
-import '../../../app/mascot_assets.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -16,9 +13,8 @@ import '../domain/listening_content.dart';
 import 'active_learning_navigation.dart';
 import 'lesson_practice_screen.dart';
 
-/// The V4 listen-first pass.  It deliberately does not record or evaluate an
-/// answer: children first hear the complete authored lesson, then move to the
-/// detailed target-by-target practice state machine.
+/// Compatibility route for old deep links. New navigation no longer opens this
+/// route; an old link is forwarded directly into the lesson.
 class LessonOverviewScreen extends StatefulWidget {
   const LessonOverviewScreen({
     required this.language,
@@ -62,158 +58,13 @@ class LessonOverviewScreen extends StatefulWidget {
 }
 
 class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
-  static const _englishToVietnamesePause = Duration(seconds: 2);
-
-  VoicePromptService? _voicePromptService;
-  late final LessonGuideAudioLibrary _audioLibrary;
-  bool _ownsVoicePromptService = false;
-  bool _playing = false;
-  bool _movingForward = false;
-  String _status = 'Chuẩn bị nghe tổng quan…';
-  int _request = 0;
-
   @override
   void initState() {
     super.initState();
-    _audioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
-    _voicePromptService = widget.voicePromptService;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _playOverview());
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_forward()));
   }
 
-  @override
-  void dispose() {
-    _request += 1;
-    // The replacement practice route reuses the same native media/TTS engines.
-    // Stopping them from this outgoing route can cancel the first prompt that
-    // the new route has already started.
-    if (!_movingForward) {
-      unawaited(widget.mediaService.stopPlayback());
-      final voicePrompt = _voicePromptService;
-      if (voicePrompt != null) {
-        if (_ownsVoicePromptService) {
-          unawaited(voicePrompt.dispose());
-        } else {
-          unawaited(voicePrompt.stop());
-        }
-      }
-    }
-    super.dispose();
-  }
-
-  VoicePromptService get _prompt {
-    final current = _voicePromptService;
-    if (current != null) return current;
-    _ownsVoicePromptService = true;
-    return _voicePromptService = createVoicePromptService();
-  }
-
-  Duration get _englishSentencePause =>
-      widget.englishSentencePause ??
-      (widget.startAge >= 13
-          ? const Duration(milliseconds: 1200)
-          : const Duration(milliseconds: 1400));
-
-  Future<void> _playOverview() async {
-    if (_playing || _movingForward || !mounted) return;
-    final request = ++_request;
-    setState(() {
-      _playing = true;
-      _status = 'Bạn nghe qua nội dung trước nhé.';
-    });
-    try {
-      await _prompt.speakAndWait('Bạn nghe qua nội dung trước nhé.');
-      if (!mounted || request != _request) return;
-      if (widget.lesson.overviewMode == ListeningOverviewMode.englishOnly) {
-        await _playEnglishOnlyOverview(request);
-      } else {
-        await _playBilingualOverview(request);
-      }
-      if (!mounted || request != _request) return;
-      setState(() => _status = 'Bây giờ mình học từng phần nhé.');
-      await _prompt.speakAndWait('Bây giờ mình học từng phần nhé.');
-      if (!mounted || request != _request) return;
-      await _openPractice();
-    } catch (_) {
-      if (!mounted || request != _request) return;
-      setState(() => _status = 'Chưa phát được phần nghe. Bạn có thể thử lại.');
-    } finally {
-      if (mounted && request == _request && !_movingForward) {
-        setState(() => _playing = false);
-      }
-    }
-  }
-
-  Future<void> _playEnglishOnlyOverview(int request) async {
-    final uri = await _resolveAuthoredAudio(
-      widget.lesson.overviewAudioUri,
-      widget.lesson.overviewAudioId,
-    );
-    if (uri != null) {
-      setState(() => _status = 'Nghe toàn bộ bài bằng tiếng Anh…');
-      await widget.mediaService.playToCompletion(uri);
-      return;
-    }
-    setState(() => _status = 'Nghe toàn bộ bài bằng tiếng Anh…');
-    final sentences = widget.lesson.sentences
-        .where((sentence) => sentence.english.trim().isNotEmpty)
-        .toList(growable: false);
-    for (var index = 0; index < sentences.length; index += 1) {
-      if (!mounted || request != _request) return;
-      final sentence = sentences[index];
-      final sentenceUri = await _resolveAuthoredAudio(
-        sentence.audioUri,
-        sentence.englishAudioId,
-      );
-      if (sentenceUri != null) {
-        await widget.mediaService.playToCompletion(sentenceUri);
-      } else {
-        await _prompt.speakAndWait(sentence.english, locale: 'en-US');
-      }
-      if (index < sentences.length - 1) {
-        await Future<void>.delayed(_englishSentencePause);
-      }
-    }
-  }
-
-  Future<void> _playBilingualOverview(int request) async {
-    for (final sentence in widget.lesson.sentences) {
-      if (!mounted || request != _request) return;
-      setState(() => _status = 'Đang nghe: ${sentence.english}');
-      final englishUri = await _resolveAuthoredAudio(
-        sentence.audioUri,
-        sentence.englishAudioId,
-      );
-      if (englishUri != null) {
-        await widget.mediaService.playToCompletion(englishUri);
-      } else {
-        await _prompt.speakAndWait(sentence.english, locale: 'en-US');
-      }
-      if (!mounted || request != _request) return;
-      await Future<void>.delayed(_englishToVietnamesePause);
-      if (!mounted || request != _request) return;
-      final vietnameseUri = await _resolveAuthoredAudio(
-        sentence.vietnameseAudioUri,
-        sentence.vietnameseAudioId,
-      );
-      if (vietnameseUri != null) {
-        await widget.mediaService.playToCompletion(vietnameseUri);
-      } else {
-        await _prompt.speakAndWait(sentence.vietnamese, locale: 'vi-VN');
-      }
-    }
-  }
-
-  Future<Uri?> _resolveAuthoredAudio(Uri? uri, String? audioId) async {
-    if (uri != null) return uri;
-    final id = audioId?.trim();
-    if (id == null || id.isEmpty) return null;
-    return _audioLibrary.uriForAudioCode(id);
-  }
-
-  Future<void> _openPractice() async {
-    if (_movingForward || !mounted) return;
-    _movingForward = true;
-    await widget.mediaService.stopPlayback();
+  Future<void> _forward() async {
     if (!mounted) return;
     await pushReplacementForActiveLearning<void, void>(
       context,
@@ -238,111 +89,8 @@ class _LessonOverviewScreenState extends State<LessonOverviewScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    return DisplayLanguageScope(
-      language: widget.language,
-      child: Scaffold(
-        key: const Key('lesson-overview-screen'),
-        backgroundColor: Colors.transparent,
-        body: LearningScenery(
-          child: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxHeight < 620;
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                  child: Column(
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            tooltip: context.tr('Quay lại', '返回'),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _playing ? null : _playOverview,
-                            icon: const Icon(Icons.replay_rounded),
-                            label: Text(context.tr('Nghe lại', '再听一次')),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Center(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                SizedBox(
-                                  height: compact ? 128 : 210,
-                                  child: Image.asset(
-                                    MascotAssets.listen,
-                                    fit: BoxFit.contain,
-                                    filterQuality: FilterQuality.high,
-                                  ),
-                                ),
-                                SizedBox(height: compact ? 12 : 22),
-                                Text(
-                                  context.tr('Nghe tổng quan', '整体听力'),
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineMedium,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  widget.lesson.titleEn,
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    color: isDark
-                                        ? colorScheme.primary
-                                        : AppColors.indigo,
-                                  ),
-                                ),
-                                SizedBox(height: compact ? 14 : 22),
-                                Container(
-                                  width: double.infinity,
-                                  padding: EdgeInsets.all(compact ? 14 : 20),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? colorScheme.surfaceContainer
-                                              .withValues(alpha: 0.96)
-                                        : Colors.white.withValues(alpha: 0.94),
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  child: Text(
-                                    _status,
-                                    textAlign: TextAlign.center,
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      height: 1.45,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      if (_playing)
-                        const LinearProgressIndicator(minHeight: 7)
-                      else
-                        FilledButton.icon(
-                          onPressed: _openPractice,
-                          icon: const Icon(Icons.arrow_forward_rounded),
-                          label: Text(context.tr('Học từng phần', '逐项学习')),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const Scaffold(
+    key: Key('lesson-forward-screen'),
+    body: Center(child: CircularProgressIndicator()),
+  );
 }

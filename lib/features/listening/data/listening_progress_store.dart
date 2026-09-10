@@ -13,6 +13,16 @@ enum ListeningResumeStage {
   rolePlay,
 }
 
+class ListeningTopicSelectionCheckpoint {
+  const ListeningTopicSelectionCheckpoint({
+    required this.levelNumber,
+    required this.announceLevel,
+  });
+
+  final int levelNumber;
+  final bool announceLevel;
+}
+
 class ListeningProgressStore {
   const ListeningProgressStore({this.progressFilePath});
 
@@ -34,6 +44,9 @@ class ListeningProgressStore {
   static const String _courseCompletedSuffix = '::course-completed';
   static const String _courseCompletionEventSuffix =
       '::course-completion-event-created';
+  static const String _topicSelectionLevelSuffix = '::topic-selection-level';
+  static const String _topicSelectionAnnounceSuffix =
+      '::topic-selection-announce';
 
   final String? progressFilePath;
   ListeningProgressPersistence get _persistence =>
@@ -57,7 +70,9 @@ class ListeningProgressStore {
           key.endsWith(_missionAttemptSuffix) ||
           key.contains(_starMarker) ||
           key.endsWith(_courseCompletedSuffix) ||
-          key.endsWith(_courseCompletionEventSuffix),
+          key.endsWith(_courseCompletionEventSuffix) ||
+          key.endsWith(_topicSelectionLevelSuffix) ||
+          key.endsWith(_topicSelectionAnnounceSuffix),
     );
     return progress;
   }
@@ -255,6 +270,53 @@ class ListeningProgressStore {
     await _writeRaw(progress);
   }
 
+  Future<Set<String>> readStartedLessonCores() async {
+    final progress = await _readRaw();
+    return progress.entries
+        .where(
+          (entry) => entry.value == 1 && entry.key.endsWith(_coreStartedSuffix),
+        )
+        .map(
+          (entry) => entry.key.substring(
+            0,
+            entry.key.length - _coreStartedSuffix.length,
+          ),
+        )
+        .where((lessonId) => lessonId.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> saveTopicSelectionCheckpoint(
+    String courseId, {
+    required int levelNumber,
+    required bool announceLevel,
+  }) async {
+    final progress = await _readRaw();
+    progress['$courseId$_topicSelectionLevelSuffix'] = levelNumber;
+    progress['$courseId$_topicSelectionAnnounceSuffix'] = announceLevel ? 1 : 0;
+    await _writeRaw(progress);
+  }
+
+  Future<ListeningTopicSelectionCheckpoint?> readTopicSelectionCheckpoint(
+    String courseId,
+  ) async {
+    final progress = await _readRaw();
+    final level = progress['$courseId$_topicSelectionLevelSuffix'];
+    if (level == null || level <= 0) return null;
+    return ListeningTopicSelectionCheckpoint(
+      levelNumber: level,
+      announceLevel: progress['$courseId$_topicSelectionAnnounceSuffix'] == 1,
+    );
+  }
+
+  Future<void> clearTopicSelectionCheckpoint(String courseId) async {
+    final progress = await _readRaw();
+    progress
+      ..remove('$courseId$_topicSelectionLevelSuffix')
+      ..remove('$courseId$_topicSelectionAnnounceSuffix');
+    await _writeRaw(progress);
+  }
+
   Future<void> saveMissionSelection(
     String levelId,
     List<String> missionIds,
@@ -404,6 +466,52 @@ class ListeningProgressStore {
       return;
     }
     progress[lessonId] = completedSentences;
+    await _writeRaw(progress);
+  }
+
+  /// Restarts authored progress while intentionally preserving earned stars.
+  Future<void> resetLessonsForRelearn(Iterable<String> lessonIds) async {
+    final progress = await _readRaw();
+    for (final lessonId in lessonIds.where((id) => id.trim().isNotEmpty)) {
+      progress.remove(lessonId);
+      progress.remove('$lessonId$_resumeSuffix');
+      progress.remove('$lessonId$_v4LessonActivityPassedMarker');
+      progress.remove('$lessonId$_resumeStageSuffix');
+      progress.remove('$lessonId$_coreStartedSuffix');
+      progress.removeWhere(
+        (key, _) =>
+            key.startsWith('$lessonId$_skippedMarker') ||
+            key.startsWith('$lessonId$_needsPracticeMarker'),
+      );
+    }
+    await _writeRaw(progress);
+  }
+
+  Future<void> resetLevelForRelearn({
+    required String levelId,
+    required Iterable<String> lessonIds,
+  }) async {
+    final progress = await _readRaw();
+    for (final lessonId in lessonIds.where((id) => id.trim().isNotEmpty)) {
+      progress.remove(lessonId);
+      progress.remove('$lessonId$_resumeSuffix');
+      progress.remove('$lessonId$_v4LessonActivityPassedMarker');
+      progress.remove('$lessonId$_resumeStageSuffix');
+      progress.remove('$lessonId$_coreStartedSuffix');
+      progress.removeWhere(
+        (key, _) =>
+            key.startsWith('$lessonId$_skippedMarker') ||
+            key.startsWith('$lessonId$_needsPracticeMarker'),
+      );
+    }
+    progress.remove('$levelId$_levelMissionPassedMarker');
+    progress.removeWhere(
+      (key, _) =>
+          key.startsWith('$levelId$_missionSelectedMarker') ||
+          key.startsWith('$levelId$_missionAnswerMarker') ||
+          key.startsWith('$levelId$_missionWeakMarker') ||
+          key == '$levelId$_missionAttemptSuffix',
+    );
     await _writeRaw(progress);
   }
 
