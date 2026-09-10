@@ -1,150 +1,31 @@
 package com.innotrik.aispeaking
 
-import android.app.ActivityManager
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.StatFs
+import android.content.Intent
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodChannel
 
+/** A view host for the process-scoped Flutter engine owned by HOMI runtime. */
 class MainActivity : FlutterActivity() {
-    private val methodChannelName = "ailingo_platform"
-    private val eventChannelName = "ailingo_platform/events"
-    private var speechRecognizerBridge: AndroidSpeechRecognizerBridge? = null
-    private var homiOfflineSpeechBridge: HomiOfflineSpeechBridge? = null
-    private var offlineIntentRecognizerBridge: OfflineIntentRecognizerBridge? = null
-    private var innotrikBleAudioBridge: InnotrikBleAudioBridge? = null
-    private var aiv0BleControlBridge: Aiv0BleControlBridge? = null
-    private var hfpAudioBridge: HfpAudioBridge? = null
-    private var voicePromptBridge: VoicePromptBridge? = null
-    private var backgroundLearningBridge: AndroidBackgroundLearningBridge? = null
-    private val installationCredentialStore by lazy {
-        AndroidInstallationCredentialStore(applicationContext)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        HomiAndroidRuntime.attachActivity(this)
+        super.onCreate(savedInstanceState)
     }
-    private val clientIdentityStore by lazy {
-        AndroidClientIdentityStore(applicationContext)
-    }
+
+    override fun provideFlutterEngine(context: Context): FlutterEngine =
+        HomiAndroidRuntime.getOrCreateEngine(applicationContext)
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        // The shared engine registers plugins and process-scoped bridges once.
+        // Calling super keeps ActivityAware plugins attached to this Activity.
         super.configureFlutterEngine(flutterEngine)
-        speechRecognizerBridge =
-            AndroidSpeechRecognizerBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        homiOfflineSpeechBridge =
-            HomiOfflineSpeechBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        offlineIntentRecognizerBridge =
-            OfflineIntentRecognizerBridge(
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        innotrikBleAudioBridge =
-            InnotrikBleAudioBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        aiv0BleControlBridge =
-            Aiv0BleControlBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        hfpAudioBridge =
-            HfpAudioBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        voicePromptBridge =
-            VoicePromptBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-        backgroundLearningBridge =
-            AndroidBackgroundLearningBridge(
-                this,
-                flutterEngine.dartExecutor.binaryMessenger,
-            )
-
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            methodChannelName,
-        ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "device.clientId" -> result.success(clientIdentityStore.getOrCreate())
-                "device.resetClientId" -> result.success(clientIdentityStore.reset())
-                "auth.credentials.read" -> result.success(installationCredentialStore.read())
-                "auth.credentials.write" -> {
-                    val encoded = call.arguments as? String
-                    if (encoded.isNullOrBlank()) {
-                        result.error(
-                            "invalid_credentials",
-                            "Installation credential không hợp lệ.",
-                            null,
-                        )
-                    } else {
-                        result.success(installationCredentialStore.write(encoded))
-                    }
-                }
-                "auth.credentials.clear" -> result.success(installationCredentialStore.clear())
-                "device.hardwareInfo" -> result.success(hardwareInfo())
-                "device.protocolInfo" -> result.success(protocolInfo())
-                "ble.isSupported" ->
-                    result.success(
-                        packageManager.hasSystemFeature(
-                            PackageManager.FEATURE_BLUETOOTH_LE,
-                        ),
-                    )
-                else -> result.notImplemented()
-            }
-        }
-
-        EventChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            eventChannelName,
-        ).setStreamHandler(
-            object : EventChannel.StreamHandler {
-                override fun onListen(
-                    arguments: Any?,
-                    events: EventChannel.EventSink?,
-                ) {
-                    events?.success(
-                        mapOf(
-                            "type" to "device.bridgeReady",
-                            "bleSupported" to
-                                packageManager.hasSystemFeature(
-                                    PackageManager.FEATURE_BLUETOOTH_LE,
-                                ),
-                        ),
-                    )
-                }
-
-                override fun onCancel(arguments: Any?) = Unit
-            },
-        )
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
-        speechRecognizerBridge?.dispose()
-        speechRecognizerBridge = null
-        homiOfflineSpeechBridge?.dispose()
-        homiOfflineSpeechBridge = null
-        offlineIntentRecognizerBridge?.dispose()
-        offlineIntentRecognizerBridge = null
-        innotrikBleAudioBridge?.dispose()
-        innotrikBleAudioBridge = null
-        aiv0BleControlBridge?.dispose()
-        aiv0BleControlBridge = null
-        hfpAudioBridge?.dispose()
-        hfpAudioBridge = null
-        voicePromptBridge?.dispose()
-        voicePromptBridge = null
-        backgroundLearningBridge?.dispose()
-        backgroundLearningBridge = null
+        // Do not dispose process-scoped bridges when only the screen detaches.
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -153,91 +34,17 @@ class MainActivity : FlutterActivity() {
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
-        if (
-            backgroundLearningBridge?.onRequestPermissionsResult(
-                requestCode,
-                grantResults,
-            ) == true ||
-            speechRecognizerBridge?.onRequestPermissionsResult(
-                requestCode,
-                grantResults,
-            ) == true
-        ) {
-            return
-        }
-        if (
-            innotrikBleAudioBridge?.onRequestPermissionsResult(
-                requestCode,
-                grantResults,
-            ) == true
-        ) {
-            return
-        }
-        if (
-            aiv0BleControlBridge?.onRequestPermissionsResult(
-                requestCode,
-                grantResults,
-            ) == true
-        ) {
-            return
-        }
-        if (
-            hfpAudioBridge?.onRequestPermissionsResult(
-                requestCode,
-                grantResults,
-            ) == true
-        ) {
-            return
-        }
-
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults,
-        )
+        if (HomiAndroidRuntime.onPermissionResult(requestCode, grantResults)) return
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
-    private fun hardwareInfo(): Map<String, Any> {
-        val activityManager =
-            getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
-
-        val storage = StatFs(filesDir.absolutePath)
-        val hardware =
-            mutableMapOf<String, Any>(
-                "manufacturer" to Build.MANUFACTURER,
-                "brand" to Build.BRAND,
-                "model" to Build.MODEL,
-                "androidVersion" to Build.VERSION.RELEASE,
-                "sdkInt" to Build.VERSION.SDK_INT,
-                "supportedAbis" to Build.SUPPORTED_ABIS.toList(),
-                "totalRamBytes" to memoryInfo.totalMem,
-                "availableRamBytes" to memoryInfo.availMem,
-                "totalStorageBytes" to storage.totalBytes,
-                "availableStorageBytes" to storage.availableBytes,
-            )
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            hardware["socManufacturer"] = Build.SOC_MANUFACTURER
-            hardware["socModel"] = Build.SOC_MODEL
-        }
-
-        return hardware
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (HomiAndroidRuntime.onActivityResult(requestCode, resultCode, data)) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
-    private fun protocolInfo(): Map<String, Any> =
-        mapOf(
-            "architecture" to "HFP_AUDIO_PLUS_BLE_CONTROL",
-            "controlServiceUuid" to Aiv0BleProtocol.CONTROL_SERVICE,
-            "buttonEventUuid" to Aiv0BleProtocol.BUTTON_EVENT,
-            "appStateUuid" to Aiv0BleProtocol.APP_STATE,
-            "batteryServiceUuid" to Aiv0BleProtocol.BATTERY_SERVICE,
-            "batteryLevelUuid" to Aiv0BleProtocol.BATTERY_LEVEL,
-            "deviceInformationServiceUuid" to
-                Aiv0BleProtocol.DEVICE_INFORMATION_SERVICE,
-            "firmwareRevisionUuid" to Aiv0BleProtocol.FIRMWARE_REVISION,
-            "audioTransport" to "HFP",
-            "legacyBleAudioEnabledByDefault" to false,
-        )
+    override fun onDestroy() {
+        super.onDestroy()
+        HomiAndroidRuntime.detachActivity(this)
+    }
 }

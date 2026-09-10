@@ -10,6 +10,7 @@ import 'package:ai_speaking_flutter_app/features/conversation/data/demo_conversa
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_controller.dart';
 import 'package:ai_speaking_flutter_app/features/conversation/presentation/conversation_screen.dart';
 import 'package:ai_speaking_flutter_app/features/home/presentation/home_learning_shell.dart';
+import 'package:ai_speaking_flutter_app/features/listening/data/active_listening_session_store.dart';
 import 'package:ai_speaking_flutter_app/features/listening/presentation/topic_listening_screen.dart';
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:ai_speaking_flutter_app/features/vocabulary/presentation/vocabulary_home_screen.dart';
@@ -390,6 +391,7 @@ void main() {
 
       expect(voiceNavigationController.isListening, isFalse);
       expect(speechInput.cancelCount, 1);
+      expect(backgroundSession.stopCount, 0);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       debugDefaultTargetPlatformOverride = null;
@@ -433,6 +435,11 @@ void main() {
 
       expect(voiceNavigationController.isListening, isTrue);
       expect(speechInput.cancelCount, 0);
+      expect(backgroundSession.stopCount, 0);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(backgroundSession.stopCount, 0);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
@@ -482,6 +489,39 @@ void main() {
       expect(voiceNavigationController.isListening, isTrue);
 
       await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets(
+    'promotes a companion-restored Android session when the app is visible',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      final backgroundSession = _FakeBackgroundLearningSession();
+      final controller = _controller();
+      addTearDown(backgroundSession.dispose);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _app(controller, backgroundLearningSession: backgroundSession),
+      );
+      await tester.pump();
+      expect(backgroundSession.startCount, 1);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      backgroundSession.resume('microphone_requires_visible_resume');
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      expect(backgroundSession.startCount, 2);
       debugDefaultTargetPlatformOverride = null;
     },
   );
@@ -537,6 +577,61 @@ void main() {
     ].fold<int>(0, (count, key) => count + find.byKey(key).evaluate().length);
     expect(openedLessonScreenCount, 1);
   });
+
+  testWidgets(
+    'iOS restores an active lesson checkpoint only after returning foreground',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await const ActiveListeningSessionStore().save(
+        childAge: 6,
+        topicNumber: 1,
+        lessonNumber: 1,
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+
+      final controller = _controller();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _app(
+          controller,
+          childAge: 6,
+          listeningContentFuture: AssetListeningContentRepository(
+            bundle: rootBundle,
+          ).load(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+      expect(find.byType(TopicListeningScreen), findsNothing);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (var index = 0; index < 60; index += 1) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final openedLessonScreenCount = <Key>[
+        const Key('lesson-intro-screen'),
+        const Key('lesson-review-screen'),
+        const Key('lesson-practice-screen'),
+      ].fold<int>(0, (count, key) => count + find.byKey(key).evaluate().length);
+      expect(openedLessonScreenCount, 1);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('Main flow uses spoken age to open topic 3 lesson 1', (
     tester,
@@ -778,11 +873,11 @@ class _FakeBackgroundLearningSession
     );
   }
 
-  void resume() {
+  void resume([String reason = 'audio_session_interruption_ended']) {
     _events.add(
-      const BackgroundLearningEvent(
+      BackgroundLearningEvent(
         type: BackgroundLearningEventType.resumable,
-        reason: 'audio_session_interruption_ended',
+        reason: reason,
       ),
     );
   }

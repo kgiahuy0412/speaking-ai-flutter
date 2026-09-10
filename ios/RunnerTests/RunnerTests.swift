@@ -9,6 +9,19 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testAiv0PendingButtonBufferIsBoundedAndDrainsChronologically() throws {
+    var buffer = Aiv0PendingButtonEventBuffer(capacity: 2)
+
+    buffer.append(["sequence": 1])
+    buffer.append(["sequence": 2])
+    buffer.append(["sequence": 3])
+
+    XCTAssertEqual(buffer.count, 2)
+    let drained = buffer.drain()
+    XCTAssertEqual(drained.compactMap { $0["sequence"] as? Int }, [2, 3])
+    XCTAssertEqual(buffer.count, 0)
+  }
+
   func testOfflineTranslationDownloadNotificationReadsModelFromUserInfo() {
     let vietnameseModel = TranslateRemoteModel.translateRemoteModel(
       language: TranslateLanguage(rawValue: "vi")

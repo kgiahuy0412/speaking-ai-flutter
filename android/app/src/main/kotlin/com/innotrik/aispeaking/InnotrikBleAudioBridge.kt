@@ -2,7 +2,6 @@ package com.innotrik.aispeaking
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -31,7 +30,7 @@ import java.util.UUID
 
 @SuppressLint("MissingPermission")
 class InnotrikBleAudioBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     companion object {
@@ -48,9 +47,10 @@ class InnotrikBleAudioBridge(
     private val methodChannel = MethodChannel(messenger, CONTROL_CHANNEL)
     private val eventChannel = EventChannel(messenger, EVENT_CHANNEL)
     private val pcmChannel = BasicMessageChannel(messenger, PCM_CHANNEL, BinaryCodec.INSTANCE)
+    private val appContext = host.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bluetoothManager =
-        activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        appContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val adapter: BluetoothAdapter? get() = bluetoothManager.adapter
     private val serviceUuid = UUID.fromString(InnotrikProtocol.SERVICE_UUID)
     private val writeUuid = UUID.fromString(InnotrikProtocol.WRITE_CHARACTERISTIC_UUID)
@@ -98,7 +98,7 @@ class InnotrikBleAudioBridge(
             "cancelCapture" -> cancelCapture(result)
             "status" -> result.success(snapshot())
             "dispose" -> {
-                dispose()
+                releaseDartAudioClient()
                 result.success(null)
             }
             else -> result.notImplemented()
@@ -114,9 +114,36 @@ class InnotrikBleAudioBridge(
         eventSink = null
     }
 
+    /**
+     * Releases a transient Dart audio input without destroying the process-owned
+     * MethodChannels or the service-owned GATT connection.
+     */
+    private fun releaseDartAudioClient() {
+        captureActive = false
+        decoder?.stop()
+        decoder = null
+        pendingWrite = null
+        eventSink = null
+    }
+
+    fun onBackgroundSessionStopped() {
+        mainHandler.post {
+            shouldReconnect = false
+            if (captureActive) {
+                captureActive = false
+                decoder?.stop()
+                decoder = null
+            }
+            closeGatt()
+            phase = "idle"
+            statusMessage = "Phiên HOMI nền đã dừng."
+            emitStatus()
+        }
+    }
+
     private fun initialize(result: MethodChannel.Result) {
         phase = when {
-            !activity.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ->
+            !appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ->
                 "unsupported"
             adapter == null -> "unsupported"
             else -> if (phase == "unsupported") "idle" else phase
@@ -142,7 +169,7 @@ class InnotrikBleAudioBridge(
     }
 
     private fun hasPermissions(): Boolean = requiredPermissions().all {
-        activity.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        appContext.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestPermissions(result: MethodChannel.Result) {
@@ -158,7 +185,14 @@ class InnotrikBleAudioBridge(
         phase = "permissionRequired"
         statusMessage = "Cần quyền Thiết bị ở gần/Bluetooth để tìm INNOTRIK."
         emitStatus()
-        activity.requestPermissions(requiredPermissions(), PERMISSION_REQUEST_CODE)
+        if (!host.requestPermissions(requiredPermissions(), PERMISSION_REQUEST_CODE)) {
+            permissionResult = null
+            result.error(
+                "VISIBLE_ACTIVITY_REQUIRED",
+                "Hãy mở HOMI để cấp quyền Bluetooth trước khi tiếp tục.",
+                null,
+            )
+        }
     }
 
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray): Boolean {
@@ -308,10 +342,10 @@ class InnotrikBleAudioBridge(
         discoveryStarted = false
         emitStatus()
         bluetoothGatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            device.connectGatt(activity, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } else {
             @Suppress("DEPRECATION")
-            device.connectGatt(activity, false, gattCallback)
+            device.connectGatt(appContext, false, gattCallback)
         }
     }
 
@@ -687,7 +721,7 @@ class InnotrikBleAudioBridge(
     }
 
     private fun ensureBluetoothReady(result: MethodChannel.Result): Boolean {
-        if (!activity.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ||
+        if (!appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ||
             adapter == null
         ) {
             fail(result, "BLE_UNSUPPORTED", "Điện thoại không hỗ trợ Bluetooth Low Energy.")

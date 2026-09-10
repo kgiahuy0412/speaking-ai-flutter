@@ -656,6 +656,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     _lastAiv0AutoConnectAttempt = null;
     await _autoConnectH20Ble(reason: _H20AutoConnectReason.parentSetup);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final deviceId = _aiv0BleControl?.status.deviceId?.trim();
+      if (deviceId != null && deviceId.isNotEmpty) {
+        final associated = await MethodChannelBackgroundLearningSession()
+            .associateH20Companion(deviceId);
+        if (!associated && mounted) {
+          setState(() {
+            _startupPermissionError =
+                'Phụ huynh cần xác nhận H20 trong cửa sổ thiết bị đồng hành của Android để duy trì phiên học nền.';
+          });
+        }
+      }
+    }
     if (mounted) {
       setState(() {});
     }

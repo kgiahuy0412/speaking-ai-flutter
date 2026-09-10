@@ -10,6 +10,7 @@ import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
+import '../data/active_listening_session_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
 import 'active_learning_navigation.dart';
@@ -366,6 +367,13 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     ListeningLessonContent lesson, {
     required bool reviewFromBeginning,
   }) async {
+    unawaited(
+      const ActiveListeningSessionStore().save(
+        childAge: widget.startAge,
+        topicNumber: widget.content.number,
+        lessonNumber: lesson.number,
+      ),
+    );
     final unlockFuture =
         shouldUseSongKaraoke(startAge: widget.startAge, lesson: lesson)
         ? _mediaService.unlockPlaybackForUserGesture()

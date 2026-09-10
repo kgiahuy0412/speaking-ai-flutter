@@ -2,7 +2,6 @@ package com.innotrik.aispeaking
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -28,7 +27,7 @@ import java.util.Locale
 
 @SuppressLint("MissingPermission")
 class Aiv0BleControlBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     companion object {
@@ -38,15 +37,23 @@ class Aiv0BleControlBridge(
         private const val MAX_RECONNECT_ATTEMPTS = 5
         private const val DUPLICATE_WINDOW_MS = 750L
         private const val TAG = "Aiv0BleControl"
+        private const val RUNTIME_PREFERENCES = "homi_android_runtime"
+        private const val LAST_DEVICE_ID = "h20_ble_device_id"
+        private const val LAST_DEVICE_NAME = "h20_ble_device_name"
+        private const val MAX_BUFFERED_BUTTON_EVENTS = 32
     }
 
     private val methodChannel = MethodChannel(messenger, CONTROL_CHANNEL)
     private val eventChannel = EventChannel(messenger, EVENT_CHANNEL)
+    private val appContext = host.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bluetoothManager =
-        activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        appContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val adapter: BluetoothAdapter? get() = bluetoothManager.adapter
     private val scanDevices = linkedMapOf<String, ScannedDevice>()
+    private val runtimePreferences =
+        appContext.getSharedPreferences(RUNTIME_PREFERENCES, Context.MODE_PRIVATE)
+    private val bufferedButtonEvents = ArrayDeque<Map<String, Any?>>()
 
     private var eventSink: EventChannel.EventSink? = null
     private var phase = "idle"
@@ -97,7 +104,12 @@ class Aiv0BleControlBridge(
             "sendAppState" -> sendAppState(call, result)
             "status" -> result.success(snapshot())
             "dispose" -> {
-                dispose()
+                // The native bridge belongs to the process-scoped HOMI runtime,
+                // not to an individual Dart controller. A screen/controller may
+                // be disposed while the foreground service must keep H20 alive.
+                // EventChannel.onCancel detaches the old Dart listener; a later
+                // controller can subscribe again and receive the current state.
+                eventSink = null
                 result.success(null)
             }
             else -> result.notImplemented()
@@ -107,6 +119,9 @@ class Aiv0BleControlBridge(
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
         events?.success(snapshot())
+        while (events != null && bufferedButtonEvents.isNotEmpty()) {
+            events.success(bufferedButtonEvents.removeFirst())
+        }
     }
 
     override fun onCancel(arguments: Any?) {
@@ -115,7 +130,7 @@ class Aiv0BleControlBridge(
 
     private fun initialize(result: MethodChannel.Result) {
         phase = when {
-            !activity.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ->
+            !appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ->
                 "disabled"
             adapter == null -> "disabled"
             else -> if (phase == "disabled") "idle" else phase
@@ -137,7 +152,7 @@ class Aiv0BleControlBridge(
         }
 
     private fun hasPermissions(): Boolean = requiredPermissions().all {
-        activity.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        appContext.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestPermissions(result: MethodChannel.Result) {
@@ -152,7 +167,14 @@ class Aiv0BleControlBridge(
         permissionResult = result
         message = "Cần quyền Thiết bị ở gần/Bluetooth để tìm H20."
         emitStatus()
-        activity.requestPermissions(requiredPermissions(), PERMISSION_REQUEST_CODE)
+        if (!host.requestPermissions(requiredPermissions(), PERMISSION_REQUEST_CODE)) {
+            permissionResult = null
+            result.error(
+                "VISIBLE_ACTIVITY_REQUIRED",
+                "Hãy mở HOMI để cấp quyền Bluetooth trước khi tiếp tục.",
+                null,
+            )
+        }
     }
 
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray): Boolean {
@@ -168,7 +190,7 @@ class Aiv0BleControlBridge(
     }
 
     private fun ensureBluetoothReady(result: MethodChannel.Result): Boolean {
-        if (adapter == null || !activity.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+        if (adapter == null || !appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             result.error("BLE_UNSUPPORTED", "Điện thoại không hỗ trợ BLE.", null)
             return false
         }
@@ -311,9 +333,9 @@ class Aiv0BleControlBridge(
         mainHandler.removeCallbacks(connectionTimeout)
         val opened = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                device.connectGatt(activity, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+                device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
             } else {
-                device.connectGatt(activity, false, gattCallback)
+                device.connectGatt(appContext, false, gattCallback)
             }
         }.getOrElse { error ->
             failConnection("Không thể mở GATT H20: ${error.message}")
@@ -422,6 +444,10 @@ class Aiv0BleControlBridge(
                 }
                 phase = "connected"
                 mainHandler.removeCallbacks(connectionTimeout)
+                runtimePreferences.edit()
+                    .putString(LAST_DEVICE_ID, deviceId)
+                    .putString(LAST_DEVICE_NAME, deviceName)
+                    .apply()
                 message = if (writeMode == "withoutResponse") {
                     "Đã kết nối. ODM cần bổ sung Write with response cho 9E3B0003."
                 } else {
@@ -508,7 +534,7 @@ class Aiv0BleControlBridge(
                 BackgroundLearningService.notePhysicalMain()
             }
             emitStatus()
-            eventSink?.success(
+            emitButtonEvent(
                 mapOf(
                     "type" to "button",
                     "deviceId" to deviceId,
@@ -695,6 +721,59 @@ class Aiv0BleControlBridge(
             return
         }
         eventSink?.success(snapshot())
+    }
+
+    private fun emitButtonEvent(event: Map<String, Any?>) {
+        val sink = eventSink
+        if (sink != null) {
+            sink.success(event)
+            return
+        }
+        while (bufferedButtonEvents.size >= MAX_BUFFERED_BUTTON_EVENTS) {
+            bufferedButtonEvents.removeFirst()
+        }
+        bufferedButtonEvents.addLast(event)
+    }
+
+    /** Reopens the last verified H20 GATT link after service/process recovery. */
+    fun onBackgroundSessionStarted() {
+        mainHandler.post {
+            if (disposed || bluetoothGatt != null ||
+                phase == "connecting" || phase == "reconnecting" ||
+                !hasPermissions() || adapter?.isEnabled != true
+            ) {
+                return@post
+            }
+            val savedId = runtimePreferences.getString(LAST_DEVICE_ID, null)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: return@post
+            val device = runCatching { adapter?.getRemoteDevice(savedId) }.getOrNull()
+                ?: return@post
+            deviceId = savedId
+            deviceName = runtimePreferences.getString(LAST_DEVICE_NAME, null)
+                ?: runCatching { device.name }.getOrNull()
+                ?: "H20"
+            shouldReconnect = true
+            reconnectAttempts = 0
+            phase = "reconnecting"
+            message = "Đang khôi phục kết nối H20…"
+            emitStatus()
+            openGatt(device)
+        }
+    }
+
+    /** Stops service-owned BLE without forgetting the parent's verified H20. */
+    fun onBackgroundSessionStopped() {
+        mainHandler.post {
+            if (disposed) return@post
+            shouldReconnect = false
+            reconnectAttempts = 0
+            closeGatt()
+            phase = "idle"
+            message = "Phiên HOMI nền đã dừng."
+            emitStatus()
+        }
     }
 
     fun dispose() {

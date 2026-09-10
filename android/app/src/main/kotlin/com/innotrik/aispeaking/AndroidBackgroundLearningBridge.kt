@@ -1,7 +1,7 @@
 package com.innotrik.aispeaking
 
 import android.Manifest
-import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -12,7 +12,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 class AndroidBackgroundLearningBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     companion object {
@@ -21,6 +21,8 @@ class AndroidBackgroundLearningBridge(
 
     private val methodChannel = MethodChannel(messenger, "ailingo_background_learning")
     private val eventChannel = EventChannel(messenger, "ailingo_background_learning/events")
+    private val appContext = host.applicationContext
+    private val companionDeviceManager = HomiCompanionDeviceManager(host)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var eventSink: EventChannel.EventSink? = null
     private var notificationPermissionResult: MethodChannel.Result? = null
@@ -37,22 +39,32 @@ class AndroidBackgroundLearningBridge(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "start" -> result.success(
-                BackgroundLearningService.start(activity.applicationContext),
+                BackgroundLearningService.start(
+                    appContext,
+                    startedWhileVisible = host.currentActivity != null,
+                ),
             )
             "stop" -> {
-                BackgroundLearningService.stop(activity.applicationContext)
+                BackgroundLearningService.stop(appContext)
                 result.success(null)
             }
             "setActiveLearning" -> {
                 val active = call.argument<Boolean>("active") == true
                 BackgroundLearningService.setActiveLearning(
-                    activity.applicationContext,
+                    appContext,
                     active,
                 )
                 result.success(null)
             }
             "isActive" -> result.success(BackgroundLearningService.isActive())
             "requestNotificationPermission" -> requestNotificationPermission(result)
+            "companion.status" -> result.success(
+                companionDeviceManager.status(call.argument<String>("deviceId")),
+            )
+            "companion.associate" -> companionDeviceManager.associate(
+                call.argument<String>("deviceId"),
+                result,
+            )
             else -> result.notImplemented()
         }
     }
@@ -63,7 +75,7 @@ class AndroidBackgroundLearningBridge(
             return
         }
         if (
-            activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            appContext.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
         ) {
             result.success(true)
@@ -78,10 +90,18 @@ class AndroidBackgroundLearningBridge(
             return
         }
         notificationPermissionResult = result
-        activity.requestPermissions(
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            NOTIFICATION_PERMISSION_REQUEST_CODE,
-        )
+        if (!host.requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                NOTIFICATION_PERMISSION_REQUEST_CODE,
+            )
+        ) {
+            notificationPermissionResult = null
+            result.error(
+                "VISIBLE_ACTIVITY_REQUIRED",
+                "Hãy mở HOMI để cấp quyền thông báo cho phiên học nền.",
+                null,
+            )
+        }
     }
 
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray): Boolean {
@@ -93,6 +113,9 @@ class AndroidBackgroundLearningBridge(
         return true
     }
 
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
+        companionDeviceManager.onActivityResult(requestCode, resultCode, data)
+
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         eventSink = events
     }
@@ -103,7 +126,6 @@ class AndroidBackgroundLearningBridge(
 
     fun dispose() {
         BackgroundLearningService.removeListener(serviceListener)
-        BackgroundLearningService.stop(activity.applicationContext)
         notificationPermissionResult?.error(
             "BACKGROUND_BRIDGE_DISPOSED",
             "Ứng dụng đã đóng trước khi nhận quyền thông báo.",

@@ -380,6 +380,17 @@ class VoicePromptBridge(
         completion?.success(null)
     }
 
+    fun stopForBackgroundSession() {
+        mainHandler.post {
+            completePendingPrompt()
+            completeActiveAwaited()
+            completeReadyCue()
+            textToSpeech?.stop()
+            clearSynthesizedPrompt()
+            releasePromptPlayback()
+        }
+    }
+
     fun dispose() {
         completePendingPrompt()
         completeActiveAwaited()

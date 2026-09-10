@@ -1,6 +1,5 @@
 package com.innotrik.aispeaking
 
-import android.app.Activity
 import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
@@ -23,10 +22,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * so conversation ASR and voice navigation keep their existing system service.
  */
 class HomiOfflineSpeechBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler {
     private val channel = MethodChannel(messenger, channelName)
+    private val appContext = host.applicationContext
     private val executor = Executors.newSingleThreadExecutor()
     private val disposed = AtomicBoolean(false)
     private val recognitionGeneration = AtomicInteger(0)
@@ -45,7 +45,7 @@ class HomiOfflineSpeechBridge(
                 if (spec == null) {
                     unsupportedLocale(result)
                 } else {
-                    result.success(HomiOfflineSpeechModel.status(activity, spec))
+                    result.success(HomiOfflineSpeechModel.status(appContext, spec))
                 }
             }
             "model.requestDownload" -> {
@@ -54,9 +54,9 @@ class HomiOfflineSpeechBridge(
                     unsupportedLocale(result)
                 } else {
                     val payload =
-                        HomiOfflineSpeechModel.scheduleDownload(activity, spec).toMutableMap()
+                        HomiOfflineSpeechModel.scheduleDownload(appContext, spec).toMutableMap()
                     payload["state"] =
-                        if (HomiOfflineSpeechModel.isInstalled(activity, spec)) {
+                        if (HomiOfflineSpeechModel.isInstalled(appContext, spec)) {
                             "installed"
                         } else {
                             "requested"
@@ -70,7 +70,7 @@ class HomiOfflineSpeechBridge(
                 if (locale != null && spec == null) {
                     unsupportedLocale(result)
                 } else {
-                    HomiOfflineSpeechModel.cancelDownload(activity, spec)
+                    HomiOfflineSpeechModel.cancelDownload(appContext, spec)
                     result.success(true)
                 }
             }
@@ -83,6 +83,10 @@ class HomiOfflineSpeechBridge(
         }
     }
 
+    fun onBackgroundSessionStopped() {
+        recognitionGeneration.incrementAndGet()
+    }
+
     private fun recognizeFile(call: MethodCall, result: MethodChannel.Result) {
         if (disposed.get()) {
             result.error("OFFLINE_SPEECH_DISPOSED", "Bộ nhận diện đã đóng.", null)
@@ -93,11 +97,11 @@ class HomiOfflineSpeechBridge(
             unsupportedLocale(result)
             return
         }
-        if (!HomiOfflineSpeechModel.isInstalled(activity, spec)) {
+        if (!HomiOfflineSpeechModel.isInstalled(appContext, spec)) {
             result.error(
                 "ON_DEVICE_SPEECH_UNAVAILABLE",
                 "Model ${spec.locale} offline của HOMI chưa được tải xong.",
-                HomiOfflineSpeechModel.status(activity, spec),
+                HomiOfflineSpeechModel.status(appContext, spec),
             )
             return
         }
@@ -112,24 +116,24 @@ class HomiOfflineSpeechBridge(
         executor.execute {
             try {
                 val recognition = transcribe(audioFile, generation, spec)
-                activity.mainExecutor.execute {
+                host.mainExecutor.execute {
                     if (!disposed.get()) result.success(recognition)
                 }
             } catch (error: RecognitionCancelledException) {
-                activity.mainExecutor.execute {
+                host.mainExecutor.execute {
                     if (!disposed.get()) {
                         result.error("SPEECH_CANCELLED", "Nhận dạng đã được dừng.", null)
                     }
                 }
             } catch (error: InvalidWavException) {
-                activity.mainExecutor.execute {
+                host.mainExecutor.execute {
                     if (!disposed.get()) {
                         result.error("RECORDED_AUDIO_INVALID", error.message, null)
                     }
                 }
             } catch (error: Throwable) {
                 Log.e(logTag, "Offline lesson recognition failed", error)
-                activity.mainExecutor.execute {
+                host.mainExecutor.execute {
                     if (!disposed.get()) {
                         result.error(
                             "ON_DEVICE_SPEECH_FAILED",
@@ -206,7 +210,7 @@ class HomiOfflineSpeechBridge(
                 loadedModelId = null
             }
             loadedModel
-                ?: Model(HomiOfflineSpeechModel.modelDirectory(activity, spec).absolutePath).also {
+                ?: Model(HomiOfflineSpeechModel.modelDirectory(appContext, spec).absolutePath).also {
                     loadedModel = it
                     loadedModelId = spec.modelId
                 }

@@ -10,6 +10,7 @@ import '../../../core/platform/platform_access_policy.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
+import '../../listening/data/active_listening_session_store.dart';
 import '../../listening/domain/listening_content.dart';
 import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
@@ -87,6 +88,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   StreamSubscription<BackgroundLearningEvent>? _backgroundLearningSubscription;
   bool _backgroundLearningActive = false;
   bool _startingBackgroundLearning = false;
+  bool _backgroundMicrophoneRequiresVisibleResume = false;
+  bool _activeListeningCheckpointHandled = false;
 
   final GlobalKey _speakActionKey = GlobalKey(
     debugLabel: 'onboarding-speak-action',
@@ -119,6 +122,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     widget.controller.addListener(_onConversationControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_ensureBackgroundLearningStarted());
+      unawaited(_restoreActiveListeningCheckpoint());
       _scheduleVoiceNavigationListening(
         delay: const Duration(milliseconds: 450),
       );
@@ -128,6 +132,29 @@ class _HomeLearningShellState extends State<HomeLearningShell>
         unawaited(_showTutorialOnFirstUse());
       });
     }
+  }
+
+  Future<void> _restoreActiveListeningCheckpoint() async {
+    if (_activeListeningCheckpointHandled ||
+        !widget.voiceAccessEnabled ||
+        kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS) ||
+        _appLifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _activeListeningCheckpointHandled = true;
+    final checkpoint = await const ActiveListeningSessionStore().read();
+    if (!mounted || checkpoint == null || _openingTopics) return;
+    await _openTopicListening(
+      initialVoiceTarget: ListeningVoiceNavigationTarget(
+        recognizedText: 'resume active listening session',
+        openLesson: true,
+        topicNumber: checkpoint.topicNumber,
+        lessonNumber: checkpoint.lessonNumber,
+        childAge: checkpoint.childAge,
+      ),
+    );
   }
 
   @override
@@ -158,6 +185,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     if (oldWidget.voiceAccessEnabled != widget.voiceAccessEnabled) {
       if (widget.voiceAccessEnabled) {
         unawaited(_ensureBackgroundLearningStarted());
+        unawaited(_restoreActiveListeningCheckpoint());
       } else {
         _backgroundLearningActive = false;
         unawaited(_backgroundLearningSession.stop());
@@ -174,7 +202,9 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     widget.voiceNavigationController?.setIntentHandler(null);
     unawaited(widget.voiceNavigationController?.pause());
     unawaited(_backgroundLearningSubscription?.cancel());
-    unawaited(_backgroundLearningSession.stop());
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      unawaited(_backgroundLearningSession.stop());
+    }
     _pageController.dispose();
     super.dispose();
   }
@@ -183,7 +213,12 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
     if (state == AppLifecycleState.resumed) {
+      if (_backgroundMicrophoneRequiresVisibleResume) {
+        _backgroundMicrophoneRequiresVisibleResume = false;
+        _backgroundLearningActive = false;
+      }
       unawaited(_ensureBackgroundLearningStarted());
+      unawaited(_restoreActiveListeningCheckpoint());
       _scheduleVoiceNavigationListening();
       return;
     }
@@ -192,10 +227,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     // This preserves prompt -> command navigation without reviving the old
     // always-on Android microphone loop.
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      if (state == AppLifecycleState.detached) {
-        _backgroundLearningActive = false;
-        unawaited(_backgroundLearningSession.stop());
-      } else if (_backgroundLearningActive &&
+      if (_backgroundLearningActive &&
           widget.voiceAccessEnabled &&
           (widget.voiceNavigationController?.isMainButtonSessionActive ??
               false)) {
@@ -237,7 +269,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     final active = await _backgroundLearningSession.start();
     _startingBackgroundLearning = false;
     if (!mounted) {
-      if (active) {
+      if (active &&
+          (kIsWeb || defaultTargetPlatform != TargetPlatform.android)) {
         await _backgroundLearningSession.stop();
       }
       return;
@@ -252,10 +285,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     if (!mounted) return;
     if (event.type == BackgroundLearningEventType.resumable) {
       _backgroundLearningActive = true;
+      _backgroundMicrophoneRequiresVisibleResume =
+          event.reason == 'microphone_requires_visible_resume';
       _scheduleVoiceNavigationListening();
       return;
     }
     _backgroundLearningActive = false;
+    _backgroundMicrophoneRequiresVisibleResume = false;
     _voiceNavigationRestartTimer?.cancel();
     unawaited(widget.voiceNavigationController?.pause());
   }
@@ -388,7 +424,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       _continuousVoiceNavigationEnabled &&
       (_appLifecycleState == AppLifecycleState.resumed ||
           (_backgroundLearningActive &&
-              _appLifecycleState != AppLifecycleState.detached)) &&
+              (widget.voiceNavigationController?.isMainButtonSessionActive ??
+                  false))) &&
       !_voiceNavigationPausedForOverlay &&
       !_tutorialActive &&
       !widget.controller.isBusy &&
@@ -828,6 +865,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
         ),
       );
     } finally {
+      await const ActiveListeningSessionStore().clear();
       _openingTopics = false;
       _activeVoiceTopicIndex = null;
       if (identical(_topicRouteClosedCompleter, routeClosedCompleter)) {

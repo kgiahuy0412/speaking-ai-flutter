@@ -1,7 +1,6 @@
 package com.innotrik.aispeaking
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
@@ -29,7 +28,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 class AndroidSpeechRecognizerBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler,
     EventChannel.StreamHandler,
@@ -38,6 +37,7 @@ class AndroidSpeechRecognizerBridge(
         MethodChannel(messenger, "ailingo_speech")
     private val eventChannel =
         EventChannel(messenger, "ailingo_speech/events")
+    private val appContext = host.applicationContext
 
     private var recognizer: SpeechRecognizer? = null
     private var recognizerMode: RecognizerMode? = null
@@ -68,7 +68,7 @@ class AndroidSpeechRecognizerBridge(
     ) {
         when (call.method) {
             "speech.isAvailable" ->
-                result.success(SpeechRecognizer.isRecognitionAvailable(activity))
+                result.success(SpeechRecognizer.isRecognitionAvailable(appContext))
             "speech.supportsAudioSource" -> {
                 val onlyWhenOffline = call.argument<Boolean>("onlyWhenOffline") == true
                 result.success(
@@ -116,7 +116,7 @@ class AndroidSpeechRecognizerBridge(
         val requireOnDevice = call.argument<Boolean>("requireOnDevice") == true
         val locale = call.argument<String>("locale")?.ifBlank { defaultLocale } ?: defaultLocale
         if (
-            activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
                 PackageManager.PERMISSION_GRANTED
         ) {
             if (pendingPermissionResult != null) {
@@ -133,10 +133,18 @@ class AndroidSpeechRecognizerBridge(
             pendingPermissionPreferOnDevice = preferOnDevice
             pendingPermissionRequireOnDevice = requireOnDevice
             pendingPermissionLocale = locale
-            activity.requestPermissions(
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                microphonePermissionRequestCode,
-            )
+            if (!host.requestPermissions(
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    microphonePermissionRequestCode,
+                )
+            ) {
+                pendingPermissionResult = null
+                result.error(
+                    "VISIBLE_ACTIVITY_REQUIRED",
+                    "Hãy mở HOMI để cấp quyền micro trước khi tiếp tục.",
+                    null,
+                )
+            }
             return
         }
 
@@ -197,7 +205,7 @@ class AndroidSpeechRecognizerBridge(
         try {
             activeRecognizer.checkRecognitionSupport(
                 intent,
-                activity.mainExecutor,
+                host.mainExecutor,
                 object : RecognitionSupportCallback {
                     override fun onSupportResult(recognitionSupport: RecognitionSupport) {
                         if (!callbackCompleted.compareAndSet(false, true)) return
@@ -251,6 +259,19 @@ class AndroidSpeechRecognizerBridge(
                     state = "missing",
                     strictOnDeviceAvailable = strictOnDeviceAvailable,
                 ),
+            )
+        }
+    }
+
+    fun onBackgroundSessionStopped() {
+        host.runOnMain {
+            recognitionGeneration += 1
+            recognizer?.cancel()
+            closeInjectedAudio()
+            listening = false
+            completePendingFileError(
+                "BACKGROUND_SESSION_STOPPED",
+                "Phiên HOMI nền đã dừng.",
             )
         }
     }
@@ -425,7 +446,7 @@ class AndroidSpeechRecognizerBridge(
                 )
                 putExtra(
                     RecognizerIntent.EXTRA_CALLING_PACKAGE,
-                    activity.packageName,
+                    appContext.packageName,
                 )
             }
 
@@ -654,7 +675,7 @@ class AndroidSpeechRecognizerBridge(
 
     private fun ensureRecognizer(requestedMode: RecognizerMode): Boolean {
         val available = when (requestedMode) {
-            RecognizerMode.STANDARD -> SpeechRecognizer.isRecognitionAvailable(activity)
+            RecognizerMode.STANDARD -> SpeechRecognizer.isRecognitionAvailable(appContext)
             RecognizerMode.ON_DEVICE -> isOnDeviceRecognitionAvailable()
         }
         if (!available) {
@@ -672,9 +693,9 @@ class AndroidSpeechRecognizerBridge(
         if (recognizer == null) {
             recognizer = try {
                 val created = when (requestedMode) {
-                    RecognizerMode.STANDARD -> SpeechRecognizer.createSpeechRecognizer(activity)
+                    RecognizerMode.STANDARD -> SpeechRecognizer.createSpeechRecognizer(appContext)
                     RecognizerMode.ON_DEVICE ->
-                        SpeechRecognizer.createOnDeviceSpeechRecognizer(activity)
+                        SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
                 }
                 created.also {
                     it.setRecognitionListener(this)
@@ -689,7 +710,7 @@ class AndroidSpeechRecognizerBridge(
 
     private fun isOnDeviceRecognitionAvailable(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            SpeechRecognizer.isOnDeviceRecognitionAvailable(activity)
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
 
     private fun supportsStrictOnDeviceFileRecognition(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -704,13 +725,13 @@ class AndroidSpeechRecognizerBridge(
      */
     private fun supportsDisconnectedOfflineCompatibility(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            SpeechRecognizer.isRecognitionAvailable(activity) &&
+            SpeechRecognizer.isRecognitionAvailable(appContext) &&
             !hasValidatedInternetConnection()
 
     private fun hasValidatedInternetConnection(): Boolean =
         try {
             val connectivityManager =
-                activity.getSystemService(ConnectivityManager::class.java)
+                appContext.getSystemService(ConnectivityManager::class.java)
                     ?: return true
             val activeNetwork = connectivityManager.activeNetwork ?: return false
             val capabilities =
@@ -725,7 +746,7 @@ class AndroidSpeechRecognizerBridge(
     private fun hasValidatedUnmeteredWifi(): Boolean =
         try {
             val connectivityManager =
-                activity.getSystemService(ConnectivityManager::class.java)
+                appContext.getSystemService(ConnectivityManager::class.java)
                     ?: return false
             val activeNetwork = connectivityManager.activeNetwork ?: return false
             val capabilities =
@@ -758,7 +779,7 @@ class AndroidSpeechRecognizerBridge(
         try {
             activeRecognizer.checkRecognitionSupport(
                 intent,
-                activity.mainExecutor,
+                host.mainExecutor,
                 object : RecognitionSupportCallback {
                     override fun onSupportResult(recognitionSupport: RecognitionSupport) {
                         if (!callbackCompleted.compareAndSet(false, true)) return
@@ -1081,7 +1102,7 @@ class AndroidSpeechRecognizerBridge(
         }
         val output =
             File(
-                activity.cacheDir,
+                appContext.cacheDir,
                 "speech_${System.currentTimeMillis()}.wav",
             )
         FileOutputStream(output).use { stream ->

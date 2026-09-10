@@ -49,6 +49,38 @@ struct Aiv0DuplicatePacketFilter {
   }
 }
 
+/// Keeps physical H20 button presses that arrive while the Flutter event
+/// channel is temporarily detached. iOS can restore CoreBluetooth before the
+/// Flutter scene has finished attaching its listener, so dropping these
+/// events would force the parent to press MAIN a second time.
+struct Aiv0PendingButtonEventBuffer {
+  private(set) var events: [[String: Any]] = []
+  let capacity: Int
+
+  init(capacity: Int = 32) {
+    self.capacity = max(capacity, 1)
+  }
+
+  var count: Int { events.count }
+
+  mutating func append(_ event: [String: Any]) {
+    if events.count == capacity {
+      events.removeFirst()
+    }
+    events.append(event)
+  }
+
+  mutating func drain() -> [[String: Any]] {
+    let pending = events
+    events.removeAll(keepingCapacity: true)
+    return pending
+  }
+
+  mutating func removeAll() {
+    events.removeAll(keepingCapacity: false)
+  }
+}
+
 struct Aiv0ReconnectPolicy {
   // Match Android's recovery budget. H20 can briefly drop its BLE GATT link
   // while iOS brings up the two-way HFP route, but MAIN must recover without
@@ -307,6 +339,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
   private let eventChannel: FlutterEventChannel
   private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private var eventSink: FlutterEventSink?
+  private var pendingButtonEvents = Aiv0PendingButtonEventBuffer()
   private var central: CBCentralManager?
   private var discoveredDevices: [UUID: DiscoveredDevice] = [:]
   private var connectedPeripheral: CBPeripheral?
@@ -1311,7 +1344,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
         ]
       )
     }
-    eventSink?([
+    let delivered = emitButtonEvent([
       "type": "button",
       "bytes": bytes.map { Int($0) },
       "deviceId": connectedPeripheral?.identifier.uuidString ?? "H20-HFP",
@@ -1320,7 +1353,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "receivedAtEpochMs": Int(Date().timeIntervalSince1970 * 1_000),
     ])
     emitStatus()
-    return eventSink != nil
+    return delivered
   }
 
   private func snapshot() -> [String: Any] {
@@ -1334,6 +1367,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
       "remoteMainDuplicateCount": remoteMainDuplicateCount,
       "remoteMainCommandsEnabled": remoteMainCommandsEnabled,
       "reconnectCount": reconnectCount,
+      "bufferedButtonEventCount": pendingButtonEvents.count,
       "deferredRecoveryRepeatCount": deferredRecoveryTraceState.repeatCount,
       "diagnosticTimeline": audioSessionCoordinator.diagnosticTimelineSnapshot(limit: 80),
     ]
@@ -1370,9 +1404,23 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     eventSink?(snapshot())
   }
 
+  @discardableResult
+  private func emitButtonEvent(_ event: [String: Any]) -> Bool {
+    guard !disposed else { return false }
+    if let eventSink {
+      eventSink(event)
+    } else {
+      pendingButtonEvents.append(event)
+    }
+    return true
+  }
+
   func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
     eventSink = events
     events(snapshot())
+    for event in pendingButtonEvents.drain() {
+      events(event)
+    }
     return nil
   }
 
@@ -1418,6 +1466,7 @@ final class Aiv0BleControlBridge: NSObject, FlutterStreamHandler {
     pendingWriteResult?(FlutterError(code: "BLE_DISPOSED", message: "Đã đóng cầu nối BLE.", details: nil))
     pendingWriteResult = nil
     eventSink = nil
+    pendingButtonEvents.removeAll()
     unregisterRemoteMainCommands()
     methodChannel.setMethodCallHandler(nil)
     eventChannel.setStreamHandler(nil)
@@ -1864,7 +1913,7 @@ extension Aiv0BleControlBridge: CBPeripheralDelegate {
           ]
         )
       }
-      eventSink?([
+      emitButtonEvent([
         "type": "button",
         "bytes": bytes.map { Int($0) },
         "deviceId": peripheral.identifier.uuidString,

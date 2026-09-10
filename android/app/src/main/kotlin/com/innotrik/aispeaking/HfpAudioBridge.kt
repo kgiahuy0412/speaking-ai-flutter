@@ -1,7 +1,6 @@
 package com.innotrik.aispeaking
 
 import android.Manifest
-import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHeadset
@@ -32,7 +31,7 @@ import java.util.UUID
  * the chosen profile is not connected yet, and selects the connected SCO input.
  */
 class HfpAudioBridge(
-    private val activity: Activity,
+    private val host: HomiAndroidHost,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     companion object {
@@ -52,11 +51,12 @@ class HfpAudioBridge(
 
     private val methodChannel = MethodChannel(messenger, CONTROL_CHANNEL)
     private val eventChannel = EventChannel(messenger, EVENT_CHANNEL)
+    private val appContext = host.applicationContext
     private val bluetoothManager =
-        activity.getSystemService(BluetoothManager::class.java)
+        appContext.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private val audioManager =
-        activity.getSystemService(AudioManager::class.java)
+        appContext.getSystemService(AudioManager::class.java)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var eventSink: EventChannel.EventSink? = null
@@ -145,7 +145,7 @@ class HfpAudioBridge(
         adapter?.let { bluetoothAdapter ->
             runCatching {
                 bluetoothAdapter.getProfileProxy(
-                    activity,
+                    appContext,
                     profileListener,
                     BluetoothProfile.HEADSET,
                 )
@@ -157,14 +157,14 @@ class HfpAudioBridge(
                 addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
             }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            activity.registerReceiver(
+            appContext.registerReceiver(
                 bluetoothReceiver,
                 filter,
                 Context.RECEIVER_NOT_EXPORTED,
             )
         } else {
             @Suppress("DEPRECATION")
-            activity.registerReceiver(bluetoothReceiver, filter)
+            appContext.registerReceiver(bluetoothReceiver, filter)
         }
     }
 
@@ -221,10 +221,18 @@ class HfpAudioBridge(
             return
         }
         pendingPermissionResult = result
-        activity.requestPermissions(
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-            PERMISSION_REQUEST_CODE,
-        )
+        if (!host.requestPermissions(
+                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                PERMISSION_REQUEST_CODE,
+            )
+        ) {
+            pendingPermissionResult = null
+            result.error(
+                "VISIBLE_ACTIVITY_REQUIRED",
+                "Hãy mở HOMI để cấp quyền Bluetooth trước khi tiếp tục.",
+                null,
+            )
+        }
     }
 
     fun onRequestPermissionsResult(
@@ -308,9 +316,7 @@ class HfpAudioBridge(
                 statusMessage =
                     "Hãy kết nối thiết bị trong Cài đặt Bluetooth, rồi quay lại bấm Tìm HFP."
                 emitStatus()
-                runCatching {
-                    activity.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                }
+                host.startVisibleActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                 result.error("HFP_NOT_CONNECTED", statusMessage, null)
                 return
             }
@@ -503,11 +509,11 @@ class HfpAudioBridge(
             first.equals(second, ignoreCase = true)
 
     private fun hasBluetoothFeature(): Boolean =
-        activity.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)
+        appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)
 
     private fun hasConnectPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            appContext.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
             PackageManager.PERMISSION_GRANTED
 
     private fun ensureBluetoothReady(result: MethodChannel.Result): Boolean {
@@ -573,7 +579,7 @@ class HfpAudioBridge(
 
     private fun emitStatus() {
         if (!disposed) {
-            activity.runOnUiThread { eventSink?.success(snapshot()) }
+            host.runOnMain { eventSink?.success(snapshot()) }
         }
     }
 
@@ -589,6 +595,10 @@ class HfpAudioBridge(
         eventSink = null
     }
 
+    fun onBackgroundSessionStopped() {
+        host.runOnMain { stopAudioRouteInternal() }
+    }
+
     fun dispose() {
         if (disposed) return
         stopAudioRouteInternal()
@@ -600,7 +610,7 @@ class HfpAudioBridge(
         )
         pendingPermissionResult = null
         mainHandler.removeCallbacks(audioRouteTimeout)
-        runCatching { activity.unregisterReceiver(bluetoothReceiver) }
+        runCatching { appContext.unregisterReceiver(bluetoothReceiver) }
         headset?.let { adapter?.closeProfileProxy(BluetoothProfile.HEADSET, it) }
         headset = null
         eventSink = null

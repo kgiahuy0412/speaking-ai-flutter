@@ -18,6 +18,7 @@ import '../application/lesson_attempt_evaluator.dart';
 import '../application/lesson_guide_audio_library.dart';
 import '../application/lesson_completion_choice_recognizer.dart';
 import '../application/lesson_media_service.dart';
+import '../data/active_listening_session_store.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
@@ -2127,6 +2128,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }) async {
     if (topic.lessons.isEmpty || !mounted) return;
     final lesson = topic.lessons.first;
+    unawaited(
+      const ActiveListeningSessionStore().save(
+        childAge: widget.startAge,
+        topicNumber: topic.number,
+        lessonNumber: lesson.number,
+      ),
+    );
     await widget.progressStore.saveCurrentSentence(lesson.id, 0);
     if (relearn) {
       await widget.progressStore.clearV4LessonActivityCompleted(lesson.id);
@@ -2526,6 +2534,16 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
 
   Future<void> _openNextLesson(ListeningLessonContent lesson) async {
     await widget.mediaService.stopPlayback();
+    final topicNumber = widget.topicContent?.number;
+    if (topicNumber != null) {
+      unawaited(
+        const ActiveListeningSessionStore().save(
+          childAge: widget.startAge,
+          topicNumber: topicNumber,
+          lessonNumber: lesson.number,
+        ),
+      );
+    }
     await widget.progressStore.saveCurrentSentence(lesson.id, 0);
     if (lesson.usesV4Flow) {
       await widget.progressStore.saveResumeStage(

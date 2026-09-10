@@ -120,6 +120,26 @@ class MethodChannelBackgroundLearningSession
     }
   }
 
+  /// Registers the already-selected H20 as an Android companion device.
+  /// Android always owns the confirmation UI; this method never pairs or
+  /// associates a device silently.
+  Future<bool> associateH20Companion(String deviceId) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return true;
+    }
+    try {
+      final status = await _methodChannel.invokeMapMethod<Object?, Object?>(
+        'companion.associate',
+        <String, Object?>{'deviceId': deviceId},
+      );
+      return status?['supported'] != true || status?['associated'] == true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   @override
   Future<void> setActiveLearning(bool active) async {
     if (!_supportsNativeBackgroundSession) {
