@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_guide_audio_library.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
@@ -41,7 +41,7 @@ class LessonOverviewScreen extends StatefulWidget {
   final int endAge;
   final ListeningTopic topic;
   final ListeningLessonContent lesson;
-  final ConversationController? controller;
+  final LearningAudioDependencies? controller;
   final ListeningTopicContent? topicContent;
   final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;

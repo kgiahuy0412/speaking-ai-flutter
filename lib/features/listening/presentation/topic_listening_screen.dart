@@ -6,8 +6,8 @@ import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
 import '../application/listening_voice_navigation_target.dart';
@@ -67,7 +67,7 @@ class TopicListeningScreen extends StatefulWidget {
 
   final DisplayLanguage language;
   final int childAge;
-  final ConversationController? controller;
+  final LearningAudioDependencies? controller;
   final Future<void> Function()? onMainPressed;
   final VoidCallback? onVocabularyRequested;
   final Future<void> Function()? onVoiceNavigationPause;

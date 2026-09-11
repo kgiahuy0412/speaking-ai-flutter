@@ -10,6 +10,7 @@ import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
 import '../../../core/audio/hfp_audio_control.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
@@ -74,7 +75,8 @@ class H20HardwareTestResult {
   }
 }
 
-class ConversationController extends ChangeNotifier {
+class ConversationController extends ChangeNotifier
+    implements LearningAudioDependencies {
   static const double translatedSpeechPlaybackRate = 0.57;
 
   ConversationController({
@@ -783,10 +785,15 @@ class ConversationController extends ChangeNotifier {
   /// Creates an isolated lesson owner backed by the process-wide HFP route
   /// coordinator. Tests and legacy callers without a factory keep the previous
   /// shared control behavior.
+  @override
   HfpAudioControl? createLearningAudioRouteControl() =>
       _learningAudioRouteControlFactory?.call() ?? _hfpAudioControl;
 
+  @override
   AudioTurnCoordinator? get audioTurnCoordinator => _audioTurnCoordinator;
+
+  @override
+  StreamingSpeechInput? get learningSpeechInput => _streamingSpeechInput;
 
   /// Reuses the app's single Apple Speech event stream for listening lessons.
   /// A second bridge listener would race MAIN for the same native events.

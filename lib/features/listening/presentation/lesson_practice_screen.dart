@@ -9,16 +9,17 @@ import '../../../app/homi_ui.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../vocabulary/data/vocabulary_store.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
 import '../application/lesson_attempt_evaluator.dart';
 import '../application/lesson_guide_audio_library.dart';
 import '../application/lesson_completion_choice_recognizer.dart';
 import '../application/lesson_media_service.dart';
+import '../application/listening_lesson_session.dart';
 import '../data/active_listening_session_store.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
@@ -68,7 +69,7 @@ class LessonPracticeScreen extends StatefulWidget {
   final int endAge;
   final ListeningTopic topic;
   final ListeningLessonContent lesson;
-  final ConversationController? controller;
+  final LearningAudioDependencies? controller;
   final ListeningProgressStore progressStore;
   final LessonMediaService mediaService;
   final VocabularyStore vocabularyStore;
@@ -122,7 +123,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   bool _guidedSequenceStarted = false;
   bool _recordingStartPending = false;
   Future<void>? _recordingDeviceStartInProgress;
-  int _recordingStartRequest = 0;
+  final ListeningLessonSession _lessonSession = ListeningLessonSession();
   int _praiseFireworksSequence = 0;
   bool _praiseFireworksVisible = false;
   bool _handingOffMediaPlayback = false;
@@ -136,10 +137,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   V4CompletionStage? _activeV4CompletionStage;
   List<V4CompletionAction> _activeV4CompletionActions =
       const <V4CompletionAction>[];
-  int _completionChoiceGeneration = 0;
-  int _mainPauseGeneration = 0;
-  int _recordingLifecycleGeneration = 0;
-  int _attemptEvaluationRequest = 0;
   ActiveLearningModuleRegistry? _activeModuleRegistry;
   Object? _activeModuleRegistration;
 
@@ -152,8 +149,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       ? LessonGuideFlowV2.coreSpeakCue(_sentenceIndex)
       : LessonGuideFlowV2.afterSample;
 
-  IOSStreamingSpeechInput? get _iosLessonSpeechInput =>
-      widget.controller?.iosLessonSpeechInput;
+  IOSStreamingSpeechInput? get _iosLessonSpeechInput {
+    final input = widget.controller?.learningSpeechInput;
+    return input is IOSStreamingSpeechInput ? input : null;
+  }
 
   bool get _usesIosNativeLessonRecognition =>
       !kIsWeb &&
@@ -212,10 +211,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (registration != null) {
       _activeModuleRegistry?.unregister(registration);
     }
-    _recordingStartRequest += 1;
-    _recordingLifecycleGeneration += 1;
-    _attemptEvaluationRequest += 1;
-    _completionChoiceGeneration += 1;
+    _lessonSession.dispose();
     _cancelIdleReminder();
     _coachPopupTimer?.cancel();
     _praiseFireworksTimer?.cancel();
@@ -367,10 +363,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   @override
   Future<void> pauseForMainAssistant() async {
     _pausedForMainAssistant = true;
-    _mainPauseGeneration += 1;
-    _recordingStartRequest += 1;
-    _recordingLifecycleGeneration += 1;
-    _attemptEvaluationRequest += 1;
+    _lessonSession.invalidateMainPause();
+    _lessonSession.invalidateActiveTurn();
     _cancelIdleReminder();
     _hideCoachPopup();
     _recordingAutoStopTimer?.cancel();
@@ -869,7 +863,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_mediaBusy || _recording) {
       return;
     }
-    final pauseGeneration = _mainPauseGeneration;
+    final pauseGeneration = _lessonSession.mainPauseTicket;
     setState(() {
       _mediaBusy = true;
       _message = null;
@@ -879,7 +873,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (error) {
       _setMessage(error.toString());
     } finally {
-      if (mounted && pauseGeneration == _mainPauseGeneration) {
+      if (mounted && _lessonSession.isCurrentMainPause(pauseGeneration)) {
         setState(() => _mediaBusy = false);
       }
     }
@@ -901,7 +895,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (_pausedForMainAssistant || _recording || _mediaBusy) {
       return;
     }
-    final request = ++_recordingStartRequest;
+    final request = _lessonSession.beginRecordingStart();
     final iosSpeechInput = _usesIosNativeLessonRecognition
         ? _iosLessonSpeechInput
         : null;
@@ -917,7 +911,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (readyCuePlayer is SpeechReadyCuePlayer) {
         await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
       }
-      if (!mounted || request != _recordingStartRequest) {
+      if (!mounted || !_lessonSession.isCurrentRecordingStart(request)) {
         return;
       }
       final Future<void> deviceStart;
@@ -927,7 +921,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           sentenceNumber: _sentence.number,
           extension: 'wav',
         );
-        if (!mounted || request != _recordingStartRequest) {
+        if (!mounted || !_lessonSession.isCurrentRecordingStart(request)) {
           return;
         }
         deviceStart = iosSpeechInput.startLessonEnglishRecognitionWithRecording(
@@ -951,7 +945,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _recordingDeviceStartInProgress = null;
         }
       }
-      if (!mounted || request != _recordingStartRequest) {
+      if (!mounted || !_lessonSession.isCurrentRecordingStart(request)) {
         // The owner that invalidated this request already cancelled its native
         // turn. Cancelling here can arrive late and kill a newer MAIN turn.
         if (iosSpeechInput == null) {
@@ -976,7 +970,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (error) {
       _recordingAutoStopTimer?.cancel();
       _recordingAutoStopTimer = null;
-      if (request != _recordingStartRequest) {
+      if (!_lessonSession.isCurrentRecordingStart(request)) {
         // Stale starts have no authority over the current microphone owner.
         if (iosSpeechInput == null) {
           await widget.mediaService.cancelRecording();
@@ -1001,7 +995,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     if (_recordingStartPending && !_recording) {
-      _recordingStartRequest += 1;
+      _lessonSession.invalidateRecordingStart();
       _recordingStartPending = false;
       await _boundedMainPauseCleanup(_cancelLessonAttemptCapture());
       await widget.mediaService.stopPlayback();
@@ -1013,7 +1007,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!_recording || _mediaBusy) {
       return;
     }
-    final recordingGeneration = _recordingLifecycleGeneration;
+    final recordingGeneration = _lessonSession.recordingLifecycleTicket;
     setState(() => _mediaBusy = true);
     try {
       final iosSpeechInput = _usesIosNativeLessonRecognition
@@ -1029,7 +1023,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       final recording = await widget.mediaService.stopRecording();
       if (!mounted ||
           _pausedForMainAssistant ||
-          recordingGeneration != _recordingLifecycleGeneration) {
+          !_lessonSession.isCurrentRecordingLifecycle(recordingGeneration)) {
         return;
       }
       setState(() {
@@ -1050,12 +1044,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       await _playAttemptRecordingToCompletion(recording);
       if (!mounted ||
           _pausedForMainAssistant ||
-          recordingGeneration != _recordingLifecycleGeneration) {
+          !_lessonSession.isCurrentRecordingLifecycle(recordingGeneration)) {
         return;
       }
       setState(() => _mediaBusy = false);
       if (_usesGuideV2) {
-        final evaluationRequest = ++_attemptEvaluationRequest;
+        final evaluationRequest = _lessonSession.beginAttemptEvaluation();
         final evaluatedSentenceIndex = _sentenceIndex;
         final evaluatedSentence = _sentence;
         final evaluatedAttemptNumber = _attemptNumber;
@@ -1070,7 +1064,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
             attemptNumber: evaluatedAttemptNumber,
           );
         } finally {
-          if (mounted && evaluationRequest == _attemptEvaluationRequest) {
+          if (mounted &&
+              _lessonSession.isCurrentAttemptEvaluation(evaluationRequest)) {
             setState(() => _evaluatingAttempt = false);
           }
         }
@@ -1088,7 +1083,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (error) {
       if (!mounted ||
           _pausedForMainAssistant ||
-          recordingGeneration != _recordingLifecycleGeneration) {
+          !_lessonSession.isCurrentRecordingLifecycle(recordingGeneration)) {
         return;
       }
       if (mounted) {
@@ -1158,10 +1153,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
 
     if (!mounted ||
         _pausedForMainAssistant ||
-        recordingGeneration != _recordingLifecycleGeneration) {
+        !_lessonSession.isCurrentRecordingLifecycle(recordingGeneration)) {
       return;
     }
-    final evaluationRequest = ++_attemptEvaluationRequest;
+    final evaluationRequest = _lessonSession.beginAttemptEvaluation();
     final evaluatedSentenceIndex = _sentenceIndex;
     final evaluatedSentence = _sentence;
     final evaluatedAttemptNumber = _attemptNumber;
@@ -1220,7 +1215,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         attemptNumber: evaluatedAttemptNumber,
       );
     } finally {
-      if (mounted && evaluationRequest == _attemptEvaluationRequest) {
+      if (mounted &&
+          _lessonSession.isCurrentAttemptEvaluation(evaluationRequest)) {
         setState(() => _evaluatingAttempt = false);
       }
     }
@@ -1455,7 +1451,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   ) =>
       mounted &&
       !_pausedForMainAssistant &&
-      evaluationRequest == _attemptEvaluationRequest &&
+      _lessonSession.isCurrentAttemptEvaluation(evaluationRequest) &&
       sentenceIndex == _sentenceIndex &&
       sentenceId == _sentence.id;
 
@@ -2787,9 +2783,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _restartCurrentLesson() async {
-    _recordingStartRequest += 1;
-    _recordingLifecycleGeneration += 1;
-    _attemptEvaluationRequest += 1;
+    _lessonSession.invalidateActiveTurn();
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     await widget.mediaService.stopPlayback();
@@ -2873,8 +2867,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _completionChoiceStopping) {
       return;
     }
-    final pauseGeneration = _mainPauseGeneration;
-    final choiceGeneration = ++_completionChoiceGeneration;
+    final pauseGeneration = _lessonSession.mainPauseTicket;
+    final choiceGeneration = _lessonSession.beginCompletionChoice();
     setState(() {
       _mediaBusy = true;
       _recordingStartPending = true;
@@ -2888,8 +2882,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       if (!mounted ||
           _pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration ||
-          choiceGeneration != _completionChoiceGeneration) {
+          !_lessonSession.isCurrentMainPause(pauseGeneration) ||
+          !_lessonSession.isCurrentCompletionChoice(choiceGeneration)) {
         return;
       }
       // iOS cannot create a second recorder after the app is already hidden
@@ -2922,8 +2916,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       }
       if (!mounted ||
           _pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration ||
-          choiceGeneration != _completionChoiceGeneration) {
+          !_lessonSession.isCurrentMainPause(pauseGeneration) ||
+          !_lessonSession.isCurrentCompletionChoice(choiceGeneration)) {
         if (_completionChoiceUsesIosNativeSpeech) {
           await completionIosSpeechInput!.cancel().catchError((Object _) {});
         } else {
@@ -2953,8 +2947,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await completionIosSpeechInput.cancel().catchError((Object _) {});
       }
       if (_pausedForMainAssistant ||
-          pauseGeneration != _mainPauseGeneration ||
-          choiceGeneration != _completionChoiceGeneration) {
+          !_lessonSession.isCurrentMainPause(pauseGeneration) ||
+          !_lessonSession.isCurrentCompletionChoice(choiceGeneration)) {
         if (!attemptedIosNative) {
           await widget.mediaService.cancelRecording().catchError((Object _) {});
         }
@@ -2983,7 +2977,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     _completionChoiceStopping = true;
-    final choiceGeneration = _completionChoiceGeneration;
+    final choiceGeneration = _lessonSession.completionChoiceTicket;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     if (mounted) {
@@ -3009,7 +3003,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _message = 'Đang nhận diện lựa chọn…';
         });
       }
-      if (choiceGeneration != _completionChoiceGeneration) return;
+      if (!_lessonSession.isCurrentCompletionChoice(choiceGeneration)) return;
       final v4Stage = _activeV4CompletionStage;
       if (_v4CompletionChoiceVisible && v4Stage != null) {
         final action = const V4CompletionChoiceResolver().resolve(
@@ -3081,7 +3075,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _cancelCompletionChoiceCapture() async {
-    _completionChoiceGeneration += 1;
+    _lessonSession.invalidateCompletionChoice();
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
     final shouldCancel =
@@ -3345,7 +3339,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     _guidedSequenceStarted = true;
-    final pauseGeneration = _mainPauseGeneration;
+    final pauseGeneration = _lessonSession.mainPauseTicket;
     if (mounted) {
       setState(() {
         _mediaBusy = true;
@@ -3358,18 +3352,19 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (!widget.lesson.usesV4Flow) {
         await _playPrompt(LessonGuideFlowV2.beforeSentence);
         if (_pausedForMainAssistant ||
-            pauseGeneration != _mainPauseGeneration) {
+            !_lessonSession.isCurrentMainPause(pauseGeneration)) {
           return;
         }
         await Future<void>.delayed(LessonGuideFlowV2.guideToSamplePause);
         if (!mounted ||
             _pausedForMainAssistant ||
-            pauseGeneration != _mainPauseGeneration) {
+            !_lessonSession.isCurrentMainPause(pauseGeneration)) {
           return;
         }
       }
       await _playBilingualSentenceSample();
-      if (_pausedForMainAssistant || pauseGeneration != _mainPauseGeneration) {
+      if (_pausedForMainAssistant ||
+          !_lessonSession.isCurrentMainPause(pauseGeneration)) {
         return;
       }
       await _playPrompt(_repeatTargetPrompt);
@@ -3389,12 +3384,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     if (!mounted || _pausedForMainAssistant) {
       return;
     }
-    final pauseGeneration = _mainPauseGeneration;
+    final pauseGeneration = _lessonSession.mainPauseTicket;
     setState(() => _message = prompt.text);
     final uri = await _guideAudioLibrary.uriForAudioCode(prompt.audioCode);
     if (!mounted ||
         _pausedForMainAssistant ||
-        pauseGeneration != _mainPauseGeneration) {
+        !_lessonSession.isCurrentMainPause(pauseGeneration)) {
       return;
     }
     if (uri != null) {

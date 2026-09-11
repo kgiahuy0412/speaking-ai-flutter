@@ -6,8 +6,8 @@ import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
@@ -51,7 +51,7 @@ class TopicLessonListScreen extends StatefulWidget {
   final ListeningTopicContent content;
   final ListeningContentAgeGroup? contentGroup;
   final ListeningLevelContent? levelContent;
-  final ConversationController? controller;
+  final LearningAudioDependencies? controller;
   final Future<void> Function()? onMainPressed;
   final VoidCallback? onVocabularyRequested;
   final Future<void> Function()? onVoiceNavigationPause;
