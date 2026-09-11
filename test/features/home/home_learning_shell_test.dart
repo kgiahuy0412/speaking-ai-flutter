@@ -884,6 +884,9 @@ class _HomeListeningProgressStore extends ListeningProgressStore {
   Future<bool> hasCompletedV4LessonActivity(String lessonId) async => false;
 
   @override
+  Future<bool> hasLessonPendingRelearn(String lessonId) async => false;
+
+  @override
   Future<bool> hasOpenedLearningGuide() async => true;
 }
 
