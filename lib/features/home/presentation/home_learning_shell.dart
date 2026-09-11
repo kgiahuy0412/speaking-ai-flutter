@@ -10,7 +10,6 @@ import '../../../core/platform/platform_access_policy.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
-import '../../listening/data/active_listening_session_store.dart';
 import '../../listening/data/listening_progress_store.dart';
 import '../../listening/domain/listening_content.dart';
 import '../../listening/presentation/active_learning_navigation.dart';
@@ -25,6 +24,7 @@ import '../../vocabulary/domain/vocabulary_entry.dart';
 import '../../vocabulary/presentation/vocabulary_home_screen.dart';
 import '../../voice_navigation/application/voice_navigation_controller.dart';
 import '../../voice_navigation/application/voice_navigation_intent_resolver.dart';
+import '../application/background_learning_coordinator.dart';
 import 'homi_bottom_navigation.dart';
 
 class HomeLearningShell extends StatefulWidget {
@@ -92,16 +92,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool _tutorialActive = false;
   int _tutorialStep = 0;
   Timer? _voiceNavigationRestartTimer;
-  late AppLifecycleState _appLifecycleState;
   bool _voiceNavigationPausedForOverlay = false;
   bool _voiceNavigationHelpShown = false;
   int? _activeVoiceTopicIndex;
-  late final BackgroundLearningSessionControl _backgroundLearningSession;
-  StreamSubscription<BackgroundLearningEvent>? _backgroundLearningSubscription;
-  bool _backgroundLearningActive = false;
-  bool _startingBackgroundLearning = false;
-  bool _backgroundMicrophoneRequiresVisibleResume = false;
-  bool _activeListeningCheckpointHandled = false;
+  late final BackgroundLearningCoordinator _backgroundLearningCoordinator;
 
   final GlobalKey _speakActionKey = GlobalKey(
     debugLabel: 'onboarding-speak-action',
@@ -124,16 +118,23 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _appLifecycleState =
-        WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
     _pageController = PageController();
-    _backgroundLearningSession =
-        widget.backgroundLearningSession ??
-        MethodChannelBackgroundLearningSession();
+    _backgroundLearningCoordinator = BackgroundLearningCoordinator(
+      session:
+          widget.backgroundLearningSession ??
+          MethodChannelBackgroundLearningSession(),
+      initialLifecycleState:
+          WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed,
+      onDirective: _applyBackgroundLearningDirective,
+    );
     _attachVoiceNavigationHandler();
     widget.controller.addListener(_onConversationControllerChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_ensureBackgroundLearningStarted());
+      unawaited(
+        _backgroundLearningCoordinator.initialize(
+          voiceAccessEnabled: widget.voiceAccessEnabled,
+        ),
+      );
       unawaited(_restoreActiveListeningCheckpoint());
       _scheduleVoiceNavigationListening(
         delay: const Duration(milliseconds: 450),
@@ -147,16 +148,8 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   }
 
   Future<void> _restoreActiveListeningCheckpoint() async {
-    if (_activeListeningCheckpointHandled ||
-        !widget.voiceAccessEnabled ||
-        kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.android &&
-            defaultTargetPlatform != TargetPlatform.iOS) ||
-        _appLifecycleState != AppLifecycleState.resumed) {
-      return;
-    }
-    _activeListeningCheckpointHandled = true;
-    final checkpoint = await const ActiveListeningSessionStore().read();
+    final checkpoint = await _backgroundLearningCoordinator
+        .takeListeningCheckpoint(voiceAccessEnabled: widget.voiceAccessEnabled);
     if (!mounted || checkpoint == null || _openingTopics) return;
     await _openTopicListening(
       initialVoiceTarget: ListeningVoiceNavigationTarget(
@@ -196,11 +189,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     }
     if (oldWidget.voiceAccessEnabled != widget.voiceAccessEnabled) {
       if (widget.voiceAccessEnabled) {
-        unawaited(_ensureBackgroundLearningStarted());
+        unawaited(_backgroundLearningCoordinator.updateVoiceAccess(true));
         unawaited(_restoreActiveListeningCheckpoint());
       } else {
-        _backgroundLearningActive = false;
-        unawaited(_backgroundLearningSession.stop());
+        unawaited(_backgroundLearningCoordinator.updateVoiceAccess(false));
         unawaited(widget.voiceNavigationController?.pause());
       }
     }
@@ -213,97 +205,33 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     widget.controller.removeListener(_onConversationControllerChanged);
     widget.voiceNavigationController?.setIntentHandler(null);
     unawaited(widget.voiceNavigationController?.pause());
-    unawaited(_backgroundLearningSubscription?.cancel());
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      unawaited(_backgroundLearningSession.stop());
-    }
+    _backgroundLearningCoordinator.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appLifecycleState = state;
+    final directive = _backgroundLearningCoordinator.handleLifecycle(
+      state,
+      voiceAccessEnabled: widget.voiceAccessEnabled,
+      explicitMainSessionActive:
+          widget.voiceNavigationController?.isMainButtonSessionActive ?? false,
+    );
+    _applyBackgroundLearningDirective(directive);
     if (state == AppLifecycleState.resumed) {
-      if (_backgroundMicrophoneRequiresVisibleResume) {
-        _backgroundMicrophoneRequiresVisibleResume = false;
-        _backgroundLearningActive = false;
-      }
-      unawaited(_ensureBackgroundLearningStarted());
       unawaited(_restoreActiveListeningCheckpoint());
-      _scheduleVoiceNavigationListening();
-      return;
-    }
-
-    // Keep only an explicitly-started MAIN conversation alive in background.
-    // This preserves prompt -> command navigation without reviving the old
-    // always-on Android microphone loop.
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      if (_backgroundLearningActive &&
-          widget.voiceAccessEnabled &&
-          (widget.voiceNavigationController?.isMainButtonSessionActive ??
-              false)) {
-        _scheduleVoiceNavigationListening();
-        return;
-      }
-      _voiceNavigationRestartTimer?.cancel();
-      unawaited(widget.voiceNavigationController?.pause());
-      return;
-    }
-
-    if (state == AppLifecycleState.detached) {
-      _backgroundLearningActive = false;
-      unawaited(_backgroundLearningSession.stop());
-    } else if (_backgroundLearningActive && widget.voiceAccessEnabled) {
-      // Android's foreground service and iOS audio/BLE background modes own
-      // this deliberate learning session. Keep an already-running recognizer
-      // alive while the screen is locked or a silent app covers HOMI.
-      _scheduleVoiceNavigationListening();
-      return;
-    }
-    _voiceNavigationRestartTimer?.cancel();
-    unawaited(widget.voiceNavigationController?.pause());
-  }
-
-  Future<void> _ensureBackgroundLearningStarted() async {
-    if (!mounted ||
-        !widget.voiceAccessEnabled ||
-        _backgroundLearningActive ||
-        _startingBackgroundLearning ||
-        kIsWeb) {
-      return;
-    }
-    _startingBackgroundLearning = true;
-    // Subscribe before native start so a foreground-service failure emitted
-    // during Android service creation cannot race past Flutter.
-    _backgroundLearningSubscription ??= _backgroundLearningSession.events
-        .listen(_handleBackgroundLearningEvent);
-    final active = await _backgroundLearningSession.start();
-    _startingBackgroundLearning = false;
-    if (!mounted) {
-      if (active &&
-          (kIsWeb || defaultTargetPlatform != TargetPlatform.android)) {
-        await _backgroundLearningSession.stop();
-      }
-      return;
-    }
-    _backgroundLearningActive = active;
-    if (active) {
-      _scheduleVoiceNavigationListening();
     }
   }
 
-  void _handleBackgroundLearningEvent(BackgroundLearningEvent event) {
+  void _applyBackgroundLearningDirective(
+    BackgroundLearningDirective directive,
+  ) {
     if (!mounted) return;
-    if (event.type == BackgroundLearningEventType.resumable) {
-      _backgroundLearningActive = true;
-      _backgroundMicrophoneRequiresVisibleResume =
-          event.reason == 'microphone_requires_visible_resume';
+    if (directive == BackgroundLearningDirective.keepVoiceNavigation) {
       _scheduleVoiceNavigationListening();
       return;
     }
-    _backgroundLearningActive = false;
-    _backgroundMicrophoneRequiresVisibleResume = false;
     _voiceNavigationRestartTimer?.cancel();
     unawaited(widget.voiceNavigationController?.pause());
   }
@@ -441,10 +369,13 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   bool get _canStartVoiceNavigationListening =>
       mounted &&
       _continuousVoiceNavigationEnabled &&
-      (_appLifecycleState == AppLifecycleState.resumed ||
-          (_backgroundLearningActive &&
-              (widget.voiceNavigationController?.isMainButtonSessionActive ??
-                  false))) &&
+      (_backgroundLearningCoordinator.isForeground ||
+          _backgroundLearningCoordinator.canKeepMainListeningInBackground(
+            voiceAccessEnabled: widget.voiceAccessEnabled,
+            explicitMainSessionActive:
+                widget.voiceNavigationController?.isMainButtonSessionActive ??
+                false,
+          )) &&
       !_voiceNavigationPausedForOverlay &&
       !_tutorialActive &&
       !widget.controller.isBusy &&
@@ -815,14 +746,12 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       if (!mounted) {
         return;
       }
-      unawaited(_ensureBackgroundLearningStarted());
-      final activeLearningSession = _backgroundLearningSession;
-      if (activeLearningSession is ActiveLearningBackgroundSessionControl) {
-        unawaited(
-          (activeLearningSession as ActiveLearningBackgroundSessionControl)
-              .setActiveLearning(true),
-        );
-      }
+      unawaited(
+        _backgroundLearningCoordinator.ensureStarted(
+          voiceAccessEnabled: widget.voiceAccessEnabled,
+        ),
+      );
+      unawaited(_backgroundLearningCoordinator.setActiveLearning(true));
       final routeDuration = MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : const Duration(milliseconds: 260);
@@ -904,7 +833,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
             },
       );
     } finally {
-      await const ActiveListeningSessionStore().clear();
+      await _backgroundLearningCoordinator.clearListeningCheckpoint();
       _openingTopics = false;
       _activeVoiceTopicIndex = null;
       if (identical(_topicRouteClosedCompleter, routeClosedCompleter)) {
@@ -913,13 +842,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
       if (!routeClosedCompleter.isCompleted) {
         routeClosedCompleter.complete();
       }
-      final activeLearningSession = _backgroundLearningSession;
-      if (activeLearningSession is ActiveLearningBackgroundSessionControl) {
-        unawaited(
-          (activeLearningSession as ActiveLearningBackgroundSessionControl)
-              .setActiveLearning(false),
-        );
-      }
+      unawaited(_backgroundLearningCoordinator.setActiveLearning(false));
       if (mounted) {
         _resumeVoiceNavigation();
       }
