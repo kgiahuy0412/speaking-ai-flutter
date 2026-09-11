@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_gain.dart';
@@ -90,6 +91,9 @@ class JustAudioPlaybackService
         CommunicationRouteAwareAudioPlaybackService,
         PlaybackRateAwareAudioPlaybackService {
   static Future<void>? _assetCacheRefresh;
+  static const MethodChannel _backgroundLearningChannel = MethodChannel(
+    'ailingo_background_learning',
+  );
   // A modest boost makes speech clearer on small speakers and HFP headsets
   // without pushing typical voice recordings into heavy clipping.
   static const double androidPlaybackGainDb = androidSpeechBoostDb;
@@ -169,36 +173,73 @@ class JustAudioPlaybackService
   }
 
   Future<void> _configurePlaybackAudioSession() async {
+    if (await _reuseIosNativeAudioSession()) {
+      // Native speech/HFP owns a live playAndRecord/voiceChat session. In the
+      // background its input gate is closed during playback; a continuous
+      // translation session can also deliberately retain the same HFP lease.
+      // Reconfiguring that process-wide session to .playback here makes iOS
+      // reject the operation with '!pri'. just_audio can render through the
+      // already selected output without taking AVAudioSession ownership away.
+      return;
+    }
     final session = await _audioSession;
-    // Recording changes the shared audio session, so restore the desired
-    // route before every playback request.
-    if (_communicationRouteActive) {
+    try {
+      // Recording changes the shared audio session, so restore the desired
+      // route before every playback request.
+      if (_communicationRouteActive) {
+        await session.configure(
+          const AudioSessionConfiguration(
+            avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+            avAudioSessionCategoryOptions:
+                AVAudioSessionCategoryOptions.allowBluetooth,
+            avAudioSessionMode: AVAudioSessionMode.voiceChat,
+            androidAudioAttributes: AndroidAudioAttributes(
+              contentType: AndroidAudioContentType.speech,
+              usage: AndroidAudioUsage.voiceCommunication,
+            ),
+            androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+          ),
+        );
+        return;
+      }
       await session.configure(
         const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-          avAudioSessionCategoryOptions:
-              AVAudioSessionCategoryOptions.allowBluetooth,
-          avAudioSessionMode: AVAudioSessionMode.voiceChat,
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionMode: AVAudioSessionMode.spokenAudio,
           androidAudioAttributes: AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.speech,
-            usage: AndroidAudioUsage.voiceCommunication,
+            contentType: AndroidAudioContentType.music,
+            usage: AndroidAudioUsage.media,
           ),
           androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
         ),
       );
-      return;
+    } on PlatformException catch (error) {
+      // The arm request and playback preparation can cross by a few
+      // milliseconds. Confirm native ownership once more before surfacing the
+      // iOS insufficient-priority error; Android and every other iOS error
+      // retain their previous behaviour.
+      if (isIosAudioSessionInsufficientPriority(error) &&
+          await _reuseIosNativeAudioSession()) {
+        return;
+      }
+      rethrow;
     }
-    await session.configure(
-      const AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionMode: AVAudioSessionMode.spokenAudio,
-        androidAudioAttributes: AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.music,
-          usage: AndroidAudioUsage.media,
-        ),
-        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-      ),
-    );
+  }
+
+  Future<bool> _reuseIosNativeAudioSession() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return false;
+    }
+    try {
+      return await _backgroundLearningChannel.invokeMethod<bool>(
+            'isAudioHandoffActive',
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
   }
 
   @override
@@ -549,6 +590,12 @@ class JustAudioPlaybackService
       _cache.dispose();
     }
   }
+}
+
+@visibleForTesting
+bool isIosAudioSessionInsufficientPriority(PlatformException error) {
+  return error.code == '561017449' ||
+      (error.message?.contains('561017449') ?? false);
 }
 
 @visibleForTesting

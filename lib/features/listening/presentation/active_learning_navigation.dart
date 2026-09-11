@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-bool _isAndroidBackground() {
+bool isActiveLearningAppBackground() {
   final lifecycle = WidgetsBinding.instance.lifecycleState;
   return !kIsWeb &&
-      defaultTargetPlatform == TargetPlatform.android &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) &&
       (lifecycle == AppLifecycleState.inactive ||
           lifecycle == AppLifecycleState.hidden ||
           lifecycle == AppLifecycleState.paused);
@@ -12,13 +13,13 @@ bool _isAndroidBackground() {
 
 Route<T> _activeLearningRoute<T extends Object?>(
   WidgetBuilder builder, {
-  required bool androidBackground,
+  required bool mobileBackground,
   RouteSettings? settings,
   Duration? foregroundTransitionDuration,
   Duration? foregroundReverseTransitionDuration,
   RouteTransitionsBuilder? foregroundTransitionsBuilder,
 }) {
-  if (!androidBackground) {
+  if (!mobileBackground) {
     if (foregroundTransitionsBuilder != null) {
       return PageRouteBuilder<T>(
         settings: settings,
@@ -36,10 +37,10 @@ Route<T> _activeLearningRoute<T extends Object?>(
     return MaterialPageRoute<T>(builder: builder, settings: settings);
   }
 
-  // A MaterialPageRoute waits for Android's display vsync to advance its
-  // transition. Vsync is paused while the phone UI is hidden/locked, leaving
-  // the next lesson screen unbuilt until the user returns to the app. A
-  // zero-duration route lets one warm frame install and initialise the screen.
+  // A MaterialPageRoute waits for display vsync to advance its transition.
+  // Android and iOS both pause normal rendering while hidden/locked, leaving
+  // the next lesson screen unbuilt until the user returns. A zero-duration
+  // route plus one warm frame installs the next audio-owned flow immediately.
   return PageRouteBuilder<T>(
     settings: settings,
     transitionDuration: Duration.zero,
@@ -49,7 +50,7 @@ Route<T> _activeLearningRoute<T extends Object?>(
 }
 
 /// Pushes the next lesson route while preserving normal Material transitions
-/// in the foreground and allowing the route to initialise in Android's
+/// in the foreground and allowing the route to initialise in Android/iOS
 /// background learning mode.
 Future<T?> pushForActiveLearning<T extends Object?>(
   BuildContext context,
@@ -60,18 +61,18 @@ Future<T?> pushForActiveLearning<T extends Object?>(
   RouteTransitionsBuilder? foregroundTransitionsBuilder,
 }) {
   final binding = WidgetsBinding.instance;
-  final androidBackground = _isAndroidBackground();
+  final mobileBackground = isActiveLearningAppBackground();
   final navigation = Navigator.of(context).push<T>(
     _activeLearningRoute<T>(
       builder,
-      androidBackground: androidBackground,
+      mobileBackground: mobileBackground,
       settings: settings,
       foregroundTransitionDuration: foregroundTransitionDuration,
       foregroundReverseTransitionDuration: foregroundReverseTransitionDuration,
       foregroundTransitionsBuilder: foregroundTransitionsBuilder,
     ),
   );
-  if (androidBackground) {
+  if (mobileBackground) {
     binding.scheduleWarmUpFrame();
   }
   return navigation;
@@ -87,16 +88,16 @@ pushReplacementForActiveLearning<T extends Object?, TO extends Object?>(
   RouteSettings? settings,
 }) {
   final binding = WidgetsBinding.instance;
-  final androidBackground = _isAndroidBackground();
+  final mobileBackground = isActiveLearningAppBackground();
   final navigation = Navigator.of(context).pushReplacement<T, TO>(
     _activeLearningRoute<T>(
       builder,
-      androidBackground: androidBackground,
+      mobileBackground: mobileBackground,
       settings: settings,
     ),
     result: result,
   );
-  if (androidBackground) {
+  if (mobileBackground) {
     binding.scheduleWarmUpFrame();
   }
   return navigation;

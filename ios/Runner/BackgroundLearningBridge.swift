@@ -104,6 +104,19 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
         result(nil)
       case "isActive":
         result(self.audioSessionCoordinator.isBackgroundLearningEnabled)
+      case "isAudioHandoffActive":
+        // Flutter audio players share this process-wide AVAudioSession. While
+        // native speech, a continuous HFP lease, or the prearmed background
+        // engine owns the live play-and-record session, changing its category
+        // from Dart can fail with '!pri' (insufficient priority). Callers use
+        // this value only to reuse the existing native session; it is never
+        // inferred from the background-learning or BLE flag alone.
+        result(
+          self.audioSessionCoordinator.isBackgroundCaptureArmed
+            || self.audioSessionCoordinator.isBackgroundCaptureEngineRunning
+            || self.audioSessionCoordinator.isSpeechCaptureActive
+            || self.audioSessionCoordinator.isHfpRouteActive
+        )
       default:
         result(FlutterMethodNotImplemented)
       }

@@ -128,6 +128,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   bool _handingOffMediaPlayback = false;
   bool _completionChoiceRecording = false;
   bool _completionChoiceStopping = false;
+  bool _completionChoiceUsesIosNativeSpeech = false;
   bool _pausedForMainAssistant = false;
   bool _virtualCommandPending = false;
   int _newStarsThisLesson = 0;
@@ -216,7 +217,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _praiseFireworksTimer?.cancel();
     _recordingAutoStopTimer?.cancel();
     if (_recording) {
-      if (_usesIosNativeLessonRecognition && !_completionChoiceRecording) {
+      if (_usesIosNativeLessonRecognition &&
+          (!_completionChoiceRecording ||
+              _completionChoiceUsesIosNativeSpeech)) {
         unawaited(_iosLessonSpeechInput!.cancel());
       } else {
         widget.mediaService.cancelRecording();
@@ -1850,30 +1853,29 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _previousV4ChallengeIds[widget.lesson.id] = selectedChallenges
             .map((challenge) => challenge.id)
             .toList(growable: false);
-        final completed = await Navigator.of(context).push<bool>(
-          MaterialPageRoute<bool>(
-            builder: (_) => LessonChallengeScreen(
-              language: widget.language,
-              startAge: widget.startAge,
-              lesson: widget.lesson,
-              challenges: selectedChallenges,
-              mediaService: widget.mediaService,
-              attemptEvaluator: _attemptEvaluator,
-              voicePromptService: _voicePromptService,
-              onStarEarnedWithAudioResult:
-                  _saveAuthoredAnswerToStarsWithAudioResult,
-              onNeedsPractice: _saveAuthoredNeedsPractice,
-              startAfterRolePlay: startAfterRolePlay,
-              onRolePlayCompleted: () => widget.progressStore.saveResumeStage(
-                widget.lesson.id,
-                ListeningResumeStage.challenge,
-              ),
-              showRolePlayOpeningHint:
-                  !widget.isRelearn && resumeStage == ListeningResumeStage.core,
-              iosSpeechInput: _usesIosNativeLessonRecognition
-                  ? _iosLessonSpeechInput
-                  : null,
+        final completed = await pushForActiveLearning<bool>(
+          context,
+          (_) => LessonChallengeScreen(
+            language: widget.language,
+            startAge: widget.startAge,
+            lesson: widget.lesson,
+            challenges: selectedChallenges,
+            mediaService: widget.mediaService,
+            attemptEvaluator: _attemptEvaluator,
+            voicePromptService: _voicePromptService,
+            onStarEarnedWithAudioResult:
+                _saveAuthoredAnswerToStarsWithAudioResult,
+            onNeedsPractice: _saveAuthoredNeedsPractice,
+            startAfterRolePlay: startAfterRolePlay,
+            onRolePlayCompleted: () => widget.progressStore.saveResumeStage(
+              widget.lesson.id,
+              ListeningResumeStage.challenge,
             ),
+            showRolePlayOpeningHint:
+                !widget.isRelearn && resumeStage == ListeningResumeStage.core,
+            iosSpeechInput: _usesIosNativeLessonRecognition
+                ? _iosLessonSpeechInput
+                : null,
           ),
         );
         if (!mounted || completed != true) return;
@@ -1915,16 +1917,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return;
     }
     final nextLesson = _nextLessonInTopic;
-    final result = await Navigator.of(context).push<LessonReviewAction>(
-      MaterialPageRoute<LessonReviewAction>(
-        builder: (_) => LessonReviewScreen(
-          language: widget.language,
-          lesson: widget.lesson,
-          mediaService: widget.mediaService,
-          unrecordedSentenceIndexes: unrecordedSentenceIndexes,
-          mode: LessonReviewMode.learned,
-          hasNextLesson: nextLesson != null,
-        ),
+    final result = await pushForActiveLearning<LessonReviewAction>(
+      context,
+      (_) => LessonReviewScreen(
+        language: widget.language,
+        lesson: widget.lesson,
+        mediaService: widget.mediaService,
+        unrecordedSentenceIndexes: unrecordedSentenceIndexes,
+        mode: LessonReviewMode.learned,
+        hasNextLesson: nextLesson != null,
       ),
     );
     if (!mounted || result == null) {
@@ -2321,16 +2322,15 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       return true;
     }
     final songTitle = widget.lesson.songTitle!.trim();
-    final action = await Navigator.of(context).push<V4SongStageAction>(
-      MaterialPageRoute<V4SongStageAction>(
-        builder: (_) => V4SongStageScreen(
-          language: widget.language,
-          songTitle: songTitle,
-          songAudioId: widget.lesson.songAudioId,
-          songAudioUri: widget.lesson.songAudioUri,
-          mediaService: widget.mediaService,
-          voicePromptService: _voicePromptService,
-        ),
+    final action = await pushForActiveLearning<V4SongStageAction>(
+      context,
+      (_) => V4SongStageScreen(
+        language: widget.language,
+        songTitle: songTitle,
+        songAudioId: widget.lesson.songAudioId,
+        songAudioUri: widget.lesson.songAudioUri,
+        mediaService: widget.mediaService,
+        voicePromptService: _voicePromptService,
       ),
     );
     return mounted && action != null;
@@ -2515,31 +2515,29 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         return false;
       }
 
-      final result = await Navigator.of(context).push<LessonMissionResult>(
-        MaterialPageRoute<LessonMissionResult>(
-          builder: (_) => LessonMissionScreen(
-            language: widget.language,
-            startAge: widget.startAge,
-            lesson: widget.lesson,
-            missions: missions,
-            mediaService: widget.mediaService,
-            attemptEvaluator: _attemptEvaluator,
-            voicePromptService: _voicePromptService,
-            onStarEarnedWithAudioResult:
-                _saveAuthoredAnswerToStarsWithAudioResult,
-            onNeedsPractice: _saveAuthoredNeedsPractice,
-            initialAnswers: savedAnswers,
-            onAnswerResolved: (answer) =>
-                widget.progressStore.saveMissionAnswer(
-                  level.id,
-                  answer.missionId,
-                  correct: answer.correct,
-                ),
-            iosSpeechInput: _usesIosNativeLessonRecognition
-                ? _iosLessonSpeechInput
-                : null,
-            levelTitle: 'Level ${level.number}: ${level.titleVi}',
+      final result = await pushForActiveLearning<LessonMissionResult>(
+        context,
+        (_) => LessonMissionScreen(
+          language: widget.language,
+          startAge: widget.startAge,
+          lesson: widget.lesson,
+          missions: missions,
+          mediaService: widget.mediaService,
+          attemptEvaluator: _attemptEvaluator,
+          voicePromptService: _voicePromptService,
+          onStarEarnedWithAudioResult:
+              _saveAuthoredAnswerToStarsWithAudioResult,
+          onNeedsPractice: _saveAuthoredNeedsPractice,
+          initialAnswers: savedAnswers,
+          onAnswerResolved: (answer) => widget.progressStore.saveMissionAnswer(
+            level.id,
+            answer.missionId,
+            correct: answer.correct,
           ),
+          iosSpeechInput: _usesIosNativeLessonRecognition
+              ? _iosLessonSpeechInput
+              : null,
+          levelTitle: 'Level ${level.number}: ${level.titleVi}',
         ),
       );
       if (!mounted || result == null) {
@@ -2673,24 +2671,23 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       reinforcementMissions.add(mission);
     }
     if (reinforcementMissions.isEmpty || !mounted) return;
-    await Navigator.of(context).push<LessonMissionResult>(
-      MaterialPageRoute<LessonMissionResult>(
-        builder: (_) => LessonMissionScreen(
-          language: widget.language,
-          startAge: widget.startAge,
-          lesson: widget.lesson,
-          missions: reinforcementMissions,
-          mediaService: widget.mediaService,
-          attemptEvaluator: _attemptEvaluator,
-          voicePromptService: _voicePromptService,
-          onNeedsPractice: _saveAuthoredNeedsPractice,
-          onMastered: _clearAuthoredNeedsPractice,
-          iosSpeechInput: _usesIosNativeLessonRecognition
-              ? _iosLessonSpeechInput
-              : null,
-          isReinforcement: true,
-          levelTitle: 'Củng cố Level ${widget.levelContent?.number ?? ''}',
-        ),
+    await pushForActiveLearning<LessonMissionResult>(
+      context,
+      (_) => LessonMissionScreen(
+        language: widget.language,
+        startAge: widget.startAge,
+        lesson: widget.lesson,
+        missions: reinforcementMissions,
+        mediaService: widget.mediaService,
+        attemptEvaluator: _attemptEvaluator,
+        voicePromptService: _voicePromptService,
+        onNeedsPractice: _saveAuthoredNeedsPractice,
+        onMastered: _clearAuthoredNeedsPractice,
+        iosSpeechInput: _usesIosNativeLessonRecognition
+            ? _iosLessonSpeechInput
+            : null,
+        isReinforcement: true,
+        levelTitle: 'Củng cố Level ${widget.levelContent?.number ?? ''}',
       ),
     );
   }
@@ -2879,6 +2876,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingStartPending = true;
       _message = 'Đang mở micro để nghe lựa chọn của con…';
     });
+    IOSStreamingSpeechInput? completionIosSpeechInput;
     try {
       final readyCuePlayer = _voicePromptService;
       if (readyCuePlayer is SpeechReadyCuePlayer) {
@@ -2890,13 +2888,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           choiceGeneration != _completionChoiceGeneration) {
         return;
       }
-      final deviceStart = widget.mediaService.startRecording(
-        lessonId: '${widget.lesson.id}-completion-choice',
-        sentenceNumber: 0,
-        lessonTitle: widget.lesson.titleVi,
-        sentenceId: '${widget.lesson.id}-completion-choice',
-        saveToHistory: false,
-      );
+      // iOS cannot create a second recorder after the app is already hidden
+      // or locked. Reuse the Apple Speech engine that was prearmed while the
+      // app was still active. Foreground iOS, Android, custom evaluators and
+      // custom completion recognizers keep their established backend flow.
+      completionIosSpeechInput =
+          _usesIosNativeLessonRecognition &&
+              _ownsCompletionChoiceRecognizer &&
+              isActiveLearningAppBackground()
+          ? _iosLessonSpeechInput
+          : null;
+      _completionChoiceUsesIosNativeSpeech = completionIosSpeechInput != null;
+      final deviceStart = completionIosSpeechInput != null
+          ? completionIosSpeechInput.startCommandRecognition()
+          : widget.mediaService.startRecording(
+              lessonId: '${widget.lesson.id}-completion-choice',
+              sentenceNumber: 0,
+              lessonTitle: widget.lesson.titleVi,
+              sentenceId: '${widget.lesson.id}-completion-choice',
+              saveToHistory: false,
+            );
       _recordingDeviceStartInProgress = deviceStart;
       try {
         await deviceStart;
@@ -2909,7 +2920,12 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _pausedForMainAssistant ||
           pauseGeneration != _mainPauseGeneration ||
           choiceGeneration != _completionChoiceGeneration) {
-        await widget.mediaService.cancelRecording();
+        if (_completionChoiceUsesIosNativeSpeech) {
+          await completionIosSpeechInput!.cancel().catchError((Object _) {});
+        } else {
+          await widget.mediaService.cancelRecording();
+        }
+        _completionChoiceUsesIosNativeSpeech = false;
         return;
       }
       setState(() {
@@ -2927,10 +2943,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         () => unawaited(_stopCompletionChoiceRecording()),
       );
     } catch (error) {
+      final attemptedIosNative = completionIosSpeechInput != null;
+      _completionChoiceUsesIosNativeSpeech = false;
+      if (attemptedIosNative) {
+        await completionIosSpeechInput.cancel().catchError((Object _) {});
+      }
       if (_pausedForMainAssistant ||
           pauseGeneration != _mainPauseGeneration ||
           choiceGeneration != _completionChoiceGeneration) {
-        await widget.mediaService.cancelRecording().catchError((Object _) {});
+        if (!attemptedIosNative) {
+          await widget.mediaService.cancelRecording().catchError((Object _) {});
+        }
         return;
       }
       if (!mounted) return;
@@ -2967,7 +2990,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     LessonRecording? recording;
     try {
-      recording = await widget.mediaService.stopRecording();
+      final useIosNativeSpeech = _completionChoiceUsesIosNativeSpeech;
+      final transcript = useIosNativeSpeech
+          ? (await _iosLessonSpeechInput!.stop()).sourceText
+          : await () async {
+              recording = await widget.mediaService.stopRecording();
+              return _completionChoiceRecognizer.transcribe(recording!);
+            }();
+      _completionChoiceUsesIosNativeSpeech = false;
       if (mounted) {
         setState(() {
           _completionChoiceRecording = false;
@@ -2975,9 +3005,6 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _message = 'Đang nhận diện lựa chọn…';
         });
       }
-      final transcript = await _completionChoiceRecognizer.transcribe(
-        recording,
-      );
       if (choiceGeneration != _completionChoiceGeneration) return;
       final v4Stage = _activeV4CompletionStage;
       if (_v4CompletionChoiceVisible && v4Stage != null) {
@@ -3017,6 +3044,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       setState(() => _mediaBusy = false);
       await _handleCompletionChoice(choice);
     } catch (error) {
+      _completionChoiceUsesIosNativeSpeech = false;
       if (mounted) {
         setState(() {
           _completionChoiceRecording = false;
@@ -3035,9 +3063,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         }
       }
     } finally {
-      if (recording != null) {
+      final completedRecording = recording;
+      if (completedRecording != null) {
         await widget.mediaService
-            .deleteRecording(recording.filePath)
+            .deleteRecording(completedRecording.filePath)
             .catchError((Object _) {});
       }
       _completionChoiceStopping = false;
@@ -3056,6 +3085,8 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _recordingStartPending ||
         _recordingDeviceStartInProgress != null;
     _completionChoiceRecording = false;
+    final useIosNativeSpeech = _completionChoiceUsesIosNativeSpeech;
+    _completionChoiceUsesIosNativeSpeech = false;
     if (mounted) {
       setState(() {
         _recording = false;
@@ -3064,7 +3095,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       });
     }
     if (shouldCancel && !_completionChoiceStopping) {
-      await widget.mediaService.cancelRecording().catchError((Object _) {});
+      if (useIosNativeSpeech) {
+        await _iosLessonSpeechInput?.cancel().catchError((Object _) {});
+      } else {
+        await widget.mediaService.cancelRecording().catchError((Object _) {});
+      }
     }
   }
 

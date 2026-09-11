@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
@@ -3934,6 +3935,11 @@ class ConversationController extends ChangeNotifier {
     }
     if (error is RetryableConversationException && error.isRetryable) {
       return 'Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.';
+    }
+    if (error is PlatformException &&
+        (error.code == '561017449' ||
+            (error.message?.contains('561017449') ?? false))) {
+      return 'Âm thanh đang chuyển từ nghe sang nói. Con thử lại nhé.';
     }
     return error.toString().replaceFirst('Exception: ', '');
   }

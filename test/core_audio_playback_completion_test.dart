@@ -1,8 +1,27 @@
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 
 void main() {
+  test('recognizes the iOS insufficient-priority audio session error', () {
+    expect(
+      isIosAudioSessionInsufficientPriority(
+        PlatformException(
+          code: '561017449',
+          message: "The operation couldn't be completed.",
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isIosAudioSessionInsufficientPriority(
+        PlatformException(code: 'OTHER_AUDIO_ERROR'),
+      ),
+      isFalse,
+    );
+  });
+
   test('does not accept a stale completed state before the source end', () {
     expect(
       isPlaybackAtSourceEnd(
