@@ -104,12 +104,18 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
     super.initState();
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+        widget.voicePromptService ??
+        createVoicePromptService(
+          coordinator: widget.controller?.audioTurnCoordinator,
+          owner: AudioTurnOwner.vocabulary,
+        );
     _ownsMediaService = widget.mediaService == null;
     _mediaService =
         widget.mediaService ??
         LessonMediaService(
-          hfpAudioControl: widget.controller?.learningAudioRouteControl,
+          hfpAudioControl: widget.controller?.createLearningAudioRouteControl(),
+          audioTurnCoordinator: widget.controller?.audioTurnCoordinator,
+          audioTurnOwner: AudioTurnOwner.vocabulary,
         );
     _searchController.addListener(_refreshSearch);
     _storeSubscription = widget.store.changes.listen((_) => unawaited(_load()));

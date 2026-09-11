@@ -123,11 +123,16 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
     _contentFuture =
         widget.contentFuture ?? AssetListeningContentRepository().load();
     _historyMediaService = LessonMediaService(
-      hfpAudioControl: widget.controller?.learningAudioRouteControl,
+      hfpAudioControl: widget.controller?.createLearningAudioRouteControl(),
+      audioTurnCoordinator: widget.controller?.audioTurnCoordinator,
     );
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+        widget.voicePromptService ??
+        createVoicePromptService(
+          coordinator: widget.controller?.audioTurnCoordinator,
+          owner: AudioTurnOwner.listeningLesson,
+        );
     unawaited(_loadContentAndProgress());
   }
 

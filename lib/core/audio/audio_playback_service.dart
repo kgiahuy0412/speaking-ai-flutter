@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'audio_gain.dart';
+import 'audio_turn_coordinator.dart';
 import 'browser_audio_playback.dart';
 import 'browser_audio_playback_factory.dart';
 import 'device_audio_cache.dart';
@@ -98,12 +99,23 @@ class JustAudioPlaybackService
   // without pushing typical voice recordings into heavy clipping.
   static const double androidPlaybackGainDb = androidSpeechBoostDb;
 
-  JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
-    : _cache = cache ?? DeviceAudioCache(),
-      _ownsCache = cache == null,
-      _browserPlayback = createBrowserAudioPlayback(),
-      _player = player ?? _createDefaultPlayer() {
+  JustAudioPlaybackService({
+    AudioPlayer? player,
+    DeviceAudioCache? cache,
+    AudioTurnCoordinator? audioTurnCoordinator,
+    AudioTurnOwner audioTurnOwner = AudioTurnOwner.legacy,
+  }) : _cache = cache ?? DeviceAudioCache(),
+       _ownsCache = cache == null,
+       _browserPlayback = createBrowserAudioPlayback(),
+       _player = player ?? _createDefaultPlayer(),
+       _audioTurnCoordinator = audioTurnCoordinator,
+       _audioTurnOwner = audioTurnOwner {
     _audioSession = AudioSession.instance;
+    if (audioTurnCoordinator != null) {
+      _audioTurnCompletionSubscription = completionStream.listen((_) {
+        unawaited(_releaseAudioTurn());
+      });
+    }
   }
 
   static AudioPlayer _createDefaultPlayer() {
@@ -134,7 +146,11 @@ class JustAudioPlaybackService
   final BrowserAudioPlayback? _browserPlayback;
   final DeviceAudioCache _cache;
   final bool _ownsCache;
+  final AudioTurnCoordinator? _audioTurnCoordinator;
+  final AudioTurnOwner _audioTurnOwner;
   late final Future<AudioSession> _audioSession;
+  StreamSubscription<void>? _audioTurnCompletionSubscription;
+  AudioTurnLease? _audioTurnLease;
   Future<void>? _playbackSessionPreparation;
   Future<void> _sourceOperation = Future<void>.value();
   Uri? _loadedOriginalUri;
@@ -476,6 +492,16 @@ class JustAudioPlaybackService
 
   @override
   Future<PlaybackStartMetrics> play(Uri uri) async {
+    await _acquireAudioTurn();
+    try {
+      return await _playWithoutTurnCoordination(uri);
+    } catch (_) {
+      await _releaseAudioTurn();
+      rethrow;
+    }
+  }
+
+  Future<PlaybackStartMetrics> _playWithoutTurnCoordination(Uri uri) async {
     final requestedAt = DateTime.now();
     final browserPlayback = _browserPlayback;
     if (browserPlayback != null) {
@@ -580,10 +606,39 @@ class JustAudioPlaybackService
   }
 
   @override
-  Future<void> stop() => _browserPlayback?.pause() ?? _player.pause();
+  Future<void> stop() async {
+    try {
+      await (_browserPlayback?.pause() ?? _player.pause());
+    } finally {
+      await _releaseAudioTurn();
+    }
+  }
+
+  Future<void> _acquireAudioTurn() async {
+    final coordinator = _audioTurnCoordinator;
+    if (coordinator == null) {
+      return;
+    }
+    final current = _audioTurnLease;
+    if (current != null && current.isCurrent) {
+      return;
+    }
+    _audioTurnLease = await coordinator.acquire(
+      owner: _audioTurnOwner,
+      mode: AudioTurnMode.mediaPlayback,
+    );
+  }
+
+  Future<void> _releaseAudioTurn() async {
+    final lease = _audioTurnLease;
+    _audioTurnLease = null;
+    await lease?.release();
+  }
 
   @override
   Future<void> dispose() async {
+    await _audioTurnCompletionSubscription?.cancel();
+    await _releaseAudioTurn();
     await _browserPlayback?.dispose();
     await _player.dispose();
     if (_ownsCache) {

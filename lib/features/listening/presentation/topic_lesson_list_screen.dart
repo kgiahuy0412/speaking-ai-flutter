@@ -85,11 +85,16 @@ class _TopicLessonListScreenState extends State<TopicLessonListScreen> {
     _mediaService =
         widget.mediaService ??
         LessonMediaService(
-          hfpAudioControl: widget.controller?.learningAudioRouteControl,
+          hfpAudioControl: widget.controller?.createLearningAudioRouteControl(),
+          audioTurnCoordinator: widget.controller?.audioTurnCoordinator,
         );
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+        widget.voicePromptService ??
+        createVoicePromptService(
+          coordinator: widget.controller?.audioTurnCoordinator,
+          owner: AudioTurnOwner.listeningLesson,
+        );
     _progressFuture = _loadProgress();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_openInitialLesson());

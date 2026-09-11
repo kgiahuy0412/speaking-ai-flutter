@@ -6,7 +6,9 @@ import 'package:record/record.dart';
 
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
+import '../../../core/audio/audio_turn_coordinator.dart';
 import '../../../core/audio/hfp_audio_control.dart';
+import '../../../core/audio/hfp_audio_route_coordinator.dart';
 import '../data/lesson_recording_history_store.dart';
 import 'lesson_recording_storage.dart';
 
@@ -29,10 +31,14 @@ class LessonMediaService {
     AudioRecorder? recorder,
     AudioPlaybackService? playbackService,
     HfpAudioControl? hfpAudioControl,
+    AudioTurnCoordinator? audioTurnCoordinator,
+    AudioTurnOwner audioTurnOwner = AudioTurnOwner.listeningLesson,
     LessonRecordingHistoryStore? historyStore,
   }) : _recorder = recorder,
        _playbackService = playbackService,
        _hfpAudioControl = hfpAudioControl,
+       _audioTurnCoordinator = audioTurnCoordinator,
+       _audioTurnOwner = audioTurnOwner,
        historyStore = historyStore ?? const LessonRecordingHistoryStore();
 
   final LessonRecordingHistoryStore historyStore;
@@ -40,17 +46,22 @@ class LessonMediaService {
   AudioRecorder? _recorder;
   AudioPlaybackService? _playbackService;
   final HfpAudioControl? _hfpAudioControl;
+  final AudioTurnCoordinator? _audioTurnCoordinator;
+  final AudioTurnOwner _audioTurnOwner;
   DateTime? _recordingStartedAt;
   String? _activePath;
   _ActiveLessonRecording? _activeContext;
   Completer<void>? _activePlaybackCompletion;
   Future<void> _recordingOperation = Future<void>.value();
-  bool _ownsActiveHfpRoute = false;
+  Object? _activeHfpRouteToken;
 
   AudioRecorder get _activeRecorder => _recorder ??= AudioRecorder();
 
   AudioPlaybackService get _activePlayback =>
-      _playbackService ??= JustAudioPlaybackService();
+      _playbackService ??= JustAudioPlaybackService(
+        audioTurnCoordinator: _audioTurnCoordinator,
+        audioTurnOwner: _audioTurnOwner,
+      );
 
   bool get _shouldUseSelectedHfp =>
       shouldUseSelectedLessonHfp(_hfpAudioControl?.status);
@@ -215,7 +226,14 @@ class LessonMediaService {
   /// has started successfully. The native recognizer now owns and will release
   /// the same route, so this service must not retain a stale ownership flag.
   void handoffSelectedLessonOutputToNativeCapture() {
-    _ownsActiveHfpRoute = false;
+    final control = _hfpAudioControl;
+    final leaseControl = control is HfpAudioRouteLeaseControl
+        ? control as HfpAudioRouteLeaseControl
+        : null;
+    if (leaseControl != null) {
+      unawaited(leaseControl.handoffAudioRoute());
+    }
+    _activeHfpRouteToken = null;
   }
 
   Future<void> _stopPlayback({required bool releaseAudioRoute}) async {
@@ -368,7 +386,7 @@ class LessonMediaService {
   }
 
   Future<void> _activateSelectedHfpRoute({bool force = false}) async {
-    if (_ownsActiveHfpRoute && !force) {
+    if (_activeHfpRouteToken != null && !force) {
       return;
     }
     final control = _hfpAudioControl;
@@ -376,14 +394,19 @@ class LessonMediaService {
       return;
     }
     await control.startAudioRoute();
-    _ownsActiveHfpRoute = true;
+    final leaseControl = control is HfpAudioRouteLeaseControl
+        ? control as HfpAudioRouteLeaseControl
+        : null;
+    _activeHfpRouteToken = leaseControl != null
+        ? leaseControl.activeAudioRouteToken
+        : Object();
   }
 
   Future<void> _releaseHfpRoute() async {
-    if (!_ownsActiveHfpRoute) {
+    if (_activeHfpRouteToken == null) {
       return;
     }
-    _ownsActiveHfpRoute = false;
+    _activeHfpRouteToken = null;
     await _hfpAudioControl?.stopAudioRoute();
   }
 

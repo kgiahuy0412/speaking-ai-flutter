@@ -178,7 +178,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+        widget.voicePromptService ??
+        createVoicePromptService(
+          coordinator: widget.controller?.audioTurnCoordinator,
+          owner: AudioTurnOwner.listeningLesson,
+        );
     _ownsCompletionChoiceRecognizer = widget.completionChoiceRecognizer == null;
     _completionChoiceRecognizer =
         widget.completionChoiceRecognizer ??

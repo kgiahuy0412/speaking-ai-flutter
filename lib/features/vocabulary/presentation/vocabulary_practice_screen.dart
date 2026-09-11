@@ -115,7 +115,11 @@ class _VocabularyPracticeScreenState extends State<VocabularyPracticeScreen>
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
     _ownsVoicePromptService = widget.voicePromptService == null;
     _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+        widget.voicePromptService ??
+        createVoicePromptService(
+          coordinator: widget.controller?.audioTurnCoordinator,
+          owner: AudioTurnOwner.vocabulary,
+        );
     unawaited(_load());
   }
 

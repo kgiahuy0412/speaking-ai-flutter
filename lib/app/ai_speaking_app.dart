@@ -9,6 +9,7 @@ import '../core/audio/audio_playback_service.dart';
 import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
 import '../core/audio/hfp_audio_control.dart';
+import '../core/audio/hfp_audio_route_coordinator.dart';
 import '../core/audio/innotrik_ble_audio_input.dart';
 import '../core/audio/offline_intent_recognizer.dart';
 import '../core/audio/phone_microphone_input.dart';
@@ -71,6 +72,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   PhoneMicrophoneInput? _phoneMicrophoneInput;
   MethodChannelAiv0BleControl? _aiv0BleControl;
   MethodChannelHfpAudioControl? _nativeHfpAudioControl;
+  AudioTurnCoordinator? _audioTurnCoordinator;
+  HfpAudioRouteCoordinator? _hfpAudioRouteCoordinator;
   WebBatchStreamingSpeechInput? _webBatchStreamingSpeechInput;
   DeviceAudioCache? _deviceAudioCache;
   ConversationRepository? _repository;
@@ -716,6 +719,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   void _createRuntime() {
+    final audioTurnCoordinator = AudioTurnCoordinator();
     final ConversationRepository repository = _config.useDemoBackend
         ? const DemoConversationRepository()
         : NextConversationRepository(
@@ -739,10 +743,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     final phoneMicrophoneInput = PhoneMicrophoneInput();
     final MethodChannelHfpAudioControl? nativeHfpAudioControl;
-    final HfpAudioControl hfpAudioControl;
+    final HfpAudioControl rawHfpAudioControl;
     if (kIsWeb) {
       nativeHfpAudioControl = null;
-      hfpAudioControl = BrowserHfpAudioControl(
+      rawHfpAudioControl = BrowserHfpAudioControl(
         enabled: _config.enableHfpAudio,
         audioInput: phoneMicrophoneInput,
       );
@@ -750,8 +754,22 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       nativeHfpAudioControl = MethodChannelHfpAudioControl(
         enabled: supportsNativeBluetooth && _config.enableHfpAudio,
       );
-      hfpAudioControl = nativeHfpAudioControl;
+      rawHfpAudioControl = nativeHfpAudioControl;
     }
+    final hfpAudioRouteCoordinator = HfpAudioRouteCoordinator(
+      rawHfpAudioControl,
+    );
+    final conversationHfpAudioControl = hfpAudioRouteCoordinator.createScope(
+      'continuous-translation',
+    );
+    final nativeSpeechHfpAudioControl = hfpAudioRouteCoordinator.createScope(
+      'native-speech',
+    );
+    var nextLearningAudioOwner = 0;
+    HfpAudioControl createLearningAudioRouteControl() =>
+        hfpAudioRouteCoordinator.createScope(
+          'listening-${++nextLearningAudioOwner}',
+        );
     final aiv0BleControl = MethodChannelAiv0BleControl(
       enabled: supportsNativeBluetooth && _config.enableAiv0BleControl,
       draftProtocolConfirmed: _config.aiv0DraftProtocolConfirmed,
@@ -760,7 +778,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         supportsAndroidNativeSpeech
         ? AndroidStreamingSpeechInput(preferOnDevice: true)
         : supportsAppleNativeSpeech
-        ? IOSStreamingSpeechInput(audioRouteControl: hfpAudioControl)
+        ? IOSStreamingSpeechInput(
+            audioRouteControl: nativeSpeechHfpAudioControl,
+          )
         : null;
     _nativeStreamingSpeechInput = streamingSpeechInput;
     final WebBatchStreamingSpeechInput? webBatchStreamingSpeechInput;
@@ -795,7 +815,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
             // Native speech is shared with ConversationController and released
             // explicitly by either controller before the other starts.
             ownsSpeechInput: voiceNavigationOwnsSpeechInput,
-            voicePromptService: createVoicePromptService(),
+            voicePromptService: createVoicePromptService(
+              coordinator: audioTurnCoordinator,
+              owner: AudioTurnOwner.mainAssistant,
+            ),
             ownsVoicePromptService: true,
             activeLearningCommandHandler: _handleActiveLearningCommand,
           )
@@ -807,10 +830,19 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         fallback: phoneMicrophoneInput,
       ),
       streamingSpeechInput: streamingSpeechInput,
-      hfpAudioControl: hfpAudioControl,
+      hfpAudioControl: conversationHfpAudioControl,
+      learningAudioRouteControlFactory: createLearningAudioRouteControl,
+      audioTurnCoordinator: audioTurnCoordinator,
       aiv0BleControl: aiv0BleControl,
-      playbackService: JustAudioPlaybackService(cache: deviceAudioCache),
-      voicePromptService: createVoicePromptService(),
+      playbackService: JustAudioPlaybackService(
+        cache: deviceAudioCache,
+        audioTurnCoordinator: audioTurnCoordinator,
+        audioTurnOwner: AudioTurnOwner.continuousTranslation,
+      ),
+      voicePromptService: createVoicePromptService(
+        coordinator: audioTurnCoordinator,
+        owner: AudioTurnOwner.continuousTranslation,
+      ),
       repository: repository,
       offlineIntentRecognizer: supportsAndroidNativeSpeech
           ? MethodChannelOfflineIntentRecognizer()
@@ -861,6 +893,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _phoneMicrophoneInput = phoneMicrophoneInput;
     _aiv0BleControl = aiv0BleControl;
     _nativeHfpAudioControl = nativeHfpAudioControl;
+    _audioTurnCoordinator = audioTurnCoordinator;
+    _hfpAudioRouteCoordinator = hfpAudioRouteCoordinator;
     _webBatchStreamingSpeechInput = webBatchStreamingSpeechInput;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;
@@ -1764,6 +1798,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _deviceRegistrationService?.dispose();
     _deviceAudioCache?.dispose();
     _activeLearningModules.dispose();
+    unawaited(_hfpAudioRouteCoordinator?.dispose());
+    unawaited(_audioTurnCoordinator?.dispose());
     super.dispose();
   }
 

@@ -671,7 +671,10 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return existing;
     }
     _ownsVoicePromptService = true;
-    return _voicePromptService = createVoicePromptService();
+    return _voicePromptService = createVoicePromptService(
+      coordinator: widget.controller?.audioTurnCoordinator,
+      owner: AudioTurnOwner.listeningLesson,
+    );
   }
 
   Widget _buildPracticeScreen(BuildContext context) => LessonPracticeScreen(

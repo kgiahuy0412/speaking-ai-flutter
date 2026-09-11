@@ -80,6 +80,8 @@ class ConversationController extends ChangeNotifier {
     required AudioInput audioInput,
     StreamingSpeechInput? streamingSpeechInput,
     HfpAudioControl? hfpAudioControl,
+    HfpAudioControl Function()? learningAudioRouteControlFactory,
+    AudioTurnCoordinator? audioTurnCoordinator,
     Aiv0BleControl? aiv0BleControl,
     required AudioPlaybackService playbackService,
     VoicePromptService? voicePromptService,
@@ -110,6 +112,8 @@ class ConversationController extends ChangeNotifier {
            : null,
        _streamingSpeechInput = streamingSpeechInput,
        _hfpAudioControl = hfpAudioControl,
+       _learningAudioRouteControlFactory = learningAudioRouteControlFactory,
+       _audioTurnCoordinator = audioTurnCoordinator,
        _aiv0BleControl = aiv0BleControl,
        _playbackService = playbackService,
        _voicePromptService = voicePromptService,
@@ -252,6 +256,8 @@ class ConversationController extends ChangeNotifier {
   final BluetoothAudioInputControl? _bluetoothAudioControl;
   final StreamingSpeechInput? _streamingSpeechInput;
   final HfpAudioControl? _hfpAudioControl;
+  final HfpAudioControl Function()? _learningAudioRouteControlFactory;
+  final AudioTurnCoordinator? _audioTurnCoordinator;
   final Aiv0BleControl? _aiv0BleControl;
   final AudioPlaybackService _playbackService;
   final VoicePromptService? _voicePromptService;
@@ -770,6 +776,14 @@ class ConversationController extends ChangeNotifier {
   /// Shared native route owner used by listening lessons so their prompt audio
   /// and recorder select the same H20 input as the conversation flow.
   HfpAudioControl? get learningAudioRouteControl => _hfpAudioControl;
+
+  /// Creates an isolated lesson owner backed by the process-wide HFP route
+  /// coordinator. Tests and legacy callers without a factory keep the previous
+  /// shared control behavior.
+  HfpAudioControl? createLearningAudioRouteControl() =>
+      _learningAudioRouteControlFactory?.call() ?? _hfpAudioControl;
+
+  AudioTurnCoordinator? get audioTurnCoordinator => _audioTurnCoordinator;
 
   /// Reuses the app's single Apple Speech event stream for listening lessons.
   /// A second bridge listener would race MAIN for the same native events.
