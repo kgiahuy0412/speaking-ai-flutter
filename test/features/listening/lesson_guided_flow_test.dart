@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/core/device/active_learning_module.dart';
+import 'package:ai_speaking_flutter_app/features/listening/application/lesson_attempt_evaluator.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_guide_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_completion_choice_recognizer.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
@@ -357,6 +358,34 @@ void main() {
 
     expect(evaluator.evaluationCalls, 1);
     expect(mediaService.playedUris.last.toString(), contains('latest.m4a'));
+  });
+
+  testWidgets('keeps an injected lesson evaluator caller-owned', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService();
+    final evaluator = _CallerOwnedAttemptEvaluator();
+
+    await tester.pumpWidget(
+      _subject(
+        _lesson(code: 'A035_T01_L01', sentenceCount: 2),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        attemptEvaluator: evaluator,
+        voicePromptService: _FakeVoicePromptService(),
+      ),
+    );
+    await _pumpGuidedSpeechTurn(tester);
+    expect(mediaService.recording, isTrue);
+
+    await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+    await _pumpGuidedSpeechTurn(tester);
+
+    expect(evaluator.evaluationCalls, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(evaluator.disposeCalls, 0);
   });
 
   testWidgets('MAIN invalidates an evaluation that finishes after pause', (
@@ -2054,6 +2083,33 @@ class _DeferredAttemptEvaluator implements LessonAttemptEvaluator {
       started.complete();
     }
     return _result.future;
+  }
+}
+
+class _CallerOwnedAttemptEvaluator
+    implements LessonAttemptEvaluator, DisposableLessonAttemptEvaluator {
+  int evaluationCalls = 0;
+  int disposeCalls = 0;
+
+  @override
+  Future<LessonAttemptOutcome> evaluate({
+    required String lessonCode,
+    required String sentenceId,
+    required String expectedEnglish,
+    required String recordingPath,
+    required Duration recordingDuration,
+    required int attemptNumber,
+    required int childAge,
+    Iterable<String> acceptedVariants = const <String>[],
+    bool requireAllExpectedTokens = false,
+  }) async {
+    evaluationCalls += 1;
+    return LessonAttemptOutcome.good;
+  }
+
+  @override
+  void dispose() {
+    disposeCalls += 1;
   }
 }
 
