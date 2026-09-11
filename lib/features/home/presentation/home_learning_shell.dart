@@ -840,7 +840,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
           initialVoiceTarget: initialVoiceTarget,
           onTopicSelected: (index) => _activeVoiceTopicIndex = index,
           onChildAgeChanged: widget.onChildAgeChanged,
-          onRequestParentAccess: _requestParentAccess,
+          onRequestParentAccess: _requestTopicAgeAccess,
           onLessonSelectionRequested:
               ({
                 required childAge,
@@ -999,6 +999,20 @@ class _HomeLearningShellState extends State<HomeLearningShell>
   Future<bool> _requestParentAccess() {
     final gate = widget.parentAccessGate;
     return gate == null ? showParentalGate(context) : gate(context);
+  }
+
+  Future<bool> _requestTopicAgeAccess() {
+    final gate = widget.parentAccessGate;
+    if (gate != null) {
+      return gate(context);
+    }
+    if (PlatformAccessPolicy.bypassesTopicAgeAuthentication(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    )) {
+      return Future<bool>.value(true);
+    }
+    return showParentalGate(context);
   }
 
   Future<void> _openHistorySheet() async {

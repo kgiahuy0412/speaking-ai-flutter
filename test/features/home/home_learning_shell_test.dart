@@ -129,6 +129,41 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets(
+    'Android changes the listening age group without device authentication',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final controller = _controller();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          useDefaultParentAccessGate: true,
+          listeningContentFuture: AssetListeningContentRepository(
+            bundle: rootBundle,
+          ).load(),
+          onChildAgeChanged: (_) {},
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('topic-age-selector')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chọn nhóm bài học'), findsOneWidget);
+      expect(find.text('Không thể xác thực'), findsNothing);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   testWidgets('reports settings modal visibility until the sheet closes', (
     tester,
   ) async {
@@ -796,6 +831,7 @@ Widget _app(
   MainSpeakingSessionController? speakingSessionController,
   VoidCallback? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
+  ValueChanged<int>? onChildAgeChanged,
   Future<bool> Function(BuildContext)? parentAccessGate,
   bool useDefaultParentAccessGate = false,
   BackgroundLearningSessionControl? backgroundLearningSession,
@@ -812,6 +848,7 @@ Widget _app(
             await voiceNavigationController.activateFromMainButton();
           },
     onModalVisibilityChanged: onModalVisibilityChanged,
+    onChildAgeChanged: onChildAgeChanged,
     parentAccessGate: useDefaultParentAccessGate
         ? null
         : parentAccessGate ?? (_) async => true,

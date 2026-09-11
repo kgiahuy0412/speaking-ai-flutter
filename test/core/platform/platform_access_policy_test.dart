@@ -27,5 +27,29 @@ void main() {
         isFalse,
       );
     });
+
+    test('bypasses topic age authentication only for native Android', () {
+      expect(
+        PlatformAccessPolicy.bypassesTopicAgeAuthentication(
+          isWeb: false,
+          platform: TargetPlatform.android,
+        ),
+        isTrue,
+      );
+      expect(
+        PlatformAccessPolicy.bypassesTopicAgeAuthentication(
+          isWeb: false,
+          platform: TargetPlatform.iOS,
+        ),
+        isFalse,
+      );
+      expect(
+        PlatformAccessPolicy.bypassesTopicAgeAuthentication(
+          isWeb: true,
+          platform: TargetPlatform.android,
+        ),
+        isFalse,
+      );
+    });
   });
 }
