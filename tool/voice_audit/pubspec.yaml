@@ -1,0 +1,6 @@
+name: homi_voice_audit
+publish_to: none
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+dependencies:
+  analyzer: ^10.1.0

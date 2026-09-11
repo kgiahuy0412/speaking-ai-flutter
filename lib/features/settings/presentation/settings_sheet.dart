@@ -491,6 +491,20 @@ class SettingsSheet extends StatelessWidget {
                               context.tr('Hỗ trợ', '支持'),
                             ),
                           ),
+                          const _SettingsDivider(),
+                          _SettingsActionTile(
+                            key: const Key('settings-third-party-licenses'),
+                            icon: Icons.article_outlined,
+                            title: context.tr('Giấy phép thư viện', '第三方许可'),
+                            detail: context.tr(
+                              'Thông báo bản quyền và giấy phép phần mềm sử dụng trong HOMI.',
+                              'HOMI 使用的软件版权声明和许可。',
+                            ),
+                            onTap: () => showLicensePage(
+                              context: context,
+                              applicationName: 'HOMI',
+                            ),
+                          ),
                           if (privacyConsentGranted &&
                               !voiceAccessEnabled &&
                               onRequestVoiceAccess != null) ...<Widget>[

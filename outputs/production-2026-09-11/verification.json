@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-09-11T11:03:53.7742983+07:00",
+  "versionName": "1.0.5",
+  "versionCode": 7,
+  "applicationId": "com.innotrik.aispeaking",
+  "definesFile": "output/apk/install-production-defines.json",
+  "testsPassed": 35,
+  "analysis": "No issues found in the 3 changed Dart files",
+  "productionConfiguration": "passed",
+  "expectedHomiAudioFiles": 4916,
+  "legalPagesBrowserVerified": [
+    "privacy",
+    "terms",
+    "support"
+  ],
+  "productionSigning": "pending user keystore choice; android/key.properties absent",
+  "productionDistributionReady": false,
+  "CandidateApk": "HOMI-1.0.5+7-release-pending-production-signing.apk",
+  "ApkBytes": 358884559,
+  "ApkSha256": "3B77732E855215082EEE7AD4363A5A2ADC038838D3B94486ED503ECC09976586",
+  "CertificateSubject": "C=US, O=Android, CN=Android Debug",
+  "AudioHashMismatches": 0
+}

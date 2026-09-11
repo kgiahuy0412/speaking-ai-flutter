@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import io.flutter.FlutterInjector
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -106,7 +107,7 @@ class VoicePromptBridge(
                 val locale = call.argument<String>("locale")?.trim().orEmpty()
                 val gainDb = requestedGainDb(call)
                 if (text.isNotEmpty()) {
-                    speak(text, locale.ifEmpty { "vi-VN" }, gainDb)
+                    speak(text, locale.ifEmpty { "vi-VN" }, gainDb, assetPath = call.argument<String>("assetPath"))
                 }
                 result.success(null)
             }
@@ -122,6 +123,7 @@ class VoicePromptBridge(
                         locale.ifEmpty { "vi-VN" },
                         gainDb,
                         completion = result,
+                        assetPath = call.argument<String>("assetPath"),
                     )
                 }
             }
@@ -144,7 +146,12 @@ class VoicePromptBridge(
         localeTag: String,
         gainDb: Double,
         completion: MethodChannel.Result? = null,
+        assetPath: String? = null,
     ) {
+        if (assetPath != null && assetPath.startsWith("assets/audio/") && !assetPath.contains("..")) {
+            playRecordedPrompt(assetPath, text, localeTag, gainDb, completion)
+            return
+        }
         if (!initialized) {
             completePendingPrompt()
             pendingPrompt = PendingPrompt(text, localeTag, gainDb, completion)
@@ -198,6 +205,70 @@ class VoicePromptBridge(
 
     private fun requestedGainDb(call: MethodCall): Double =
         (call.argument<Number>("gainDb")?.toDouble() ?: 8.0).coerceIn(0.0, 12.0)
+
+    // Recorded MP3s use the same communication output as synthesized prompts,
+    // including H20/HFP, and complete only when playback actually finishes.
+    private fun playRecordedPrompt(
+        assetPath: String,
+        text: String,
+        localeTag: String,
+        gainDb: Double,
+        completion: MethodChannel.Result?,
+    ) {
+        completePendingPrompt()
+        completeReadyCue()
+        completeActiveAwaited()
+        textToSpeech?.stop()
+        clearSynthesizedPrompt()
+        releasePromptPlayback()
+        val utteranceId = "recorded-prompt-${++utteranceSequence}"
+        if (completion != null) {
+            awaitedUtteranceId = utteranceId
+            awaitedResult = completion
+        }
+        val player = MediaPlayer()
+        promptPlaybackId = utteranceId
+        promptPlayer = player
+        fun fallbackToDeviceVoice() {
+            if (promptPlaybackId != utteranceId) return
+            val pending = if (awaitedUtteranceId == utteranceId) awaitedResult else null
+            if (awaitedUtteranceId == utteranceId) {
+                awaitedUtteranceId = null
+                awaitedResult = null
+            }
+            releasePromptPlayback()
+            speak(text, localeTag, gainDb, completion = pending)
+        }
+        try {
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .build(),
+            )
+            val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(assetPath)
+            appContext.assets.openFd(key).use { asset ->
+                player.setDataSource(asset.fileDescriptor, asset.startOffset, asset.length)
+            }
+            player.setVolume(1.0f, 1.0f)
+            player.setOnPreparedListener { ready ->
+                if (promptPlayer !== ready || promptPlaybackId != utteranceId) return@setOnPreparedListener
+                // Authored audio is already mastered; do not apply the device
+                // TTS +8 dB boost, which can clip prerecorded speech.
+                try { ready.start() } catch (_: RuntimeException) { fallbackToDeviceVoice() }
+            }
+            player.setOnCompletionListener {
+                mainHandler.post { finishPromptPlayback(utteranceId) }
+            }
+            player.setOnErrorListener { _, _, _ ->
+                mainHandler.post { fallbackToDeviceVoice() }
+                true
+            }
+            player.prepareAsync()
+        } catch (_: Exception) {
+            fallbackToDeviceVoice()
+        }
+    }
 
     private fun handleTtsDone(utteranceId: String?) {
         mainHandler.post {

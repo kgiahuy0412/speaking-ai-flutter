@@ -56,6 +56,7 @@ void main() {
         'gainDb': 8.0,
         'forcePhoneSpeaker': false,
         'forceMediaPlayback': false,
+        'assetPath': 'assets/audio/elevenlabs_vi/vi_95beda2290338453cc60.mp3',
       });
     },
   );
@@ -83,6 +84,7 @@ void main() {
       'gainDb': 8.0,
       'forcePhoneSpeaker': true,
       'forceMediaPlayback': false,
+      'assetPath': 'assets/audio/elevenlabs_vi/vi_a15ca5a2266d274ad7f9.mp3',
     });
   });
 

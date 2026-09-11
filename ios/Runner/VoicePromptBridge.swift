@@ -17,8 +17,7 @@ struct IOSPromptOperationLeaseState {
   }
 }
 
-/// Native iOS prompt output for the fixed MAIN assistant. Keeping prompts in
-/// AVSpeechSynthesizer avoids a network round trip before command recognition.
+/// Local MP3 prompts with device speech fallback, sharing MAIN's HFP session.
 final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
   private let channel: FlutterMethodChannel
   private let audioSessionCoordinator: IOSAudioSessionCoordinator
@@ -31,6 +30,8 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   private var readyCuePlayer: AVAudioPlayer?
   private var activeUtterance: AVSpeechUtterance?
   private var activeUtteranceAudioToken: UUID?
+  private var recordedPromptPlayer: AVAudioPlayer?
+  private var recordedPromptFallback: (() -> Void)?
   private var promptOperationLeases = IOSPromptOperationLeaseState()
   private var disposed = false
 
@@ -84,6 +85,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         locale: locale,
         forcePhoneSpeaker: forcePhoneSpeaker,
         forceMediaPlayback: forceMediaPlayback,
+        assetPath: arguments?["assetPath"] as? String,
         waitForCompletion: call.method == "speakAndWait",
         result: result
       )
@@ -102,6 +104,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     locale: String,
     forcePhoneSpeaker: Bool,
     forceMediaPlayback: Bool,
+    assetPath: String?,
     waitForCompletion: Bool,
     result: @escaping FlutterResult
   ) {
@@ -115,18 +118,48 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
       forceMediaPlayback: forceMediaPlayback
     )
     audioSessionCoordinator.trace(stage: "prompt_started", caller: "VoicePromptBridge.speak")
-    let utterance = AVSpeechUtterance(string: text)
-    utterance.voice = AVSpeechSynthesisVoice(language: locale)
-      ?? AVSpeechSynthesisVoice(language: "vi-VN")
-    utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-    utterance.volume = 1.0
-    activeUtterance = utterance
     activeUtteranceAudioToken = audioToken
     if waitForCompletion {
       waitingResult = result
     } else {
       result(nil)
     }
+    if let assetPath, assetPath.hasPrefix("assets/audio/"), !assetPath.contains("..") {
+      do {
+        let assetKey = FlutterDartProject.lookupKey(forAsset: assetPath)
+        guard let assetURL = Bundle.main.url(forResource: assetKey, withExtension: nil) else {
+          throw ReadyCueError.playbackFailed
+        }
+        let player = try AVAudioPlayer(contentsOf: assetURL)
+        player.delegate = self
+        player.volume = 1.0
+        player.numberOfLoops = 0
+        recordedPromptPlayer = player
+        recordedPromptFallback = { [weak self] in
+          self?.startDeviceSpeech(text, locale: locale)
+        }
+        guard player.prepareToPlay(), player.play() else {
+          throw ReadyCueError.playbackFailed
+        }
+        audioSessionCoordinator.trace(stage: "recorded_prompt_started", caller: "VoicePromptBridge.speak")
+        return
+      } catch {
+        recordedPromptPlayer?.delegate = nil
+        recordedPromptPlayer?.stop()
+        recordedPromptPlayer = nil
+        recordedPromptFallback = nil
+      }
+    }
+    startDeviceSpeech(text, locale: locale)
+  }
+
+  private func startDeviceSpeech(_ text: String, locale: String) {
+    let utterance = AVSpeechUtterance(string: text)
+    utterance.voice = AVSpeechSynthesisVoice(language: locale)
+      ?? AVSpeechSynthesisVoice(language: "vi-VN")
+    utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+    utterance.volume = 1.0
+    activeUtterance = utterance
     synthesizer.speak(utterance)
   }
 
@@ -199,6 +232,10 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     let utteranceAudioToken = activeUtteranceAudioToken
     activeUtterance = nil
     activeUtteranceAudioToken = nil
+    recordedPromptFallback = nil
+    recordedPromptPlayer?.delegate = nil
+    recordedPromptPlayer?.stop()
+    recordedPromptPlayer = nil
     if synthesizer.isSpeaking || synthesizer.isPaused {
       synthesizer.stopSpeaking(at: .immediate)
     }
@@ -299,8 +336,35 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    if player === recordedPromptPlayer {
+      if !flag { recordedPromptFailed(player); return }
+      recordedPromptPlayer = nil
+      recordedPromptFallback = nil
+      let audioToken = activeUtteranceAudioToken
+      activeUtteranceAudioToken = nil
+      audioSessionCoordinator.trace(stage: "prompt_done", caller: "VoicePromptBridge.recordedPromptFinished")
+      releasePromptAudioSession(token: audioToken)
+      completeWaitingResult()
+      return
+    }
     guard player === readyCuePlayer else { return }
     completeReadyCue(token: readyCueToken)
+  }
+
+  func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+    if player === recordedPromptPlayer { recordedPromptFailed(player) }
+    else if player === readyCuePlayer { completeReadyCue(token: readyCueToken) }
+  }
+
+  private func recordedPromptFailed(_ player: AVAudioPlayer) {
+    guard player === recordedPromptPlayer else { return }
+    player.delegate = nil
+    player.stop()
+    recordedPromptPlayer = nil
+    let fallback = recordedPromptFallback
+    recordedPromptFallback = nil
+    // Keep the same audio lease and awaited result through device-TTS fallback.
+    fallback?()
   }
 
   private static func makeReadyCueWavData() -> Data {

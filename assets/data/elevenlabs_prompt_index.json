@@ -1,0 +1,4934 @@
+{
+  "schemaVersion": 1,
+  "voiceId": "nbv4fVbfyLxvuHzyIeDo",
+  "modelId": "eleven_flash_v2_5",
+  "languageCode": "vi",
+  "outputFormat": "mp3_44100_128",
+  "voiceSettings": {
+    "stability": 0.65,
+    "similarity_boost": 0.8,
+    "speed": 1
+  },
+  "clips": [
+    {
+      "id": "main_opening",
+      "text": "HOMI đây. Bạn muốn dịch sang tiếng Anh, học theo chủ đề hay học bộ từ vựng?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/main_opening.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0063694558e79bd7112d",
+      "text": "Bài này bạn còn 11 Ngôi sao chưa chinh phục. Mình cùng thử nhé!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0063694558e79bd7112d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_00d7a5e45b337a9cbbf3",
+      "text": "Chủ đề Ngày đi chơi có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_00d7a5e45b337a9cbbf3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_01202af0bc40be1824bb",
+      "text": "Chủ đề Hành động xanh có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_01202af0bc40be1824bb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_017036bf7e1dee34a17e",
+      "text": "Chủ đề Chi tiêu thông minh có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_017036bf7e1dee34a17e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0251917ff13d95f09bb0",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0251917ff13d95f09bb0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_027d3cd46ac7cb1a24be",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_027d3cd46ac7cb1a24be.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_034ffbbab796749c10bc",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 5 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_034ffbbab796749c10bc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0351206ea9d05b1c8ac5",
+      "text": "Mình học lại bài Compare Two nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0351206ea9d05b1c8ac5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_03a1171f7aa008956a6d",
+      "text": "Mình học lại bài Yesterday Actions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_03a1171f7aa008956a6d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_03a441baacdf842a8b38",
+      "text": "Chủ đề Ở nhà hàng có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_03a441baacdf842a8b38.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_03caca9a9fc3eca2bac7",
+      "text": "Tiếp tục nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_03caca9a9fc3eca2bac7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_03cf29d3bb79bf80754c",
+      "text": "Con tập trung học đi",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_03cf29d3bb79bf80754c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_040759688e53a0a6ec99",
+      "text": "Mình học tiếp bài Weekly Activities nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_040759688e53a0a6ec99.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0463603780a0be6cb7f5",
+      "text": "Mình học lại bài J to R Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0463603780a0be6cb7f5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_048991658345e6e19509",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Future Plans rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_048991658345e6e19509.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_04c007fee55772605f53",
+      "text": "Mình học lại bài Happy Day nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_04c007fee55772605f53.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_050d20e1e704194684b6",
+      "text": "Bi cô chưa chọn được bài học. Con thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_050d20e1e704194684b6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_05eb716e2bb45cd00245",
+      "text": "Chủ đề số 8 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_05eb716e2bb45cd00245.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_073c135a5065c601380e",
+      "text": "Chủ đề Động vật thú vị có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_073c135a5065c601380e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_080ef2273c8f12ed62d7",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_080ef2273c8f12ed62d7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_081553eba375417373c3",
+      "text": "Chủ đề Cuộc sống ở trường có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_081553eba375417373c3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_087979446ead68169f9b",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_087979446ead68169f9b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_08dc016a6d90b520d938",
+      "text": "Mình học lại bài Study Routine nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_08dc016a6d90b520d938.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_099d8f322f671ae0236c",
+      "text": "Chủ đề số 7 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_099d8f322f671ae0236c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0a2cb47effc9874be960",
+      "text": "Mình học lại bài Color Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0a2cb47effc9874be960.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0a4ca1b0e66c76b7bb76",
+      "text": "Chủ đề Ở nhà ga có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0a4ca1b0e66c76b7bb76.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0a7dd57fbd901660b932",
+      "text": "Chủ đề Công nghệ có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0a7dd57fbd901660b932.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0b47beb62b942c7341c9",
+      "text": "Chủ đề Cơ thể của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0b47beb62b942c7341c9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0c4ad5142138dbff3a23",
+      "text": "Chủ đề Sắp xếp thời gian có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0c4ad5142138dbff3a23.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0c5176abd9a8c1b7af70",
+      "text": "Chủ đề Quyền riêng tư trên mạng có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0c5176abd9a8c1b7af70.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0cf378b7dc92e1dab51b",
+      "text": "Nhiệm vụ cuối Level chưa đủ 4 câu hỏi. Bạn cập nhật nội dung rồi thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0cf378b7dc92e1dab51b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0d0ba1d023b679c8a675",
+      "text": "Bạn có thể chọn: dịch sang tiếng Anh, học theo chủ đề hoặc học bộ từ vựng.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0d0ba1d023b679c8a675.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0e9b5aac6f41f341b8fe",
+      "text": "Mình học lại bài My Devices nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0e9b5aac6f41f341b8fe.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0eae4b2c87fad02a0dbd",
+      "text": "Mình học lại bài Menu Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0eae4b2c87fad02a0dbd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_0f4d838c8bd1aec34ae3",
+      "text": "Bài này bạn còn 12 Ngôi sao chưa chinh phục.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_0f4d838c8bd1aec34ae3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_109542038ce4779ea0d6",
+      "text": "Con làm tốt lắm",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_109542038ce4779ea0d6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_10dbcc02ca333beb10bc",
+      "text": "Chủ đề Điểm mạnh của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_10dbcc02ca333beb10bc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1162f368d81badb02cae",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1162f368d81badb02cae.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_117f5eba3b91b4fb5e1d",
+      "text": "Những ngôi sao của con.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_117f5eba3b91b4fb5e1d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_11d0dd1e29eea908a37e",
+      "text": "Bài này là J to R Words.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_11d0dd1e29eea908a37e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_12f119e832dee89a795b",
+      "text": "Mình học xong lượt này trước nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_12f119e832dee89a795b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1349001fdd9bad343387",
+      "text": "Mình kết thúc bài học ở đây nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1349001fdd9bad343387.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_13d400e3f05544693ff6",
+      "text": "HOMI chưa nghe rõ. Bạn thử nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_13d400e3f05544693ff6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_142365e6c3f4f86a96ec",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 3 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_142365e6c3f4f86a96ec.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_146a17c758680be79ab7",
+      "text": "Mình học lại bài Next Step nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_146a17c758680be79ab7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_15e3b096221c7bc3ab42",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Technology rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_15e3b096221c7bc3ab42.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_15fc261cfd912be093ba",
+      "text": "Chủ đề Một ngày của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_15fc261cfd912be093ba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_161741719d0fbe2212b4",
+      "text": "Chủ đề Món ăn mình thích có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_161741719d0fbe2212b4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1627e762102d3075eec4",
+      "text": "Bạn muốn nghe lại, học câu tiếp theo, học câu trước, hay dừng lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1627e762102d3075eec4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_166cae56e0b5fbdc9d79",
+      "text": "Mình học lại bài Healthy Actions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_166cae56e0b5fbdc9d79.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_16b3661ba878c9d25c8c",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_16b3661ba878c9d25c8c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_16c92ff9beb07eb3e269",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_16c92ff9beb07eb3e269.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_16ef7100d0be6587ac3c",
+      "text": "Chủ đề Kế hoạch tương lai có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_16ef7100d0be6587ac3c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_16fc77855778d43cac47",
+      "text": "Bạn muốn bắt đầu Level 1 hay dừng lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_16fc77855778d43cac47.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_17b60518a5ed7efad1b6",
+      "text": "Mình cùng nói về lịch hằng ngày, cuối bài còn có bài hát nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_17b60518a5ed7efad1b6.mp3",
+      "audioIds": [
+        "C810-L1-T01-B02_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_17c790b158a3c4735eaa",
+      "text": "Chủ đề số 10 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_17c790b158a3c4735eaa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_18696e77ef1a7bc45530",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_18696e77ef1a7bc45530.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_187a23c9852764cb33bb",
+      "text": "Chủ đề Chuyện gì đã xảy ra? có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_187a23c9852764cb33bb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_18e24aa7809676a509b9",
+      "text": "Các nút câu trước, câu sau và nghe lại chỉ dùng trong phần luyện câu.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_18e24aa7809676a509b9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_19f160cb207c8bb2f848",
+      "text": "Chủ đề Số đếm có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_19f160cb207c8bb2f848.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1a0e1856a94860b994fb",
+      "text": "Bạn đã cố gắng tốt rồi! Mình sẽ luyện thêm sau. Giờ học câu tiếp nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1a0e1856a94860b994fb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1a3650cb9db9fb5a123f",
+      "text": "Mình học lại bài Town Places nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1a3650cb9db9fb5a123f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1af70230608a80799eea",
+      "text": "Chủ đề Những nơi gần đây có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1af70230608a80799eea.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1b9704dc94de5e20ecfd",
+      "text": "Chủ đề Sở thích của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1b9704dc94de5e20ecfd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1bcf8c3e3e2d1af7f6ec",
+      "text": "Chủ đề Học hiệu quả hơn có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1bcf8c3e3e2d1af7f6ec.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1c355549ae08d596af64",
+      "text": "Chủ đề Chọn giữa hai phương án có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1c355549ae08d596af64.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1c496f71d040632cdcc0",
+      "text": "Chủ đề Ở nhà ga có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1c496f71d040632cdcc0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1d66495406a3d9fa866c",
+      "text": "Mình luyện cách nói về lịch trong tuần.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1d66495406a3d9fa866c.mp3",
+      "audioIds": [
+        "C1112-L1-T01-B01_ENTRY",
+        "C1112-L1-T01-B02_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_1d6f2a125d708e37b9dd",
+      "text": "Chủ đề Khi cảm thấy căng thẳng có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1d6f2a125d708e37b9dd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1dc9d2603cb1858a4b4e",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành Level 2 rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1dc9d2603cb1858a4b4e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1e025d9ad57c929752c9",
+      "text": "HOMI chưa chọn được chủ đề. Bạn thử lại.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1e025d9ad57c929752c9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1e4f8676593b83c2fc3e",
+      "text": "Mình tạm dừng học bộ từ vựng. Khi sẵn sàng, bạn nhấn nút gọi HOMI nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1e4f8676593b83c2fc3e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1eac8eb2d3114d8e5891",
+      "text": "Bạn muốn học lại chủ đề này không? Nói “có” hoặc “không”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1eac8eb2d3114d8e5891.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1f0d2ea68a0a0432f3ae",
+      "text": "Mình học tiếp bài J to R Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1f0d2ea68a0a0432f3ae.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1f2b4a3c0e79f5d93a6f",
+      "text": "Bạn muốn nghe tiếp hay học nội dung khác?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1f2b4a3c0e79f5d93a6f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1f53d66840bba397eae3",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1f53d66840bba397eae3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_1fc423c561a3c1d8a17a",
+      "text": "Bạn đang ở trước cửa lớp.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_1fc423c561a3c1d8a17a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_20098770d2e4c1c84887",
+      "text": "Mình học lại bài Getting There nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_20098770d2e4c1c84887.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2012725e5ece4c15532a",
+      "text": "Có 3 bài học. Con hãy chọn bài từ số 1 đến số 3",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2012725e5ece4c15532a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2027ab0781820b6c5e08",
+      "text": "Giỏi lắm!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2027ab0781820b6c5e08.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_203c605a3ece41ec843f",
+      "text": "Mình học tiếp bài My Week nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_203c605a3ece41ec843f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_20477b5c0e2bbc0e6019",
+      "text": "Chủ đề Ngày đi chơi có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_20477b5c0e2bbc0e6019.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2068ffb3facb442b7986",
+      "text": "Bi cô chưa tải được bài học. Con thử lại sau nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2068ffb3facb442b7986.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_206b42a4327c117a3ff0",
+      "text": "Con hãy nói “Luyện lại từ đầu” hoặc “Bài tiếp theo” nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_206b42a4327c117a3ff0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_20808399254d0e709f29",
+      "text": "HOMI chưa hiểu. Bạn có thể nói: nghe lại, câu tiếp, câu trước hoặc dừng lại.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_20808399254d0e709f29.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_20bab07a3e5a716288b1",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_20bab07a3e5a716288b1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_20eee77e47de59f4abf0",
+      "text": "Mình học lại bài này từ đầu nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_20eee77e47de59f4abf0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_213ed0368166a0814609",
+      "text": "Chủ đề Nêu ý kiến có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_213ed0368166a0814609.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_214f1292396d916aabf3",
+      "text": "Bây giờ bạn thử nói lại lần nữa nè.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_214f1292396d916aabf3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_21f43204a270407cd582",
+      "text": "Chủ đề Hành động xanh có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_21f43204a270407cd582.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2272f04c19170c39d585",
+      "text": "Mình học lại bài Numbers in Life nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2272f04c19170c39d585.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_22fc3e7538be40d61939",
+      "text": "Cô chưa nghe rõ. Con nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_22fc3e7538be40d61939.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_239f70288ab92c39c9b7",
+      "text": "Con có muốn học lại chủ đề số 2 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_239f70288ab92c39c9b7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_24995ee9d1ac6bed98e3",
+      "text": "Mình cùng nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_24995ee9d1ac6bed98e3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2514c778d32741ea3ffe",
+      "text": "Con mấy tuổi",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2514c778d32741ea3ffe.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_252a0780f6a9a77989d4",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Online Safety rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_252a0780f6a9a77989d4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_254a2bcc4c30695d7fac",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_254a2bcc4c30695d7fac.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_254c551f9b4d014d930b",
+      "text": "Chủ đề Hình dạng có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_254c551f9b4d014d930b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_256469ac9ec2c40a17bb",
+      "text": "Mình học tiếp bài A to I Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_256469ac9ec2c40a17bb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_25cb9f37a1d6bbbb8d80",
+      "text": "Chủ đề Nêu ý kiến có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_25cb9f37a1d6bbbb8d80.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_25d362d79d8ea1e254c9",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_25d362d79d8ea1e254c9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_261a975a60f683b442b6",
+      "text": "Đã có nội dung mới cho bạn. Bắt đầu học thôi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_261a975a60f683b442b6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_267aa4503082d7a3f8bd",
+      "text": "Đã dừng. Nhấn MAIN để tiếp tục.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_267aa4503082d7a3f8bd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2693641d185771852e82",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2693641d185771852e82.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2706bf84271a89fa9cc9",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Time Planning rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2706bf84271a89fa9cc9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_27bd5e94744b9c2f984e",
+      "text": "Phần luyện lại chưa có từ nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_27bd5e94744b9c2f984e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_284825266b58cb079b9a",
+      "text": "Mình học lại bài Tell What Happened nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_284825266b58cb079b9a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_289b0fcfa670b317a6fb",
+      "text": "Mình học lại bài A to I Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_289b0fcfa670b317a6fb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_28e675793d7835859763",
+      "text": "Con chưa có từ ngôi sao nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_28e675793d7835859763.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_29094d3f9b98945f57eb",
+      "text": "Chủ đề Số đếm có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_29094d3f9b98945f57eb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_29938c37abfaf51af87f",
+      "text": "Bắt đầu học thôi con",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_29938c37abfaf51af87f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_29a881b09f1e2e1b4d1c",
+      "text": "Nếu có câu muốn luyện lại, bạn nhấn nút rồi đọc “Nói lại” nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_29a881b09f1e2e1b4d1c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2a05ebd4c9e611ab6c45",
+      "text": "Mình học lại bài Ask for Help nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2a05ebd4c9e611ab6c45.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2a27673f7b4633c9b205",
+      "text": "Chủ đề Thói quen lành mạnh có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2a27673f7b4633c9b205.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2a33c4533e77ddad7e90",
+      "text": "Chủ đề Một ngày của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2a33c4533e77ddad7e90.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2a8a48b57bea399c7536",
+      "text": "Mình học lại bài Give a Reason nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2a8a48b57bea399c7536.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2c3daa29fef3a7db24ed",
+      "text": "Mình cùng dịch sang tiếng Anh nha. Bạn cứ nói từng câu. Muốn dừng thì nói “dừng lại”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2c3daa29fef3a7db24ed.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2c6cae42fc12196e7cc1",
+      "text": "Chủ đề Gia đình của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2c6cae42fc12196e7cc1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2c7e01b65adbbceb1c61",
+      "text": "Mình học lại bài What Shape? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2c7e01b65adbbceb1c61.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2c9847d52198ddf69c68",
+      "text": "Con có muốn học lại chủ đề số 6 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2c9847d52198ddf69c68.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2ce31b0bf8cb561b27b2",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2ce31b0bf8cb561b27b2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2d42b98fb278dc18b251",
+      "text": "Bắt đầu nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2d42b98fb278dc18b251.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2da143c6747c181e608b",
+      "text": "Con đã cố gắng rồi! Mình sẽ luyện thêm sau. Cùng học câu tiếp nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2da143c6747c181e608b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2dac5cf57df319bb8ecf",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Healthy Me rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2dac5cf57df319bb8ecf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2e9aea36122aafff02e5",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 1 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2e9aea36122aafff02e5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_2fd1821c801dd9bccb86",
+      "text": "HOMI nói mẫu nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_2fd1821c801dd9bccb86.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3097e1f3ffd997f9d0ad",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Getting Around rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3097e1f3ffd997f9d0ad.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_30ffe2f1793a5026dc17",
+      "text": "HOMI chưa tải được từ vựng. Bạn thử lại sau nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_30ffe2f1793a5026dc17.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_322f9df83c87da724f94",
+      "text": "Chủ đề Bạn bè và cảm xúc có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_322f9df83c87da724f94.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_324fbf5013696f88248f",
+      "text": "Hôm nay chưa có nội dung mới. Bạn muốn học Ba mẹ đã thêm, Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_324fbf5013696f88248f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_325e78d5420d7945fdd3",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 6 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_325e78d5420d7945fdd3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_32943cb74e490a1edb97",
+      "text": "Ở đây hơi ồn. Bạn đưa micro lại gần, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_32943cb74e490a1edb97.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_32cfdf8912fc9ea01cf1",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Weather rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_32cfdf8912fc9ea01cf1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_331b58ea4a441438cc02",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_331b58ea4a441438cc02.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_33a51f8b1cbcb5ee59d0",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 2 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_33a51f8b1cbcb5ee59d0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_33deb6e07e6377461eb6",
+      "text": "Mình học lại bài Day Actions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_33deb6e07e6377461eb6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_35050821e0af4d3f44e2",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_35050821e0af4d3f44e2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3530c5fef5e5a3efdeb2",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề At the Shop rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3530c5fef5e5a3efdeb2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_35396f800e3363f39bc6",
+      "text": "Bạn đang ở cửa hàng và muốn hỏi giá.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_35396f800e3363f39bc6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_357dc819de135a256eaf",
+      "text": "Chủ đề Ở trường có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_357dc819de135a256eaf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_35ca90832accdd74cfee",
+      "text": "Bây giờ đến lượt con. Con nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_35ca90832accdd74cfee.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3625e2077d9a70c9bcf7",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3625e2077d9a70c9bcf7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_369a76a777b963d2f08f",
+      "text": "Chủ đề Lịch sinh hoạt của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_369a76a777b963d2f08f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_373b35e28c3752936651",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Friends & Feelings rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_373b35e28c3752936651.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_378986a8002c3092ce59",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_378986a8002c3092ce59.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_37a6c5355c6fc83eb40b",
+      "text": "Mình học lại bài Stay Safe nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_37a6c5355c6fc83eb40b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_386e23fd921ffb8acee3",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Friends rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_386e23fd921ffb8acee3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3874b79212cdfa000377",
+      "text": "Mình học lại bài Animal Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3874b79212cdfa000377.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_388fc26478c17d620551",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề ABC Words rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_388fc26478c17d620551.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_39ee1ca766f3f1e440e4",
+      "text": "Con có muốn học lại chủ đề số 4 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_39ee1ca766f3f1e440e4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3b61bfb2f961a7d96987",
+      "text": "Mình học lại bài Move With Me nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3b61bfb2f961a7d96987.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3c5d3a16e2372ec4dba1",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3c5d3a16e2372ec4dba1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3c744121e089d34de017",
+      "text": "Bạn và HOMI đang trao đổi ý kiến.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3c744121e089d34de017.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3c7c6414bd8176fdea53",
+      "text": "Chủ đề Hình dạng có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3c7c6414bd8176fdea53.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3d418ab4d3e0e519e16c",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3d418ab4d3e0e519e16c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3d4b870b065b1164c415",
+      "text": "Câu tiếp theo.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3d4b870b065b1164c415.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3d883841ea75015f8e4c",
+      "text": "Chủ đề Nêu ý kiến có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3d883841ea75015f8e4c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3dccb2fd8c0414527b84",
+      "text": "HOMI chưa nghe thấy bạn nói. Bạn nói lại đi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3dccb2fd8c0414527b84.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3e7b421d071730777422",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Family rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3e7b421d071730777422.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3e8e6b225f4e96152255",
+      "text": "Bài đầu tiên là A to I Letters.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3e8e6b225f4e96152255.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3f7035e9bb4e2c54ed23",
+      "text": "Chủ đề Động vật thú vị có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3f7035e9bb4e2c54ed23.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3fac39afb06506c32ea1",
+      "text": "Con hãy quay lại danh sách để chọn bài trước nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3fac39afb06506c32ea1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3fb03f9ca766fcc0a612",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3fb03f9ca766fcc0a612.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_3fe58865f3a187fdb4f6",
+      "text": "Bạn nói câu này nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_3fe58865f3a187fdb4f6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_401f6f2c25166d15e85b",
+      "text": "Chủ đề An toàn trên mạng có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_401f6f2c25166d15e85b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_404d5ff032e73a292226",
+      "text": "Được thôi. Bạn muốn dịch sang tiếng Anh, học theo chủ đề hay học bộ từ vựng?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_404d5ff032e73a292226.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4142f20751daea5ccfbd",
+      "text": "Chủ đề Quyền riêng tư trên mạng có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4142f20751daea5ccfbd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_418dd8fe2403c69d25df",
+      "text": "Mình đã học xong bộ từ vựng hôm nay rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_418dd8fe2403c69d25df.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_426dcca20c245dd7c15e",
+      "text": "Mình học lại bài Stress Signs nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_426dcca20c245dd7c15e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4292bfe7409a7dbe8098",
+      "text": "Thêm một Ngôi sao nữa nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4292bfe7409a7dbe8098.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_42a62a556c887f7c1a8c",
+      "text": "Mình học lại bài School Subjects nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_42a62a556c887f7c1a8c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_42fe246fe36fd1511b8d",
+      "text": "Bạn nói “luyện lại” hoặc “ngôi sao”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_42fe246fe36fd1511b8d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_438fa018453f8f8a357c",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_438fa018453f8f8a357c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_43fea3e94e1a8a97c99b",
+      "text": "Chủ đề Cuộc sống ở trường có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_43fea3e94e1a8a97c99b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_443752d66910cab9da85",
+      "text": "Mình học lại bài Time & Tasks nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_443752d66910cab9da85.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_44ad22d2877878ac5d42",
+      "text": "Chủ đề Kế hoạch tương lai có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_44ad22d2877878ac5d42.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_45a2c4dbdfdb473e694a",
+      "text": "Mình học lại bài Good Habits nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_45a2c4dbdfdb473e694a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_461277c6484fa2bb217a",
+      "text": "Bạn thử trả lời nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_461277c6484fa2bb217a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4626e14beb8060fbd698",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4626e14beb8060fbd698.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_464f71ba3009caa1f537",
+      "text": "Bạn muốn nghe thêm hay học nội dung khác?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_464f71ba3009caa1f537.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4662497df3cfa651a1d5",
+      "text": "Con đã học xong chủ đề này rồi. Con chọn tiếp chủ đề mới nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4662497df3cfa651a1d5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_468347b89308d1878ad3",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_468347b89308d1878ad3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_46b04d19de66433ad3ff",
+      "text": "Có 3 bài học. Con muốn học bài số mấy",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_46b04d19de66433ad3ff.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_46ebc286a7bc48c772fc",
+      "text": "Bài 2 con đã học xong rồi. Con có muốn học lại bài 2 không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_46ebc286a7bc48c772fc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_470f614c7f1391d6cf88",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_470f614c7f1391d6cf88.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_475c5f4a651d056cd455",
+      "text": "Mình dừng ở đây nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_475c5f4a651d056cd455.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_47af3ce951cf9bc867f5",
+      "text": "Chủ đề Mục tiêu học tập có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_47af3ce951cf9bc867f5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_47c35dcacabed4ded020",
+      "text": "Chủ đề Lịch sinh hoạt của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_47c35dcacabed4ded020.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_483f8eb1aa5fc16a5232",
+      "text": "Mình học lại bài Which Animal? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_483f8eb1aa5fc16a5232.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4895d941861172db7d52",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Hobbies rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4895d941861172db7d52.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4ad5a8a2b9341a6e3a18",
+      "text": "Chủ đề Chuyện gì đã xảy ra? có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4ad5a8a2b9341a6e3a18.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4b14c2e0e642f7ef0813",
+      "text": "Chủ đề Kế hoạch theo thời tiết có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4b14c2e0e642f7ef0813.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4b4cd1874771709e5baa",
+      "text": "Bạn muốn hỏi giá món đồ.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4b4cd1874771709e5baa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4b600c527ff6891cd6ce",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành Level 1 rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4b600c527ff6891cd6ce.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4b9bfd12de8032035da1",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4b9bfd12de8032035da1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4bc267d1ab35bc011fb7",
+      "text": "Chủ đề Công nghệ có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4bc267d1ab35bc011fb7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4bd119c619af679605a1",
+      "text": "Chủ đề Đồ dùng của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4bd119c619af679605a1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4be6607dabf92aa27825",
+      "text": "Bạn chưa có Ngôi sao nào. Bạn muốn học Ba mẹ đã thêm hay Luyện lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4be6607dabf92aa27825.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4c12550b5e64099bad3a",
+      "text": "Mình học lại bài Tasty Foods nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4c12550b5e64099bad3a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4c3176fd0776d87b709c",
+      "text": "Bi cô có bài học cho các bạn từ 3 đến 15 tuổi. Con mấy tuổi",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4c3176fd0776d87b709c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4c4430827c6da7a11136",
+      "text": "Bạn đã nghe hết Ngôi sao rồi. Bạn muốn học Ba mẹ đã thêm hay Luyện lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4c4430827c6da7a11136.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4c976ff18661c2d4a1cf",
+      "text": "Bạn nói đáp án bằng tiếng Anh nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4c976ff18661c2d4a1cf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4d554f9fc6ed0baa2df8",
+      "text": "Mình học lại bài Make a Plan nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4d554f9fc6ed0baa2df8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4d90cbaa40cc54c47c8c",
+      "text": "Chủ đề Bạn bè của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4d90cbaa40cc54c47c8c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4da110a6108d2075fd7b",
+      "text": "Ở đây hơi ồn. Bạn đưa micro lại gần, tránh hướng quạt hoặc chuyển sang chỗ yên hơn rồi thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4da110a6108d2075fd7b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4e34097d485b5c350e73",
+      "text": "Bài 1 con đã học xong rồi. Con muốn học lại bài 1 hay tiếp tục bài 1?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4e34097d485b5c350e73.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4e77c44a67e7bc88d320",
+      "text": "Mình học tiếp bài Plan My Time nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4e77c44a67e7bc88d320.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4e785a516e5e72e4d5b9",
+      "text": "Mình cùng học các chữ cái và từ quen thuộc nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4e785a516e5e72e4d5b9.mp3",
+      "audioIds": [
+        "C35-L1-T01-B01_ENTRY",
+        "C35-L1-T01-B02_ENTRY",
+        "C35-L1-T01-B03_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_4ef83b576dd38fe57fe8",
+      "text": "Mình học lại bài Numbers 1-10 nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4ef83b576dd38fe57fe8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_4fd88eca2c1355129f15",
+      "text": "Chủ đề Tuần của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_4fd88eca2c1355129f15.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_50714ab4ab89999a26aa",
+      "text": "Chủ đề Công nghệ có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_50714ab4ab89999a26aa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_508542bac38135ef9f71",
+      "text": "Chủ đề Cơ thể của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_508542bac38135ef9f71.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_51a7cc42b6162a3f4e83",
+      "text": "Chủ đề Thói quen lành mạnh có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_51a7cc42b6162a3f4e83.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5228ef7b153309b02833",
+      "text": "Chủ đề Thời tiết có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5228ef7b153309b02833.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_52939a77683ebef406b2",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Colors rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_52939a77683ebef406b2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_53829fbed9ff3666d022",
+      "text": "Chủ đề Thói quen lành mạnh có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_53829fbed9ff3666d022.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5386e3f22048fd63bdc3",
+      "text": "Bạn đã hoàn thành đoạn hội thoại rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5386e3f22048fd63bdc3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_53bf687baf5f3f25cf55",
+      "text": "Bạn mấy tuổi? Ví dụ bạn nói: 6 tuổi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_53bf687baf5f3f25cf55.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_53eac5e08265ff566f4b",
+      "text": "Mình học tiếp bài S to Z Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_53eac5e08265ff566f4b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5498136a3f968cd768d5",
+      "text": "Chủ đề Đồ ăn có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5498136a3f968cd768d5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5538a338b22badbbd2d9",
+      "text": "Mình học lại bài In Class nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5538a338b22badbbd2d9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_55899e70bea9f254891b",
+      "text": "Chủ đề Bạn bè của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_55899e70bea9f254891b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_559214ea63b3efd32b5b",
+      "text": "Mình luyện cách sắp xếp thời gian.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_559214ea63b3efd32b5b.mp3",
+      "audioIds": [
+        "C1315-L1-T01-B01_ENTRY",
+        "C1315-L1-T01-B02_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_55a4df0d12404150f736",
+      "text": "Mình học lại bài Ask the Price nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_55a4df0d12404150f736.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_561fa5503a88035457ae",
+      "text": "Chủ đề Bạn bè của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_561fa5503a88035457ae.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_57a765adde495c08b82c",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_57a765adde495c08b82c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_57d33400f88d01797f27",
+      "text": "Bạn muốn học tiếp hay học nội dung khác?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_57d33400f88d01797f27.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_57fe8a48dffc5c18db5e",
+      "text": "Bạn và một người bạn đang chọn ngày gặp nhau.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_57fe8a48dffc5c18db5e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5a5a7175ca170d1451df",
+      "text": "Mình học lại bài Online Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5a5a7175ca170d1451df.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5a83cbfaee82c0ebbb0d",
+      "text": "Mình chuyển sang bài tiếp theo nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5a83cbfaee82c0ebbb0d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5b3f870d25ebe169baf0",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5b3f870d25ebe169baf0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5b4333fa3405295da7b7",
+      "text": "Bộ sưu tập ngôi sao chưa có từ nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5b4333fa3405295da7b7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5bf87cc75f0e2cc20958",
+      "text": "Mình học tiếp bài My Routine nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5bf87cc75f0e2cc20958.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5c0ae7136b0cfbb4da20",
+      "text": "Mình học lại bài Numbers 11-20 nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5c0ae7136b0cfbb4da20.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5c1af6950b72a9049b02",
+      "text": "Chủ đề Lịch sinh hoạt của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5c1af6950b72a9049b02.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5c2ed44f9cfb52272271",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Alphabet rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5c2ed44f9cfb52272271.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5c684414b137d7eb833c",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5c684414b137d7eb833c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5c77ba5039cab0f4add5",
+      "text": "Chủ đề Bạn bè và cảm xúc có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5c77ba5039cab0f4add5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5cebb42d8dc6f3e3efef",
+      "text": "Chủ đề Hành động xanh có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5cebb42d8dc6f3e3efef.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5d10e6af495cc2b687c7",
+      "text": "Bài đầu tiên là Weekly Activities.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5d10e6af495cc2b687c7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5d29e4470101380b1cb9",
+      "text": "Mình học lại bài Shop Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5d29e4470101380b1cb9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5d6d85c3b1d4a44197f7",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Shapes rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5d6d85c3b1d4a44197f7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5daaf4e94bfd1a84aa9e",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5daaf4e94bfd1a84aa9e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5db57f381da10df80926",
+      "text": "Bạn nói “dừng lại” để gọi HOMI nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5db57f381da10df80926.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5dd0426b8aa7ac3e2c52",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5dd0426b8aa7ac3e2c52.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5e70fabb79b1a80b6463",
+      "text": "Chủ đề An toàn trên mạng có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5e70fabb79b1a80b6463.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5e809f78f1dce2b42d6b",
+      "text": "Bài 2 con đã học xong rồi. Con muốn học lại bài 2 hay tiếp tục bài 1?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5e809f78f1dce2b42d6b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5f7735d3f8ec6897a356",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 9 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5f7735d3f8ec6897a356.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5f7a1c7ae66be5d53854",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 6 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5f7a1c7ae66be5d53854.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_5f9e8cfdb8e55f1ae4ad",
+      "text": "Chủ đề Điểm mạnh của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_5f9e8cfdb8e55f1ae4ad.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_60a834bb5b8c71090916",
+      "text": "Mình học lại bài Device Uses nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_60a834bb5b8c71090916.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_61075cd08236df18a890",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_61075cd08236df18a890.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_613e264e32055d8f8b34",
+      "text": "Chủ đề Học hiệu quả hơn có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_613e264e32055d8f8b34.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_618966944a46ab1f29e4",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Week rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_618966944a46ab1f29e4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_61929aa1f646b6c803bc",
+      "text": "Mình bắt đầu học thôi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_61929aa1f646b6c803bc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_61c610ea15b891d1dc20",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Small Problems rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_61c610ea15b891d1dc20.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_61debcb9d2b180ad5be2",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_61debcb9d2b180ad5be2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_61e8b5307296f3e47324",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_61e8b5307296f3e47324.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6221b51cafe6f2fbcb8e",
+      "text": "HOMI chưa nhận được bài. Bạn có thể chọn trên điện thoại nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6221b51cafe6f2fbcb8e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_626092c12f98e15be993",
+      "text": "Chủ đề Tuần của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_626092c12f98e15be993.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_62a779c85030f1c1fc83",
+      "text": "Chủ đề Nêu ý kiến có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_62a779c85030f1c1fc83.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6311dd96d232b6c6fda5",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6311dd96d232b6c6fda5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6329e8094f98c089bd42",
+      "text": "Mình học lại bài A to I Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6329e8094f98c089bd42.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_63c96be659aa23f0faee",
+      "text": "Con có muốn học lại chủ đề số 10 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_63c96be659aa23f0faee.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_63f495ac1d88f90e954d",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_63f495ac1d88f90e954d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_63f920069c42eeedfa65",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 12 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_63f920069c42eeedfa65.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_647168018d67a3ef654d",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_647168018d67a3ef654d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_647fb8214043e934088f",
+      "text": "Chủ đề Những nơi gần đây có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_647fb8214043e934088f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_64b40d931fc78d2ada31",
+      "text": "Mình học lại bài School Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_64b40d931fc78d2ada31.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_650032355d94b9aeb3ad",
+      "text": "Mình học lại bài Ask the Way nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_650032355d94b9aeb3ad.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_653605d2a298db3ff5a9",
+      "text": "Bạn làm tốt lắm. HOMI đã thêm câu này vào ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_653605d2a298db3ff5a9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_66359df9b915a23ab4ca",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Day rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_66359df9b915a23ab4ca.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_667f42640b05567c8735",
+      "text": "Mình học lại bài Price & Budget nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_667f42640b05567c8735.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_668db78ab3ccfe2e5a26",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_668db78ab3ccfe2e5a26.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_66d96b976e54a7714bbf",
+      "text": "Chủ đề Công nghệ có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_66d96b976e54a7714bbf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_66e5bac8cc969a5b4830",
+      "text": "Mình học lại bài Go Green nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_66e5bac8cc969a5b4830.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_677a5f9fead3d72b5f6a",
+      "text": "Chủ đề Ở nhà hàng có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_677a5f9fead3d72b5f6a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_67807130158e14af7ac3",
+      "text": "Mình học lại bài Play Together nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_67807130158e14af7ac3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6786498979bfb2de3679",
+      "text": "Mình chưa tải được từ vựng. Con thử lại sau nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6786498979bfb2de3679.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_678780cf888a81cf589d",
+      "text": "Mình học lại bài Weekly Activities nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_678780cf888a81cf589d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_68efb8b02d849be02710",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_68efb8b02d849be02710.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_69779870ff293211de6d",
+      "text": "Mấy giờ rồi nhỉ?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_69779870ff293211de6d.mp3",
+      "audioIds": [
+        "C810-L1-T01-B01_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_69c4e4ef849ed8314831",
+      "text": "Chủ đề Những nơi gần đây có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_69c4e4ef849ed8314831.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_69f45343cf727a5b880a",
+      "text": "Bài đầu tiên là Time & Tasks.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_69f45343cf727a5b880a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6a0f468566c01263661c",
+      "text": "Mình chuyển sang bài tiếp theo nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6a0f468566c01263661c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6a30171e58dec911061e",
+      "text": "Thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6a30171e58dec911061e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6a88d8577aa3892dbca7",
+      "text": "Mình học lại bài Buy or Save? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6a88d8577aa3892dbca7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6babe1a3f5b6d0784321",
+      "text": "Nói lại lựa chọn của con nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6babe1a3f5b6d0784321.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6d2e0f7d720adab493be",
+      "text": "Bài này bạn còn 10 Ngôi sao chưa chinh phục.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6d2e0f7d720adab493be.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6d4438fd0e983473ddc5",
+      "text": "Mình học lại bài Private Info nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6d4438fd0e983473ddc5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6d798881725977c91a91",
+      "text": "Bài này là S to Z Letters.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6d798881725977c91a91.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6db98b0d52a8fdb9131e",
+      "text": "Con đã học xong cả 2 bài rồi. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6db98b0d52a8fdb9131e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6ddf3de7b7483a452ece",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 10 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6ddf3de7b7483a452ece.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e18f6b2c51027475d48",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Things rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e18f6b2c51027475d48.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e229b4de9025e54f419",
+      "text": "Chủ đề Món ăn mình thích có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e229b4de9025e54f419.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e264b16541eff0bc7c5",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e264b16541eff0bc7c5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e399b4ba883f9962c24",
+      "text": "Có 2 bài học. Con muốn học bài số mấy",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e399b4ba883f9962c24.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e5e24361737eed06cc8",
+      "text": "Con đang ở bài đầu tiên rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e5e24361737eed06cc8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6e6ab454b45997f79633",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Study Better rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6e6ab454b45997f79633.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6eb51a2a411d75eb0610",
+      "text": "Mình dừng ở đây. Khi muốn học tiếp, bạn nhấn nút gọi HOMI nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6eb51a2a411d75eb0610.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6ed6c4815bbfb7029fd3",
+      "text": "Mình học lại bài Choose One nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6ed6c4815bbfb7029fd3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6f1c7dd84fcc9adc8d04",
+      "text": "Chủ đề Đồ dùng của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6f1c7dd84fcc9adc8d04.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_6f84b2d7aa970f2b2508",
+      "text": "Bài này là S to Z Words.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_6f84b2d7aa970f2b2508.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_700736854d488a6f0e50",
+      "text": "Chủ đề Đồ ăn có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_700736854d488a6f0e50.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_702d10b4756f99e413af",
+      "text": "Mình học lại bài Best Way nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_702d10b4756f99e413af.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_70877782bcfc4608658e",
+      "text": "Chủ đề Màu sắc có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_70877782bcfc4608658e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7234562cefcc16f3deb1",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Amazing Animals rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7234562cefcc16f3deb1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_72f1ceab2b7e4cdfc448",
+      "text": "Chủ đề Ngày đi chơi có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_72f1ceab2b7e4cdfc448.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_73439e1102427aab7761",
+      "text": "Con đã học xong cả 3 bài rồi. Con hãy chọn một bài để học lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_73439e1102427aab7761.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_73809eed0b8d12da9e10",
+      "text": "Mình nghe lại tất cả nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_73809eed0b8d12da9e10.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_73a7b00e4c9f69217baf",
+      "text": "Chủ đề Đồ ăn có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_73a7b00e4c9f69217baf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_73b792ae5c2641a3df54",
+      "text": "Bạn muốn học Ba mẹ đã thêm hay Luyện lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_73b792ae5c2641a3df54.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_744de06f4df6faaaca38",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Nearby Places rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_744de06f4df6faaaca38.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_754d47044de90cd44900",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_754d47044de90cd44900.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_75895d5d8b4405512eda",
+      "text": "Mình học lại bài Weather Choices nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_75895d5d8b4405512eda.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_75fa4463a0ba46750a97",
+      "text": "Mình học lại bài Food Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_75fa4463a0ba46750a97.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_760e4b9cbc0081ff06c6",
+      "text": "Chủ đề Gia đình của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_760e4b9cbc0081ff06c6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_77c650e01ee5e1ae0385",
+      "text": "HOMI chưa nhận được câu trả lời. Bạn chọn “có” hoặc “không” nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_77c650e01ee5e1ae0385.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_78530acfdd28d214b1b2",
+      "text": "Bạn muốn học lại hay học bài tiếp theo?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_78530acfdd28d214b1b2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_785b5ae1dc2f57b264ad",
+      "text": "Chủ đề Kế hoạch theo thời tiết có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_785b5ae1dc2f57b264ad.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7936d623d5ccffa2aa04",
+      "text": "Mình học lại bài Plan the Day nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7936d623d5ccffa2aa04.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7965fd639b37e537f4f0",
+      "text": "Đã dừng.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7965fd639b37e537f4f0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_79a89e74e71f7228809a",
+      "text": "Bạn muốn dịch sang tiếng Anh hay học bộ từ vựng?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_79a89e74e71f7228809a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7a2694ad30d7238feea9",
+      "text": "Bài 3 con đã học xong rồi. Con có muốn học lại bài 3 không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7a2694ad30d7238feea9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7a42a39399582bb44411",
+      "text": "Bài 1 con đã học xong rồi. Con muốn học lại bài 1 hay tiếp tục bài 3?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7a42a39399582bb44411.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7af6b8de5aeea662f25c",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7af6b8de5aeea662f25c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7b5938ed654916481b2b",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề At School rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7b5938ed654916481b2b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7b617b0c47b1cac04a5e",
+      "text": "Bạn nói lại lựa chọn đi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7b617b0c47b1cac04a5e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7c7e77b1b40826125569",
+      "text": "Mình qua câu khác nha!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7c7e77b1b40826125569.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7c95c0b6dfe187499dc0",
+      "text": "Bài 2 con đã học xong rồi. Con muốn học lại bài 2 hay tiếp tục bài 2?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7c95c0b6dfe187499dc0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7ca573844fd1b1429b7e",
+      "text": "Chủ đề Số đếm có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7ca573844fd1b1429b7e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7cb8ee6baf46d44b06d4",
+      "text": "Chủ đề Chi tiêu thông minh có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7cb8ee6baf46d44b06d4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7d5a8600fb1c005f536c",
+      "text": "Mình học lại bài My Feelings nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7d5a8600fb1c005f536c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7d73d056d0cd7fe69ffb",
+      "text": "Bạn đang chọn giữa hai lựa chọn.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7d73d056d0cd7fe69ffb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7d8c38000d720b93dc0d",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Shopping Choices rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7d8c38000d720b93dc0d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7e2b1ffe1b2fd16667cd",
+      "text": "Chủ đề Khi cảm thấy căng thẳng có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7e2b1ffe1b2fd16667cd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7e42f85aba0e2983e4bd",
+      "text": "Chủ đề Cơ thể khỏe mạnh có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7e42f85aba0e2983e4bd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7e88ed58e478858d16fe",
+      "text": "Có từ mới rồi. Mình cùng học nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7e88ed58e478858d16fe.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7ea12b88d06e51c17a4f",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Strengths rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7ea12b88d06e51c17a4f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7ed9f44b33fbfdf093fe",
+      "text": "Chủ đề Thời tiết có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7ed9f44b33fbfdf093fe.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7ee7d9afdb22f9d7db38",
+      "text": "Mình học lại bài Animal Names nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7ee7d9afdb22f9d7db38.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_7f1f376229d38eb6e326",
+      "text": "Bài 2 con đã học xong rồi. Con muốn học lại bài 2 hay tiếp tục bài 3?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_7f1f376229d38eb6e326.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_805aac4a8e444eb62929",
+      "text": "Chủ đề Cuối tuần của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_805aac4a8e444eb62929.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_80a2c0b9c5b0d441bfb3",
+      "text": "Chủ đề Hình dạng có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_80a2c0b9c5b0d441bfb3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_80a8b87c87671c4406cb",
+      "text": "Mình dừng ở đây. Khi cần, bạn nhấn nút gọi HOMI.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_80a8b87c87671c4406cb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_81096b6cbaf076cf93b8",
+      "text": "Giỏi lắm! Con đã hoàn thành bài học. Bấm nút Main rồi nói “Bài tiếp theo” để học tiếp, hoặc nói “Luyện lại” để học lại từ đầu nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_81096b6cbaf076cf93b8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_810d5a29860a2919bfc1",
+      "text": "HOMI vẫn chưa hiểu. Khi sẵn sàng, bạn nhấn nút gọi HOMI nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_810d5a29860a2919bfc1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_81a162ed573949c78248",
+      "text": "Mình cùng luyện lại nhé. Bắt đầu thôi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_81a162ed573949c78248.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_81a716217c7c9b14c170",
+      "text": "Mình nghe tiếp nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_81a716217c7c9b14c170.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8238f27f9935f5fa7f67",
+      "text": "Mình học xong bài hát này trước rồi chuyển phần khác.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8238f27f9935f5fa7f67.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_82499dec5fd7c8d88dca",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_82499dec5fd7c8d88dca.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_82af48b326ebd53aeed7",
+      "text": "Bài 1 con đã học xong rồi. Con có muốn học lại bài 1 không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_82af48b326ebd53aeed7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_82d1a2b02b65578e8bdd",
+      "text": "Taxi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_82d1a2b02b65578e8bdd.mp3",
+      "audioIds": [
+        "C1112-L2-T04-B01-T03_VI"
+      ]
+    },
+    {
+      "id": "vi_83ca5b3dbcce399b7199",
+      "text": "Mình học lại bài Where Are We? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_83ca5b3dbcce399b7199.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_83dfd01c61dae25f8e3c",
+      "text": "Mình đã luyện hết lượt này rồi. Bạn muốn học Ba mẹ đã thêm hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_83dfd01c61dae25f8e3c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_83f3c055c3bbebf63c61",
+      "text": "Chủ đề Một ngày của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_83f3c055c3bbebf63c61.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8407c0f833916af5e4b1",
+      "text": "Mình học câu tiếp theo thôi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8407c0f833916af5e4b1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_84bb458d9335298a34dc",
+      "text": "Chủ đề Kế hoạch tương lai có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_84bb458d9335298a34dc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_84f69c5a796e3617847a",
+      "text": "Mình học lại bài My Turn nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_84f69c5a796e3617847a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_85da99ec314ffb6c1718",
+      "text": "Chủ đề Một ngày của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_85da99ec314ffb6c1718.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_85e3788e36b49a72a1b1",
+      "text": "Mình học lại bài Stay Clean nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_85e3788e36b49a72a1b1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_85fc4d78047e58ff5440",
+      "text": "Mình quay lại câu trước nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_85fc4d78047e58ff5440.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_85ff0b9393928f689fc6",
+      "text": "Mình quay lại bài trước nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_85ff0b9393928f689fc6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_871da25f0c015d540bf3",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Study Goals rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_871da25f0c015d540bf3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_87e863075c880632ae55",
+      "text": "HOMI chưa thực hiện được. Bạn thử lại.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_87e863075c880632ae55.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8822389c1431147d313e",
+      "text": "Bạn đang ở bài đầu tiên rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8822389c1431147d313e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_888753554d59bf067994",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_888753554d59bf067994.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8929a393d95812e9b7b2",
+      "text": "Chủ đề Mục tiêu học tập có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8929a393d95812e9b7b2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_898caca5bfbc5a4e67c3",
+      "text": "Con muốn nghe phần Ba mẹ đã thêm, Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_898caca5bfbc5a4e67c3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_89cc59e7c29247fe0bf5",
+      "text": "Bạn muốn dừng dịch để học theo chủ đề hoặc học bộ từ vựng phải không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_89cc59e7c29247fe0bf5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_89fa0955691b7ebf18fd",
+      "text": "Bạn mấy tuổi?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_89fa0955691b7ebf18fd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8a5453753acbb1323517",
+      "text": "Chủ đề số 9 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8a5453753acbb1323517.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8a6d758236dec06381f9",
+      "text": "Bạn của bạn trông không vui.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8a6d758236dec06381f9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8a7b898e7652e5117b9b",
+      "text": "Chủ đề Số đếm có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8a7b898e7652e5117b9b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8bc54046151d1a0e34c0",
+      "text": "Chủ đề Tuần của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8bc54046151d1a0e34c0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8c50ebab1f726853e2b3",
+      "text": "Bạn muốn học Ba mẹ đã thêm hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8c50ebab1f726853e2b3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8c963190475a3a78b84e",
+      "text": "Con có muốn học lại chủ đề số 3 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8c963190475a3a78b84e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8ccf6e5ec094878c3eec",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Feeling Stressed rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8ccf6e5ec094878c3eec.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8daed8ab3108bdfaf8d5",
+      "text": "Bạn muốn nghe nội dung mới nhất hay nghe lại tất cả?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8daed8ab3108bdfaf8d5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8e0ef8a49fe727a6527a",
+      "text": "Mình học lại bài Study Actions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8e0ef8a49fe727a6527a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8e0f4159de0b65af43bd",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8e0f4159de0b65af43bd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8e717eeacb31c11b6070",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8e717eeacb31c11b6070.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_8f89f02b4143989f663f",
+      "text": "Được rồi. HOMI nói mẫu nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_8f89f02b4143989f663f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_903cb8813d41cf5fa237",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Choosing Between Two rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_903cb8813d41cf5fa237.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_90a74a18d4bbf4913fcd",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_90a74a18d4bbf4913fcd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_90aa2eb47653de9ef854",
+      "text": "Bạn cứ nói từng câu. Muốn dừng thì nói “dừng lại”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_90aa2eb47653de9ef854.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_911576a265ff1bdd9fe1",
+      "text": "Được. Nghe câu đúng nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_911576a265ff1bdd9fe1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_913b11bd0c0d60a405b8",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_913b11bd0c0d60a405b8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_91bf61c5ab7bcbe70b35",
+      "text": "Bạn muốn nghe phần Ba mẹ đã thêm, Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_91bf61c5ab7bcbe70b35.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_920767b295ee2100f292",
+      "text": "Ngôi sao tiếp theo.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_920767b295ee2100f292.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_927b4f142addfbc52b87",
+      "text": "Chủ đề Chọn giữa hai phương án có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_927b4f142addfbc52b87.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_93ede78c82535364b1cd",
+      "text": "Chủ đề Ở nhà hàng có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_93ede78c82535364b1cd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_940dcb398366b258103e",
+      "text": "Mình nghe lại câu này nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_940dcb398366b258103e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_94391da9eba6173895da",
+      "text": "Chủ đề Ở nhà ga có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_94391da9eba6173895da.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_944e23e04493918c46c3",
+      "text": "Chủ đề Sở thích của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_944e23e04493918c46c3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_949f92665a6f89f0b39e",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 8 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_949f92665a6f89f0b39e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9506f7f8006a544d99ca",
+      "text": "Bạn nói “luyện lại từ đầu” hoặc “bài tiếp theo”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9506f7f8006a544d99ca.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_954b4474705b8d6a9b1d",
+      "text": "Chủ đề Cơ thể khỏe mạnh có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_954b4474705b8d6a9b1d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_95b8b16b8d530dd0e06b",
+      "text": "Chủ đề này chưa có bài học. Bạn chọn chủ đề khác nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_95b8b16b8d530dd0e06b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_95beda2290338453cc60",
+      "text": "HOMI nghe đây.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_95beda2290338453cc60.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_95cc7dba7b5262e2e907",
+      "text": "Mình học lại bài My Week nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_95cc7dba7b5262e2e907.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_960613432fbc89f981ab",
+      "text": "Mình học lại bài Colors on Things nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_960613432fbc89f981ab.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9614041eec949454f9d3",
+      "text": "Chủ đề Màu sắc có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9614041eec949454f9d3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_96677e7466bc9e79eb1c",
+      "text": "Mình học lại bài S to Z Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_96677e7466bc9e79eb1c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_96882865cc6b776a767f",
+      "text": "Mình học lại bài Simple Solutions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_96882865cc6b776a767f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9693e3f9f00217118536",
+      "text": "Bạn đang ở nhà ga và cần hỏi thông tin.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9693e3f9f00217118536.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_96bfff19c5fd76d84be6",
+      "text": "Chủ đề Khi cảm thấy căng thẳng có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_96bfff19c5fd76d84be6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_96f9435e8ff40aac64f3",
+      "text": "Chủ đề Quyền riêng tư trên mạng có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_96f9435e8ff40aac64f3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_97379e3eec0229ebccee",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_97379e3eec0229ebccee.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_97f8e70f6a06895be2b6",
+      "text": "HOMI nói đáp án nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_97f8e70f6a06895be2b6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_98001de4a1069fa16800",
+      "text": "Bạn có thể chọn: dịch sang tiếng Anh, học theo chủ đề hoặc học bộ từ vựng",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_98001de4a1069fa16800.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9829c0487d15d00dc858",
+      "text": "Bài 3 con đã học xong rồi. Con muốn học lại bài 3 hay tiếp tục bài 1?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9829c0487d15d00dc858.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_98bcda005d5fe558a38e",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Animals rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_98bcda005d5fe558a38e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_98d19eea9db1b31329fd",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Numbers Around Me rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_98d19eea9db1b31329fd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_98d6565ba7ff2ceb7419",
+      "text": "HOMI chưa có bài tiếp theo.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_98d6565ba7ff2ceb7419.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9947e80a2a78dd9e79ba",
+      "text": "Chưa có nội dung đã học tốt trong phần Ba mẹ đã thêm.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9947e80a2a78dd9e79ba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_99f5ca9f0d36269685e2",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 10 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_99f5ca9f0d36269685e2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_99f5e6b82d435136f0ff",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 1 và bài 2. Con muốn tiếp tục bài 3 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_99f5e6b82d435136f0ff.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9a1b6b716c4ad4967da3",
+      "text": "Mình học lại bài Animal Abilities nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9a1b6b716c4ad4967da3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9a3e4e02eb9973dd1d62",
+      "text": "Bạn muốn luyện tiếp hay học nội dung khác?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9a3e4e02eb9973dd1d62.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9a7bbc0c3ced665f85b8",
+      "text": "Bài này là My Routine.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9a7bbc0c3ced665f85b8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9a94867a2f5ad3aa9ee1",
+      "text": "Chủ đề Hình dạng có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9a94867a2f5ad3aa9ee1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9b71b5fde29d8adbb802",
+      "text": "Mình cùng dịch sang tiếng Anh nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9b71b5fde29d8adbb802.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9b9436471fd7c364c342",
+      "text": "Chủ đề Cuối tuần của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9b9436471fd7c364c342.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9beee313be4b9e4a404d",
+      "text": "Bạn nói đầy đủ câu tiếng Anh nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9beee313be4b9e4a404d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9c1e09dc0ded30c25df5",
+      "text": "Mình cùng học câu khác nhé!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9c1e09dc0ded30c25df5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9c42a03db0507e44dd28",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Smart Spending rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9c42a03db0507e44dd28.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9c5fded9b047092bc52f",
+      "text": "Chủ đề Món ăn mình thích có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9c5fded9b047092bc52f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9ca5eb9a7acd00c001f4",
+      "text": "Gần được rồi! Bạn nghe lại câu này nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9ca5eb9a7acd00c001f4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9ce80f17191b183927cb",
+      "text": "Mình học lại bài Shapes Around Me nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9ce80f17191b183927cb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9d4ec87097dac43a863f",
+      "text": "Chủ đề Cơ thể của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9d4ec87097dac43a863f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9da9966910688903f374",
+      "text": "Mình học lại bài Help a Friend nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9da9966910688903f374.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9e037867775f37a5f6d1",
+      "text": "Chủ đề Thời tiết có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9e037867775f37a5f6d1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9e0c3a51ffeb56e426bf",
+      "text": "Chủ đề Cuộc sống ở trường có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9e0c3a51ffeb56e426bf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9e1651d0804b19cf8021",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 7 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9e1651d0804b19cf8021.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9e85e5603b2389f4ab3b",
+      "text": "Mình học lại bài Plan My Time nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9e85e5603b2389f4ab3b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9ed79e2d59c9700c0afe",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9ed79e2d59c9700c0afe.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9f2dc9bb5ad568a979ba",
+      "text": "Mình quay lại bài trước nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9f2dc9bb5ad568a979ba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9f3c3c227490b5ac445d",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 12 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9f3c3c227490b5ac445d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9f64119ae753ecddfc6f",
+      "text": "Mình học lại bài Ask for Info nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9f64119ae753ecddfc6f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_9fe51db27f16271df9a8",
+      "text": "Bạn chọn “Luyện lại từ đầu” hay “Bài tiếp theo”?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_9fe51db27f16271df9a8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a000a1b6262cd939a871",
+      "text": "Mình học lại bài Classroom Talk nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a000a1b6262cd939a871.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a005abe642e07cb61a81",
+      "text": "Chủ đề Ở cửa hàng có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a005abe642e07cb61a81.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a03942784fe6a9dcfdb1",
+      "text": "Chủ đề số 5 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a03942784fe6a9dcfdb1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a051a3e5a379706cb3f7",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a051a3e5a379706cb3f7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a088b0f9fa27d6eccaf5",
+      "text": "Chủ đề số 4 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a088b0f9fa27d6eccaf5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a15ca5a2266d274ad7f9",
+      "text": "Nói theo cô nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a15ca5a2266d274ad7f9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a18d0d071bda68dea3fb",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a18d0d071bda68dea3fb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a18e8a3ccc8c26eef998",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a18e8a3ccc8c26eef998.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a1f12a8e4c504a84b704",
+      "text": "Mình học lại bài My Plan nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a1f12a8e4c504a84b704.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a2098fc41b98f60b4f80",
+      "text": "Không còn nội dung cần luyện lại. Bạn muốn học Ba mẹ đã thêm hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a2098fc41b98f60b4f80.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a334d1f0fa7873d9a34a",
+      "text": "Bi cô chưa chọn được chủ đề. Con thử lại nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a334d1f0fa7873d9a34a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a34a1bb5bdad55d6a53c",
+      "text": "Mình học lại bài này từ đầu nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a34a1bb5bdad55d6a53c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a41affa3096e02d46879",
+      "text": "Bài này là J to R Letters.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a41affa3096e02d46879.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a4fb9955a92808640929",
+      "text": "Không còn nội dung mới nữa. Bạn muốn học Ba mẹ đã thêm, Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a4fb9955a92808640929.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a51f1ab626ced8c1158c",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề School Life rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a51f1ab626ced8c1158c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a540d023adf2898a31e3",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Weekend rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a540d023adf2898a31e3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a541d813a4433f528719",
+      "text": "Mình học lại bài Count With Me nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a541d813a4433f528719.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a5dcc12dc4705ef2457d",
+      "text": "Con có muốn học lại chủ đề số 1 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a5dcc12dc4705ef2457d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a62b31dd5d43cec320f4",
+      "text": "Mình học lại bài Family Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a62b31dd5d43cec320f4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a639486f8e3ee42f006e",
+      "text": "Chủ đề Động vật có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a639486f8e3ee42f006e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a66c24ac24377e377801",
+      "text": "Con có muốn học lại chủ đề số 8 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a66c24ac24377e377801.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a66f7c6922edfd99b2eb",
+      "text": "Chủ đề Chọn giữa hai phương án có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a66f7c6922edfd99b2eb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a6837d5baf68aa3b6171",
+      "text": "Bây giờ con thử nói lại lần nữa nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a6837d5baf68aa3b6171.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a75f79e1a50e42faf50e",
+      "text": "Bạn muốn học Ba mẹ đã thêm, Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a75f79e1a50e42faf50e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a811a1acfcdb569306a7",
+      "text": "Bài này bạn còn 10 Ngôi sao chưa chinh phục. Mình cùng thử nhé!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a811a1acfcdb569306a7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a85cd9f6e93007070dd7",
+      "text": "HOMI chưa tải được bài học. Bạn thử lại sau.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a85cd9f6e93007070dd7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a8759e2a7ecde9cdd56b",
+      "text": "Cô chưa nghe thấy con nói. Con nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a8759e2a7ecde9cdd56b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a912815fe31adaec1ed1",
+      "text": "Mình học tiếp bài Time & Tasks nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a912815fe31adaec1ed1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a9c8579208dd45caa298",
+      "text": "Mình học lại bài Weekend Fun nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a9c8579208dd45caa298.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_a9ea345c8796476aa89f",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Healthy Habits rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_a9ea345c8796476aa89f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_aa0fd277b025c3c3cc21",
+      "text": "Chủ đề Hành động xanh có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_aa0fd277b025c3c3cc21.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_aae72ac8faba3ebf48ed",
+      "text": "Bạn nói lại tiếng Anh nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_aae72ac8faba3ebf48ed.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ab6607151f52348198cb",
+      "text": "Mình học lại bài Problem Phrases nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ab6607151f52348198cb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_abab7530d6d3c9385ad1",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_abab7530d6d3c9385ad1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_abaddde111caa50a353b",
+      "text": "Bạn tập trung nhé. Mình quay lại câu đang học nào.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_abaddde111caa50a353b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_abc04883fbbf554a22cc",
+      "text": "Excellent! Bạn đã hoàn thành toàn bộ khóa học rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_abc04883fbbf554a22cc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_abdc2b36e53449b52ad5",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành Level 3 rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_abdc2b36e53449b52ad5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ac1f9869a80ecfa2ba8f",
+      "text": "Có 10 chủ đề. Con muốn học chủ đề số mấy",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ac1f9869a80ecfa2ba8f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_aca092ccaa7f47a47870",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_aca092ccaa7f47a47870.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_aca8e68e273e9d1a7733",
+      "text": "Chủ đề Ở trường có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_aca8e68e273e9d1a7733.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_af1039b54ce661da03d8",
+      "text": "HOMI chưa nghe rõ. Bạn nói lại đi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_af1039b54ce661da03d8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_af40a4dcadca2acda0ba",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_af40a4dcadca2acda0ba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_af8463e9b28d2b5f7119",
+      "text": "Mình học tiếp bài S to Z Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_af8463e9b28d2b5f7119.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b00d9228a05fbeb1936a",
+      "text": "Mình tiếp tục phần tiếp theo nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b00d9228a05fbeb1936a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b050b88009d45f629587",
+      "text": "Mình học lại bài Food, Please nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b050b88009d45f629587.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b0d8d68cfe680bfca628",
+      "text": "Chủ đề Cách di chuyển có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b0d8d68cfe680bfca628.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b108f43179ef3fa9d789",
+      "text": "Bài này bạn còn 12 Ngôi sao chưa chinh phục. Mình cùng thử nhé!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b108f43179ef3fa9d789.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b17cf424861ef8462d0e",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 8 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b17cf424861ef8462d0e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b18cd3f8575af16c86f1",
+      "text": "Chủ đề Cuộc sống ở trường có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b18cd3f8575af16c86f1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b194cd3e624cc3e66d3f",
+      "text": "Chủ đề Động vật có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b194cd3e624cc3e66d3f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b1e3ca689685d37804e5",
+      "text": "Con đang ở phần đầu bài học rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b1e3ca689685d37804e5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b2897b10e7b6186a0b49",
+      "text": "Mình học lại bài Stay Private nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b2897b10e7b6186a0b49.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b2c540a9051c6259e6ea",
+      "text": "Bạn thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b2c540a9051c6259e6ea.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b3056820ee7a1a32beee",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Body rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b3056820ee7a1a32beee.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b3837b90e28d3fbb42ac",
+      "text": "Mình học lại bài My Order nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b3837b90e28d3fbb42ac.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b40a4b691f120a7878e6",
+      "text": "Chủ đề Động vật có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b40a4b691f120a7878e6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b4167348c156afcd37bd",
+      "text": "Bạn nói lại lựa chọn nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b4167348c156afcd37bd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b427ebe52959f81dbe0e",
+      "text": "Con có muốn học lại chủ đề số 5 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b427ebe52959f81dbe0e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b458054c9bf69ac4c482",
+      "text": "Bài này bạn còn 11 Ngôi sao chưa chinh phục.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b458054c9bf69ac4c482.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b482bf0c597926a9e177",
+      "text": "Chủ đề số 3 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b482bf0c597926a9e177.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b4d5e0784b97bf24d9a6",
+      "text": "Mình học lại bài How Much? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b4d5e0784b97bf24d9a6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b56eceb60fcf0bab7374",
+      "text": "Mình học tiếp bài A to I Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b56eceb60fcf0bab7374.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b5fc7f60ae3241186075",
+      "text": "Mình học lại bài Polite Replies nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b5fc7f60ae3241186075.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b651e0c1098342ff3138",
+      "text": "Mình học lại bài Station Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b651e0c1098342ff3138.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b6dd91715f5129127ff7",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b6dd91715f5129127ff7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b713c3144e87173840a2",
+      "text": "Chủ đề Những vấn đề nhỏ có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b713c3144e87173840a2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b753d3a3ea2ca1ceba01",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 9 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b753d3a3ea2ca1ceba01.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b7b0b16974df23d09b61",
+      "text": "Chủ đề Động vật có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b7b0b16974df23d09b61.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b7d5308b22131af2c4d6",
+      "text": "Nghe câu đúng nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b7d5308b22131af2c4d6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b81217f3f3b3144a38a6",
+      "text": "Mình nghe lại câu này nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b81217f3f3b3144a38a6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b8bd71954654e5006032",
+      "text": "Mình qua phần luyện lại và ngôi sao nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b8bd71954654e5006032.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b8c9a52116849104eb71",
+      "text": "Chủ đề Mục tiêu học tập có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b8c9a52116849104eb71.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b8dda4c4464c6d1c23f6",
+      "text": "HOMI vẫn chưa hiểu. Mình giữ nguyên câu hiện tại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b8dda4c4464c6d1c23f6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b8e355b183fa3aa0d1c0",
+      "text": "Mình nghe lại câu trước nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b8e355b183fa3aa0d1c0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b94f862312922c80b12a",
+      "text": "Bộ sưu tập ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b94f862312922c80b12a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b9bd87920f16dde35607",
+      "text": "Mình học lại bài Hobby Skills nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b9bd87920f16dde35607.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b9d9281006e32eb0ca8a",
+      "text": "Bài này là My Week.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b9d9281006e32eb0ca8a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_b9ff5ac333a99babbb3f",
+      "text": "Mình đã học xong từ vựng rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_b9ff5ac333a99babbb3f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ba01a5be862b04f83bc4",
+      "text": "Chủ đề Cơ thể của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ba01a5be862b04f83bc4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bb1ebecacfaddeb7bd3b",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề My Schedule rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bb1ebecacfaddeb7bd3b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bb88ce513a62fb981ab5",
+      "text": "Bạn đã học xong chủ đề này rồi. Chọn chủ đề mới nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bb88ce513a62fb981ab5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bc894514a5afab160dba",
+      "text": "Chủ đề Màu sắc có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bc894514a5afab160dba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bc9bbee2a58ff6774523",
+      "text": "Mình học lại bài Meet My Family nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bc9bbee2a58ff6774523.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bcd0e256072cd45aa7a6",
+      "text": "Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bcd0e256072cd45aa7a6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bd6fc6cdc06531a19f37",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bd6fc6cdc06531a19f37.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bd84f30403b7a4889eb2",
+      "text": "Gần được rồi! Con nghe lại câu này nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bd84f30403b7a4889eb2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bda35fc82f23b2b1ab33",
+      "text": "Chưa có nội dung ở phần này. Bạn muốn học Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bda35fc82f23b2b1ab33.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bdbd26b5fc9bf0d543c7",
+      "text": "Bạn đang gọi món tại nhà hàng.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bdbd26b5fc9bf0d543c7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bdcefc35b231a1f0f5d5",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bdcefc35b231a1f0f5d5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_be716e225054e6994c4e",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Weather Plans rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_be716e225054e6994c4e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_be9071d6be750970ea5f",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_be9071d6be750970ea5f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bea26b700025d6296649",
+      "text": "Chủ đề Đồ ăn có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bea26b700025d6296649.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_beb9422b90510fd777c4",
+      "text": "Con nghe kỹ rồi nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_beb9422b90510fd777c4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_bf86b1c0152516f14725",
+      "text": "Chủ đề Sắp xếp thời gian có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_bf86b1c0152516f14725.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c0d0fe221ac842fb03b4",
+      "text": "Mình học lại bài J to R Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c0d0fe221ac842fb03b4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c0dd6087779296c6dba1",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 4 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c0dd6087779296c6dba1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c149f3547dd7dc33c50f",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 7 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c149f3547dd7dc33c50f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c17c839268f211a06c17",
+      "text": "Bạn nói “có” để học lại hoặc “không” để chọn chủ đề khác.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c17c839268f211a06c17.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c183943cfdefc7f67d72",
+      "text": "Chủ đề Chọn giữa hai phương án có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c183943cfdefc7f67d72.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c1c026f5bd3729cb1335",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Making Plans rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c1c026f5bd3729cb1335.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c24c77cad7df22e4bb25",
+      "text": "Con hãy vào bài học trước nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c24c77cad7df22e4bb25.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c277e1c271568e1516cf",
+      "text": "Chủ đề Mục tiêu học tập có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c277e1c271568e1516cf.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c2e3cbf298ca7173f20f",
+      "text": "Chủ đề Cơ thể khỏe mạnh có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c2e3cbf298ca7173f20f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c2fedaae2a497491c48d",
+      "text": "Chủ đề Tuần của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c2fedaae2a497491c48d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c4ca6deb439f4aea21a1",
+      "text": "Mình học lại bài Shape Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c4ca6deb439f4aea21a1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c517b12454e71244bbe1",
+      "text": "Con hãy học xong bài hát này trước nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c517b12454e71244bbe1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c55a17389da46c8d69d4",
+      "text": "Chủ đề Thói quen lành mạnh có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c55a17389da46c8d69d4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c6edb6db110fcc6e8b5c",
+      "text": "Bạn cần tìm thư viện.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c6edb6db110fcc6e8b5c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c76de7dae24ec5e35f66",
+      "text": "Chủ đề Sắp xếp thời gian có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c76de7dae24ec5e35f66.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c7ae0dabc19b6e9ff956",
+      "text": "Mình học lại bài Do You Like? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c7ae0dabc19b6e9ff956.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c7b344c0b8d34013b49e",
+      "text": "Chủ đề Đồ dùng của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c7b344c0b8d34013b49e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c7b627aa693aa7b44445",
+      "text": "Chủ đề Động vật thú vị có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c7b627aa693aa7b44445.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c7dd614742714a34d355",
+      "text": "Mình học lại bài S to Z Letters nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c7dd614742714a34d355.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c818ff98e1b9e815409c",
+      "text": "Có 2 bài học. Con hãy chọn bài từ số 1 đến số 2",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c818ff98e1b9e815409c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c874c227e241bb944dca",
+      "text": "Mình học lại bài What to Wear? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c874c227e241bb944dca.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c875706d52bd22b63576",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 2 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c875706d52bd22b63576.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c93900fa3a0df84eab20",
+      "text": "Chủ đề số 1 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c93900fa3a0df84eab20.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c9c1ab5cd4d76fb91c3c",
+      "text": "Mình học lại bài Feel Better nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c9c1ab5cd4d76fb91c3c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_c9efac7c0492e05c7377",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_c9efac7c0492e05c7377.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ca959d602466b6355786",
+      "text": "Mình học lại bài My Goal nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ca959d602466b6355786.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cb43ca303c77ed370ac4",
+      "text": "Chủ đề Sắp xếp thời gian có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cb43ca303c77ed370ac4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cc38be82dd7d6e19cb22",
+      "text": "Chủ đề Lựa chọn khi mua sắm có 3 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cc38be82dd7d6e19cb22.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cc7ffa81825d61c7896c",
+      "text": "Chủ đề An toàn trên mạng có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cc7ffa81825d61c7896c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cd3cf6bbe5821c162898",
+      "text": "Mình học lại bài Good At nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cd3cf6bbe5821c162898.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cd56a988c85f85300a67",
+      "text": "Chủ đề Sở thích của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cd56a988c85f85300a67.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cda8d4181c5054dbbde3",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 4 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cda8d4181c5054dbbde3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cdf58b9a9f763935423f",
+      "text": "Con mấy tuổi? Con hãy nói, ví dụ con 6 tuổi",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cdf58b9a9f763935423f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ce6a339d5087cfa98249",
+      "text": "Mình học lại bài Body Moves nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ce6a339d5087cfa98249.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ce99715d117b7723c6ff",
+      "text": "Có 10 chủ đề. Con hãy chọn chủ đề từ số 1 đến số 10",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ce99715d117b7723c6ff.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cfa0bf6fbf7f067ba442",
+      "text": "Bạn muốn luyện tập lại hay xem bộ sưu tập ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cfa0bf6fbf7f067ba442.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_cfe79740227fb395ef03",
+      "text": "Chủ đề Điểm mạnh của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_cfe79740227fb395ef03.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d026703fe204011c430c",
+      "text": "Chủ đề Món ăn mình thích có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d026703fe204011c430c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d09b6238fb5b644887ed",
+      "text": "Mình kết thúc bài học nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d09b6238fb5b644887ed.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d0c6cad2dd0291730e42",
+      "text": "Mình học lại bài Place Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d0c6cad2dd0291730e42.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d0d65ca106c7239cf0f5",
+      "text": "Phần luyện lại.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d0d65ca106c7239cf0f5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d187c4d148eccda3755d",
+      "text": "Chủ đề Kế hoạch theo thời tiết có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d187c4d148eccda3755d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d1ed2707c3081f0861f4",
+      "text": "Chủ đề Ở trường có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d1ed2707c3081f0861f4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d2624b9ec02b422c15ae",
+      "text": "Mình cùng nghe nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d2624b9ec02b422c15ae.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d2fd20c3dedcf870af9b",
+      "text": "Chủ đề số 2 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d2fd20c3dedcf870af9b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d362af075e1758bf0022",
+      "text": "Chủ đề An toàn trên mạng có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d362af075e1758bf0022.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d38f9dfa643a6e526031",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong cả 3 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d38f9dfa643a6e526031.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d393c8e4d0f5e229fdbd",
+      "text": "HOMI chưa nghe rõ. Thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d393c8e4d0f5e229fdbd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d3c933943cb73d209d43",
+      "text": "Mình học lại bài Hobby Time nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d3c933943cb73d209d43.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d4064af1ea7dd03dfb83",
+      "text": "Đúng rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d4064af1ea7dd03dfb83.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d42ab78a270c998647cc",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 1 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d42ab78a270c998647cc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d49998f503d43b8f591b",
+      "text": "Con có muốn học lại chủ đề số 9 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d49998f503d43b8f591b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d49ba651d450d4b10680",
+      "text": "Chủ đề Học hiệu quả hơn có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d49ba651d450d4b10680.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d4c76f64941ae85cc4ec",
+      "text": "Mình học lại bài Simple Directions nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d4c76f64941ae85cc4ec.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d52e6eaa5704748d912f",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Food I Like rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d52e6eaa5704748d912f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d53579484b18a7f28cf3",
+      "text": "Mình thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d53579484b18a7f28cf3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d5e0e229202e7a169dc2",
+      "text": "Mình học lại bài Small Steps nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d5e0e229202e7a169dc2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d600127ef6b64643e521",
+      "text": "Chủ đề số 6 con đã học rồi. Con có muốn học lại không?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d600127ef6b64643e521.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d6205aefe063cc06bc48",
+      "text": "Bài này là Plan My Time.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d6205aefe063cc06bc48.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d62958b2009b0c1e52f4",
+      "text": "Mình học lại bài Body Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d62958b2009b0c1e52f4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d65026239e7a54cd3d8a",
+      "text": "Chủ đề Sở thích của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d65026239e7a54cd3d8a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d7483ed541be4a7876e3",
+      "text": "Chủ đề Chuyện gì đã xảy ra? có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d7483ed541be4a7876e3.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d7c1178a5f6eea759d73",
+      "text": "Chủ đề Những nơi gần đây có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d7c1178a5f6eea759d73.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d8021dd6cbb0f5a85901",
+      "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d8021dd6cbb0f5a85901.mp3",
+      "audioIds": [
+        "C67-L1-T01-B01_ENTRY",
+        "C67-L1-T01-B02_ENTRY",
+        "C67-L1-T01-B03_ENTRY"
+      ]
+    },
+    {
+      "id": "vi_d874021798d722ed8056",
+      "text": "Con đã học xong cả 3 bài rồi. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d874021798d722ed8056.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d889e2f8c7e9b882c8bd",
+      "text": "Bạn chọn Ngôi sao mới nhất hoặc nghe lại tất cả nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d889e2f8c7e9b882c8bd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d985eba28b076c9d9708",
+      "text": "Chủ đề Gia đình của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d985eba28b076c9d9708.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_d9ea8bad62fe15261cb7",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề At the Station rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_d9ea8bad62fe15261cb7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_da397f77dd32d107468d",
+      "text": "Giỏi lắm! Con đã hoàn thành bài học. Bấm nút Main rồi nói “Luyện nghe” để chọn bài khác, hoặc nói “Luyện lại” để học lại từ đầu nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_da397f77dd32d107468d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_da51ab4fe02cfd75db64",
+      "text": "Con đã học xong cả 2 bài rồi. Con hãy chọn một bài để học lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_da51ab4fe02cfd75db64.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dc0dcff47740290c1375",
+      "text": "Mình học lại bài Save Resources nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dc0dcff47740290c1375.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dc7179547f26e24230f2",
+      "text": "Mình học lại bài How Do You Go? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dc7179547f26e24230f2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dc84042f0a275b245acd",
+      "text": "Chủ đề Chi tiêu thông minh có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dc84042f0a275b245acd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dcc37a8e28d44caa5dba",
+      "text": "Chủ đề Cuối tuần của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dcc37a8e28d44caa5dba.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dd425e51c26f93b3bcf8",
+      "text": "Chủ đề Chuyện gì đã xảy ra? có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dd425e51c26f93b3bcf8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_de494704fd8defdd9a1a",
+      "text": "Mình học lại bài My Opinion nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_de494704fd8defdd9a1a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_de5c9f4c7c746231c008",
+      "text": "Mình học lại bài What Color? nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_de5c9f4c7c746231c008.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dedc831e3067cdfb1b9e",
+      "text": "Mình học câu tiếp theo nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dedc831e3067cdfb1b9e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_df899ee73fa29b95ab6a",
+      "text": "Chủ đề Điểm mạnh của mình có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_df899ee73fa29b95ab6a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_dfb9c56530cace704cea",
+      "text": "Mình học tiếp thôi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_dfb9c56530cace704cea.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e0942c5e8e8e23a45c5c",
+      "text": "Mình học lại bài Weekend Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e0942c5e8e8e23a45c5c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e13b0a9856710180769f",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 3 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e13b0a9856710180769f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e18560b29fbfbb23fa6d",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Day Out rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e18560b29fbfbb23fa6d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e1c2bf503c13bbeb3dcb",
+      "text": "Chủ đề Đồ dùng của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e1c2bf503c13bbeb3dcb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e1d2a5b9553d70386771",
+      "text": "Bài 3 con đã học xong rồi. Con muốn học lại bài 3 hay tiếp tục bài 2?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e1d2a5b9553d70386771.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e270960923ace9cacd60",
+      "text": "Chủ đề Kế hoạch theo thời tiết có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e270960923ace9cacd60.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e27099f5d9deac376a6c",
+      "text": "Chủ đề này chưa có bài học. Con thử lại sau nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e27099f5d9deac376a6c.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e293bbd625ba6933f590",
+      "text": "Chủ đề Bảng chữ cái có 3 bài học. Con đã học xong bài 1 và bài 3. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e293bbd625ba6933f590.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e343dcb27b5c81a4aed8",
+      "text": "Đã dừng Nhiệm vụ.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e343dcb27b5c81a4aed8.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e3446bec30b26b702bb9",
+      "text": "Chủ đề Khi cảm thấy căng thẳng có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e3446bec30b26b702bb9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e36224b20fd68d84a9fa",
+      "text": "Chủ đề Lịch sinh hoạt của mình có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e36224b20fd68d84a9fa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e365e5d5320201000c2d",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề What Happened? rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e365e5d5320201000c2d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e36ff01d5042374b798b",
+      "text": "Chủ đề Học hiệu quả hơn có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e36ff01d5042374b798b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e3d0d8fa23e1f0e18ffb",
+      "text": "Giọng của bạn đây.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e3d0d8fa23e1f0e18ffb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e3f3108fc3bccf67d2fd",
+      "text": "Bạn đã nghe hết nội dung rồi. Bạn muốn học Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e3f3108fc3bccf67d2fd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e41db79f451db6790242",
+      "text": "Phần thử thách chưa đủ 2 câu hỏi. Bạn cập nhật nội dung rồi thử lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e41db79f451db6790242.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e43399c90fa91f211458",
+      "text": "Chủ đề Gia đình của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e43399c90fa91f211458.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e449773b0fa47903d5fb",
+      "text": "Cùng học tiếp nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e449773b0fa47903d5fb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e4904137815a027cb2b1",
+      "text": "Chủ đề Ở trường có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e4904137815a027cb2b1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e4fce6c9d6df94b5f0d6",
+      "text": "Chủ đề Cuối tuần của mình có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e4fce6c9d6df94b5f0d6.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e5010440975eb4a2f0e2",
+      "text": "Mình học lại bài Transport Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e5010440975eb4a2f0e2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e51abdb117d0ead9ce16",
+      "text": "Giỏi lắm! Bạn đã hoàn thành bài học và có thêm 11 Ngôi sao!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e51abdb117d0ead9ce16.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e56631186bcb53f9ce81",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Food rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e56631186bcb53f9ce81.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e5ec68cbca9db8b1bca4",
+      "text": "Chủ đề Kế hoạch tương lai có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e5ec68cbca9db8b1bca4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e634b37dba1f4f028a0a",
+      "text": "Excellent! Bạn đã hoàn thành bài học và chinh phục đủ tất cả Ngôi sao rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e634b37dba1f4f028a0a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e63916d0eeba42629f23",
+      "text": "Chủ đề Bạn bè của mình có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e63916d0eeba42629f23.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e64d68ddcd2d25334a97",
+      "text": "Bài đầu tiên là A to I Words.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e64d68ddcd2d25334a97.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e6ba17cc0ca60a50a612",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Giving Opinions rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e6ba17cc0ca60a50a612.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e6d725bb028f9d15712b",
+      "text": "Chủ đề Bạn bè và cảm xúc có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e6d725bb028f9d15712b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e731129b0a00e3b62732",
+      "text": "Mình học tiếp bài Time Blocks nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e731129b0a00e3b62732.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e74806c0b5f136b59c80",
+      "text": "Bài 3 con đã học xong rồi. Con muốn học lại bài 3 hay tiếp tục bài 3?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e74806c0b5f136b59c80.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e82a02059a3893a57385",
+      "text": "Mình học lại bài One to Ten nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e82a02059a3893a57385.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e8320f08d49ece56c3c9",
+      "text": "Chưa có bài tiếp theo.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e8320f08d49ece56c3c9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e86fc4482573e4c1ef24",
+      "text": "Mình học lại bài Weather Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e86fc4482573e4c1ef24.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e884fab7f460e7f0dbaa",
+      "text": "Chủ đề Từ vựng theo chữ cái có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e884fab7f460e7f0dbaa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e8f7d111456e2cbe04aa",
+      "text": "Khi sẵn sàng, bạn nhấn nút gọi HOMI nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e8f7d111456e2cbe04aa.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e980f4c9d79ec4d14c46",
+      "text": "Mình nghe Ngôi sao mới nhất nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e980f4c9d79ec4d14c46.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_e9b4b8c448d1e75c4dd0",
+      "text": "Chủ đề Ở nhà ga có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_e9b4b8c448d1e75c4dd0.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ea40e13dea6cc04c8522",
+      "text": "Chủ đề Động vật thú vị có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ea40e13dea6cc04c8522.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_eb1e722e8d8b274e2c25",
+      "text": "Chủ đề Thời tiết có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_eb1e722e8d8b274e2c25.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_eb5f6d15fb538bdba005",
+      "text": "HOMI chưa nhận được chủ đề. Bạn có thể chọn trên điện thoại nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_eb5f6d15fb538bdba005.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_eb77316ba685621097b7",
+      "text": "Bạn đang ở câu đầu tiên rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_eb77316ba685621097b7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_eba109e09d1cf08afe13",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Green Actions rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_eba109e09d1cf08afe13.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ec17872232b1f550aed2",
+      "text": "Chủ đề Ngày đi chơi có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ec17872232b1f550aed2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ed42109e5b70beaa379d",
+      "text": "Chủ đề Đi quanh thành phố có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ed42109e5b70beaa379d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ee20c00fea9430fd1b69",
+      "text": "Chủ đề Quyền riêng tư trên mạng có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ee20c00fea9430fd1b69.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ef7ca8876ad262967c29",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ef7ca8876ad262967c29.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f01f00104234f817b7e9",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 5 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f01f00104234f817b7e9.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f0258b01dfa88c79947f",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Around Town rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f0258b01dfa88c79947f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f03fa8c385c96cb50c28",
+      "text": "Mình học lại bài Time Blocks nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f03fa8c385c96cb50c28.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f0733341fbcf119e506b",
+      "text": "Đến lượt bạn. Bạn nói lại đi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f0733341fbcf119e506b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f13b8c930430155b94c4",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề At a Restaurant rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f13b8c930430155b94c4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f16cd285e682716e902e",
+      "text": "Chủ đề Màu sắc có 2 bài học. Con đã học xong cả 2 bài. Con muốn học lại bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f16cd285e682716e902e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f1d45d1e2e7747b75057",
+      "text": "Mình học lại bài My Skills nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f1d45d1e2e7747b75057.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f23144d37c28220784fb",
+      "text": "Bài 1 con đã học xong rồi. Con muốn học lại bài 1 hay tiếp tục bài 2?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f23144d37c28220784fb.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f3d46e88fbfbc0314efc",
+      "text": "Con có muốn học lại chủ đề số 7 không? Con hãy nói có hoặc không nhé",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f3d46e88fbfbc0314efc.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f4331db0914e4422a778",
+      "text": "Mình học lại bài My Routine nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f4331db0914e4422a778.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f4526d9ed6eac14c6b18",
+      "text": "Mình học lại bài My Choice nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f4526d9ed6eac14c6b18.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f4dd1fb6d031ba24f810",
+      "text": "Nghe HOMI trước, rồi bạn nói lại sau nha.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f4dd1fb6d031ba24f810.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f6635dd99c7b9c5ac6e7",
+      "text": "Phần Ba mẹ đã thêm.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f6635dd99c7b9c5ac6e7.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f6bac453fc31806b1b23",
+      "text": "Bạn nói số bài, ví dụ “bài số 1”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f6bac453fc31806b1b23.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f8515492fb9dbb27374b",
+      "text": "Bạn nói số chủ đề, ví dụ “chủ đề số 3”.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f8515492fb9dbb27374b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f8b1798a0f2cabcd92df",
+      "text": "Con đang ở câu đầu tiên rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f8b1798a0f2cabcd92df.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f8cd7ab1dc10dfd541b5",
+      "text": "Chủ đề Bạn bè và cảm xúc có 2 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f8cd7ab1dc10dfd541b5.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f9bd0a63ad5b4b141b1f",
+      "text": "Chủ đề này chưa có bài học. Con chọn chủ đề khác nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f9bd0a63ad5b4b141b1f.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_f9d5efcd9402c4a06d48",
+      "text": "Mình học lại bài Plan Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_f9d5efcd9402c4a06d48.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fa32591dd10b33e6d9ca",
+      "text": "Bài học đang xử lý. Con thử lại sau một chút nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fa32591dd10b33e6d9ca.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_faacfe3d8f52b8aa8d5b",
+      "text": "Chủ đề Lập kế hoạch có 3 bài học. Con đã học xong bài 2. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_faacfe3d8f52b8aa8d5b.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fb0941ca9dec5ae1c7c4",
+      "text": "Bạn đã hoàn thành đoạn hội thoại và có thêm 11 Ngôi sao.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fb0941ca9dec5ae1c7c4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fbca7981b318c71cd919",
+      "text": "Bạn muốn học Luyện lại hay Ngôi sao?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fbca7981b318c71cd919.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fbdb72a8232ce0afd901",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Online Privacy rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fbdb72a8232ce0afd901.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fc6b419c94d0d05c9d2a",
+      "text": "Mình học tiếp bài J to R Words nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fc6b419c94d0d05c9d2a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fcaf23032020ded232e2",
+      "text": "Bài đầu tiên là Time Blocks.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fcaf23032020ded232e2.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fcb2d41ccede33e81702",
+      "text": "Chủ đề Ở nhà hàng có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fcb2d41ccede33e81702.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fd3c20a9604ca24cc8ad",
+      "text": "Chủ đề Những con số quanh mình có 3 bài học. Con đã học xong bài 2 và bài 3. Con muốn tiếp tục bài 1 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fd3c20a9604ca24cc8ad.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fd7fc482e4b7938d875d",
+      "text": "Đây là phần tổng kết của bài học rồi.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fd7fc482e4b7938d875d.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fdad96f25965e6706ffd",
+      "text": "Đã dừng phần thử thách.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fdad96f25965e6706ffd.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fdd041034f35cee1fcef",
+      "text": "Chủ đề Chi tiêu thông minh có 2 bài học. Con muốn học bài số mấy?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fdd041034f35cee1fcef.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_fe53bd4157913fbba888",
+      "text": "Con xem bài học thêm một chút nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_fe53bd4157913fbba888.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ff1516bd86b4abadd88e",
+      "text": "Tuyệt lắm! Bạn đã hoàn thành chủ đề Numbers rồi!",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ff1516bd86b4abadd88e.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ff1ac8cb061b1865ab1a",
+      "text": "Mình dừng ở đây. Khi cần, bạn nhấn nút gọi HOMI nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ff1ac8cb061b1865ab1a.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ff32a433fcb6207ae9e4",
+      "text": "HOMI chưa nghe rõ. Bạn nói lại nhé.",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ff32a433fcb6207ae9e4.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ff8c60135f072c0df6b1",
+      "text": "Chủ đề Cơ thể khỏe mạnh có 2 bài học. Con đã học xong bài 1. Con muốn tiếp tục bài 2 hay học lại bài nào?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ff8c60135f072c0df6b1.mp3",
+      "audioIds": []
+    },
+    {
+      "id": "vi_ffd7053860f8430d45ab",
+      "text": "Con muốn học chủ đề, học bộ từ vựng hay dừng lại?",
+      "locale": "vi-VN",
+      "asset": "assets/audio/elevenlabs_vi/vi_ffd7053860f8430d45ab.mp3",
+      "audioIds": []
+    }
+  ]
+}

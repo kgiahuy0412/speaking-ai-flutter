@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 
 import 'audio_gain.dart';
+import 'bundled_voice_prompt_library.dart';
 import 'voice_prompt_service_base.dart';
 
 VoicePromptService createPlatformVoicePromptService() =>
@@ -18,9 +19,17 @@ class MethodChannelVoicePromptService
         MainTurnVoicePromptService {
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
-  }) : _channel = channel;
+    BundledVoicePromptLibrary? library,
+  }) : _channel = channel,
+       _library = library;
 
   final MethodChannel _channel;
+  final BundledVoicePromptLibrary? _library;
+  // All instances of a native channel share one player. Stop/new speech must
+  // also invalidate older asynchronous asset lookups across those instances.
+  static final Map<String, int> _revisions = <String, int>{};
+  int _nextRevision() =>
+      _revisions[_channel.name] = (_revisions[_channel.name] ?? 0) + 1;
 
   @override
   Future<String?> beginMainTurn() async {
@@ -91,6 +100,17 @@ class MethodChannelVoicePromptService
     if (text.trim().isEmpty) {
       return;
     }
+    final revision = _nextRevision();
+    String? asset;
+    try {
+      asset = await (_library ?? BundledVoicePromptLibrary.shared).assetFor(
+        text,
+        locale: locale,
+      );
+    } catch (_) {
+      // Missing/corrupt optional packs keep the existing device voice usable.
+    }
+    if (_revisions[_channel.name] != revision) return;
     try {
       await _channel.invokeMethod<void>(method, <String, dynamic>{
         'text': text.trim(),
@@ -98,6 +118,7 @@ class MethodChannelVoicePromptService
         'gainDb': androidSpeechBoostDb,
         'forcePhoneSpeaker': forcePhoneSpeaker,
         'forceMediaPlayback': forceMediaPlayback,
+        'assetPath': ?asset,
       });
     } on MissingPluginException {
       // The prompt is supplementary. The visible message remains available on
@@ -121,6 +142,7 @@ class MethodChannelVoicePromptService
 
   @override
   Future<void> stop() async {
+    _nextRevision();
     try {
       await _channel.invokeMethod<void>('stop');
     } on MissingPluginException {

@@ -1,0 +1,29 @@
+[
+  {
+    "Page": "privacy",
+    "Url": "https://homi-app-privacy.lixiang22.chatgpt.site/privacy",
+    "Error": "Response status code does not indicate success: 403 (Forbidden).",
+    "CheckedAt": "2026-09-11T10:54:39.676896+07:00",
+    "BrowserVerified": true,
+    "BrowserCheckedAt": "2026-09-11T10:59:04.5408783+07:00",
+    "HttpClientNote": "Cloudflare managed challenge returned 403 to the HTTP client; the complete Vietnamese and English page opened in the browser without sign-in."
+  },
+  {
+    "Page": "terms",
+    "Url": "https://homi-app-privacy.lixiang22.chatgpt.site/terms",
+    "Error": "Response status code does not indicate success: 403 (Forbidden).",
+    "CheckedAt": "2026-09-11T10:54:39.8325823+07:00",
+    "BrowserVerified": true,
+    "BrowserCheckedAt": "2026-09-11T10:59:04.5418233+07:00",
+    "HttpClientNote": "Cloudflare managed challenge returned 403 to the HTTP client; the complete Vietnamese and English page opened in the browser without sign-in."
+  },
+  {
+    "Page": "support",
+    "Url": "https://homi-app-privacy.lixiang22.chatgpt.site/support",
+    "Error": "Response status code does not indicate success: 403 (Forbidden).",
+    "CheckedAt": "2026-09-11T10:54:39.9882772+07:00",
+    "BrowserVerified": true,
+    "BrowserCheckedAt": "2026-09-11T10:59:04.5421502+07:00",
+    "HttpClientNote": "Cloudflare managed challenge returned 403 to the HTTP client; the complete Vietnamese and English page opened in the browser without sign-in."
+  }
+]

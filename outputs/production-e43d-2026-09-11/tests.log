@@ -1,0 +1,14 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tool/production_configuration_check_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tool/production_configuration_check_test.dart: release uses production services and complete privacy disclosures
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tool/production_configuration_check_test.dart: release bundles native notices and the new recorded audio pack
+00:00 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +9: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/privacy/parental_gate_test.dart: device without a screen lock cannot enter parental area
+00:02 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: limited mode can finish without microphone or H20
+00:02 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:02 +12: All tests passed!
