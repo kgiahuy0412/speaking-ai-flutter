@@ -25,6 +25,7 @@ import '../core/device/main_button_coordinator.dart';
 import '../core/network/network_availability.dart';
 import '../core/pwa/pwa_install_gate.dart';
 import '../core/platform/background_learning_session.dart';
+import '../core/session/app_flow_coordinator.dart';
 import '../core/update/android_update_gate.dart';
 import '../features/conversation/data/demo_conversation_repository.dart';
 import '../features/conversation/data/next_conversation_repository.dart';
@@ -44,6 +45,7 @@ import '../features/onboarding/application/parent_setup_progress_store.dart';
 import '../features/privacy/data/privacy_consent_store.dart';
 import '../features/settings/data/child_age_store.dart';
 import '../features/voice_navigation/application/main_speaking_fallback_flow.dart';
+import '../features/voice_navigation/application/main_assistant_session.dart';
 import '../features/voice_navigation/application/main_speaking_session_controller.dart';
 import '../features/voice_navigation/application/voice_navigation_controller.dart';
 import '../features/voice_navigation/data/web_batch_streaming_speech_input.dart';
@@ -97,6 +99,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   late final _MainOverlayNavigatorObserver _mainOverlayNavigatorObserver;
   final ActiveLearningModuleRegistry _activeLearningModules =
       ActiveLearningModuleRegistry();
+  late final AppFlowCoordinator _appFlowCoordinator;
+  late final MainAssistantSession _mainAssistantSession;
   late final MainSpeakingSessionController _mainSpeakingSessionController;
   late final MainButtonCoordinator _mainButtonCoordinator;
   final MainSpeakingFallbackFlow _mainSpeakingFallbackFlow =
@@ -104,7 +108,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   DeviceRegistrationService? _deviceRegistrationService;
   ThemeMode _themeMode = ThemeMode.system;
   bool _themeModeChangedByUser = false;
-  bool _isActivatingMainAssistant = false;
   bool _isStartingMainSpeakingTurn = false;
   bool _isPreparingMainSpeakingHfpSession = false;
   bool _isFinishingMainSpeakingMode = false;
@@ -115,8 +118,6 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isGlobalModalOpen = false;
   bool _showFloatingMainButton = false;
   bool _backgroundWorkStarted = false;
-  bool _activeModulePausedForMain = false;
-  bool _isResumingActiveModule = false;
   bool _startupProfileLoading = true;
   bool _startupPermissionRequestInProgress = false;
   bool _startupPermissionsRequestedByParent = false;
@@ -162,10 +163,20 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool get _voiceAccessEnabled =>
       _privacyConsentGranted && _microphonePermissionGranted;
 
+  bool get _isActivatingMainAssistant =>
+      _mainAssistantSession.isActivationPending;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _appFlowCoordinator = AppFlowCoordinator(registry: _activeLearningModules);
+    _mainAssistantSession = MainAssistantSession(
+      appFlowCoordinator: _appFlowCoordinator,
+      onActivationChanged: (_) {
+        if (mounted) setState(() {});
+      },
+    );
     _mainOverlayNavigatorObserver = _MainOverlayNavigatorObserver(
       onVisibilityChanged: (visible) {
         if (!mounted || _showFloatingMainButton == visible) return;
@@ -971,69 +982,29 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     String? noSpeechRetryPrompt,
     String? noSpeechExitPrompt,
   }) async {
-    if (!_startupReady || !_voiceAccessEnabled) {
-      return false;
-    }
     final voiceController = _voiceNavigationController;
     final conversationController = _controller;
-    if (_isActivatingMainAssistant ||
-        voiceController == null ||
-        conversationController == null) {
+    if (voiceController == null || conversationController == null) {
       return false;
     }
-
-    if (_mainSpeakingSessionController.isActive) {
-      return false;
-    }
-
-    final hadActiveModule = _activeLearningModules.hasActiveModule;
-    // Outside a learning route, conversation audio still owns the microphone
-    // and must finish first. Inside a lesson/vocabulary route, however, MAIN is
-    // the interrupt: pause that module before judging the shared audio state.
-    if (!hadActiveModule &&
-        (conversationController.isBusy ||
-            conversationController.isPlaybackPlaying)) {
-      return false;
-    }
-
-    setState(() => _isActivatingMainAssistant = true);
-
-    try {
-      var hasActiveModule = hadActiveModule;
-      var activeLearningKind = _activeLearningModules.activeKind;
-      if (hasActiveModule) {
-        _activeModulePausedForMain = await _activeLearningModules
-            .pauseForMainAssistant();
-        // A route may have completed/unmounted while its stop operation was in
-        // flight. That is not a failed MAIN press; open the normal assistant if
-        // there is no longer a stable module to control.
-        hasActiveModule =
-            _activeModulePausedForMain &&
-            _activeLearningModules.hasActiveModule;
-        activeLearningKind = hasActiveModule
-            ? _activeLearningModules.activeKind
-            : null;
-      }
-      if (!mounted) {
-        return false;
-      }
-      final activated = await voiceController.activateFromMainButton(
-        activeLearning: hasActiveModule,
-        activeLearningKind: activeLearningKind,
-        inputLabelOverride: inputLabelOverride,
-        promptAlreadySpoken: promptAlreadySpoken,
-        noSpeechRetryPrompt: noSpeechRetryPrompt,
-        noSpeechExitPrompt: noSpeechExitPrompt,
-      );
-      if (!activated && _activeModulePausedForMain) {
-        await _resumeActiveModuleAfterMain();
-      }
-      return activated;
-    } finally {
-      if (mounted) {
-        setState(() => _isActivatingMainAssistant = false);
-      }
-    }
+    return _mainAssistantSession.activate(
+      startupReady: _startupReady,
+      voiceAccessEnabled: _voiceAccessEnabled,
+      conversationBusy:
+          conversationController.isBusy ||
+          conversationController.isPlaybackPlaying,
+      assistantFlowBusy: _mainSpeakingSessionController.isActive,
+      canContinue: () => mounted,
+      activateVoice: ({required activeLearning, required activeLearningKind}) =>
+          voiceController.activateFromMainButton(
+            activeLearning: activeLearning,
+            activeLearningKind: activeLearningKind,
+            inputLabelOverride: inputLabelOverride,
+            promptAlreadySpoken: promptAlreadySpoken,
+            noSpeechRetryPrompt: noSpeechRetryPrompt,
+            noSpeechExitPrompt: noSpeechExitPrompt,
+          ),
+    );
   }
 
   Future<MainButtonActionResult> _handleUnifiedMainShortPress(
@@ -1111,7 +1082,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _hasMainSpeakingTurnStarted = false;
     _mainSpeakingFallbackFlow.reset();
     if (mounted) {
-      setState(() => _isActivatingMainAssistant = true);
+      _mainAssistantSession.setExternalActivation(true);
     }
     try {
       controller.recordAiv0MainDiagnostic('MAIN_INTERRUPT_STARTED');
@@ -1144,32 +1115,18 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       );
     } finally {
       _isFinishingMainSpeakingMode = false;
-      if (mounted) {
-        setState(() => _isActivatingMainAssistant = false);
-      }
+      _mainAssistantSession.setExternalActivation(false);
     }
   }
 
   Future<ActiveLearningCommandResult> _handleActiveLearningCommand(
     ActiveLearningCommand command,
-  ) async {
-    ActiveLearningCommandResult result;
-    try {
-      result = await _activeLearningModules.execute(command);
-    } catch (_) {
-      result = const ActiveLearningCommandResult.busy(
-        spokenReply: 'Bi cô chưa thực hiện được. Con thử lại nhé.',
-      );
-    }
-    if (result.wasHandled) {
-      _activeModulePausedForMain = false;
-    }
-    final reply = result.spokenReply;
-    if (!result.wasHandled && reply != null && reply.trim().isNotEmpty) {
+  ) => _appFlowCoordinator.execute(
+    command,
+    onUnhandledReply: (reply) async {
       await _controller?.speakAssistantPrompt(reply);
-    }
-    return result;
-  }
+    },
+  );
 
   void _synchronizeMainAssistantSession() {
     final voiceController = _voiceNavigationController;
@@ -1185,7 +1142,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
           !_mainSpeakingSessionController.isActive) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
       }
-      if (_activeModulePausedForMain && !_isActivatingMainAssistant) {
+      if (_appFlowCoordinator.activeModulePausedForMain &&
+          !_isActivatingMainAssistant) {
         unawaited(_resumeActiveModuleAfterMain());
       }
     }
@@ -1277,24 +1235,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   }
 
   Future<void> _resumeActiveModuleAfterMain() async {
-    if (!_activeModulePausedForMain || _isResumingActiveModule) {
-      return;
-    }
-    _isResumingActiveModule = true;
-    try {
-      final result = await _activeLearningModules.execute(
-        ActiveLearningCommand.resume,
-      );
-      if (result.wasHandled ||
-          !_activeLearningModules.hasActiveModule ||
-          !_activeLearningModules.isActiveModulePaused) {
-        _activeModulePausedForMain = false;
-      }
-    } catch (_) {
-      // Keep the paused flag so a later assistant state change can retry.
-    } finally {
-      _isResumingActiveModule = false;
-    }
+    await _appFlowCoordinator.resumeAfterMainAssistant();
   }
 
   Future<MainButtonActionResult> _handleMainLongPress(
@@ -1307,7 +1248,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (voiceController?.isMainButtonSessionActive ?? false) {
       // Keep an interrupted lesson paused. Otherwise the controller listener
       // would resume it while the child is still hearing "Đã dừng.".
-      _activeModulePausedForMain = false;
+      _appFlowCoordinator.forgetPausedModule();
       await voiceController!.pause();
       await _controller?.speakAssistantPrompt('Đã dừng.');
       return MainButtonActionResult.accepted;
@@ -1363,7 +1304,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
         ActiveLearningCommand.resume,
       );
       if (resumed.wasHandled) {
-        _activeModulePausedForMain = false;
+        _appFlowCoordinator.forgetPausedModule();
       }
       return resumed.wasHandled
           ? MainButtonActionResult.accepted
@@ -1376,7 +1317,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (!stopped.wasHandled) {
       return MainButtonActionResult.ignored;
     }
-    _activeModulePausedForMain = false;
+    _appFlowCoordinator.forgetPausedModule();
     await _controller?.speakAssistantPrompt('Đã dừng.');
     return MainButtonActionResult.accepted;
   }
@@ -1607,9 +1548,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _isFinishingMainSpeakingMode = true;
     _hasMainSpeakingTurnStarted = false;
     _mainSpeakingFallbackFlow.reset();
-    if (mounted) {
-      setState(() => _isActivatingMainAssistant = true);
-    }
+    _mainAssistantSession.setExternalActivation(true);
     _mainSpeakingSessionController.exit();
     _invalidateMainSpeakingHfpPreparation();
     try {
@@ -1622,9 +1561,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
     } finally {
       _isFinishingMainSpeakingMode = false;
-      if (mounted) {
-        setState(() => _isActivatingMainAssistant = false);
-      }
+      _mainAssistantSession.setExternalActivation(false);
       if (_restoreHfpAfterPhysicalMain) {
         unawaited(_restoreHfpSelectionAfterPhysicalMain());
       }
@@ -1683,9 +1620,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       _invalidateMainSpeakingHfpPreparation();
     }
     controller.clearMessage();
-    if (mounted) {
-      setState(() => _isActivatingMainAssistant = true);
-    }
+    _mainAssistantSession.setExternalActivation(true);
     try {
       // Leave continuous translation before opening the next voice menu. The
       // command resolver has already consumed the explicit control phrase, so
@@ -1701,9 +1636,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
     } finally {
       _isFinishingMainSpeakingMode = false;
-      if (mounted) {
-        setState(() => _isActivatingMainAssistant = false);
-      }
+      _mainAssistantSession.setExternalActivation(false);
     }
   }
 
