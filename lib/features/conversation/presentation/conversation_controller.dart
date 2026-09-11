@@ -18,6 +18,7 @@ import '../../../core/device/aiv0_ble_control.dart';
 import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
+import '../application/continuous_translation_session.dart';
 import '../application/offline_language_service.dart';
 import '../application/vietnamese_transcript_corrector.dart';
 import '../domain/conversation_models.dart';
@@ -150,6 +151,9 @@ class ConversationController extends ChangeNotifier {
                  (streamingSpeechInput == null
                      ? AsrMode.batchChunks
                      : AsrMode.androidStreaming) {
+    _continuousTranslationSession = ContinuousTranslationSession(
+      runtime: _ConversationContinuousTranslationRuntime(this),
+    );
     _streamingCompletionSubscription = streamingSpeechInput?.completed.listen((
       _,
     ) {
@@ -286,6 +290,7 @@ class ConversationController extends ChangeNotifier {
   final RealtimeFallbackBuffer _realtimeFallbackBuffer;
   final AdaptiveVoiceActivityDetector _voiceActivityDetector =
       AdaptiveVoiceActivityDetector();
+  late final ContinuousTranslationSession _continuousTranslationSession;
 
   StreamSubscription<double>? _amplitudeSubscription;
   StreamSubscription<BluetoothAudioStatus>? _bluetoothStatusSubscription;
@@ -316,7 +321,6 @@ class ConversationController extends ChangeNotifier {
   bool _stopInProgress = false;
   bool _speechDetected = false;
   bool _stopOnSilence = true;
-  bool _pushToTalkPressed = false;
   bool _speakNoSpeechPrompt = true;
   ConversationTurnEndReason? _lastTurnEndReason;
   bool _noisyRecording = false;
@@ -326,7 +330,6 @@ class ConversationController extends ChangeNotifier {
   bool _continuousHfpSessionActive = false;
   bool _hfpInputSelected;
   bool _preparingMicrophone = false;
-  Future<void>? _recordingStartOperation;
   Future<void>? _pendingHfpStartOperation;
   bool _usingRealtimeTranscription = false;
   bool _usingOfflineIntent = false;
@@ -834,7 +837,7 @@ class ConversationController extends ChangeNotifier {
   bool get isRecordingStartBlocked =>
       _preparingMicrophone ||
       _stopInProgress ||
-      _recordingStartOperation != null ||
+      _continuousTranslationSession.isRecordingStartPending ||
       _pendingHfpStartOperation != null ||
       bleDiagnosticRunning ||
       h20HardwareTestActive ||
@@ -996,56 +999,20 @@ class ConversationController extends ChangeNotifier {
     );
   }
 
-  Future<void> onPrimaryAction() async {
-    if (phase == ConversationPhase.recording) {
-      final userGesturePlayback = _playbackService;
-      if (userGesturePlayback is UserGestureAudioPlaybackService) {
-        await (userGesturePlayback as UserGestureAudioPlaybackService)
-            .unlockForUserGesture();
-      }
-      await stopRecording(manual: true);
-      return;
-    }
-    if (phase == ConversationPhase.processing) {
-      return;
-    }
-    await startRecording();
-  }
+  Future<void> onPrimaryAction() =>
+      _continuousTranslationSession.onPrimaryAction();
 
   /// Starts a single-sentence turn immediately when the child presses down.
   /// Silence cannot finish the turn while the button is still held; the
   /// existing maximum recording timer remains the safety limit.
-  Future<void> startPushToTalk() async {
-    if (_pushToTalkPressed || isBusy) {
-      return;
-    }
-    _pushToTalkPressed = true;
-    await startRecording(
-      noSpeechTimeout: const Duration(seconds: 12),
-      stopOnSilence: false,
-    );
-    if (_disposed) {
-      return;
-    }
-    if (phase == ConversationPhase.recording && !_pushToTalkPressed) {
-      await stopRecording(manual: true);
-    } else if (phase != ConversationPhase.recording) {
-      _pushToTalkPressed = false;
-    }
-  }
+  Future<void> startPushToTalk() =>
+      _continuousTranslationSession.startPushToTalk();
 
   /// Finishes and translates the sentence on pointer-up. If the microphone is
   /// still opening, [startPushToTalk] observes the released state and stops as
   /// soon as the recorder becomes ready.
-  Future<void> stopPushToTalk() async {
-    if (!_pushToTalkPressed) {
-      return;
-    }
-    _pushToTalkPressed = false;
-    if (phase == ConversationPhase.recording) {
-      await stopRecording(manual: true);
-    }
-  }
+  Future<void> stopPushToTalk() =>
+      _continuousTranslationSession.stopPushToTalk();
 
   Future<List<Aiv0BleDevice>> scanAiv0Devices() async {
     final control = _aiv0BleControl;
@@ -1217,7 +1184,8 @@ class ConversationController extends ChangeNotifier {
         'conversationPhase': phase.name,
         'processingStage': processingStage.name,
         'preparingMicrophone': _preparingMicrophone,
-        'recordingStartPending': _recordingStartOperation != null,
+        'recordingStartPending':
+            _continuousTranslationSession.isRecordingStartPending,
         'stopInProgress': _stopInProgress,
         'playbackPlaying': _playbackPlaying,
       };
@@ -1310,7 +1278,8 @@ class ConversationController extends ChangeNotifier {
   /// Used by D10/E04 for single-sentence and continuous translation. Increasing
   /// the generation also makes any already-running backend response harmless.
   Future<MainButtonActionResult> cancelCurrentMainAction() async {
-    final pendingRecordingStart = _recordingStartOperation;
+    final pendingRecordingStart =
+        _continuousTranslationSession.pendingRecordingStart;
     final pendingHfpStart = _pendingHfpStartOperation;
     final wasPreparingMicrophone = _preparingMicrophone;
     final hadActivity =
@@ -1322,7 +1291,7 @@ class ConversationController extends ChangeNotifier {
 
     _conversationTurnGeneration += 1;
     _preparingMicrophone = false;
-    _pushToTalkPressed = false;
+    _continuousTranslationSession.cancelInteraction();
     _partialPreviewTimer?.cancel();
     _previewGeneration += 1;
     _silenceTimer?.cancel();
@@ -1883,24 +1852,11 @@ class ConversationController extends ChangeNotifier {
     Duration noSpeechTimeout = const Duration(seconds: 3),
     bool speakNoSpeechPrompt = true,
     bool stopOnSilence = true,
-  }) {
-    final pending = _recordingStartOperation;
-    if (pending != null) return pending;
-
-    late final Future<void> tracked;
-    tracked =
-        _startRecordingInternal(
-          noSpeechTimeout: noSpeechTimeout,
-          speakNoSpeechPrompt: speakNoSpeechPrompt,
-          stopOnSilence: stopOnSilence,
-        ).whenComplete(() {
-          if (identical(_recordingStartOperation, tracked)) {
-            _recordingStartOperation = null;
-          }
-        });
-    _recordingStartOperation = tracked;
-    return tracked;
-  }
+  }) => _continuousTranslationSession.startRecording(
+    noSpeechTimeout: noSpeechTimeout,
+    speakNoSpeechPrompt: speakNoSpeechPrompt,
+    stopOnSilence: stopOnSilence,
+  );
 
   Future<void> _startRecordingInternal({
     Duration noSpeechTimeout = const Duration(seconds: 3),
@@ -2671,12 +2627,14 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  Future<void> stopRecording({required bool manual}) async {
+  Future<void> stopRecording({required bool manual}) =>
+      _continuousTranslationSession.stopRecording(manual: manual);
+
+  Future<void> _stopRecordingInternal({required bool manual}) async {
     if (phase != ConversationPhase.recording || _stopInProgress) {
       return;
     }
     final turnGeneration = _conversationTurnGeneration;
-    _pushToTalkPressed = false;
     _stopInProgress = true;
     _adaptiveWebUpload?.markStopRequested(manual: manual);
     _partialPreviewTimer?.cancel();
@@ -3518,6 +3476,14 @@ class ConversationController extends ChangeNotifier {
   Future<void> playResult({
     bool reportLatency = false,
     bool propagateFailure = false,
+  }) => _continuousTranslationSession.playResult(
+    reportLatency: reportLatency,
+    propagateFailure: propagateFailure,
+  );
+
+  Future<void> _playResultInternal({
+    bool reportLatency = false,
+    bool propagateFailure = false,
   }) async {
     final playbackTurnGeneration = _conversationTurnGeneration;
     final currentResult = result;
@@ -3961,6 +3927,7 @@ class ConversationController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _continuousTranslationSession.dispose();
     _realtimeConnectionGeneration += 1;
     _realtimeConnectionFuture = null;
     _silenceTimer?.cancel();
@@ -4015,6 +3982,52 @@ class ConversationController extends ChangeNotifier {
     unawaited(_repository.dispose());
     super.dispose();
   }
+}
+
+class _ConversationContinuousTranslationRuntime
+    implements ContinuousTranslationRuntime {
+  const _ConversationContinuousTranslationRuntime(this._controller);
+
+  final ConversationController _controller;
+
+  @override
+  ConversationPhase get phase => _controller.phase;
+
+  @override
+  bool get isBusy => _controller.isBusy;
+
+  @override
+  Future<void> unlockPlaybackForUserGesture() async {
+    final playback = _controller._playbackService;
+    if (playback is UserGestureAudioPlaybackService) {
+      await (playback as UserGestureAudioPlaybackService)
+          .unlockForUserGesture();
+    }
+  }
+
+  @override
+  Future<void> startTurn({
+    required Duration noSpeechTimeout,
+    required bool speakNoSpeechPrompt,
+    required bool stopOnSilence,
+  }) => _controller._startRecordingInternal(
+    noSpeechTimeout: noSpeechTimeout,
+    speakNoSpeechPrompt: speakNoSpeechPrompt,
+    stopOnSilence: stopOnSilence,
+  );
+
+  @override
+  Future<void> stopTurn({required bool manual}) =>
+      _controller._stopRecordingInternal(manual: manual);
+
+  @override
+  Future<void> playResult({
+    required bool reportLatency,
+    required bool propagateFailure,
+  }) => _controller._playResultInternal(
+    reportLatency: reportLatency,
+    propagateFailure: propagateFailure,
+  );
 }
 
 class _AdaptiveWebChunkUpload {
