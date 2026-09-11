@@ -35,6 +35,14 @@ flutter:
   assets:
     - assets/data/listening_lessons.json
     - assets/data/listening_audio_manifest_v4.json
+    - assets/data/homi_audio_index.json
+    - assets/audio/homi_v4/system/
+    - assets/audio/homi_v4/feedback/
+    - assets/audio/homi_v4/hook/
+    - assets/audio/homi_v4/core/
+    - assets/audio/homi_v4/challenge/
+    - assets/audio/homi_v4/mission/
+    - assets/audio/homi_v4/sfx/
     - assets/data/listening_ai_lexicon_v4.json
     - assets/data/homi_ai_fallback_catalog_v1.json
     - assets/data/vietnamese_speech_corrections_v1.json

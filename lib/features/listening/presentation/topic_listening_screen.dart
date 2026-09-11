@@ -10,6 +10,7 @@ import '../../../l10n/display_language.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../../home/presentation/homi_bottom_navigation.dart';
 import '../application/lesson_media_service.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../application/listening_voice_navigation_target.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
@@ -126,8 +127,11 @@ class _TopicListeningScreenState extends State<TopicListeningScreen> {
       hfpAudioControl: widget.controller?.learningAudioRouteControl,
     );
     _ownsVoicePromptService = widget.voicePromptService == null;
-    _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+    _voicePromptService = createLessonVoicePromptService(
+      mediaService: _historyMediaService,
+      override: widget.voicePromptService,
+      age: requestedAge,
+    );
     unawaited(_loadContentAndProgress());
   }
 

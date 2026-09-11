@@ -1,0 +1,257 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: (setUpAll)
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:00 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:00 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:00 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:01 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:01 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/topic-lesson-journey-390x844.png": Pixel test failed, 0.13%, 427px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart:68:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +6 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: intro routes an eligible song to karaoke
+00:01 +6 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: topic lesson journey matches the approved direction
+  
+00:01 +7 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction
+00:01 +8 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/topic-favorite-food-390x844.png": Pixel test failed, 0.13%, 427px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart:103:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +8 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:01 +8 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction [E]
+  Test failed. See exception logs above.
+  The test description was: favorite food journey matches the selected HOMI direction
+  
+00:02 +9 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:02 +9 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-intro-390x844.png": Pixel test failed, 0.35%, 1153px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart:160:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +9 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:02 +9 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: lesson intro matches the approved direction
+  
+00:02 +10 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:03 +11 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:03 +12 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:03 +12 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-review-390x844.png": Pixel test failed, 80.97%, 266525px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart:303:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +12 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:03 +12 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: English-only lesson review matches the approved direction
+  
+00:03 +13 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:06 +13 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-v4-challenge-390x844.png": Pixel test failed, 0.47%, 14019px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart:395:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:06 +13 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:06 +13 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge [E]
+  Test failed. See exception logs above.
+  The test description was: V4 completion opens an authored voice challenge
+  
+00:06 +14 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+pumpAndSettle timed out
+
+When the exception was thrown, this was the stack:
+#0      WidgetTester.pumpAndSettle.<anonymous closure> (package:flutter_test/src/widget_tester.dart:717:11)
+<asynchronous suspension>
+#1      TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#2      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart:307:5)
+<asynchronous suspension>
+#3      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#4      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  ages three to five keep the existing song flow
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:08 +14 -6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow [E]
+  Test failed. See exception logs above.
+  The test description was: ages three to five keep the existing song flow
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+00:08 +14 -6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: karaoke screen matches the selected visual direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/song-karaoke-390x844.png": Pixel test failed, 0.46%, 1522px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart:335:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:08 +14 -7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: karaoke screen matches the selected visual direction [E]
+  Test failed. See exception logs above.
+  The test description was: karaoke screen matches the selected visual direction
+  
+00:08 +14 -7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/song_karaoke_screen_test.dart: (tearDownAll)
+00:08 +14 -7: Some tests failed.
+
+Failing tests:
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/tmp/audio-baseline/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction
+  ... and 3 more

@@ -6,6 +6,7 @@ import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../listening/domain/listening_content.dart';
+import '../../listening/application/recorded_lesson_voice_prompt_service.dart';
 import '../domain/homi_fallback_catalog.dart';
 import 'main_voice_assistant_flow.dart';
 import 'voice_navigation_intent_resolver.dart';
@@ -550,7 +551,9 @@ class VoiceNavigationController extends ChangeNotifier {
                   locale: utterance.locale,
                 );
           await promptPlayback.timeout(
-            _voicePromptTimeout,
+            promptService is RecordedLessonVoicePromptService
+                ? RecordedLessonVoicePromptService.playbackTimeout
+                : _voicePromptTimeout,
             onTimeout: () => promptService.stop(),
           );
         }
@@ -767,6 +770,10 @@ class VoiceNavigationController extends ChangeNotifier {
           );
         },
       );
+      final promptService = _voicePromptService;
+      if (promptService is RecordedLessonVoicePromptService) {
+        promptService.mediaService.handoffSelectedLessonOutputToNativeCapture();
+      }
       if (_disposed || !_continuousRequested || generation != _generation) {
         await _boundedCleanup(_speechInput.cancel());
         return;

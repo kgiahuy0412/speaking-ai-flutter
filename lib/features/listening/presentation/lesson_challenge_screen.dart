@@ -9,6 +9,7 @@ import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_attempt_evaluator.dart';
@@ -92,6 +93,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   bool _ownsVoicePromptService = false;
   bool _rolePlayCompleted = false;
   int _rolePlayTurnIndex = 0;
+  bool _rolePlayOpeningPlayed = false;
   int _challengeIndex = 0;
   int _attemptNumber = 0;
   bool _playingPrompt = false;
@@ -150,7 +152,10 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     final current = _voicePromptService;
     if (current != null) return current;
     _ownsVoicePromptService = true;
-    return _voicePromptService = createVoicePromptService();
+    return _voicePromptService = createLessonVoicePromptService(
+      mediaService: widget.mediaService,
+      age: widget.startAge,
+    );
   }
 
   @override
@@ -160,7 +165,13 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
-    _voicePromptService = widget.voicePromptService;
+    _voicePromptService = widget.voicePromptService == null
+        ? null
+        : createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            override: widget.voicePromptService,
+            age: widget.startAge,
+          );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_playCurrentPrompt()),
     );
@@ -310,13 +321,28 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       if (!mounted || request != _request) return;
       final turn = _rolePlayTurn;
       if (turn != null) {
+        if (!_rolePlayOpeningPlayed) {
+          await _speakPromptAndWait(widget.lesson.rolePlay!.scenarioVi);
+          if (!mounted || request != _request) return;
+          final hint = widget.lesson.rolePlay!.openingHint;
+          if (widget.showRolePlayOpeningHint &&
+              hint != null &&
+              hint.isNotEmpty) {
+            await _speakPromptAndWait(hint, locale: 'en-US');
+            if (!mounted || request != _request) return;
+          }
+          _rolePlayOpeningPlayed = true;
+        }
         if (turn.speaker == ListeningRolePlaySpeaker.homi) {
           await _speakPromptAndWait(turn.english, locale: 'en-US');
         } else {
           await _speakPromptAndWait('Bạn nói câu này nhé.');
         }
       } else {
-        await _speakPromptAndWait(_challenge.prompt);
+        await _speakPromptAndWait(
+          _challenge.prompt,
+          audioId: '${_challenge.id}_PROMPT',
+        );
         if (!mounted || request != _request) return;
         await _speakPromptAndWait('Bạn nói đáp án bằng tiếng Anh nhé.');
       }
@@ -388,6 +414,8 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   Future<void> _speakPromptAndWait(
     String text, {
     String locale = 'vi-VN',
+    String? audioId,
+    String? feedbackState,
   }) async {
     _promptCompletionTimer?.cancel();
     final previousWaiter = _promptCompletionWaiter;
@@ -399,24 +427,35 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     _promptCompletionWaiter = waiter;
     unawaited(() async {
       try {
-        await _prompt.speakAndWait(text, locale: locale);
+        await speakRecordedLessonPrompt(
+          _prompt,
+          text,
+          locale: locale,
+          audioId: audioId,
+          feedbackState: feedbackState,
+        );
         if (!waiter.isCompleted) waiter.complete();
       } catch (error, stackTrace) {
         if (!waiter.isCompleted) waiter.completeError(error, stackTrace);
       }
     }());
-    _promptCompletionTimer = Timer(_promptCompletionTimeout, () {
-      unawaited(() async {
-        try {
-          // A small number of iOS AVSpeechSynthesizer route transitions do not
-          // deliver didFinish. Stop the stale utterance so the H20 mic can
-          // still open instead of leaving the child on a frozen screen.
-          await _prompt.stop();
-        } finally {
-          if (!waiter.isCompleted) waiter.complete();
-        }
-      }());
-    });
+    _promptCompletionTimer = Timer(
+      _prompt is RecordedLessonVoicePromptService
+          ? RecordedLessonVoicePromptService.playbackTimeout
+          : _promptCompletionTimeout,
+      () {
+        unawaited(() async {
+          try {
+            // A small number of iOS AVSpeechSynthesizer route transitions do not
+            // deliver didFinish. Stop the stale utterance so the H20 mic can
+            // still open instead of leaving the child on a frozen screen.
+            await _prompt.stop();
+          } finally {
+            if (!waiter.isCompleted) waiter.complete();
+          }
+        }());
+      },
+    );
 
     try {
       await waiter.future;
@@ -663,7 +702,12 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     if (mounted) setState(() => _message = message);
     try {
       await widget.mediaService.prepareSelectedLessonOutput();
-      await _speakPromptAndWait(message);
+      await _speakPromptAndWait(
+        message,
+        feedbackState: kind == LessonFeedbackKind.noResponse
+            ? 'NO_RESPONSE'
+            : kind.name.toUpperCase(),
+      );
     } catch (_) {
       // The written feedback remains visible; recording still resumes so a
       // temporary TTS outage never forces the child to use the phone.

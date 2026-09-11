@@ -1,0 +1,99 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +9: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +12: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +13: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +14: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +15: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +16: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      List.single (dart:core-patch/growable_array.dart:362:22)
+#1      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart:67:29)
+<asynchronous suspension>
+#2      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#3      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  Challenge keeps the mic closed until its recorded prompt ends
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +16 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens the microphone when the native ready cue never completes
+00:00 +16 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends [E]
+  Test failed. See exception logs above.
+  The test description was: Challenge keeps the mic closed until its recorded prompt ends
+  
+00:01 +16 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Mission keeps the mic closed until its recorded prompt ends
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      List.single (dart:core-patch/growable_array.dart:362:22)
+#1      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart:67:29)
+<asynchronous suspension>
+#2      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#3      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  Mission keeps the mic closed until its recorded prompt ends
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +16 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens the microphone when the native ready cue never completes
+00:01 +16 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Mission keeps the mic closed until its recorded prompt ends [E]
+  Test failed. See exception logs above.
+  The test description was: Mission keeps the mic closed until its recorded prompt ends
+  
+00:01 +16 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens the microphone when the native ready cue never completes
+00:01 +17 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main command window starts only after the microphone is ready
+00:02 +18 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main prompt reopens the mic immediately after final recognition
+00:02 +19 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: HFP speech activity extends MAIN command window before transcript
+00:02 +20 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main exposes its first microphone start failure without retrying
+00:02 +21 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main pauses its command deadline while a premature completion recovers
+00:02 +22 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main stops automatic retries and exposes the microphone error
+00:02 +23 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main activation never exposes a transient inactive session
+00:02 +24 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main button keeps listening through age, topic and lesson
+00:02 +25 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: saved age lets MAIN go directly from feature to topic number
+00:02 +26 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: completed topic prompt continues through topic and lesson
+00:02 +27 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: speaking command opens the other-learning voice menu
+00:02 +28 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: translation stop opens its navigation menu and microphone
+00:02 +29 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens today practice when parent vocabulary is pending
+00:02 +30 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main next answer advances through the module bridge
+00:02 +31 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main previous answer moves back through the module bridge
+00:02 +32 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main dispatches the remaining D07 and D08 commands
+00:02 +33 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson exit choice keeps listening then opens vocabulary
+00:02 +34 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: MAIN finalizes buffered iOS transcript when its command window ends
+00:02 +35 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main asks once after silence then exits on the second timeout
+00:02 +36 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: vocabulary star branch uses its exact silence prompts
+00:02 +37 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: pauses navigation recognizer before conversation can reuse it
+00:02 +38 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: handles an explicit command from a stable partial result
+00:02 +39 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: hears the wake phrase from a secondary Android transcript
+00:02 +40 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: uses final Android alternatives when the primary text misses
+00:03 +41 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: returns to wake-word mode when the command window expires
+00:03 +42 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: does not reopen the microphone until the wake reply finishes
+00:03 +43 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: pause waits for a pending navigation start to release the mic
+00:03 +44 -2: Some tests failed.
+
+Failing tests:
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Mission keeps the mic closed until its recorded prompt ends

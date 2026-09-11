@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
+import 'homi_audio_library.dart';
+
 enum LessonGuideCue {
   record('GUIDE_RECORD'),
   praise('GUIDE_PRAISE'),
@@ -39,6 +41,7 @@ class LessonGuideAudioLibrary {
   final Random _random;
   final List<String>? _providedAssetPaths;
   Future<List<String>>? _assetPathsFuture;
+  final HomiAudioLibrary _homiAudio = HomiAudioLibrary();
 
   Future<Uri?> randomUri(
     LessonGuideCue cue, {
@@ -66,6 +69,14 @@ class LessonGuideAudioLibrary {
     final normalizedCode = audioCode.trim().toLowerCase();
     if (normalizedCode.isEmpty) {
       return null;
+    }
+    if (_providedAssetPaths == null) {
+      try {
+        final uri = await _homiAudio.uriForAudioCode(audioCode);
+        if (uri != null) return uri;
+      } catch (_) {
+        // Legacy packs still work if the optional V4 index is unavailable.
+      }
     }
     final assets = await (_assetPathsFuture ??= _loadAssetPaths());
     for (final asset in assets) {

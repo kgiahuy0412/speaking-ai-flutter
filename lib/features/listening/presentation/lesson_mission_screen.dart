@@ -8,6 +8,7 @@ import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_attempt_evaluator.dart';
@@ -181,7 +182,10 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     final prompt = _voicePromptService;
     if (prompt != null) return prompt;
     _ownsVoicePromptService = true;
-    return _voicePromptService = createVoicePromptService();
+    return _voicePromptService = createLessonVoicePromptService(
+      mediaService: widget.mediaService,
+      age: widget.startAge,
+    );
   }
 
   ListeningMissionContent get _mission => widget.missions[_missionIndex];
@@ -198,7 +202,13 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     _ownsAttemptEvaluator = widget.attemptEvaluator == null;
     _attemptEvaluator =
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
-    _voicePromptService = widget.voicePromptService;
+    _voicePromptService = widget.voicePromptService == null
+        ? null
+        : createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            override: widget.voicePromptService,
+            age: widget.startAge,
+          );
     for (final mission in widget.missions) {
       final correct = widget.initialAnswers[mission.id];
       if (correct == null) continue;
@@ -368,7 +378,10 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       if (widget.isReinforcement) {
         await _speakReinforcementTarget(request);
       } else {
-        await _speakPromptAndWait(_mission.prompt);
+        await _speakPromptAndWait(
+          _mission.prompt,
+          audioId: '${_mission.id}_PROMPT',
+        );
         if (!mounted || request != _promptRequest) return;
         await _speakPromptAndWait('Bạn nói đầy đủ câu tiếng Anh nhé.');
       }
@@ -405,6 +418,8 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
   Future<void> _speakPromptAndWait(
     String text, {
     String locale = 'vi-VN',
+    String? audioId,
+    String? feedbackState,
   }) async {
     _promptCompletionTimer?.cancel();
     final previousWaiter = _promptCompletionWaiter;
@@ -416,21 +431,32 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     _promptCompletionWaiter = waiter;
     unawaited(() async {
       try {
-        await _prompt.speakAndWait(text, locale: locale);
+        await speakRecordedLessonPrompt(
+          _prompt,
+          text,
+          locale: locale,
+          audioId: audioId,
+          feedbackState: feedbackState,
+        );
         if (!waiter.isCompleted) waiter.complete();
       } catch (error, stackTrace) {
         if (!waiter.isCompleted) waiter.completeError(error, stackTrace);
       }
     }());
-    _promptCompletionTimer = Timer(_promptCompletionTimeout, () {
-      unawaited(() async {
-        try {
-          await _prompt.stop();
-        } finally {
-          if (!waiter.isCompleted) waiter.complete();
-        }
-      }());
-    });
+    _promptCompletionTimer = Timer(
+      _prompt is RecordedLessonVoicePromptService
+          ? RecordedLessonVoicePromptService.playbackTimeout
+          : _promptCompletionTimeout,
+      () {
+        unawaited(() async {
+          try {
+            await _prompt.stop();
+          } finally {
+            if (!waiter.isCompleted) waiter.complete();
+          }
+        }());
+      },
+    );
 
     try {
       await waiter.future;
@@ -682,7 +708,12 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     if (mounted) setState(() => _message = feedback);
     try {
       await widget.mediaService.prepareSelectedLessonOutput();
-      await _speakPromptAndWait(feedback);
+      await _speakPromptAndWait(
+        feedback,
+        feedbackState: kind == LessonFeedbackKind.noResponse
+            ? 'NO_RESPONSE'
+            : kind.name.toUpperCase(),
+      );
     } catch (_) {
       // Keep visible feedback and continue with the authored state machine.
     }

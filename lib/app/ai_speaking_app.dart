@@ -15,6 +15,8 @@ import '../core/audio/phone_microphone_input.dart';
 import '../core/audio/preferred_audio_input.dart';
 import '../core/audio/streaming_speech_input.dart';
 import '../core/audio/voice_prompt_service.dart';
+import '../features/listening/application/lesson_media_service.dart';
+import '../features/listening/application/recorded_lesson_voice_prompt_service.dart';
 import '../core/device/android_device_hardware.dart';
 import '../core/device/active_learning_module.dart';
 import '../core/device/aiv0_ble_control.dart';
@@ -795,7 +797,14 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
             // Native speech is shared with ConversationController and released
             // explicitly by either controller before the other starts.
             ownsSpeechInput: voiceNavigationOwnsSpeechInput,
-            voicePromptService: createVoicePromptService(),
+            voicePromptService: RecordedLessonVoicePromptService(
+              mediaService: LessonMediaService(
+                hfpAudioControl: hfpAudioControl,
+              ),
+              fallback: createVoicePromptService(),
+              ownsFallback: true,
+              ownsMediaService: true,
+            ),
             ownsVoicePromptService: true,
             activeLearningCommandHandler: _handleActiveLearningCommand,
           )

@@ -8,6 +8,7 @@ import '../../../app/mascot_assets.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../domain/lesson_guide_flow.dart';
 
 enum V4SongStageAction { skipped, continued }
@@ -48,14 +49,21 @@ class _V4SongStageScreenState extends State<V4SongStageScreen> {
   VoicePromptService get _prompt {
     final current = _voicePromptService;
     if (current != null) return current;
-    return _voicePromptService = createVoicePromptService();
+    return _voicePromptService = createLessonVoicePromptService(
+      mediaService: widget.mediaService,
+    );
   }
 
   @override
   void initState() {
     super.initState();
     _ownsVoicePromptService = widget.voicePromptService == null;
-    _voicePromptService = widget.voicePromptService;
+    _voicePromptService = widget.voicePromptService == null
+        ? null
+        : createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            override: widget.voicePromptService,
+          );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_announceAndPlaySong()),
     );

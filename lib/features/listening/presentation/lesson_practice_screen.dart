@@ -18,6 +18,7 @@ import '../application/lesson_attempt_evaluator.dart';
 import '../application/lesson_guide_audio_library.dart';
 import '../application/lesson_completion_choice_recognizer.dart';
 import '../application/lesson_media_service.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../data/active_listening_session_store.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
@@ -172,8 +173,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     _attemptEvaluator =
         widget.attemptEvaluator ?? createDefaultLessonAttemptEvaluator();
     _ownsVoicePromptService = widget.voicePromptService == null;
-    _voicePromptService =
-        widget.voicePromptService ?? createVoicePromptService();
+    _voicePromptService = widget.lesson.usesV4Flow
+        ? createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            override: widget.voicePromptService,
+            age: widget.startAge,
+          )
+        : widget.voicePromptService ?? createVoicePromptService();
     _ownsCompletionChoiceRecognizer = widget.completionChoiceRecognizer == null;
     _completionChoiceRecognizer =
         widget.completionChoiceRecognizer ??
@@ -220,6 +226,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     if (!_handingOffMediaPlayback) {
       widget.mediaService.stopPlayback();
+      if (_voicePromptService is RecordedLessonVoicePromptService) {
+        unawaited(_voicePromptService.stop());
+      }
     }
     if (_ownsVoicePromptService && !_ownedVoicePromptReleased) {
       _ownedVoicePromptReleased = true;
@@ -3306,6 +3315,25 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     final pauseGeneration = _mainPauseGeneration;
     setState(() => _message = prompt.text);
+    if (widget.lesson.usesV4Flow &&
+        _voicePromptService is RecordedLessonVoicePromptService) {
+      const feedbackStates = <String>{
+        'CORRECT',
+        'RETRY',
+        'GIVE',
+        'NO_RESPONSE',
+        'ASR',
+        'SKIP',
+      };
+      final isFeedback = feedbackStates.contains(prompt.audioCode);
+      await speakRecordedLessonPrompt(
+        _voicePromptService,
+        prompt.text,
+        audioId: isFeedback ? null : prompt.audioCode,
+        feedbackState: isFeedback ? prompt.audioCode : null,
+      );
+      return;
+    }
     final uri = await _guideAudioLibrary.uriForAudioCode(prompt.audioCode);
     if (!mounted ||
         _pausedForMainAssistant ||
@@ -3337,6 +3365,26 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }
 
   Future<void> _playBilingualSentenceSample() async {
+    if (widget.lesson.usesV4Flow &&
+        _voicePromptService is RecordedLessonVoicePromptService) {
+      final sentence = _sentence;
+      await speakRecordedLessonPrompt(
+        _voicePromptService,
+        sentence.english,
+        locale: 'en-US',
+        audioId: sentence.englishAudioId,
+      );
+      if (!mounted || _pausedForMainAssistant) return;
+      await Future<void>.delayed(LessonGuideFlowV2.englishToVietnamesePause);
+      if (!mounted || _pausedForMainAssistant) return;
+      await speakRecordedLessonPrompt(
+        _voicePromptService,
+        sentence.vietnamese,
+        locale: 'vi-VN',
+        audioId: sentence.vietnameseAudioId,
+      );
+      return;
+    }
     final englishUri = await _resolveAuthoredAudio(
       _sentence.audioUri,
       _sentence.englishAudioId,
