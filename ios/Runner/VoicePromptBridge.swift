@@ -54,7 +54,18 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     }
     switch call.method {
     case "beginMainTurn":
-      result(audioSessionCoordinator.beginMainTurn(source: "VoicePromptBridge.beginMainTurn"))
+      let turnId = audioSessionCoordinator.beginMainTurn(
+        source: "VoicePromptBridge.beginMainTurn"
+      )
+      // Arm the record-capable engine before Flutter starts the assistant
+      // prompt. If the app moves to background while that prompt is speaking,
+      // Apple Speech can reuse this running engine instead of trying to create
+      // a new input graph after iOS has suspended foreground-only startup.
+      audioSessionCoordinator.requestBackgroundCaptureArm(
+        caller: "VoicePromptBridge.beginMainTurn"
+      ) {
+        result(turnId)
+      }
     case "endMainTurn":
       let arguments = call.arguments as? [String: Any]
       guard let turnId = arguments?["turnId"] as? String, !turnId.isEmpty else {
@@ -368,10 +379,9 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         caller: "VoicePromptBridge.completeReadyCue"
       )
     }
-    // Hand AVAudioSession back before Dart opens AVAudioEngine. Without this
-    // explicit release, the MAIN prompt can leave the speaker session active
-    // and the following recognition start fails even though manual recording
-    // works moments later.
+    // Release only this cue's prompt lease. A prearmed background-capture lease
+    // deliberately keeps AVAudioSession and its input engine alive so the next
+    // Apple Speech turn can open its buffer gate without rebuilding the graph.
     releasePromptAudioSession(token: audioToken)
     result?(nil)
   }

@@ -43,28 +43,61 @@ class RunnerTests: XCTestCase {
       IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
         applicationIsActive: false,
         promptActive: true,
-        speechCaptureActive: false
+        speechCaptureActive: false,
+        backgroundCaptureRunning: false
       )
     )
     XCTAssertTrue(
       IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
         applicationIsActive: false,
         promptActive: false,
-        speechCaptureActive: true
+        speechCaptureActive: true,
+        backgroundCaptureRunning: false
       )
     )
     XCTAssertFalse(
       IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
         applicationIsActive: true,
         promptActive: true,
-        speechCaptureActive: true
+        speechCaptureActive: true,
+        backgroundCaptureRunning: true
       )
     )
     XCTAssertFalse(
       IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
         applicationIsActive: false,
         promptActive: false,
-        speechCaptureActive: false
+        speechCaptureActive: false,
+        backgroundCaptureRunning: false
+      )
+    )
+    XCTAssertTrue(
+      IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+        applicationIsActive: false,
+        promptActive: false,
+        speechCaptureActive: false,
+        backgroundCaptureRunning: true
+      )
+    )
+  }
+
+  func testBackgroundAudioHandoffOnlyStaysWarmOutsideForeground() {
+    XCTAssertTrue(
+      IOSBackgroundAudioHandoffPolicy.shouldKeepEngineRunning(
+        backgroundLearningEnabled: true,
+        applicationIsActive: false
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundAudioHandoffPolicy.shouldKeepEngineRunning(
+        backgroundLearningEnabled: false,
+        applicationIsActive: false
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundAudioHandoffPolicy.shouldKeepEngineRunning(
+        backgroundLearningEnabled: true,
+        applicationIsActive: true
       )
     )
   }
@@ -427,6 +460,20 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(ownership.activeOwners, [.backgroundTransition])
 
     ownership.release(.backgroundTransition)
+    XCTAssertTrue(ownership.canDeactivate)
+  }
+
+  func testIOSAudioOwnershipKeepsPrearmedBackgroundCaptureAcrossPromptHandoff() {
+    var ownership = IOSAudioSessionOwnershipState()
+
+    ownership.acquire(.backgroundCapture)
+    ownership.acquire(.prompt)
+    ownership.release(.prompt)
+
+    XCTAssertFalse(ownership.canDeactivate)
+    XCTAssertEqual(ownership.activeOwners, [.backgroundCapture])
+
+    ownership.release(.backgroundCapture)
     XCTAssertTrue(ownership.canDeactivate)
   }
 

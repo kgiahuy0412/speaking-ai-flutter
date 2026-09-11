@@ -8,6 +8,7 @@ enum IOSAudioInputTarget: String {
 }
 
 enum IOSAudioSessionOwner: String, Hashable {
+  case backgroundCapture
   case backgroundTransition
   case mainTurn
   case prompt
@@ -58,10 +59,21 @@ struct IOSBackgroundTurnExecutionPolicy {
   static func shouldDeferToActiveAudio(
     applicationIsActive: Bool,
     promptActive: Bool,
-    speechCaptureActive: Bool
+    speechCaptureActive: Bool,
+    backgroundCaptureRunning: Bool
   ) -> Bool {
-    !applicationIsActive && (promptActive || speechCaptureActive)
+    !applicationIsActive
+      && (promptActive || speechCaptureActive || backgroundCaptureRunning)
   }
+}
+
+protocol IOSBackgroundCaptureHandoffDelegate: AnyObject {
+  func armBackgroundAudioHandoff(
+    caller: String,
+    completion: @escaping () -> Void
+  )
+
+  func disarmBackgroundAudioHandoff(caller: String)
 }
 
 /// The single writer for AVAudioSession during an iOS MAIN turn.
@@ -90,7 +102,9 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var preferredHfpInputName: String?
   private(set) var isMainTurnActive = false
   private(set) var isBackgroundLearningEnabled = false
+  private(set) var isBackgroundCaptureEngineRunning = false
   var isSpeechCaptureActive: Bool { ownership.contains(.speechCapture) }
+  var isBackgroundCaptureArmed: Bool { ownership.contains(.backgroundCapture) }
   var isPromptActive: Bool { ownership.contains(.prompt) }
   var isHfpRouteActive: Bool { ownership.contains(.hfpRoute) }
   var isBackgroundTransitionLeaseActive: Bool {
@@ -103,6 +117,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   var onPromptEnded: (() -> Void)?
   var onAudioSessionReleased: (() -> Void)?
   var onBackgroundLearningEvent: (([String: Any]) -> Void)?
+  weak var backgroundCaptureHandoffDelegate: IOSBackgroundCaptureHandoffDelegate?
 
   override init() {
     super.init()
@@ -129,6 +144,7 @@ final class IOSAudioSessionCoordinator: NSObject {
       caller: "BackgroundLearningBridge"
     )
     if !enabled {
+      requestBackgroundCaptureDisarm(caller: "BackgroundLearningBridge.stop")
       endBackgroundTurnExecution(caller: "BackgroundLearningBridge.stop")
       releaseAudioSessionIfIdle(caller: "BackgroundLearningBridge.stop")
     }
@@ -139,7 +155,8 @@ final class IOSAudioSessionCoordinator: NSObject {
     if IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
       applicationIsActive: applicationIsActive,
       promptActive: isPromptActive,
-      speechCaptureActive: isSpeechCaptureActive
+      speechCaptureActive: isSpeechCaptureActive,
+      backgroundCaptureRunning: isBackgroundCaptureEngineRunning
     ) {
       trace(
         stage: "background_turn_execution_deferred_to_active_audio",
@@ -156,6 +173,53 @@ final class IOSAudioSessionCoordinator: NSObject {
   func applicationWillEnterForeground() {
     endBackgroundTurnExecution(
       caller: "BackgroundLearningBridge.willEnterForeground"
+    )
+  }
+
+  /// Requests a real, record-capable AVAudioEngine while iOS still permits it.
+  /// The speech bridge owns that engine; the coordinator only serializes the
+  /// request with prompt/capture ownership and AVAudioSession mutations.
+  func requestBackgroundCaptureArm(
+    caller: String,
+    completion: @escaping () -> Void = {}
+  ) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        guard let self else {
+          completion()
+          return
+        }
+        self.requestBackgroundCaptureArm(caller: caller, completion: completion)
+      }
+      return
+    }
+    guard isBackgroundLearningEnabled else {
+      trace(stage: "background_capture_arm_skipped", caller: caller, message: "disabled")
+      completion()
+      return
+    }
+    guard let backgroundCaptureHandoffDelegate else {
+      trace(stage: "background_capture_arm_unavailable", caller: caller)
+      completion()
+      return
+    }
+    trace(stage: "background_capture_arm_requested", caller: caller)
+    backgroundCaptureHandoffDelegate.armBackgroundAudioHandoff(
+      caller: caller,
+      completion: completion
+    )
+  }
+
+  func requestBackgroundCaptureDisarm(caller: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.requestBackgroundCaptureDisarm(caller: caller)
+      }
+      return
+    }
+    trace(stage: "background_capture_disarm_requested", caller: caller)
+    backgroundCaptureHandoffDelegate?.disarmBackgroundAudioHandoff(
+      caller: caller
     )
   }
 
@@ -295,6 +359,9 @@ final class IOSAudioSessionCoordinator: NSObject {
     // when the final owner releases it; otherwise iOS renegotiates HFP mid-flow.
     releaseAudioSessionIfIdle(caller: "IOSAudioSessionCoordinator.endMainTurn")
     endBackgroundTurnExecutionIfIdle(caller: caller)
+    if UIApplication.shared.applicationState == .active {
+      requestBackgroundCaptureDisarm(caller: "IOSAudioSessionCoordinator.endMainTurn")
+    }
     onMainTurnEnded?()
   }
 
@@ -366,6 +433,15 @@ final class IOSAudioSessionCoordinator: NSObject {
     acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "prompt_audio_prepare", caller: caller)
     do {
+      if isBackgroundCaptureEngineRunning {
+        let usesHfp = hasTwoWayHfpRoute()
+        trace(
+          stage: "prompt_audio_background_capture_reused",
+          caller: caller,
+          values: ["usesHfp": usesHfp]
+        )
+        return usesHfp
+      }
       let currentRouteUsesPreferredHfp = preferredHfpInput.map { preferredInput in
         session.currentRoute.inputs.contains { $0.uid == preferredInput.uid }
       } ?? true
@@ -407,6 +483,10 @@ final class IOSAudioSessionCoordinator: NSObject {
     acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "phone_prompt_audio_prepare", caller: caller)
     do {
+      if isBackgroundCaptureEngineRunning {
+        trace(stage: "phone_prompt_background_capture_reused", caller: caller)
+        return
+      }
       try ensureCategory(
         mode: .default,
         options: [.defaultToSpeaker, .duckOthers],
@@ -449,6 +529,10 @@ final class IOSAudioSessionCoordinator: NSObject {
     acquireSessionOwner(.prompt, caller: caller)
     trace(stage: "media_prompt_audio_prepare", caller: caller)
     do {
+      if isBackgroundCaptureEngineRunning {
+        trace(stage: "media_prompt_background_capture_reused", caller: caller)
+        return
+      }
       try ensureCategory(
         category: .playback,
         mode: .spokenAudio,
@@ -632,6 +716,78 @@ final class IOSAudioSessionCoordinator: NSObject {
     }
   }
 
+  /// Configures the same two-way route used by Apple Speech without declaring
+  /// an active recognition turn. IOSSpeechRecognizerBridge keeps its input tap
+  /// running with a closed buffer gate until Flutter explicitly starts speech.
+  func prepareBackgroundCapture(target: IOSAudioInputTarget, caller: String) throws {
+    if !isBackgroundCaptureArmed {
+      acquireSessionOwner(.backgroundCapture, caller: caller)
+    }
+    trace(
+      stage: "background_capture_audio_prepare",
+      caller: caller,
+      values: ["audioSource": target.rawValue]
+    )
+    do {
+      switch target {
+      case .hfp:
+        guard let input = selectedOrAvailableHfpInput() else {
+          throw IOSAudioSessionCoordinatorError.hfpInputUnavailable
+        }
+        let currentRouteUsesInput = session.currentRoute.inputs.contains {
+          $0.uid == input.uid
+        }
+        if hasTwoWayHfpRoute(), currentRouteUsesInput {
+          try ensureActive(caller: caller)
+        } else {
+          try configureHfp(activate: true, preferredInput: input, caller: caller)
+        }
+      case .builtInMic:
+        guard let input = currentOrAvailableInput(portType: .builtInMic) else {
+          throw IOSAudioSessionCoordinatorError.builtInMicUnavailable
+        }
+        try ensureCategory(mode: .voiceChat, options: [.defaultToSpeaker], caller: caller)
+        try ensureActive(caller: caller)
+        try ensurePreferredInput(input, caller: caller)
+      }
+      trace(
+        stage: "background_capture_audio_active",
+        caller: caller,
+        values: ["audioSource": target.rawValue]
+      )
+    } catch {
+      releaseBackgroundCapture(caller: "\(caller).failed")
+      throw error
+    }
+  }
+
+  func releaseBackgroundCapture(caller: String) {
+    guard releaseSessionOwner(.backgroundCapture, caller: caller) else { return }
+    setBackgroundCaptureEngineRunning(false, caller: caller)
+    trace(stage: "background_capture_audio_released", caller: caller)
+    releaseAudioSessionIfIdle(caller: caller)
+    endBackgroundTurnExecutionIfIdle(caller: caller)
+  }
+
+  func setBackgroundCaptureEngineRunning(_ running: Bool, caller: String) {
+    guard running != isBackgroundCaptureEngineRunning else { return }
+    if running, !isBackgroundCaptureArmed {
+      trace(
+        stage: "background_capture_engine_state_ignored",
+        caller: caller,
+        message: "owner_missing"
+      )
+      return
+    }
+    isBackgroundCaptureEngineRunning = running
+    trace(
+      stage: running
+        ? "background_capture_engine_running"
+        : "background_capture_engine_stopped",
+      caller: caller
+    )
+  }
+
   func routeDescription() -> String {
     let inputs = session.currentRoute.inputs.map { "\($0.portType.rawValue):\($0.portName)" }
     let outputs = session.currentRoute.outputs.map { "\($0.portType.rawValue):\($0.portName)" }
@@ -664,6 +820,7 @@ final class IOSAudioSessionCoordinator: NSObject {
     onHfpRouteOwnershipChanged = nil
     onAudioSessionReleased = nil
     onBackgroundLearningEvent = nil
+    backgroundCaptureHandoffDelegate = nil
   }
 
   /// Ends the bounded transition lease once native audio is verifiably active.
@@ -677,7 +834,7 @@ final class IOSAudioSessionCoordinator: NSObject {
       return
     }
     guard UIApplication.shared.applicationState != .active else { return }
-    guard isPromptActive || isSpeechCaptureActive else { return }
+    guard isPromptActive || isSpeechCaptureActive || isBackgroundCaptureEngineRunning else { return }
     trace(
       stage: "background_turn_execution_yielded_to_active_audio",
       caller: caller,
@@ -706,6 +863,7 @@ final class IOSAudioSessionCoordinator: NSObject {
       interactionPendingOrActive: pendingTurnId != nil
         || isMainTurnActive
         || isBackgroundTransitionLeaseActive
+        || isBackgroundCaptureArmed
     )
     guard shouldRetain, backgroundTurnTask == .invalid else { return }
 
@@ -739,6 +897,7 @@ final class IOSAudioSessionCoordinator: NSObject {
       interactionPendingOrActive: pendingTurnId != nil
         || isMainTurnActive
         || isBackgroundTransitionLeaseActive
+        || isBackgroundCaptureArmed
     )
     guard shouldRetain else { return }
     trace(stage: "background_turn_execution_refresh_requested", caller: caller)
@@ -749,7 +908,8 @@ final class IOSAudioSessionCoordinator: NSObject {
   private func endBackgroundTurnExecutionIfIdle(caller: String) {
     guard pendingTurnId == nil,
       !isMainTurnActive,
-      !isBackgroundTransitionLeaseActive
+      !isBackgroundTransitionLeaseActive,
+      !isBackgroundCaptureArmed
     else { return }
     endBackgroundTurnExecution(caller: caller)
   }
@@ -902,6 +1062,9 @@ final class IOSAudioSessionCoordinator: NSObject {
       // Locking the screen does not emit an AVAudioSession interruption while
       // the background audio mode remains active. Calls, Siri, alarms and
       // competing non-mixable audio do, and must pause the current turn.
+      requestBackgroundCaptureDisarm(
+        caller: "IOSAudioSessionCoordinator.interruptionBegan"
+      )
       onBackgroundLearningEvent?([
         "type": "background.interrupted",
         "reason": "audio_session_interruption_\(rawReason)",

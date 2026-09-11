@@ -8,8 +8,10 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
   private let audioSessionCoordinator: IOSAudioSessionCoordinator
   private var eventSink: FlutterEventSink?
   private var activeLearningRequested = false
+  private var willResignActiveToken: NSObjectProtocol?
   private var didEnterBackgroundToken: NSObjectProtocol?
   private var willEnterForegroundToken: NSObjectProtocol?
+  private var didBecomeActiveToken: NSObjectProtocol?
 
   init(
     messenger: FlutterBinaryMessenger,
@@ -26,6 +28,17 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
     )
     super.init()
 
+    willResignActiveToken = NotificationCenter.default.addObserver(
+      forName: UIApplication.willResignActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self else { return }
+      self.audioSessionCoordinator.requestBackgroundCaptureArm(
+        caller: "BackgroundLearningBridge.willResignActive"
+      )
+      self.reconcileBackgroundTransitionLease()
+    }
     didEnterBackgroundToken = NotificationCenter.default.addObserver(
       forName: UIApplication.didEnterBackgroundNotification,
       object: nil,
@@ -41,6 +54,21 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
     ) { [weak self] _ in
       self?.audioSessionCoordinator.applicationWillEnterForeground()
       self?.audioSessionCoordinator.setBackgroundTransitionLeaseActive(false)
+    }
+    didBecomeActiveToken = NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self else { return }
+      if !IOSBackgroundAudioHandoffPolicy.shouldKeepEngineRunning(
+        backgroundLearningEnabled: self.audioSessionCoordinator.isBackgroundLearningEnabled,
+        applicationIsActive: true
+      ) {
+        self.audioSessionCoordinator.requestBackgroundCaptureDisarm(
+          caller: "BackgroundLearningBridge.didBecomeActive"
+        )
+      }
     }
 
     methodChannel.setMethodCallHandler { [weak self] call, result in
@@ -60,6 +88,18 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
       case "setActiveLearning":
         let arguments = call.arguments as? [String: Any]
         self.activeLearningRequested = arguments?["active"] as? Bool ?? false
+        if self.activeLearningRequested {
+          self.audioSessionCoordinator.requestBackgroundCaptureArm(
+            caller: "BackgroundLearningBridge.setActiveLearning"
+          )
+        } else if !IOSBackgroundAudioHandoffPolicy.shouldKeepEngineRunning(
+          backgroundLearningEnabled: self.audioSessionCoordinator.isBackgroundLearningEnabled,
+          applicationIsActive: UIApplication.shared.applicationState == .active
+        ) {
+          self.audioSessionCoordinator.requestBackgroundCaptureDisarm(
+            caller: "BackgroundLearningBridge.setActiveLearningEnded"
+          )
+        }
         self.reconcileBackgroundTransitionLease()
         result(nil)
       case "isActive":
@@ -97,6 +137,10 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
     methodChannel.setMethodCallHandler(nil)
     eventChannel.setStreamHandler(nil)
     eventSink = nil
+    if let willResignActiveToken {
+      NotificationCenter.default.removeObserver(willResignActiveToken)
+    }
+    willResignActiveToken = nil
     if let didEnterBackgroundToken {
       NotificationCenter.default.removeObserver(didEnterBackgroundToken)
     }
@@ -105,6 +149,10 @@ final class BackgroundLearningBridge: NSObject, FlutterStreamHandler {
       NotificationCenter.default.removeObserver(willEnterForegroundToken)
     }
     willEnterForegroundToken = nil
+    if let didBecomeActiveToken {
+      NotificationCenter.default.removeObserver(didBecomeActiveToken)
+    }
+    didBecomeActiveToken = nil
   }
 
   private func reconcileBackgroundTransitionLease() {
