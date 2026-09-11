@@ -1,0 +1,6 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: Challenge keeps the mic closed until its recorded prompt ends
+00:00 +1: Mission keeps the mic closed until its recorded prompt ends
+00:00 +2: (tearDownAll)
+00:00 +2: All tests passed!

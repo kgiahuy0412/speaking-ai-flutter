@@ -1,0 +1,31 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart
+00:00 +0: a parent platform TTS service cannot bypass recorded audio
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+00:00 +1: custom voice output remains an explicit override
+00:00 +2: an index read failure can recover on the next prompt
+[HOMI_AUDIO] INDEX_ERROR id=DETAIL_TRANSITION: Bad state: Asset sync is not ready
+[HOMI_AUDIO] TTS reason=index_unavailable id=DETAIL_TRANSITION locale=vi-VN
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +3: all imported clips are declared in the Flutter bundle
+00:00 +4: production IDs and dynamic text select their recorded clips
+00:00 +5: feedback rotates within the correct age and includes English locale
+00:00 +6: intro plays system, complete hook, and transition in order
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+[HOMI_AUDIO] MP3 id=C35-L1-T02-B02_ENTRY asset=/assets/audio/homi_v4/hook/C35-L1-T02-B02_ENTRY.mp3
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +7: resume plays only the resume cue, without the hook or intro
+[HOMI_AUDIO] MP3 id=RESUME_CORE_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/RESUME_CORE_LESSON_TABLE_005.mp3
+00:00 +8: missing and failed clips fall back to speech on the selected route
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+[HOMI_AUDIO] MP3_ERROR id=C35-L1-T01-B01-T01_EN: Bad state: Unavailable clip
+[HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T01-B01-T01_EN locale=en-US
+[HOMI_AUDIO] TTS reason=no_matching_clip id=C1112-L2-T04-B01-T03_EN locale=en-US
+00:00 +9: stop during a pending index load cannot start audio later
+00:00 +10: stop midway through intro prevents later segments and TTS
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+00:00 +11: stop releases a stalled native TTS waiter immediately
+[HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+00:00 +12: an idle prompt service does not stop a song on the shared media player
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +13: a rebinding owns its cancellation but not the borrowed fallback
+00:00 +14: All tests passed!

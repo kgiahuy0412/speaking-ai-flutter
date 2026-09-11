@@ -1,0 +1,13 @@
+{
+  "HomiAudioCount": 4916,
+  "HomiAudioBytes": 189673805.0,
+  "AudioHashMismatches": 0,
+  "RequiredAssets": [
+    "assets/flutter_assets/THIRD_PARTY_NOTICES.md",
+    "assets/flutter_assets/assets/legal/APACHE-2.0.txt",
+    "assets/flutter_assets/NOTICES.Z",
+    "assets/flutter_assets/assets/data/homi_audio_index.json"
+  ],
+  "ApkSha256": "3B77732E855215082EEE7AD4363A5A2ADC038838D3B94486ED503ECC09976586",
+  "CheckedAt": "2026-09-11T11:04:32.3038996+07:00"
+}

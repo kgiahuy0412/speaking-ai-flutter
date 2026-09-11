@@ -1,0 +1,478 @@
+{
+  "source": {
+    "coreTargets": 600,
+    "hookRows": 97
+  },
+  "txtChallengeComparison": {
+    "count": 872,
+    "diffs": []
+  },
+  "txtMissionComparison": {
+    "count": 180,
+    "diffs": []
+  },
+  "app": {
+    "lessons": 109,
+    "coreTargets": 601,
+    "challenges": 872,
+    "missions": 180,
+    "roleplays": 10,
+    "audioProvider": "v4-tts-manifest-pending",
+    "manifestEntries": 2435,
+    "manifestStatus": {
+      "PENDING_TTS": 2430,
+      "READY_SOURCE_AUDIO": 5
+    },
+    "manifestKinds": {
+      "systemPrompt": 29,
+      "microObjective": 91,
+      "coreEnglish": 601,
+      "coreVietnamese": 601,
+      "challengePrompt": 872,
+      "hook": 18,
+      "songReference": 5,
+      "rolePlayChild": 21,
+      "rolePlayHomi": 17,
+      "missionPrompt": 180
+    },
+    "coreEnglishUrls": 0,
+    "coreVietnameseUrls": 0,
+    "coreIdsFoundInRepoAssets": 0,
+    "introUrls": 0,
+    "songs": [
+      {
+        "code": "C35-L1-T02-B02",
+        "title": "Count with Me",
+        "uri": "asset:///assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3",
+        "fileExists": true
+      },
+      {
+        "code": "C35-L3-T09-B02",
+        "title": "What Should I Wear?",
+        "uri": "asset:///assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3",
+        "fileExists": true
+      },
+      {
+        "code": "C35-L3-T10-B02",
+        "title": "My Happy Day",
+        "uri": "asset:///assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3",
+        "fileExists": true
+      },
+      {
+        "code": "C67-L3-T08-B01",
+        "title": "Let's Play Together",
+        "uri": "asset:///assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3",
+        "fileExists": true
+      },
+      {
+        "code": "C810-L1-T01-B02",
+        "title": "My Busy Day",
+        "uri": "asset:///assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3",
+        "fileExists": true
+      }
+    ]
+  },
+  "packs": [
+    {
+      "name": "01_A_System_Cue_Audio_ElevenLabs_EN0.75x_VI0.85x",
+      "manifestRows": 387,
+      "mp3Files": 387,
+      "bytes": 19492082,
+      "missingOrEmptyFiles": []
+    },
+    {
+      "name": "02_B_Feedback_Audio_ElevenLabs_EN0.75x_VI0.85x",
+      "manifestRows": 53,
+      "mp3Files": 53,
+      "bytes": 1564225,
+      "missingOrEmptyFiles": []
+    },
+    {
+      "name": "03_C_Hook_Audio_ElevenLabs_VI0.85x_SFX",
+      "manifestRows": 97,
+      "mp3Files": 114,
+      "bytes": 5290895,
+      "missingOrEmptyFiles": []
+    },
+    {
+      "name": "05_E_Core_Target_Audio_ElevenLabs_EN0.75x_VI0.85x",
+      "manifestRows": 1200,
+      "mp3Files": 1200,
+      "bytes": 26868969,
+      "missingOrEmptyFiles": []
+    },
+    {
+      "name": "06_F_Challenge_Audio_ElevenLabs_EN0.75x_VI0.85x",
+      "manifestRows": 2616,
+      "mp3Files": 2627,
+      "bytes": 110071979,
+      "missingOrEmptyFiles": []
+    },
+    {
+      "name": "07_G_Mission_Audio_ElevenLabs_EN0.75x_VI0.85x",
+      "manifestRows": 540,
+      "mp3Files": 540,
+      "bytes": 26501647,
+      "missingOrEmptyFiles": []
+    }
+  ],
+  "core": {
+    "packTargets": 600,
+    "audioTextDiffs": [],
+    "appTargetsAbsentFromTxt": [
+      {
+        "id": "C1112-L2-T04-B01-T03",
+        "number": 3,
+        "voice": "",
+        "english": "Taxi.",
+        "vietnamese": "Taxi.",
+        "englishAudioId": "C1112-L2-T04-B01-T03_EN",
+        "vietnameseAudioId": "C1112-L2-T04-B01-T03_VI",
+        "audioUrl": null,
+        "vietnameseAudioUrl": null,
+        "recognitionVariants": [
+          "Taxi."
+        ],
+        "requiresAllExpectedTokens": false
+      }
+    ],
+    "txtTargetsAbsentFromApp": [],
+    "txtAppTextDiffs": []
+  },
+  "challenges": {
+    "questions": 872,
+    "diffs": []
+  },
+  "missions": {
+    "questions": 180,
+    "diffs": []
+  },
+  "hooks": {
+    "matched": 97,
+    "unmatched": [],
+    "missingInPack": [
+      {
+        "code": "C35-L1-T01-B01",
+        "title": "A to I Letters",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C35-L1-T01-B02",
+        "title": "J to R Letters",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C35-L1-T01-B03",
+        "title": "S to Z Letters",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học các chữ cái và từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C67-L1-T01-B01",
+        "title": "A to I Words",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C67-L1-T01-B02",
+        "title": "J to R Words",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C67-L1-T01-B03",
+        "title": "S to Z Words",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng học chữ cái qua những từ quen thuộc nhé."
+        }
+      },
+      {
+        "code": "C810-L1-T01-B01",
+        "title": "Time & Tasks",
+        "entry": {
+          "kind": "hook",
+          "text": "Mấy giờ rồi nhỉ?"
+        }
+      },
+      {
+        "code": "C810-L1-T01-B02",
+        "title": "My Routine",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình cùng nói về lịch hằng ngày, cuối bài còn có bài hát nhé."
+        }
+      },
+      {
+        "code": "C1112-L1-T01-B01",
+        "title": "Weekly Activities",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình luyện cách nói về lịch trong tuần."
+        }
+      },
+      {
+        "code": "C1112-L1-T01-B02",
+        "title": "My Week",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình luyện cách nói về lịch trong tuần."
+        }
+      },
+      {
+        "code": "C1315-L1-T01-B01",
+        "title": "Time Blocks",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình luyện cách sắp xếp thời gian."
+        }
+      },
+      {
+        "code": "C1315-L1-T01-B02",
+        "title": "Plan My Time",
+        "entry": {
+          "kind": "microObjective",
+          "text": "Mình luyện cách sắp xếp thời gian."
+        }
+      }
+    ],
+    "textDiffs": []
+  },
+  "cues": {
+    "byId": {
+      "DETAIL_TRANSITION": 1,
+      "CORE_SPEAK_01": 1,
+      "CORE_SPEAK_02": 1,
+      "CORE_SPEAK_03": 1,
+      "CORE_SPEAK_04": 1,
+      "CORE_SPEAK_05": 1,
+      "OTHER_TOPIC_SELECTION": 1,
+      "LESSON_END_CHOICE": 1,
+      "TOPIC_END_CHOICE": 1,
+      "TOPIC_RELEARN_SCOPE": 1,
+      "ONE_TOPIC_REMAINING": 1,
+      "ALL_TOPICS_COMPLETED": 1,
+      "CHALLENGE_INTRO": 1,
+      "MISSION_INTRO": 1,
+      "COURSE_END_CHOICE": 1,
+      "NEW_COURSE_PARENT": 1,
+      "COURSE_RELEARN_LEVEL": 1,
+      "RESUME_ROLEPLAY": 1,
+      "RESUME_CHALLENGE": 1,
+      "RESUME_MISSION": 1,
+      "REINFORCEMENT_START": 1,
+      "REINFORCEMENT_END": 1,
+      "REINFORCEMENT_FAIL_2": 1,
+      "REINFORCEMENT_RESUME": 1,
+      "FIRST_STAR_EXPLAIN": 1,
+      "LEVEL_INTRO": 3,
+      "TOPIC_SELECTION": 2,
+      "TOPIC_INTRO": 10,
+      "LOCKED_LEVEL": 3,
+      "LOCKED_LESSON": 3,
+      "TOPIC_IN_PROGRESS": 10,
+      "COMPLETED_TOPIC_CHOICE": 10,
+      "NEXT_LEVEL_CHOICE": 2,
+      "STAR_RELEARN_3_10": 9,
+      "STAR_RELEARN_11_15": 9,
+      "FIRST_LESSON_INTRO": 97,
+      "NEXT_LESSON_INTRO": 97,
+      "RESUME_CORE": 97,
+      "SONG_PREALERT": 5,
+      "SONG_START_CUE": 5
+    },
+    "kinds": {
+      "static": 25,
+      "dynamic_numeric": 61,
+      "dynamic_lesson_name": 291,
+      "dynamic_song_title": 10
+    },
+    "missingLessonCueTemplates": [
+      {
+        "lesson_table": "LESSON_TABLE_001",
+        "lesson_key": "C35-L1-T01-B01",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_002",
+        "lesson_key": "C35-L1-T01-B02",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_003",
+        "lesson_key": "C35-L1-T01-B03",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_022",
+        "lesson_key": "C67-L1-T01-B01",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_023",
+        "lesson_key": "C67-L1-T01-B02",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_024",
+        "lesson_key": "C67-L1-T01-B03",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_044",
+        "lesson_key": "C810-L1-T01-B01",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_045",
+        "lesson_key": "C810-L1-T01-B02",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_066",
+        "lesson_key": "C1112-L1-T01-B01",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_067",
+        "lesson_key": "C1112-L1-T01-B02",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_090",
+        "lesson_key": "C1315-L1-T01-B01",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      },
+      {
+        "lesson_table": "LESSON_TABLE_091",
+        "lesson_key": "C1315-L1-T01-B02",
+        "missing_variable": "LESSON_NAME",
+        "affected_cue_ids": "FIRST_LESSON_INTRO|NEXT_LESSON_INTRO|RESUME_CORE",
+        "reason": "Không có LESSON_NAME trong các tệp nguồn đã cung cấp."
+      }
+    ]
+  },
+  "feedback": {
+    "byAge": {
+      "3-5": 11,
+      "6-7": 10,
+      "8-10": 10,
+      "11-12": 9,
+      "13-15": 10,
+      "11-15": 3
+    },
+    "byState": {
+      "CORRECT": 15,
+      "RETRY": 9,
+      "GIVE": 10,
+      "NO_RESPONSE": 6,
+      "ASR": 5,
+      "SKIP": 5,
+      "SPECIAL_11_15": 3
+    }
+  },
+  "totalMp3Files": 4921,
+  "totalMp3Bytes": 189789797,
+  "starCountsAbovePackRange": [
+    {
+      "code": "C35-L1-T01-B01",
+      "age": "3-5",
+      "totalStars": 11
+    },
+    {
+      "code": "C35-L1-T01-B02",
+      "age": "3-5",
+      "totalStars": 11
+    },
+    {
+      "code": "C35-L1-T01-B03",
+      "age": "3-5",
+      "totalStars": 10
+    },
+    {
+      "code": "C35-L1-T02-B01",
+      "age": "3-5",
+      "totalStars": 12
+    },
+    {
+      "code": "C67-L1-T01-B01",
+      "age": "6-7",
+      "totalStars": 11
+    },
+    {
+      "code": "C67-L1-T01-B02",
+      "age": "6-7",
+      "totalStars": 11
+    },
+    {
+      "code": "C67-L1-T01-B03",
+      "age": "6-7",
+      "totalStars": 10
+    },
+    {
+      "code": "C67-L1-T02-B01",
+      "age": "6-7",
+      "totalStars": 12
+    },
+    {
+      "code": "C67-L1-T02-B02",
+      "age": "6-7",
+      "totalStars": 12
+    },
+    {
+      "code": "C1315-L1-T03-B01",
+      "age": "13-15",
+      "totalStars": 10
+    },
+    {
+      "code": "C1315-L3-T07-B02",
+      "age": "13-15",
+      "totalStars": 10
+    },
+    {
+      "code": "C1315-L3-T08-B02",
+      "age": "13-15",
+      "totalStars": 11
+    },
+    {
+      "code": "C1315-L3-T09-B02",
+      "age": "13-15",
+      "totalStars": 10
+    }
+  ],
+  "roleplayLinesWithoutMatchingCoreText": []
+}

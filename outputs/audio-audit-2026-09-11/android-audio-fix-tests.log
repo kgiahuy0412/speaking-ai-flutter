@@ -1,0 +1,95 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: a parent platform TTS service cannot bypass recorded audio
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: custom voice output remains an explicit override
+00:00 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: an index read failure can recover on the next prompt
+[HOMI_AUDIO] INDEX_ERROR id=DETAIL_TRANSITION: Bad state: Asset sync is not ready
+[HOMI_AUDIO] TTS reason=index_unavailable id=DETAIL_TRANSITION locale=vi-VN
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: all imported clips are declared in the Flutter bundle
+00:00 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: intro plays system, complete hook, and transition in order
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+[HOMI_AUDIO] MP3 id=C35-L1-T02-B02_ENTRY asset=/assets/audio/homi_v4/hook/C35-L1-T02-B02_ENTRY.mp3
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: resume plays only the resume cue, without the hook or intro
+[HOMI_AUDIO] MP3 id=RESUME_CORE_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/RESUME_CORE_LESSON_TABLE_005.mp3
+00:00 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: missing and failed clips fall back to speech on the selected route
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+[HOMI_AUDIO] MP3_ERROR id=C35-L1-T01-B01-T01_EN: Bad state: Unavailable clip
+[HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T01-B01-T01_EN locale=en-US
+[HOMI_AUDIO] TTS reason=no_matching_clip id=C1112-L2-T04-B01-T03_EN locale=en-US
+00:00 +9: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: stop midway through intro prevents later segments and TTS
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+00:00 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: stop releases a stalled native TTS waiter immediately
+[HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+00:00 +12: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +12: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: an idle prompt service does not stop a song on the shared media player
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:00 +13: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +14: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: (setUpAll)
+00:00 +14: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +15: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +16: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +17: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +18: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +19: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +20: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +21: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +22: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +23: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +24: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +25: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +26: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +27: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +28: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +29: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +30: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +31: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:01 +32: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-Q01_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T01-B01-Q01_PROMPT.mp3
+[HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+00:02 +33: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:02 +34: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:02 +35: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:02 +36: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Challenge keeps the mic closed until its recorded prompt ends
+00:02 +37: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens the microphone when the native ready cue never completes
+00:02 +37: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_flow_test.dart: Mission keeps the mic closed until its recorded prompt ends
+[HOMI_AUDIO] MP3 id=C35-L1-M01_PROMPT asset=/assets/audio/homi_v4/mission/C35-L1-M01_PROMPT.mp3
+[HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+00:02 +38: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens the microphone when the native ready cue never completes
+00:03 +39: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main command window starts only after the microphone is ready
+00:03 +40: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main prompt reopens the mic immediately after final recognition
+00:03 +41: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: HFP speech activity extends MAIN command window before transcript
+00:04 +42: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main exposes its first microphone start failure without retrying
+00:04 +43: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main pauses its command deadline while a premature completion recovers
+00:04 +44: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main stops automatic retries and exposes the microphone error
+00:04 +45: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main activation never exposes a transient inactive session
+00:04 +46: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main button keeps listening through age, topic and lesson
+00:04 +47: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: saved age lets MAIN go directly from feature to topic number
+00:04 +48: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: completed topic prompt continues through topic and lesson
+00:04 +49: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: speaking command opens the other-learning voice menu
+00:04 +50: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: translation stop opens its navigation menu and microphone
+00:04 +51: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main opens today practice when parent vocabulary is pending
+00:04 +52: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main next answer advances through the module bridge
+00:04 +53: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main previous answer moves back through the module bridge
+00:04 +54: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson Main dispatches the remaining D07 and D08 commands
+00:04 +55: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: active lesson exit choice keeps listening then opens vocabulary
+00:04 +56: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: MAIN finalizes buffered iOS transcript when its command window ends
+00:04 +57: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: Main asks once after silence then exits on the second timeout
+00:04 +58: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: vocabulary star branch uses its exact silence prompts
+00:04 +59: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: pauses navigation recognizer before conversation can reuse it
+00:04 +60: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: handles an explicit command from a stable partial result
+00:04 +61: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: hears the wake phrase from a secondary Android transcript
+00:04 +62: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: uses final Android alternatives when the primary text misses
+00:05 +63: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: returns to wake-word mode when the command window expires
+00:05 +64: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: does not reopen the microphone until the wake reply finishes
+00:05 +65: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/voice_navigation/voice_navigation_controller_test.dart: pause waits for a pending navigation start to release the mic
+00:06 +66: All tests passed!

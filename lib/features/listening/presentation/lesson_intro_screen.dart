@@ -10,6 +10,7 @@ import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_guide_audio_library.dart';
+import '../application/recorded_lesson_voice_prompt_service.dart';
 import '../../conversation/presentation/conversation_controller.dart';
 import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
@@ -92,7 +93,13 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
   void initState() {
     super.initState();
     _guideAudioLibrary = widget.guideAudioLibrary ?? LessonGuideAudioLibrary();
-    _voicePromptService = widget.voicePromptService;
+    _voicePromptService = widget.voicePromptService == null
+        ? null
+        : createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            override: widget.voicePromptService,
+            age: widget.startAge,
+          );
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -677,7 +684,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return existing;
     }
     _ownsVoicePromptService = true;
-    return _voicePromptService = createVoicePromptService();
+    return _voicePromptService = widget.lesson.usesV4Flow
+        ? createLessonVoicePromptService(
+            mediaService: widget.mediaService,
+            age: widget.startAge,
+          )
+        : createVoicePromptService();
   }
 
   Widget _buildPracticeScreen(BuildContext context) => LessonPracticeScreen(

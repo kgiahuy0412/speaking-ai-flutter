@@ -1,0 +1,60 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/app_config_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/app_config_test.dart: uses the production backend when no URL is supplied
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:01 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/core_audio_asset_cache_test.dart: a fresh install without just_audio_cache can load bundled audio
+Audio asset cache refresh skipped; loading bundled audio: PathNotFoundException: Directory listing failed, path = 'D:\Code\HuaMei\App_noi\flutter\16_10th9\speaking-ai-flutter/.codex-tmp\asset-cache-39f5803c\just_audio_cache\*' (OS Error: The system cannot find the path specified, errno = 3)
+00:02 +9: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +12: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +13: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +14: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +15: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:02 +16: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: finishes in three steps with phone microphone while H20 is optional
+00:03 +17: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: limited mode can finish without microphone or H20
+00:03 +17: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: a parent platform TTS service cannot bypass recorded audio
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+00:03 +18: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: limited mode can finish without microphone or H20
+00:03 +19: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: limited mode can finish without microphone or H20
+00:03 +19: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: an index read failure can recover on the next prompt
+[HOMI_AUDIO] INDEX_ERROR id=DETAIL_TRANSITION: Bad state: Asset sync is not ready
+[HOMI_AUDIO] TTS reason=index_unavailable id=DETAIL_TRANSITION locale=vi-VN
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:03 +20: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: limited mode can finish without microphone or H20
+00:03 +21: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: all imported clips are declared in the Flutter bundle
+00:03 +22: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +23: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +24: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +24: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: intro plays system, complete hook, and transition in order
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+[HOMI_AUDIO] MP3 id=C35-L1-T02-B02_ENTRY asset=/assets/audio/homi_v4/hook/C35-L1-T02-B02_ENTRY.mp3
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:03 +25: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +25: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: resume plays only the resume cue, without the hook or intro
+[HOMI_AUDIO] MP3 id=RESUME_CORE_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/RESUME_CORE_LESSON_TABLE_005.mp3
+00:03 +26: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +26: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: missing and failed clips fall back to speech on the selected route
+[HOMI_AUDIO] MP3 id=C35-L1-T01-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T01-B01-T01_EN.mp3
+[HOMI_AUDIO] MP3_ERROR id=C35-L1-T01-B01-T01_EN: Bad state: Unavailable clip
+[HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T01-B01-T01_EN locale=en-US
+[HOMI_AUDIO] TTS reason=no_matching_clip id=C1112-L2-T04-B01-T03_EN locale=en-US
+00:03 +27: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +28: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +28: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: stop midway through intro prevents later segments and TTS
+[HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_005 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3
+00:03 +29: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +29: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: stop releases a stalled native TTS waiter immediately
+[HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+00:03 +30: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +30: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: an idle prompt service does not stop a song on the shared media player
+[HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+00:03 +31: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +32: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/onboarding/startup_setup_screen_test.dart: closing legal review early does not unlock voice consent
+00:03 +33: All tests passed!

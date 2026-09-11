@@ -8,10 +8,26 @@ plugins {
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 val hasReleaseSigning = keystorePropertiesFile.exists()
+val requireProductionSigning = providers.gradleProperty("requireProductionSigning")
+    .orNull == "true"
+
+check(!requireProductionSigning || hasReleaseSigning) {
+    "Production APK requires android/key.properties and a production signing keystore."
+}
 
 if (hasReleaseSigning) {
     keystorePropertiesFile.inputStream().use { input ->
         keystoreProperties.load(input)
+    }
+    if (requireProductionSigning) {
+        for (name in listOf("keyAlias", "keyPassword", "storeFile", "storePassword")) {
+            check(!keystoreProperties.getProperty(name).isNullOrBlank()) {
+                "Production signing property is missing: $name"
+            }
+        }
+        check(keystoreProperties.getProperty("keyAlias") != "androiddebugkey") {
+            "The Android debug key cannot be used for a production APK."
+        }
     }
 }
 

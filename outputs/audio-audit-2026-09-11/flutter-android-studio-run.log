@@ -1,0 +1,628 @@
+Resolving dependencies...
+Downloading packages...
+  archive 4.0.9 (4.2.0 available)
+  cli_util 0.4.2 (0.6.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.0.0 available)
+  hooks 2.0.2 (2.2.0 available)
+  image 4.9.1 (4.9.2 available)
+  jni 1.0.0 (1.0.3 available)
+  jni_flutter 1.0.1 (1.0.3 available)
+  local_auth_android 2.0.9 (2.0.10 available)
+  local_auth_darwin 2.0.3 (2.0.4 available)
+  local_auth_windows 2.0.1 (2.0.2 available)
+  matcher 0.12.19 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.0 (1.19.0 available)
+  objective_c 9.4.1 (9.6.0 available)
+  package_config 2.2.0 (3.0.0 available)
+  platform 3.1.6 (3.2.0 available)
+  posix 6.5.0 (6.5.2 available)
+  pub_semver 2.2.0 (2.2.1 available)
+  record_use 0.6.0 (1.1.1 available)
+  record_web 2.1.1 (2.1.2 available)
+  record_windows 2.2.2 (2.2.3 available)
+  shared_preferences_android 2.4.27 (2.4.28 available)
+  shared_preferences_foundation 2.5.6 (2.5.7 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  synchronized 3.4.1 (3.4.2 available)
+  test_api 0.7.11 (0.7.14 available)
+  url_launcher_android 6.3.32 (6.3.33 available)
+  url_launcher_ios 6.4.1 (6.4.2 available)
+  url_launcher_linux 3.2.2 (3.2.3 available)
+  url_launcher_macos 3.2.5 (3.2.6 available)
+  url_launcher_windows 3.1.5 (3.1.6 available)
+  vector_math 2.2.0 (2.4.2 available)
+  vm_service 15.2.0 (15.3.0 available)
+  win32 6.3.0 (6.4.0 available)
+  yaml 3.1.3 (3.1.4 available)
+Got dependencies!
+36 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Launching lib\main.dart on sdk gphone64 x86 64 in debug mode...
+Running Gradle task 'assembleDebug'...                            216.4s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...          35.8s
+D/FlutterJNI( 6797): Beginning load of flutter...
+D/FlutterJNI( 6797): flutter (null) was loaded normally!
+I/flutter ( 6797): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+I/trik.aispeaking( 6797): hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+I/trik.aispeaking( 6797): hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+I/trik.aispeaking( 6797): hiddenapi: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+I/trik.aispeaking( 6797): hiddenapi: Accessing hidden method Landroid/util/LongArray;->get(I)J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+D/FlutterRenderer( 6797): Width is zero. 0,0
+D/CompatChangeReporter( 6797): Compat change id reported: 377864165; UID 10235; state: ENABLED
+D/DesktopModeFlags( 6797): Toggle override initialized to: OVERRIDE_UNSET
+W/HWUI    ( 6797): Unknown dataspace 0
+I/Choreographer( 6797): Skipped 66 frames!  The application may be doing too much work on its main thread.
+D/ProfileInstaller( 6797): Installing profile for com.innotrik.aispeaking
+I/WindowExtensionsImpl( 6797): Initializing Window Extensions, vendor API level=9, activity embedding enabled=true
+D/FlutterRenderer( 6797): Width is zero. 0,0
+D/FlutterJNI( 6797): Sending viewport metrics to the engine.
+I/TextToSpeech( 6797): Connected to TTS engine
+I/trik.aispeaking( 6797): Compiler allocated 5042KB to compile void android.view.ViewRootImpl.performTraversals()
+I/TextToSpeech( 6797): Setting up the connection to TTS engine...
+Syncing files to device sdk gphone64 x86 64...                  
+I/Choreographer( 6797): Skipped 192 frames!  The application may be doing too much work on its main thread.
+
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following assertion was thrown building
+RawTooltip-[LabeledGlobalKey<RawTooltipState>#b3380]("Chế độ tiêu chuẩn: Main", hover delay:
+0:00:00.000000, touch delay: 0:00:01.500000, dismiss delay: 0:00:00.100000, triggerMode:
+TooltipTriggerMode.longPress, enableFeedback: true, positionDelegate: Closure:
+(TooltipPositionContext) => Offset from Function '_getDefaultPositionDelegate@1354220820':., dirty,
+state: RawTooltipState#d8499):
+No Overlay widget found.
+RawTooltip widgets require an Overlay widget ancestor within the closest LookupBoundary.
+An overlay lets widgets float on top of other widget children.
+To introduce an Overlay widget, you can either directly include one, or use a widget that contains
+an Overlay itself, such as a Navigator, WidgetApp, MaterialApp, or CupertinoApp.
+The specific widget that could not find a Overlay ancestor was:
+  RawTooltip-[LabeledGlobalKey<RawTooltipState>#b3380]
+The ancestors of this widget were:
+  ...
+  Tooltip
+  KeyedSubtree-[GlobalKey#ef05f]
+  _EffectiveTickerMode
+  TickerMode
+  Offstage
+  ...
+
+The relevant error-causing widget was:
+  FloatingActionButton-[<'main-voice-assistant-button'>]
+  FloatingActionButton:file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/lib/features/voice_navigation/presentation/main_voice_assistant_button.dart:131:41
+
+When the exception was thrown, this was the stack:
+#0      debugCheckHasOverlay.<anonymous closure> (package:flutter/src/widgets/debug.dart:506:7)
+#1      debugCheckHasOverlay (package:flutter/src/widgets/debug.dart:528:4)
+#2      RawTooltipState.build (package:flutter/src/widgets/raw_tooltip.dart:865:12)
+#3      StatefulElement.build (package:flutter/src/widgets/framework.dart:5931:27)
+#4      ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5817:15)
+#5      StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#6      Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#7      ComponentElement._firstBuild (package:flutter/src/widgets/framework.dart:5799:5)
+#8      StatefulElement._firstBuild (package:flutter/src/widgets/framework.dart:5973:11)
+#9      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5793:5)
+...     Normal element mounting (104 frames)
+#113    Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#114    MultiChildRenderObjectElement.inflateWidget (package:flutter/src/widgets/framework.dart:7264:36)
+#115    Element.updateChild (package:flutter/src/widgets/framework.dart:4059:18)
+#116    Element.updateChildren (package:flutter/src/widgets/framework.dart:4255:32)
+#117    MultiChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7295:17)
+#118    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#119    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#120    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#121    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#122    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#123    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#124    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#125    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#126    StatelessElement.update (package:flutter/src/widgets/framework.dart:5895:5)
+#127    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#128    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#129    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#130    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#131    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#132    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#133    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#134    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#135    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#136    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#137    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#138    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#139    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#140    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#141    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#142    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#143    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#144    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#145    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#146    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#147    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#148    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#149    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#150    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#151    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#152    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#153    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#154    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#155    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#156    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#157    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#158    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#159    StatelessElement.update (package:flutter/src/widgets/framework.dart:5895:5)
+#160    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#161    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#162    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#163    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#164    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#165    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#166    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#167    StatelessElement.update (package:flutter/src/widgets/framework.dart:5895:5)
+#168    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#169    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#170    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#171    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#172    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#173    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#174    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#175    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#176    StatelessElement.update (package:flutter/src/widgets/framework.dart:5895:5)
+#177    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#178    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#179    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#180    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#181    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#182    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#183    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#184    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#185    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#186    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#187    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#188    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#189    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#190    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#191    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#192    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#193    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#194    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#195    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#196    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#197    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#198    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#199    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#200    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#201    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#202    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#203    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#204    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#205    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#206    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#207    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#208    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#209    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#210    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#211    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#212    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#213    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#214    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#215    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#216    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#217    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#218    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#219    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#220    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#221    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#222    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#223    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#224    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#225    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#226    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#227    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#228    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#229    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#230    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#231    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#232    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#233    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#234    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#235    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#236    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#237    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#238    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#239    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#240    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#241    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#242    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#243    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#244    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#245    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#246    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#247    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#248    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#249    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#250    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#251    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#252    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#253    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#254    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#255    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#256    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#257    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#258    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#259    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#260    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#261    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#262    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#263    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#264    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#265    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#266    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#267    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#268    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#269    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#270    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#271    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#272    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#273    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#274    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#275    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#276    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#277    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#278    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#279    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#280    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#281    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#282    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#283    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#284    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#285    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#286    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#287    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#288    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#289    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#290    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#291    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#292    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#293    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#294    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#295    StatelessElement.update (package:flutter/src/widgets/framework.dart:5895:5)
+#296    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#297    SingleChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7122:14)
+#298    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#299    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#300    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#301    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#302    _InheritedNotifierElement.update (package:flutter/src/widgets/inherited_notifier.dart:108:11)
+#303    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#304    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#305    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#306    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#307    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#308    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#309    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#310    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#311    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#312    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#313    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#314    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#315    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#316    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#317    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#318    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#319    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#320    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#321    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#322    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#323    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#324    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#325    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#326    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#327    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#328    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#329    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#330    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#331    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#332    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#333    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#334    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#335    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#336    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#337    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#338    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#339    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#340    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#341    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#342    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#343    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#344    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#345    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#346    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#347    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#348    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#349    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#350    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#351    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#352    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#353    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#354    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#355    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#356    ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#357    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#358    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#359    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#360    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#361    StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#362    Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#363    ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#364    StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#365    Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#366    BuildScope._tryRebuild (package:flutter/src/widgets/framework.dart:2750:15)
+#367    BuildScope._flushDirtyElements (package:flutter/src/widgets/framework.dart:2807:11)
+#368    BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3111:18)
+#369    WidgetsBinding.drawFrame (package:flutter/src/widgets/binding.dart:1571:21)
+#370    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:509:5)
+#371    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#372    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#373    SchedulerBinding._handleDrawFrame (package:flutter/src/scheduler/binding.dart:1198:5)
+#374    _invoke (dart:ui/hooks.dart:423:13)
+#375    PlatformDispatcher._drawFrame (dart:ui/platform_dispatcher.dart:447:5)
+#376    _drawFrame (dart:ui/hooks.dart:395:31)
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Another exception was thrown: No Overlay widget found.
+D/WindowLayoutComponentImpl( 6797): Register WindowLayoutInfoListener on Context=com.innotrik.aispeaking.MainActivity@c263e34, of which baseContext=android.app.ContextImpl@ffb731b
+I/flutter ( 6797): Adaptive learning client: android_601950af-fec2-497b-8685-8b3efd320ba4
+I/Choreographer( 6797): Skipped 97 frames!  The application may be doing too much work on its main thread.
+D/FlutterJNI( 6797): Sending viewport metrics to the engine.
+D/InsetsController( 6797): hide(ime(), fromIme=false)
+I/ImeTracker( 6797): com.innotrik.aispeaking:49684d5b: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+D/CompatChangeReporter( 6797): Compat change id reported: 386727721; UID 10235; state: ENABLED
+D/BluetoothAdapter( 6797): isLeEnabled(): ON
+D/BluetoothLeScanner( 6797): onScannerRegistered() - status=0 scannerId=2 mScannerId=0
+I/BackgroundLearning( 6797): Active lesson wake lease acquired
+I/flutter ( 6797): Live app update check failed safely: TimeoutException after 0:00:01.500000: Future not completed
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=RESUME_CHALLENGE asset=/assets/audio/homi_v4/system/RESUME_CHALLENGE.mp3
+I/flutter ( 6797): Android device hardware registered.
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=RESUME_CHALLENGE: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+Syncing files to device sdk gphone64 x86 64...                   1,349ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on sdk gphone64 x86 64 is available at: http://127.0.0.1:58766/oWiasx2oY-4=/
+The Flutter DevTools debugger and profiler on sdk gphone64 x86 64 is available at: http://127.0.0.1:58766/oWiasx2oY-4=/devtools/?uri=ws://127.0.0.1:58766/oWiasx2oY-4=/ws
+D/BluetoothAdapter( 6797): isLeEnabled(): ON
+Another exception was thrown: No Overlay widget found.
+D/AudioSystem( 6797): onNewServiceWithAdapter: media.audio_flinger service obtained 0x71a8cf5d24e0
+D/AudioSystem( 6797): getService: checking for service media.audio_flinger: 0x71a8bf57c1d0
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=CHALLENGE_INTRO asset=/assets/audio/homi_v4/system/CHALLENGE_INTRO.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=CHALLENGE_INTRO: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-Q05_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T03-B01-Q05_PROMPT.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-Q05_PROMPT: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-Q05_PROMPT locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_SKIP_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_SKIP_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_SKIP_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T05_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T05_EN.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T05_EN: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=en-US
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-Q07_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T03-B01-Q07_PROMPT.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-Q07_PROMPT: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-Q07_PROMPT locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 5829KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 4062KB/8124KB, paused 5.011ms,4.364ms total 56.470ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_SKIP_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_SKIP_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_SKIP_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 4255KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 3894KB/7788KB, paused 1.877ms,7.447ms total 76.272ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T02_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T02_EN.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T02_EN: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=en-US
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=LESSON_END_CHOICE asset=/assets/audio/homi_v4/system/LESSON_END_CHOICE.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=LESSON_END_CHOICE: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 4453KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 3814KB/7629KB, paused 2.824ms,14.010ms total 90.439ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+D/AudioTrack( 6797): stop(232): called with 3840 frames delivered
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=TOPIC_IN_PROGRESS_3 asset=/assets/audio/homi_v4/system/TOPIC_IN_PROGRESS_3.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=TOPIC_IN_PROGRESS_3: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+Another exception was thrown: No Overlay widget found.
+Another exception was thrown: No Overlay widget found.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=NEXT_LESSON_INTRO_LESSON_TABLE_007 asset=/assets/audio/homi_v4/system/NEXT_LESSON_INTRO_LESSON_TABLE_007.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=NEXT_LESSON_INTRO_LESSON_TABLE_007: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+Another exception was thrown: No Overlay widget found.
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 3306KB AllocSpace bytes, 2(104KB) LOS objects, 49% free, 3802KB/7605KB, paused 6.845ms,1.745ms total 47.721ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B02_ENTRY asset=/assets/audio/homi_v4/hook/C35-L1-T03-B02_ENTRY.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B02_ENTRY: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B02_ENTRY locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=DETAIL_TRANSITION asset=/assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=DETAIL_TRANSITION: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=DETAIL_TRANSITION locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=TOPIC_IN_PROGRESS_3 asset=/assets/audio/homi_v4/system/TOPIC_IN_PROGRESS_3.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=TOPIC_IN_PROGRESS_3: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+Another exception was thrown: No Overlay widget found.
+Another exception was thrown: No Overlay widget found.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=RESUME_CORE_LESSON_TABLE_007 asset=/assets/audio/homi_v4/system/RESUME_CORE_LESSON_TABLE_007.mp3
+Another exception was thrown: No Overlay widget found.
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=RESUME_CORE_LESSON_TABLE_007: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+Another exception was thrown: No Overlay widget found.
+Another exception was thrown: No Overlay widget found.
+Another exception was thrown: No Overlay widget found.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=STAR_RELEARN_3_10_8 asset=/assets/audio/homi_v4/system/STAR_RELEARN_3_10_8.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=STAR_RELEARN_3_10_8: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T01_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T01_EN.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T01_EN: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T01_EN locale=en-US
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T01_VI asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T01_VI.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T01_VI: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T01_VI locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=CORE_SPEAK_01 asset=/assets/audio/homi_v4/system/CORE_SPEAK_01.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=CORE_SPEAK_01: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=CORE_SPEAK_01 locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioTrack( 6797): stop(232): called with 3840 frames delivered
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T02_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T02_EN.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T02_EN: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T02_EN locale=en-US
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T02_VI asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T02_VI.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T02_VI: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T02_VI locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T05_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T05_EN.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T05_EN: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T05_EN locale=en-US
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 4374KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 3634KB/7269KB, paused 1.265ms,5.813ms total 41.499ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T05_VI asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T05_VI.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-T05_VI: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-T05_VI locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=CORE_SPEAK_05 asset=/assets/audio/homi_v4/system/CORE_SPEAK_05.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=CORE_SPEAK_05: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=CORE_SPEAK_05 locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=CHALLENGE_INTRO asset=/assets/audio/homi_v4/system/CHALLENGE_INTRO.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=CHALLENGE_INTRO: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-Q04_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T03-B01-Q04_PROMPT.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=C35-L1-T03-B01-Q04_PROMPT: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=C35-L1-T03-B01-Q04_PROMPT locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): Adaptive learning client: android_601950af-fec2-497b-8685-8b3efd320ba4
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_ASR_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_ASR_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_ASR_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_ASR_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_ASR_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_ASR_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_ASR_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_ASR_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_ASR_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_ASR_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_ASR_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_ASR_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+I/trik.aispeaking( 6797): Background concurrent mark compact GC freed 4542KB AllocSpace bytes, 0(0B) LOS objects, 49% free, 3666KB/7333KB, paused 1.430ms,6.271ms total 75.819ms
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+W/MediaPlayer( 6797): mediaplayer went away with unhandled events
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.
+I/flutter ( 6797): [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_ASR_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_ASR_1.mp3
+I/flutter ( 6797): [HOMI_AUDIO] MP3_ERROR id=FEEDBACK_3_5_ASR_1: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+I/flutter ( 6797): [HOMI_AUDIO] TTS reason=playback_error id=text_lookup locale=vi-VN
+V/MediaPlayer( 6797): resetDrmState:  mDrmInfo=null mDrmProvisioningThread=null mPrepareDrmInProgress=false mActiveDrmScheme=false
+V/MediaPlayer( 6797): cleanDrmObj: mDrmObj=null mDrmSessionId=null
+D/AudioEffectsManager( 6797): Auto gain effect is not available.
+D/AudioEffectsManager( 6797): Echo canceler effect is not available.
+D/AudioEffectsManager( 6797): Noise suppressor effect is not available.

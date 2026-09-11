@@ -1,0 +1,494 @@
+00:00 +0: loading D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart
+00:00 +0: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +8: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +9: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +10: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +11: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +12: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +13: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +14: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +15: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +16: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: uses an immediate route while Android is paused
+00:00 +17: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: keeps Material route transitions in the foreground
+00:00 +18: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/active_learning_navigation_test.dart: keeps a custom transition only in the foreground
+00:00 +19: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: all imported clips are declared in the Flutter bundle
+00:01 +20: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android recorded recognizer uses the HOMI offline channel
+00:01 +21: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: production IDs and dynamic text select their recorded clips
+00:01 +22: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: returns good only when backend confirms the target English words
+00:01 +23: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: feedback rotates within the correct age and includes English locale
+00:01 +24: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: returns retry when recognized speech does not match the lesson
+00:01 +25: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: intro plays system, complete hook, and transition in order
+00:01 +26: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: does not trust a loose backend match when its transcript omits words
+00:01 +27: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: does not trust a loose backend match when its transcript omits words
+00:01 +28: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: missing and failed clips fall back to speech on the selected route
+00:01 +29: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: accepts a matching recognizer transcript after a stale backend false negative
+00:01 +30: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: stop during a pending index load cannot start audio later
+00:01 +31: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: keeps unclear or silent audio separate from a wrong answer
+00:01 +32: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: keeps unclear or silent audio separate from a wrong answer
+00:01 +33: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/homi_recorded_audio_test.dart: an idle prompt service does not stop a song on the shared media player
+00:01 +34: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: hides connection details behind a child-friendly message
+00:01 +35: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: hides connection details behind a child-friendly message
+00:01 +36: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: falls back to the production audio recognizer when route is missing
+00:01 +37: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: fallback rejects speech that differs from the lesson sentence
+00:01 +38: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: fallback accepts the observed Amen transcription for I am An
+00:01 +39: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: V4 fallback requires the complete Alphabet target
+00:01 +40: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: fallback keeps an ASR failure separate from a wrong answer
+00:01 +41: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: handles a non-JSON server error without FormatException
+00:01 +42: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching accepts exact speech and common contraction/name variants
+00:01 +43: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching allows a short recognizer prefix around the target sentence
+00:01 +44: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching keeps silence and a different sentence out of the pass result
+00:01 +45: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching requires the complete target word count
+00:01 +46: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching accepts one light ASR substitution without an omitted word
+00:01 +47: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching also applies encouraging matching to authored alternatives
+00:01 +48: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: basic Apple Speech lesson matching keeps single words and explicitly strict phrases strict
+00:01 +49: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback keeps the normal backend result without calling on-device ASR
+00:01 +50: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback uses strict English on-device ASR only after connectivity failure
+00:01 +51: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback skips the backend immediately when network transport is gone
+00:01 +52: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback accepts alternatives and returns retry for different speech
+00:01 +53: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback separates silence and timeout from unclear ASR
+00:01 +54: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback preserves backend error when local model or WAV is unavailable
+00:01 +55: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: Android backend-first offline fallback does not use local ASR for a non-connectivity backend failure
+00:01 +56: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: uses WAV on Android and preserves existing backend extensions
+00:01 +57: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_attempt_evaluator_test.dart: default Android evaluator is backend-first with offline fallback
+00:01 +58: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +59: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +60: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +61: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +62: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +63: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:01 +64: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_challenge_screen_test.dart: HOMI role-play turn is playback-only and advances to the child microphone
+00:02 +65: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +66: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +67: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +68: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +69: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +70: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +71: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +72: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +73: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +74: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +75: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +76: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +77: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +78: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +79: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +80: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +81: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:02 +82: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +83: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +84: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +85: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +86: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +87: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +88: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +89: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +90: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +91: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +92: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +93: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +94: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +95: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:03 +96: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:04 +97: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:04 +98: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:04 +99: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+00:04 +100: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/topic-lesson-journey-390x844.png": Pixel test failed, 0.13%, 427px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart:68:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +100 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_mission_screen_test.dart: automatically records, scores, and opens the next mission
+00:04 +100 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: topic lesson journey matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: topic lesson journey matches the approved direction
+  
+00:04 +101 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_mission_screen_test.dart: automatically records, scores, and opens the next mission
+00:04 +102 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_mission_screen_test.dart: automatically records, scores, and opens the next mission
+00:04 +103 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_mission_screen_test.dart: automatically records, scores, and opens the next mission
+00:05 +103 -1: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/topic-favorite-food-390x844.png": Pixel test failed, 0.13%, 427px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart:103:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +103 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_mission_screen_test.dart: automatically records, scores, and opens the next mission
+00:05 +103 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction [E]
+  Test failed. See exception logs above.
+  The test description was: favorite food journey matches the selected HOMI direction
+  
+00:05 +104 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_overview_screen_test.dart: V4 resumes from its first interrupted core sentence
+00:05 +105 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_overview_screen_test.dart: V4 resumes from its first interrupted core sentence
+00:05 +106 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_overview_screen_test.dart: V4 resumes from its first interrupted core sentence
+00:05 +107 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_overview_screen_test.dart: V4 resumes from its first interrupted core sentence
+00:05 +108 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +109 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +110 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +111 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +112 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +113 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +114 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +115 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +116 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +117 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +118 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +119 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +120 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +121 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +122 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:05 +123 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +124 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +124 -2: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-intro-390x844.png": Pixel test failed, 0.35%, 1153px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart:160:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:06 +124 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +124 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: lesson intro matches the approved direction
+  
+00:06 +125 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +126 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +127 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: next does not autoplay and previous plays praise without sentence audio
+00:06 +128 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +129 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +130 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +131 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +132 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +133 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: sentence practice matches the approved direction
+00:06 +134 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: previous sentence is persisted and restored after re-entry
+00:07 +135 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: previous sentence is persisted and restored after re-entry
+00:07 +136 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: friendly reminder popup matches the approved direction
+00:07 +137 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: MAIN invalidates an evaluation that finishes after pause
+00:07 +138 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: MAIN invalidates an evaluation that finishes after pause
+00:07 +139 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: MAIN invalidates an evaluation that finishes after pause
+00:07 +140 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: MAIN invalidates an evaluation that finishes after pause
+00:07 +141 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: recording praise fireworks match the approved direction
+00:07 +142 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: recording praise fireworks match the approved direction
+00:07 +143 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: review from beginning resets the resume sentence
+00:07 +144 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: review from beginning resets the resume sentence
+00:07 +145 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: review from beginning resets the resume sentence
+00:07 +146 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: review from beginning resets the resume sentence
+00:07 +147 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: review from beginning resets the resume sentence
+00:08 +148 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+00:08 +149 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+00:08 +150 -3: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-review-390x844.png": Pixel test failed, 80.97%, 266525px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart:303:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:08 +150 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +150 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction [E]
+  Test failed. See exception logs above.
+  The test description was: English-only lesson review matches the approved direction
+  
+00:08 +151 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +152 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +153 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +154 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +155 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +156 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +157 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +158 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +159 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +160 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +161 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +162 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +163 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +164 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +165 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +166 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +167 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +168 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_practice_navigation_test.dart: V4 marks the lesson complete only after its authored challenge finishes
+00:08 +169 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +170 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +170 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: V2 still reopens recording when unclear feedback playback fails
+HOMI unclear feedback playback failed: Bad state: Unclear feedback playback failed.
+00:09 +171 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +172 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +173 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +174 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +175 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +176 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +177 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +178 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:09 +179 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +180 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +181 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +182 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +183 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +184 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +185 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +186 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +187 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +188 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:10 +189 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +190 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +191 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +192 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +193 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +194 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +195 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +196 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +197 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +198 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:11 +199 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:12 +200 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:12 +201 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:12 +202 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:12 +203 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+00:12 +204 -4: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/lesson-v4-challenge-390x844.png": Pixel test failed, 0.47%, 14019px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart:395:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:12 +204 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:12 +204 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge [E]
+  Test failed. See exception logs above.
+  The test description was: V4 completion opens an authored voice challenge
+  
+00:12 +205 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:12 +206 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:12 +207 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +208 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +209 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +210 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +211 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +212 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +213 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:13 +214 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +215 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +216 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +217 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +218 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +219 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +220 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +221 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +222 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +223 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +224 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +225 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +226 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:14 +227 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:15 +228 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:15 +228 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart: lesson intro does not auto advance when playback fails
+Lesson intro playback failed for guided-flow (https://example.test/broken-intro.mp3): Bad state: Playback failed.
+#0      _FailingIntroMediaService.playToCompletion (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart:2348:5)
+#1      _LessonIntroScreenState._beginIntro (package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart:157:35)
+#2      _LessonIntroScreenState.initState.<anonymous closure> (package:ai_speaking_flutter_app/features/listening/presentation/lesson_intro_screen.dart:106:57)
+#3      SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#4      SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1357:11)
+#5      AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2260:9)
+#8      TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#9      AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2249:27)
+#10     WidgetTester.pumpWidget.<anonymous closure> (package:flutter_test/src/widget_tester.dart:598:22)
+#13     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#14     WidgetTester.pumpWidget (package:flutter_test/src/widget_tester.dart:595:27)
+#15     main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_guided_flow_test.dart:1820:18)
+<asynchronous suspension>
+#16     testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#17     TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+00:15 +229 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+00:15 +230 -5: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+pumpAndSettle timed out
+
+When the exception was thrown, this was the stack:
+#0      WidgetTester.pumpAndSettle.<anonymous closure> (package:flutter_test/src/widget_tester.dart:717:11)
+<asynchronous suspension>
+#1      TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#2      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart:307:5)
+<asynchronous suspension>
+#3      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#4      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  ages three to five keep the existing song flow
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:20 +230 -6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: ages three to five keep the existing song flow [E]
+  Test failed. See exception logs above.
+  The test description was: ages three to five keep the existing song flow
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+00:20 +230 -6: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: karaoke screen matches the selected visual direction
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "goldens/song-karaoke-390x844.png": Pixel test failed, 0.46%, 1522px diff detected.
+Failure feedback can be found at
+/D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart:335:5)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:20 +230 -7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: karaoke screen matches the selected visual direction [E]
+  Test failed. See exception logs above.
+  The test description was: karaoke screen matches the selected visual direction
+  
+00:20 +230 -7: D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/song_karaoke_screen_test.dart: (tearDownAll)
+00:20 +230 -7: Some tests failed.
+
+Failing tests:
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: English-only lesson review matches the approved direction
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: V4 completion opens an authored voice challenge
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: favorite food journey matches the selected HOMI direction
+  D:/Code/HuaMei/App_noi/flutter/16_10th9/speaking-ai-flutter/test/features/listening/lesson_flow_golden_test.dart: lesson intro matches the approved direction
+  ... and 3 more

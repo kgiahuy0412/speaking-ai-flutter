@@ -7,3 +7,6 @@ export 'voice_prompt_service_base.dart';
 
 VoicePromptService createVoicePromptService() =>
     platform.createPlatformVoicePromptService();
+
+bool isPlatformVoicePromptService(VoicePromptService service) =>
+    platform.isPlatformVoicePromptService(service);

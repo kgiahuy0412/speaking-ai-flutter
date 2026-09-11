@@ -1,0 +1,109 @@
+{
+  "Apk": "HOMI-1.0.5+7-release-e43d.apk",
+  "Bytes": 358884559,
+  "Sha256": "0FBA9546126D75E13B4B88EA31312D4BBB68CD26AF9C801FCB667BA64812D733",
+  "Backend": "https://speaking-ai-nextjs-backend-production-e43d.up.railway.app",
+  "TestsPassed": 12,
+  "HomiAudioCount": 4916,
+  "AudioHashMismatches": 0,
+  "LegalAssets": [
+    "assets/flutter_assets/THIRD_PARTY_NOTICES.md",
+    "assets/flutter_assets/assets/legal/APACHE-2.0.txt",
+    "assets/flutter_assets/NOTICES.Z"
+  ],
+  "CompiledConfigChecks": [
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "BACKEND_BASE_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "PRIVACY_POLICY_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "TERMS_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "SUPPORT_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "AI_SUBPROCESSORS",
+      "Embedded": true
+    },
+    {
+      "Abi": "arm64-v8a",
+      "ConfigKey": "DATA_RETENTION_SUMMARY",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "BACKEND_BASE_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "PRIVACY_POLICY_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "TERMS_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "SUPPORT_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "AI_SUBPROCESSORS",
+      "Embedded": true
+    },
+    {
+      "Abi": "armeabi-v7a",
+      "ConfigKey": "DATA_RETENTION_SUMMARY",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "BACKEND_BASE_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "PRIVACY_POLICY_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "TERMS_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "SUPPORT_URL",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "AI_SUBPROCESSORS",
+      "Embedded": true
+    },
+    {
+      "Abi": "x86_64",
+      "ConfigKey": "DATA_RETENTION_SUMMARY",
+      "Embedded": true
+    }
+  ],
+  "SignatureValid": true,
+  "CertificateSubject": "C=US, O=Android, CN=Android Debug",
+  "CheckedAt": "2026-09-11T11:19:03.2379612+07:00"
+}

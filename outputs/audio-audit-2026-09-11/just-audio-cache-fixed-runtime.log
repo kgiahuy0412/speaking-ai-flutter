@@ -1,0 +1,126 @@
+09-11 10:36:57.693  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=RESUME_CHALLENGE asset=/assets/audio/homi_v4/system/RESUME_CHALLENGE.mp3
+09-11 10:36:57.720  7993  7993 I flutter : Audio asset cache refresh skipped; loading bundled audio: PathNotFoundException: Directory listing failed, path = '/data/user/0/com.innotrik.aispeaking/cache/just_audio_cache/' (OS Error: No such file or directory, errno = 2)
+09-11 10:36:58.504  7993  8114 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:36:58.618  7993  8114 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:36:58.623  7993  8114 D CCodecConfig: read media type: audio/mpeg
+09-11 10:36:58.634  7993  8114 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:36:58.654  7993  8114 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:36:58.661  7993  8114 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:36:58.668  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] Created input block pool with allocatorID 16 => poolID 17 - OK (0)
+09-11 10:36:58.672  7993  8114 I CCodecBufferChannel: [c2.android.mp3.decoder#354] Created output block pool with allocatorID 16 => poolID 246 - OK
+09-11 10:36:58.676  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] Configured output block pool ids 246 => OK
+09-11 10:37:01.533  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=CHALLENGE_INTRO asset=/assets/audio/homi_v4/system/CHALLENGE_INTRO.mp3
+09-11 10:37:01.575  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] MediaCodec discarded an unknown buffer
+09-11 10:37:01.575  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] MediaCodec discarded an unknown buffer
+09-11 10:37:01.575  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] MediaCodec discarded an unknown buffer
+09-11 10:37:01.575  7993  8114 D CCodecBufferChannel: [c2.android.mp3.decoder#354] MediaCodec discarded an unknown buffer
+09-11 10:37:01.598  7993  8127 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:01.605  7993  8127 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:01.605  7993  8127 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:01.617  7993  8127 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:01.627  7993  8127 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:01.629  7993  8127 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:01.632  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] Created input block pool with allocatorID 16 => poolID 18 - OK (0)
+09-11 10:37:01.633  7993  8127 I CCodecBufferChannel: [c2.android.mp3.decoder#174] Created output block pool with allocatorID 16 => poolID 248 - OK
+09-11 10:37:01.633  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] Configured output block pool ids 248 => OK
+09-11 10:37:04.576  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-Q05_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T03-B01-Q05_PROMPT.mp3
+09-11 10:37:04.592  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] MediaCodec discarded an unknown buffer
+09-11 10:37:04.593  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] MediaCodec discarded an unknown buffer
+09-11 10:37:04.593  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] MediaCodec discarded an unknown buffer
+09-11 10:37:04.593  7993  8127 D CCodecBufferChannel: [c2.android.mp3.decoder#174] MediaCodec discarded an unknown buffer
+09-11 10:37:04.608  7993  8135 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:04.618  7993  8135 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:04.619  7993  8135 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:04.627  7993  8135 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:04.633  7993  8135 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:04.634  7993  8135 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:04.643  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] Created input block pool with allocatorID 16 => poolID 19 - OK (0)
+09-11 10:37:04.644  7993  8135 I CCodecBufferChannel: [c2.android.mp3.decoder#792] Created output block pool with allocatorID 16 => poolID 250 - OK
+09-11 10:37:04.645  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] Configured output block pool ids 250 => OK
+09-11 10:37:07.065  7993  7993 I flutter : [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+09-11 10:37:13.253  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_SKIP_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_SKIP_1.mp3
+09-11 10:37:13.300  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] MediaCodec discarded an unknown buffer
+09-11 10:37:13.300  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] MediaCodec discarded an unknown buffer
+09-11 10:37:13.300  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] MediaCodec discarded an unknown buffer
+09-11 10:37:13.300  7993  8135 D CCodecBufferChannel: [c2.android.mp3.decoder#792] MediaCodec discarded an unknown buffer
+09-11 10:37:13.350  7993  8185 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:13.359  7993  8185 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:13.360  7993  8185 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:13.374  7993  8185 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:13.389  7993  8185 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:13.395  7993  8185 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:13.407  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] Created input block pool with allocatorID 16 => poolID 20 - OK (0)
+09-11 10:37:13.408  7993  8185 I CCodecBufferChannel: [c2.android.mp3.decoder#823] Created output block pool with allocatorID 16 => poolID 254 - OK
+09-11 10:37:13.409  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] Configured output block pool ids 254 => OK
+09-11 10:37:16.297  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T05_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T05_EN.mp3
+09-11 10:37:16.331  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] MediaCodec discarded an unknown buffer
+09-11 10:37:16.332  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] MediaCodec discarded an unknown buffer
+09-11 10:37:16.332  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] MediaCodec discarded an unknown buffer
+09-11 10:37:16.332  7993  8185 D CCodecBufferChannel: [c2.android.mp3.decoder#823] MediaCodec discarded an unknown buffer
+09-11 10:37:16.349  7993  8218 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:16.353  7993  8218 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:16.353  7993  8218 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:16.368  7993  8218 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:16.379  7993  8218 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:16.380  7993  8218 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:16.383  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] Created input block pool with allocatorID 16 => poolID 21 - OK (0)
+09-11 10:37:16.384  7993  8218 I CCodecBufferChannel: [c2.android.mp3.decoder#538] Created output block pool with allocatorID 16 => poolID 256 - OK
+09-11 10:37:16.384  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] Configured output block pool ids 256 => OK
+09-11 10:37:17.585  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-Q07_PROMPT asset=/assets/audio/homi_v4/challenge/C35-L1-T03-B01-Q07_PROMPT.mp3
+09-11 10:37:17.617  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] MediaCodec discarded an unknown buffer
+09-11 10:37:17.617  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] MediaCodec discarded an unknown buffer
+09-11 10:37:17.617  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] MediaCodec discarded an unknown buffer
+09-11 10:37:17.617  7993  8218 D CCodecBufferChannel: [c2.android.mp3.decoder#538] MediaCodec discarded an unknown buffer
+09-11 10:37:17.634  7993  8225 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:17.642  7993  8225 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:17.643  7993  8225 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:17.652  7993  8225 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:17.663  7993  8225 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:17.667  7993  8225 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:17.675  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] Created input block pool with allocatorID 16 => poolID 22 - OK (0)
+09-11 10:37:17.680  7993  8225 I CCodecBufferChannel: [c2.android.mp3.decoder#377] Created output block pool with allocatorID 16 => poolID 258 - OK
+09-11 10:37:17.680  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] Configured output block pool ids 258 => OK
+09-11 10:37:21.654  7993  7993 I flutter : [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+09-11 10:37:27.204  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=FEEDBACK_3_5_SKIP_1 asset=/assets/audio/homi_v4/feedback/FEEDBACK_3_5_SKIP_1.mp3
+09-11 10:37:27.241  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] MediaCodec discarded an unknown buffer
+09-11 10:37:27.242  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] MediaCodec discarded an unknown buffer
+09-11 10:37:27.242  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] MediaCodec discarded an unknown buffer
+09-11 10:37:27.242  7993  8225 D CCodecBufferChannel: [c2.android.mp3.decoder#377] MediaCodec discarded an unknown buffer
+09-11 10:37:27.265  7993  8267 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:27.278  7993  8267 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:27.278  7993  8267 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:27.316  7993  8267 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:27.328  7993  8267 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:27.330  7993  8267 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:27.334  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] Created input block pool with allocatorID 16 => poolID 23 - OK (0)
+09-11 10:37:27.335  7993  8267 I CCodecBufferChannel: [c2.android.mp3.decoder#824] Created output block pool with allocatorID 16 => poolID 262 - OK
+09-11 10:37:27.335  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] Configured output block pool ids 262 => OK
+09-11 10:37:30.183  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=C35-L1-T03-B01-T02_EN asset=/assets/audio/homi_v4/core/C35-L1-T03-B01-T02_EN.mp3
+09-11 10:37:30.216  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] MediaCodec discarded an unknown buffer
+09-11 10:37:30.216  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] MediaCodec discarded an unknown buffer
+09-11 10:37:30.216  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] MediaCodec discarded an unknown buffer
+09-11 10:37:30.217  7993  8267 D CCodecBufferChannel: [c2.android.mp3.decoder#824] MediaCodec discarded an unknown buffer
+09-11 10:37:30.239  7993  8276 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:30.246  7993  8276 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:30.247  7993  8276 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:30.258  7993  8276 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:30.263  7993  8276 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:30.264  7993  8276 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:30.266  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] Created input block pool with allocatorID 16 => poolID 24 - OK (0)
+09-11 10:37:30.266  7993  8276 I CCodecBufferChannel: [c2.android.mp3.decoder#779] Created output block pool with allocatorID 16 => poolID 264 - OK
+09-11 10:37:30.266  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] Configured output block pool ids 264 => OK
+09-11 10:37:31.464  7993  7993 I flutter : [HOMI_AUDIO] TTS reason=no_matching_clip id=text_lookup locale=vi-VN
+09-11 10:37:35.068  7993  7993 I flutter : [HOMI_AUDIO] MP3 id=LESSON_END_CHOICE asset=/assets/audio/homi_v4/system/LESSON_END_CHOICE.mp3
+09-11 10:37:35.094  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] MediaCodec discarded an unknown buffer
+09-11 10:37:35.094  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] MediaCodec discarded an unknown buffer
+09-11 10:37:35.094  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] MediaCodec discarded an unknown buffer
+09-11 10:37:35.095  7993  8276 D CCodecBufferChannel: [c2.android.mp3.decoder#779] MediaCodec discarded an unknown buffer
+09-11 10:37:35.106  7993  8299 D CCodec  : allocate(c2.android.mp3.decoder)
+09-11 10:37:35.113  7993  8299 I CCodec  : Created component [c2.android.mp3.decoder] for [c2.android.mp3.decoder]
+09-11 10:37:35.115  7993  8299 D CCodecConfig: read media type: audio/mpeg
+09-11 10:37:35.126  7993  8299 D CCodecConfig:   string input.media-type.value = "audio/mpeg"
+09-11 10:37:35.134  7993  8299 D CCodec  : [c2.android.mp3.decoder] buffers are bound to CCodec for this session
+09-11 10:37:35.136  7993  8299 D CCodec  :   string mime = "audio/mpeg"
+09-11 10:37:35.143  7993  8299 D CCodecBufferChannel: [c2.android.mp3.decoder#726] Created input block pool with allocatorID 16 => poolID 25 - OK (0)
+09-11 10:37:35.145  7993  8299 I CCodecBufferChannel: [c2.android.mp3.decoder#726] Created output block pool with allocatorID 16 => poolID 268 - OK
+09-11 10:37:35.145  7993  8299 D CCodecBufferChannel: [c2.android.mp3.decoder#726] Configured output block pool ids 268 => OK
