@@ -54,6 +54,14 @@ struct IOSBackgroundTurnExecutionPolicy {
       && !applicationIsActive
       && interactionPendingOrActive
   }
+
+  static func shouldDeferToActiveAudio(
+    applicationIsActive: Bool,
+    promptActive: Bool,
+    speechCaptureActive: Bool
+  ) -> Bool {
+    !applicationIsActive && (promptActive || speechCaptureActive)
+  }
 }
 
 /// The single writer for AVAudioSession during an iOS MAIN turn.
@@ -76,6 +84,7 @@ final class IOSAudioSessionCoordinator: NSObject {
   private var sequence = 0
   private var turnTimeout: DispatchWorkItem?
   private var backgroundTurnTask = UIBackgroundTaskIdentifier.invalid
+  private var backgroundTurnTaskGeneration = 0
   private var ownership = IOSAudioSessionOwnershipState()
   private var preferredHfpInputUID: String?
   private var preferredHfpInputName: String?
@@ -126,6 +135,19 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func applicationDidEnterBackground() {
+    let applicationIsActive = UIApplication.shared.applicationState == .active
+    if IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+      applicationIsActive: applicationIsActive,
+      promptActive: isPromptActive,
+      speechCaptureActive: isSpeechCaptureActive
+    ) {
+      trace(
+        stage: "background_turn_execution_deferred_to_active_audio",
+        caller: "BackgroundLearningBridge.didEnterBackground",
+        values: ["owners": ownership.activeOwners.map(\.rawValue)]
+      )
+      return
+    }
     retainBackgroundTurnExecutionIfNeeded(
       caller: "BackgroundLearningBridge.didEnterBackground"
     )
@@ -173,6 +195,9 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func releaseCapture(caller: String) {
     let captureWasActive = releaseSessionOwner(.speechCapture, caller: caller)
+    if captureWasActive {
+      refreshBackgroundTurnExecutionForHandoff(caller: caller)
+    }
     releaseAudioSessionIfIdle(caller: caller)
     if captureWasActive {
       trace(stage: "speech_capture_ended", caller: caller)
@@ -402,12 +427,14 @@ final class IOSAudioSessionCoordinator: NSObject {
   }
 
   func releasePrompt(usedHfp _: Bool, caller: String) {
-    // Once native prompt playback ends, iOS can suspend Flutter before Dart
-    // requests the ready cue and Apple Speech. Hold only this bounded MAIN-turn
-    // hand-off; live capture remains governed by the audio background mode.
-    retainBackgroundTurnExecutionIfNeeded(caller: caller)
     trace(stage: "prompt_audio_release", caller: caller)
     let promptWasActive = releaseSessionOwner(.prompt, caller: caller)
+    if promptWasActive {
+      // Prompt playback itself is covered by the audio background mode. Start
+      // a fresh bounded lease only after that audio ends, before the native
+      // completion is returned to Flutter for the ready cue and Apple Speech.
+      refreshBackgroundTurnExecutionForHandoff(caller: caller)
+    }
     releaseAudioSessionIfIdle(caller: caller)
     if promptWasActive {
       onPromptEnded?()
@@ -562,7 +589,12 @@ final class IOSAudioSessionCoordinator: NSObject {
 
   func prepareCapture(target: IOSAudioInputTarget, caller: String) throws {
     retainBackgroundTurnExecutionIfNeeded(caller: caller)
-    acquireSessionOwner(.speechCapture, caller: caller)
+    let captureWasAlreadyPrepared = ownership.contains(.speechCapture)
+    if captureWasAlreadyPrepared {
+      trace(stage: "speech_capture_owner_reused", caller: caller)
+    } else {
+      acquireSessionOwner(.speechCapture, caller: caller)
+    }
     trace(stage: "audio_session_prepare", caller: caller, values: ["audioSource": target.rawValue])
     do {
       switch target {
@@ -570,7 +602,9 @@ final class IOSAudioSessionCoordinator: NSObject {
         if hasTwoWayHfpRoute() {
           trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
           trace(stage: "route_confirmed", caller: caller, values: ["audioSource": target.rawValue])
-          onSpeechCaptureStarted?()
+          if !captureWasAlreadyPrepared {
+            onSpeechCaptureStarted?()
+          }
           return
         }
         guard let input = currentOrAvailableInput(portType: .bluetoothHFP) else {
@@ -586,7 +620,9 @@ final class IOSAudioSessionCoordinator: NSObject {
         try ensurePreferredInput(input, caller: caller)
       }
       trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
-      onSpeechCaptureStarted?()
+      if !captureWasAlreadyPrepared {
+        onSpeechCaptureStarted?()
+      }
     } catch {
       // A failed route/capture preparation can still switch the H20 radio
       // profile and invalidate its BLE notification subscription. Treat it as
@@ -630,6 +666,33 @@ final class IOSAudioSessionCoordinator: NSObject {
     onBackgroundLearningEvent = nil
   }
 
+  /// Ends the bounded transition lease once native audio is verifiably active.
+  /// Prompt playback and live capture are then kept alive by the declared audio
+  /// background mode; their completion paths create a new bounded hand-off.
+  func backgroundAudioActivityDidStart(caller: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.backgroundAudioActivityDidStart(caller: caller)
+      }
+      return
+    }
+    guard UIApplication.shared.applicationState != .active else { return }
+    guard isPromptActive || isSpeechCaptureActive else { return }
+    trace(
+      stage: "background_turn_execution_yielded_to_active_audio",
+      caller: caller,
+      values: ["owners": ownership.activeOwners.map(\.rawValue)]
+    )
+    endBackgroundTurnExecution(caller: caller)
+  }
+
+  /// Keeps the process alive only across a silent native-to-Flutter hand-off.
+  /// Refreshing here avoids spending the original background-task budget while
+  /// a long assistant prompt or recording is already protected by audio mode.
+  func beginBackgroundAudioHandoff(caller: String) {
+    refreshBackgroundTurnExecutionForHandoff(caller: caller)
+  }
+
   private func retainBackgroundTurnExecutionIfNeeded(caller: String) {
     guard Thread.isMainThread else {
       DispatchQueue.main.async { [weak self] in
@@ -646,15 +709,13 @@ final class IOSAudioSessionCoordinator: NSObject {
     )
     guard shouldRetain, backgroundTurnTask == .invalid else { return }
 
+    backgroundTurnTaskGeneration += 1
+    let taskGeneration = backgroundTurnTaskGeneration
     let identifier = UIApplication.shared.beginBackgroundTask(
       withName: "HOMI MAIN prompt-to-microphone"
     ) { [weak self] in
       guard let self else { return }
-      self.trace(
-        stage: "background_turn_execution_expired",
-        caller: "UIApplication"
-      )
-      self.endBackgroundTurnExecution(caller: "UIApplication.expiration")
+      self.expireBackgroundTurnExecution(taskGeneration: taskGeneration)
     }
     backgroundTurnTask = identifier
     trace(
@@ -663,6 +724,26 @@ final class IOSAudioSessionCoordinator: NSObject {
         : "background_turn_execution_started",
       caller: caller
     )
+  }
+
+  private func refreshBackgroundTurnExecutionForHandoff(caller: String) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.refreshBackgroundTurnExecutionForHandoff(caller: caller)
+      }
+      return
+    }
+    let shouldRetain = IOSBackgroundTurnExecutionPolicy.shouldRetain(
+      backgroundLearningEnabled: isBackgroundLearningEnabled,
+      applicationIsActive: UIApplication.shared.applicationState == .active,
+      interactionPendingOrActive: pendingTurnId != nil
+        || isMainTurnActive
+        || isBackgroundTransitionLeaseActive
+    )
+    guard shouldRetain else { return }
+    trace(stage: "background_turn_execution_refresh_requested", caller: caller)
+    endBackgroundTurnExecution(caller: "\(caller).refresh")
+    retainBackgroundTurnExecutionIfNeeded(caller: caller)
   }
 
   private func endBackgroundTurnExecutionIfIdle(caller: String) {
@@ -683,8 +764,32 @@ final class IOSAudioSessionCoordinator: NSObject {
     guard backgroundTurnTask != .invalid else { return }
     let identifier = backgroundTurnTask
     backgroundTurnTask = .invalid
+    backgroundTurnTaskGeneration += 1
     trace(stage: "background_turn_execution_ended", caller: caller)
     UIApplication.shared.endBackgroundTask(identifier)
+  }
+
+  private func expireBackgroundTurnExecution(taskGeneration: Int) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.expireBackgroundTurnExecution(taskGeneration: taskGeneration)
+      }
+      return
+    }
+    guard taskGeneration == backgroundTurnTaskGeneration,
+      backgroundTurnTask != .invalid
+    else {
+      trace(
+        stage: "background_turn_execution_stale_expiration_ignored",
+        caller: "UIApplication"
+      )
+      return
+    }
+    trace(
+      stage: "background_turn_execution_expired",
+      caller: "UIApplication"
+    )
+    endBackgroundTurnExecution(caller: "UIApplication.expiration")
   }
 
   private func acquireSessionOwner(_ owner: IOSAudioSessionOwner, caller: String) {

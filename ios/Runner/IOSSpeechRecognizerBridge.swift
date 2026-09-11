@@ -460,6 +460,12 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
       stage: "speech.stop",
       caller: "IOSSpeechRecognizerBridge.channel"
     )
+    // Apple Speech may need a short asynchronous finalization window after the
+    // input engine stops. Acquire the hand-off while audio is still active so
+    // iOS cannot suspend Flutter before the final transcript is delivered.
+    audioSessionCoordinator.beginBackgroundAudioHandoff(
+      caller: "IOSSpeechRecognizerBridge.stop"
+    )
     stopAudioCapture()
     emit(type: "speech.end")
 
@@ -603,6 +609,9 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler {
     try await waitForFirstAnalyzerInput(generation: currentGeneration)
     readyAt = Date()
     emitStage("speech.ready")
+    audioSessionCoordinator.backgroundAudioActivityDidStart(
+      caller: "IOSSpeechRecognizerBridge.beginRecognition.ready"
+    )
     emit(type: "speech.ready")
   }
 

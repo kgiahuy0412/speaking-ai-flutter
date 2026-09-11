@@ -230,6 +230,17 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     completeWaitingResult()
   }
 
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+    guard activeUtterance === utterance else { return }
+    audioSessionCoordinator.trace(
+      stage: "prompt_playback_active",
+      caller: "VoicePromptBridge.didStart"
+    )
+    audioSessionCoordinator.backgroundAudioActivityDidStart(
+      caller: "VoicePromptBridge.didStart"
+    )
+  }
+
   func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
     guard activeUtterance === utterance else {
       audioSessionCoordinator.trace(

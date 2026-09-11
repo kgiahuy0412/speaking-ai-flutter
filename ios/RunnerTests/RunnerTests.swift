@@ -38,6 +38,35 @@ class RunnerTests: XCTestCase {
         interactionPendingOrActive: false
       )
     )
+
+    XCTAssertTrue(
+      IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+        applicationIsActive: false,
+        promptActive: true,
+        speechCaptureActive: false
+      )
+    )
+    XCTAssertTrue(
+      IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+        applicationIsActive: false,
+        promptActive: false,
+        speechCaptureActive: true
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+        applicationIsActive: true,
+        promptActive: true,
+        speechCaptureActive: true
+      )
+    )
+    XCTAssertFalse(
+      IOSBackgroundTurnExecutionPolicy.shouldDeferToActiveAudio(
+        applicationIsActive: false,
+        promptActive: false,
+        speechCaptureActive: false
+      )
+    )
   }
 
   func testAiv0PendingButtonBufferIsBoundedAndDrainsChronologically() throws {
