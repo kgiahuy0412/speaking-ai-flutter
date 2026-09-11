@@ -1,25 +1,31 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../core/audio/voice_prompt_service.dart';
 import 'homi_audio_library.dart';
 import 'lesson_media_service.dart';
 
-/// An explicitly injected prompt service remains an output override (including
-/// test doubles). A production recorded service is rebound when a new lesson
-/// supplies its own media route, while retaining its native TTS fallback.
+/// Platform TTS passed by a parent is a fallback, including instances retained
+/// across hot reload. Only custom services remain complete output overrides.
+/// Recorded services are rebound to each screen's media route.
 VoicePromptService createLessonVoicePromptService({
   required LessonMediaService mediaService,
   VoicePromptService? override,
   int? age,
 }) {
-  if (override != null && override is! RecordedLessonVoicePromptService) {
+  if (override != null &&
+      override is! RecordedLessonVoicePromptService &&
+      !isPlatformVoicePromptService(override)) {
     return override;
   }
-  final recorded = override as RecordedLessonVoicePromptService?;
+  final recorded = override is RecordedLessonVoicePromptService
+      ? override
+      : null;
   return RecordedLessonVoicePromptService(
     mediaService: mediaService,
-    fallback: recorded?.fallback ?? createVoicePromptService(),
-    ownsFallback: recorded == null,
+    fallback: recorded?.fallback ?? override ?? createVoicePromptService(),
+    ownsFallback: override == null,
     age: age ?? recorded?.age,
     library: recorded?._library,
   );
@@ -115,7 +121,9 @@ class RecordedLessonVoicePromptService
       if (audioId == null && feedbackState == null && locale == 'vi-VN') {
         try {
           sequence = await _library.sequenceForText(text);
-        } catch (_) {}
+        } catch (error) {
+          _trace('INDEX_ERROR during sequence lookup: $error');
+        }
       }
       if (!_isCurrent(generation)) return;
       if (sequence != null) {
@@ -155,6 +163,7 @@ class RecordedLessonVoicePromptService
     String? feedbackState,
   }) async {
     HomiAudioClip? clip;
+    var fallbackReason = 'no_matching_clip';
     try {
       clip = await _library.resolve(
         text: text,
@@ -163,24 +172,32 @@ class RecordedLessonVoicePromptService
         feedbackState: feedbackState,
         age: age,
       );
-    } catch (_) {
+    } catch (error) {
       // An unavailable index still leaves all curriculum text speakable.
+      fallbackReason = 'index_unavailable';
+      _trace('INDEX_ERROR id=${audioId ?? "text_lookup"}: $error');
     }
     if (!_isCurrent(generation)) return;
     if (clip != null) {
       try {
+        _trace('MP3 id=${clip.id} asset=${clip.uri.path}');
         await mediaService.playToCompletion(
           clip.uri,
           route: route,
           timeout: playbackTimeout,
         );
         return;
-      } catch (_) {
+      } catch (error) {
         if (!_isCurrent(generation)) return;
+        fallbackReason = 'playback_error';
+        _trace('MP3_ERROR id=${clip.id}: $error');
         await mediaService.stopPlayback();
       }
     }
     if (!_isCurrent(generation)) return;
+    _trace(
+      'TTS reason=$fallbackReason id=${audioId ?? "text_lookup"} locale=$locale',
+    );
     if (route == LessonPlaybackRoute.phoneSpeaker) {
       await mediaService.preparePhoneSpeakerOutput();
     } else {
@@ -204,6 +221,10 @@ class RecordedLessonVoicePromptService
         if (_isCurrent(generation)) await fallback.stop();
       },
     );
+  }
+
+  static void _trace(String message) {
+    if (kDebugMode) debugPrint('[HOMI_AUDIO] $message');
   }
 
   @override

@@ -2,6 +2,10 @@
 
 Ngày: 11/09/2026. Nguồn: `D:/Code/HuaMei/App_noi/Tao_audio_11th9`.
 
+Sau phản hồi audio mới chưa phát trên Android chạy từ Flutter, đã sửa ưu tiên MP3 khi truyền dịch vụ TTS nền tảng, khôi phục sau lỗi đọc chỉ mục và bổ sung log chẩn đoán. Xem [KIEM_TRA_AUDIO_ANDROID.md](KIEM_TRA_AUDIO_ANDROID.md). Emulator ban đầu đang cài bản ngày 10/09 thiếu toàn bộ bộ audio mới; đã cập nhật và xác nhận cả bản debug mới lẫn bản release do Flutter cài tiếp có đủ 4.916 MP3. Chưa xác nhận đầu ra loa/thiết bị thật.
+
+Lượt chạy debug tiếp theo đã xác nhận thêm lỗi dọn cache `just_audio_cache` khiến MP3 rơi về TTS. Đã sửa và chạy lại: runtime trên emulator ghi nhận 9 yêu cầu MP3, 0 lỗi phát MP3 và các sự kiện giải mã MP3 native. Chi tiết trong báo cáo Android liên kết ở trên.
+
 ## Kết quả
 
 Đã đưa 4.916 MP3 vào `assets/audio/homi_v4/`, tổng cộng 189.673.805 byte (khoảng 190 MB). Năm file SFX trùng giữa các gói được dùng chung. Audio đi kèm ứng dụng và không phụ thuộc đường dẫn ổ D: trên máy phát triển.
@@ -45,7 +49,7 @@ node tool/import_homi_audio.mjs 'D:/Code/HuaMei/App_noi/Tao_audio_11th9'
 - 266 test Listening và Voice Navigation đạt trong lượt cuối, loại trừ đúng bảy test đã xác minh cũng lỗi trên mã HEAD trước thay đổi.
 - Bảy lỗi có sẵn gồm sáu test ảnh giao diện và một test bài hát bị timeout; không cập nhật golden hoặc sửa các luồng ngoài phạm vi để che lỗi.
 - Test mới kiểm tra đủ 4.916 asset trong Flutter bundle; ánh xạ Core; chuỗi Hook; feedback; TTS khi thiếu/hỏng file; hủy lời nhắc; và Challenge/Mission chỉ mở mic sau prompt dài hơn 10 giây.
-- Android APK debug build thành công tại `build/app/outputs/flutter-apk/app-debug.apk`, dung lượng 461.773.736 byte (khoảng 462 MB). Đây là bản debug để kiểm tra, chưa phải bản phát hành tối ưu dung lượng.
+- Android APK debug build thành công tại `build/app/outputs/flutter-apk/app-debug.apk`. Sau lượt sửa Android, bản debug hiện tại có dung lượng 486.763.374 byte (khoảng 487 MB). Đây là bản debug để kiểm tra, chưa phải bản phát hành tối ưu dung lượng.
 - Đã đọc nội dung APK: đủ 4.916 MP3 và chỉ mục audio, tổng byte audio khớp 189.673.805; không có file thiếu, rỗng hoặc lệch kích thước. Chi tiết trong `apk-audio-verification.json`.
 - Bằng chứng: `integration-analyze-final.log`, `integration-final-tests.log`, `baseline-tests.log`, `integration-build-android.log` và `apk-audio-verification.json` trong cùng thư mục.
 

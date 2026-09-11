@@ -41,13 +41,26 @@ class HomiAudioLibrary {
   Future<_HomiAudioIndex>? _index;
   final Map<String, int> _feedbackCounters = <String, int>{};
 
-  Future<_HomiAudioIndex> _load() => _index ??= _bundle == null
-      ? (_sharedIndex ??= _read(rootBundle))
-      : _read(_bundle);
+  Future<_HomiAudioIndex> _load() {
+    if (_bundle == null) {
+      return _sharedIndex ??= _read(rootBundle).catchError((Object error) {
+        _sharedIndex = null;
+        throw error;
+      });
+    }
+    return _index ??= _read(_bundle).catchError((Object error) {
+      // An asset-sync/read failure must not pin every later prompt to TTS.
+      _index = null;
+      throw error;
+    });
+  }
 
   static Future<_HomiAudioIndex> _read(AssetBundle bundle) async {
+    // We cache the parsed index ourselves. CachingAssetBundle also caches
+    // failed string futures, which would otherwise defeat retry after sync.
     final json =
-        jsonDecode(await bundle.loadString(assetPath)) as Map<String, dynamic>;
+        jsonDecode(await bundle.loadString(assetPath, cache: false))
+            as Map<String, dynamic>;
     return _HomiAudioIndex(json);
   }
 

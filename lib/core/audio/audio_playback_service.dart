@@ -9,6 +9,19 @@ import 'browser_audio_playback.dart';
 import 'browser_audio_playback_factory.dart';
 import 'device_audio_cache.dart';
 
+/// Cache invalidation is optional; failure must not block setAsset from
+/// extracting the bundled MP3. just_audio 0.10.6 throws on a fresh install
+/// because clearAssetCache lists its directory before it has been created.
+Future<void> refreshBundledAudioAssetCache() async {
+  try {
+    await AudioPlayer.clearAssetCache();
+  } catch (error) {
+    debugPrint(
+      'Audio asset cache refresh skipped; loading bundled audio: $error',
+    );
+  }
+}
+
 class PlaybackStartMetrics {
   const PlaybackStartMetrics({
     required this.audioLoadDuration,
@@ -357,7 +370,7 @@ class JustAudioPlaybackService
     // installations can otherwise keep playing the previously extracted file.
     // Share this future across service instances so the cache is cleared only
     // once per app process and always before the first asset is loaded.
-    return _assetCacheRefresh ??= AudioPlayer.clearAssetCache();
+    return _assetCacheRefresh ??= refreshBundledAudioAssetCache();
   }
 
   @override

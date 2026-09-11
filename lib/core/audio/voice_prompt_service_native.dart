@@ -6,6 +6,9 @@ import 'voice_prompt_service_base.dart';
 VoicePromptService createPlatformVoicePromptService() =>
     const MethodChannelVoicePromptService();
 
+bool isPlatformVoicePromptService(VoicePromptService service) =>
+    service is MethodChannelVoicePromptService;
+
 class MethodChannelVoicePromptService
     implements
         VoicePromptService,

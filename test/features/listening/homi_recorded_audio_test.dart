@@ -11,6 +11,75 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('a parent platform TTS service cannot bypass recorded audio', () async {
+    final media = _Media();
+    final native = createVoicePromptService();
+    final nativeCalls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('ailingo_voice_prompt'), (
+          call,
+        ) async {
+          nativeCalls.add(call.method);
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('ailingo_voice_prompt'),
+            null,
+          );
+    });
+    final service = createLessonVoicePromptService(
+      mediaService: media,
+      override: native,
+      age: 4,
+    );
+    expect(service, isA<RecordedLessonVoicePromptService>());
+    await speakRecordedLessonPrompt(
+      service,
+      'A. Apple.',
+      locale: 'en-US',
+      audioId: 'C35-L1-T01-B01-T01_EN',
+    );
+    expect(media.played.single.path, endsWith('/C35-L1-T01-B01-T01_EN.mp3'));
+    expect(nativeCalls, isEmpty);
+    await service.dispose();
+    expect(nativeCalls, isEmpty, reason: 'The parent owns native TTS.');
+  });
+
+  test('custom voice output remains an explicit override', () {
+    final custom = _Voice();
+    expect(
+      createLessonVoicePromptService(mediaService: _Media(), override: custom),
+      same(custom),
+    );
+  });
+
+  test('an index read failure can recover on the next prompt', () async {
+    final bundle = _RecoveringBundle();
+    final library = HomiAudioLibrary(bundle: bundle);
+    final media = _Media();
+    final fallback = _Voice();
+    final service = RecordedLessonVoicePromptService(
+      mediaService: media,
+      fallback: fallback,
+      library: library,
+    );
+    await service.speakRecordedAndWait(
+      'Bắt đầu nhé.',
+      audioId: 'DETAIL_TRANSITION',
+    );
+    expect(fallback.spoken, ['vi-VN|Bắt đầu nhé.']);
+    expect(media.played, isEmpty);
+    await service.speakRecordedAndWait(
+      'Bắt đầu nhé.',
+      audioId: 'DETAIL_TRANSITION',
+    );
+    expect(media.played.single.path, endsWith('/DETAIL_TRANSITION.mp3'));
+    expect(fallback.spoken, hasLength(1));
+    expect(bundle.reads, 2);
+  });
+
   test('all imported clips are declared in the Flutter bundle', () async {
     final index =
         jsonDecode(await rootBundle.loadString(HomiAudioLibrary.assetPath))
@@ -330,5 +399,32 @@ class _StalledVoice extends _Voice {
   }) {
     started.complete();
     return Completer<void>().future;
+  }
+}
+
+class _RecoveringBundle extends CachingAssetBundle {
+  int reads = 0;
+
+  @override
+  Future<ByteData> load(String key) async {
+    if (++reads == 1) throw StateError('Asset sync is not ready');
+    return ByteData.sublistView(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'clips': [
+              {
+                'id': 'DETAIL_TRANSITION',
+                'asset': 'assets/audio/homi_v4/system/DETAIL_TRANSITION.mp3',
+                'kind': 'system',
+                'text': 'Bắt đầu nhé.',
+                'locale': 'vi-VN',
+              },
+            ],
+            'sequences': [],
+          }),
+        ),
+      ),
+    );
   }
 }

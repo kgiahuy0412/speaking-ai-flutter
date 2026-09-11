@@ -5,6 +5,9 @@ import 'voice_prompt_service_base.dart';
 VoicePromptService createPlatformVoicePromptService() =>
     const WebVoicePromptService();
 
+bool isPlatformVoicePromptService(VoicePromptService service) =>
+    service is WebVoicePromptService;
+
 @JS('innotrikVoicePromptSpeak')
 external void _speakPrompt(JSString text, JSString locale);
 
