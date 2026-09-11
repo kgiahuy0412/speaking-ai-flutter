@@ -5,3 +5,7 @@ analyzer:
     avoid_print: error
   exclude:
     - build/**
+    # This is an independent Dart package with its own pubspec/package graph.
+    # Root Flutter analysis must not resolve its imports against the app's
+    # package_config.json; CI analyzes it separately from its own directory.
+    - tool/voice_audit/**

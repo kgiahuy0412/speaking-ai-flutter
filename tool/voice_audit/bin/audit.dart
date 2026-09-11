@@ -89,7 +89,6 @@ class _Strings extends RecursiveAstVisitor<void> {
             },
           )
           .toList(),
-    _ => [],
   };
 
   @override

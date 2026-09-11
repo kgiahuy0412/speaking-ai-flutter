@@ -77,6 +77,11 @@ workflows:
         script: |
           set -euo pipefail
           flutter analyze
+          (
+            cd tool/voice_audit
+            dart pub get
+            dart analyze
+          )
 
       - name: Run platform-independent automated tests
         script: |
@@ -208,6 +213,11 @@ workflows:
         script: |
           set -euo pipefail
           flutter analyze
+          (
+            cd tool/voice_audit
+            dart pub get
+            dart analyze
+          )
 
       - name: Run platform-independent automated tests
         script: |
