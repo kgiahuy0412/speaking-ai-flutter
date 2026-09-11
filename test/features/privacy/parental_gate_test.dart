@@ -1,4 +1,4 @@
-import 'package:ai_speaking_flutter_app/features/privacy/presentation/parental_gate.dart';
+import 'package:ai_speaking_flutter_app/core/privacy/parental_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

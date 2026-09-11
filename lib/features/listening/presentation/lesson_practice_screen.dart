@@ -29,7 +29,7 @@ import '../domain/authored_question_selector.dart';
 import '../domain/lesson_guide_flow.dart';
 import '../domain/lesson_star_flow.dart';
 import '../domain/v4_completion_flow.dart';
-import 'active_learning_navigation.dart';
+import '../../../core/navigation/active_learning_navigation.dart';
 import 'lesson_challenge_screen.dart';
 import 'lesson_mission_screen.dart';
 import 'lesson_intro_screen.dart';

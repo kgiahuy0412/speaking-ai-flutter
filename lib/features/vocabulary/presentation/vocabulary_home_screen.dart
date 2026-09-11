@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../core/audio/voice_prompt_service.dart';
 import '../../../core/device/active_learning_module.dart';
+import '../../../core/navigation/active_learning_navigation.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../listening/application/lesson_media_service.dart';
-import '../../listening/presentation/active_learning_navigation.dart';
 import '../data/vocabulary_session_store.dart';
 import '../data/vocabulary_store.dart';
 import '../domain/vocabulary_entry.dart';
@@ -33,7 +33,7 @@ class VocabularyHomeScreen extends StatefulWidget {
     this.sessionStore = const VocabularySessionStore(),
     this.voicePromptService,
     this.mediaService,
-    this.controller,
+    this.audioDependencies,
     this.translator,
     this.suggestionProvider,
     this.childAge = 5,
@@ -51,7 +51,7 @@ class VocabularyHomeScreen extends StatefulWidget {
   final VocabularySessionStore sessionStore;
   final VoicePromptService? voicePromptService;
   final LessonMediaService? mediaService;
-  final ConversationController? controller;
+  final LearningAudioDependencies? audioDependencies;
   final VocabularyTranslator? translator;
   final VocabularySuggestionProvider? suggestionProvider;
   final int childAge;
@@ -106,15 +106,16 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
     _voicePromptService =
         widget.voicePromptService ??
         createVoicePromptService(
-          coordinator: widget.controller?.audioTurnCoordinator,
+          coordinator: widget.audioDependencies?.audioTurnCoordinator,
           owner: AudioTurnOwner.vocabulary,
         );
     _ownsMediaService = widget.mediaService == null;
     _mediaService =
         widget.mediaService ??
         LessonMediaService(
-          hfpAudioControl: widget.controller?.createLearningAudioRouteControl(),
-          audioTurnCoordinator: widget.controller?.audioTurnCoordinator,
+          hfpAudioControl: widget.audioDependencies
+              ?.createLearningAudioRouteControl(),
+          audioTurnCoordinator: widget.audioDependencies?.audioTurnCoordinator,
           audioTurnOwner: AudioTurnOwner.vocabulary,
         );
     _searchController.addListener(_refreshSearch);
@@ -1021,7 +1022,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
             store: widget.store,
             sessionStore: widget.sessionStore,
             mediaService: _mediaService,
-            controller: widget.controller,
+            audioDependencies: widget.audioDependencies,
             voicePromptService: _voicePromptService,
             onRequestVoiceChoice: widget.onRequestVoiceChoice,
             announceIntro: announceIntro,
@@ -1417,7 +1418,7 @@ class _VocabularyHomeScreenState extends State<VocabularyHomeScreen>
         store: widget.store,
         sessionStore: widget.sessionStore,
         mediaService: _mediaService,
-        controller: widget.controller,
+        audioDependencies: widget.audioDependencies,
         voicePromptService: _voicePromptService,
         onRequestVoiceChoice: widget.onRequestVoiceChoice,
       ),

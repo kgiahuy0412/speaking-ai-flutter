@@ -9,7 +9,7 @@ import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
 import '../application/lesson_media_service.dart';
 import '../domain/listening_content.dart';
-import 'active_learning_navigation.dart';
+import '../../../core/navigation/active_learning_navigation.dart';
 
 bool shouldUseSongKaraoke({
   required int startAge,

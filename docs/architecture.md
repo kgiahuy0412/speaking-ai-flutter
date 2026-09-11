@@ -1,5 +1,44 @@
 # Kiến trúc Flutter + Next.js
 
+## Ranh giới module audio và phiên HOMI
+
+Ứng dụng dùng **modular monolith**: mỗi tính năng giữ state machine riêng, còn
+micro, recognizer, playback và HFP/SCO được phân xử qua một coordinator dùng
+chung. Việc này ngăn thay đổi trong luyện nghe vô tình đổi dịch liên tục, hoặc
+thay đổi background làm MAIN giành micro sai thời điểm.
+
+```mermaid
+flowchart TD
+    APP["App / Home composition root"] --> FLOW["AppFlowCoordinator"]
+    FLOW --> MAIN["MainAssistantSession"]
+    FLOW --> TALK["ContinuousTranslationSession"]
+    FLOW --> LESSON["ListeningLessonSession"]
+    APP --> BG["BackgroundLearningCoordinator"]
+    MAIN --> TURN["AudioTurnCoordinator"]
+    TALK --> TURN
+    LESSON --> TURN
+    BG -. "checkpoint / lifecycle only" .-> FLOW
+    TURN --> CAPTURE["Speech / recorder adapters"]
+    TURN --> PLAYBACK["Prompt / playback adapters"]
+    TURN --> ROUTE["Android/iOS HFP-SCO adapters"]
+```
+
+Các quy tắc được khóa trong `tool/check_architecture_boundaries.dart` và chạy
+trước analyzer trên Codemagic:
+
+- `core` không phụ thuộc ngược vào feature.
+- `application`, `domain` và `data` không import `presentation`.
+- Listening, Vocabulary và Voice Navigation không import Conversation UI.
+- Presentation không gọi `MethodChannel`/`EventChannel` trực tiếp.
+- Chỉ `HomeLearningShell` được phép ghép UI từ nhiều feature vì đây là
+  composition root của màn hình chính.
+- Settings/History chỉ nhận port hẹp, không nhận biết implementation UI của
+  `ConversationController`.
+
+Các native compatibility path hiện hành vẫn được giữ để kiểm thử thiết bị H20
+thật. Giai đoạn tái cấu trúc này không đổi backend, quyền hệ điều hành, giao thức
+BLE, nội dung bài học hoặc chính sách online/offline.
+
 ## Quyết định chính
 
 Flutter là mobile client native. Next.js tiếp tục là backend và là nơi duy nhất

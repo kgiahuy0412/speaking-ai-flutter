@@ -10,13 +10,13 @@ import '../../../config/app_config.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/device/aiv0_ble_control.dart';
+import '../../../core/privacy/parental_gate.dart';
 import '../../../l10n/display_language.dart';
+import '../../conversation/application/conversation_settings_port.dart';
 import '../../conversation/application/offline_language_service.dart';
 import '../../conversation/domain/conversation_models.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../listening/application/android_offline_speech_model_service.dart';
 import '../../listening/domain/listening_catalog.dart';
-import '../../privacy/presentation/parental_gate.dart';
 import 'history_sheet.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -35,7 +35,7 @@ class SettingsSheet extends StatelessWidget {
     super.key,
   });
 
-  final ConversationController controller;
+  final ConversationSettingsPort controller;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final ValueChanged<int>? onChildAgeChanged;

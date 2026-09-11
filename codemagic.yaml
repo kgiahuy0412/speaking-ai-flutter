@@ -73,6 +73,11 @@ workflows:
           set -euo pipefail
           flutter pub get
 
+      - name: Verify architecture boundaries
+        script: |
+          set -euo pipefail
+          dart run tool/check_architecture_boundaries.dart
+
       - name: Analyze Dart code
         script: |
           set -euo pipefail
@@ -203,6 +208,11 @@ workflows:
         script: |
           set -euo pipefail
           flutter pub get
+
+      - name: Verify architecture boundaries
+        script: |
+          set -euo pipefail
+          dart run tool/check_architecture_boundaries.dart
 
       - name: Analyze Dart code
         script: |

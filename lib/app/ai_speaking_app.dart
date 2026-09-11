@@ -1768,7 +1768,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                     minimum: const EdgeInsets.only(bottom: 88),
                     child: MainVoiceAssistantButton(
                       voiceController: voiceController,
-                      conversationController: controller,
+                      audioState: controller,
                       speakingSessionController: _mainSpeakingSessionController,
                       isActivationPending: _isActivatingMainAssistant,
                       onPressed: _handleScreenMainShortPress,

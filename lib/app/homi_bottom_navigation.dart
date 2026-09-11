@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/app_theme.dart';
-import '../../../l10n/display_language.dart';
+import '../l10n/display_language.dart';
+import 'app_theme.dart';
 
 /// The shared primary navigation used by the HOMI home and vocabulary screens.
 ///

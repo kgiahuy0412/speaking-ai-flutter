@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../config/app_config.dart';
+import '../../../app/homi_bottom_navigation.dart';
 import '../../../l10n/display_language.dart';
+import '../../../core/navigation/active_learning_navigation.dart';
 import '../../../core/platform/background_learning_session.dart';
 import '../../../core/platform/platform_access_policy.dart';
 import '../../conversation/presentation/conversation_controller.dart';
@@ -12,12 +14,11 @@ import '../../conversation/presentation/conversation_screen.dart';
 import '../../listening/application/listening_voice_navigation_target.dart';
 import '../../listening/data/listening_progress_store.dart';
 import '../../listening/domain/listening_content.dart';
-import '../../listening/presentation/active_learning_navigation.dart';
 import '../../listening/presentation/listening_route_names.dart';
 import '../../listening/presentation/topic_listening_screen.dart';
 import '../../onboarding/application/onboarding_progress_store.dart';
 import '../../onboarding/presentation/user_onboarding_tour.dart';
-import '../../privacy/presentation/parental_gate.dart';
+import '../../../core/privacy/parental_gate.dart';
 import '../../settings/presentation/history_sheet.dart';
 import '../../settings/presentation/settings_sheet.dart';
 import '../../vocabulary/domain/vocabulary_entry.dart';
@@ -25,7 +26,6 @@ import '../../vocabulary/presentation/vocabulary_home_screen.dart';
 import '../../voice_navigation/application/voice_navigation_controller.dart';
 import '../../voice_navigation/application/voice_navigation_intent_resolver.dart';
 import '../application/background_learning_coordinator.dart';
-import 'homi_bottom_navigation.dart';
 
 class HomeLearningShell extends StatefulWidget {
   const HomeLearningShell({
@@ -263,24 +263,10 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                         children: <Widget>[
                           ConversationScreen(
                             controller: widget.controller,
-                            config: widget.config,
-                            themeMode: widget.themeMode,
-                            onThemeModeChanged: widget.onThemeModeChanged,
-                            onChildAgeChanged: widget.onChildAgeChanged,
-                            onStartTutorial: _startTutorial,
                             speakActionKey: _speakActionKey,
                             resultPanelKey: _resultPanelKey,
                             historyButtonKey: _historyButtonKey,
                             settingsButtonKey: _settingsButtonKey,
-                            onModalVisibilityChanged:
-                                widget.onModalVisibilityChanged,
-                            privacyConsentGranted: widget.privacyConsentGranted,
-                            voiceAccessEnabled: widget.voiceAccessEnabled,
-                            onRequestVoiceAccess: widget.onRequestVoiceAccess,
-                            onManagePrivacyConsent:
-                                widget.onManagePrivacyConsent,
-                            onRevokePrivacyConsent:
-                                widget.onRevokePrivacyConsent,
                             onOpenHistory: _showHistory,
                             onOpenSettings: _showSettings,
                           ),
@@ -288,7 +274,7 @@ class _HomeLearningShellState extends State<HomeLearningShell>
                             isReady: widget.controller.isInputAvailable,
                             isActive: _page == 1,
                             childAge: widget.controller.childAge,
-                            controller: widget.controller,
+                            audioDependencies: widget.controller,
                             autoStartToday: true,
                             onRequestVoiceChoice:
                                 widget.onVocabularyVoiceChoiceRequested,

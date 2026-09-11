@@ -7,9 +7,9 @@ import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../core/audio/streaming_speech_input.dart';
 import '../../../core/audio/voice_prompt_service.dart';
+import '../../../core/audio/learning_audio_dependencies.dart';
 import '../../../core/device/active_learning_module.dart';
 import '../../../l10n/display_language.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 import '../../listening/application/lesson_attempt_evaluator.dart';
 import '../../listening/application/lesson_media_service.dart';
 import '../../listening/domain/lesson_guide_flow.dart';
@@ -28,7 +28,7 @@ class VocabularyPracticeScreen extends StatefulWidget {
     required this.store,
     required this.sessionStore,
     required this.mediaService,
-    this.controller,
+    this.audioDependencies,
     this.attemptEvaluator,
     this.voicePromptService,
     this.samplePause = const Duration(seconds: 2),
@@ -44,7 +44,7 @@ class VocabularyPracticeScreen extends StatefulWidget {
   final VocabularyStore store;
   final VocabularySessionStore sessionStore;
   final LessonMediaService mediaService;
-  final ConversationController? controller;
+  final LearningAudioDependencies? audioDependencies;
   final LessonAttemptEvaluator? attemptEvaluator;
   final VoicePromptService? voicePromptService;
   final Duration samplePause;
@@ -88,7 +88,9 @@ class _VocabularyPracticeScreenState extends State<VocabularyPracticeScreen>
   VocabularyEntry get _entry => _entries[_index];
 
   IOSStreamingSpeechInput? get _iosSpeechInput =>
-      widget.controller?.iosLessonSpeechInput;
+      widget.audioDependencies?.learningSpeechInput is IOSStreamingSpeechInput
+      ? widget.audioDependencies!.learningSpeechInput as IOSStreamingSpeechInput
+      : null;
 
   bool get _usesIosNativeRecognition =>
       !kIsWeb &&
@@ -117,7 +119,7 @@ class _VocabularyPracticeScreenState extends State<VocabularyPracticeScreen>
     _voicePromptService =
         widget.voicePromptService ??
         createVoicePromptService(
-          coordinator: widget.controller?.audioTurnCoordinator,
+          coordinator: widget.audioDependencies?.audioTurnCoordinator,
           owner: AudioTurnOwner.vocabulary,
         );
     unawaited(_load());

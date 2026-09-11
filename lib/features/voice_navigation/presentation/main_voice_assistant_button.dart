@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../conversation/presentation/conversation_controller.dart';
+import '../../../core/audio/main_assistant_audio_state.dart';
 import '../application/main_speaking_session_controller.dart';
 import '../application/voice_navigation_controller.dart';
 
 class MainVoiceAssistantButton extends StatelessWidget {
   const MainVoiceAssistantButton({
     required this.voiceController,
-    required this.conversationController,
+    required this.audioState,
     required this.speakingSessionController,
     required this.isActivationPending,
     required this.onPressed,
@@ -20,7 +20,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
   });
 
   final VoiceNavigationController voiceController;
-  final ConversationController conversationController;
+  final MainAssistantAudioState audioState;
   final MainSpeakingSessionController speakingSessionController;
   final bool isActivationPending;
   final Future<void> Function() onPressed;
@@ -32,7 +32,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
     return AnimatedBuilder(
       animation: Listenable.merge(<Listenable>[
         voiceController,
-        conversationController,
+        audioState,
         speakingSessionController,
       ]),
       builder: (context, _) {
@@ -42,8 +42,8 @@ class MainVoiceAssistantButton extends StatelessWidget {
         final canActivate =
             !isActivationPending &&
             !isSpeakingMode &&
-            !conversationController.isBusy &&
-            !conversationController.isPlaybackPlaying &&
+            !audioState.isBusy &&
+            !audioState.isPlaybackPlaying &&
             !isAssistantBusy;
         final microphoneError = voiceController.lastErrorMessage;
         final label = isSpeakingMode
@@ -51,7 +51,7 @@ class MainVoiceAssistantButton extends StatelessWidget {
                 MainSpeakingSessionState.ready => 'Đang chuẩn bị...',
                 MainSpeakingSessionState.recording => 'Đang nghe...',
                 MainSpeakingSessionState.processing =>
-                  conversationController.isPreparingMicrophone
+                  audioState.isPreparingMicrophone
                       ? 'Đang chuẩn bị...'
                       : 'Đang dịch...',
                 MainSpeakingSessionState.playing => 'Đang phát...',

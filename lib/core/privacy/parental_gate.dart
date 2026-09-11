@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
-import '../../../l10n/display_language.dart';
+import '../../l10n/display_language.dart';
 
 /// Provides device-owner authentication for the parental area.
 abstract interface class ParentalGateAuthenticator {

@@ -31,6 +31,24 @@ not a request to change the current user experience.
   (`--concurrency=1`).
 - The complete non-golden test suite must pass before every phase is committed.
 
+## Staged implementation record
+
+| Phase | Commit | Verification |
+| --- | --- | --- |
+| 0 — regression contract | `e37d1ee` | 661 non-golden tests passed |
+| 1 — audio turn ownership | `df4666d` | coordinator tests and full suite passed |
+| 2 — playback/HFP ownership | `ef05c2d` | prompt, route and full suite passed |
+| 3 — continuous translation session | `43b2c69` | translation session and full suite passed |
+| 4 — listening lesson session | `8e1467d` | listening/session and full suite passed |
+| 5 — MAIN/app flow | `5ad96c4` | navigation/app-flow and 691 non-golden tests passed |
+| 6 — background lifecycle | `95ae267` | background/checkpoint and 696 non-golden tests passed |
+| 7 — dependency enforcement | phase commit (this document) | architecture check, analyzer and 697 non-golden tests passed |
+
+Phase 7 deliberately retains native Android/iOS compatibility adapters until
+real-device H20 testing is complete. It removes UI-to-UI dependencies between
+feature modules, narrows Settings/History and MAIN audio dependencies to ports,
+and makes the dependency rules executable in local tests and Codemagic.
+
 ## Platform invariants
 
 Android and iOS use separate native audio adapters, but both must retain these

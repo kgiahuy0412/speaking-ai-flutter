@@ -10,7 +10,7 @@ import '../application/lesson_media_service.dart';
 import '../data/listening_progress_store.dart';
 import '../domain/listening_catalog.dart';
 import '../domain/listening_content.dart';
-import 'active_learning_navigation.dart';
+import '../../../core/navigation/active_learning_navigation.dart';
 import 'lesson_practice_screen.dart';
 
 /// Compatibility route for old deep links. New navigation no longer opens this

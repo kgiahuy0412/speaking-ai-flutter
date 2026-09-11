@@ -4,11 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/learning_scenery.dart';
-import '../../../config/app_config.dart';
+import '../../../app/scenic_app_header.dart';
 import '../../../l10n/display_language.dart';
-import '../../home/presentation/scenic_app_header.dart';
-import '../../settings/presentation/history_sheet.dart';
-import '../../settings/presentation/settings_sheet.dart';
 import 'conversation_controller.dart';
 import 'widgets/result_panel.dart';
 import 'widgets/speak_action_bar.dart';
@@ -17,19 +14,8 @@ import 'widgets/voice_hero.dart';
 class ConversationScreen extends StatelessWidget {
   const ConversationScreen({
     required this.controller,
-    required this.config,
-    this.themeMode = ThemeMode.system,
-    this.onThemeModeChanged,
-    this.onChildAgeChanged,
-    this.onStartTutorial,
-    this.onModalVisibilityChanged,
-    this.privacyConsentGranted = false,
-    this.voiceAccessEnabled = true,
-    this.onRequestVoiceAccess,
-    this.onManagePrivacyConsent,
-    this.onRevokePrivacyConsent,
-    this.onOpenHistory,
-    this.onOpenSettings,
+    required this.onOpenHistory,
+    required this.onOpenSettings,
     this.speakActionKey,
     this.resultPanelKey,
     this.historyButtonKey,
@@ -38,19 +24,8 @@ class ConversationScreen extends StatelessWidget {
   });
 
   final ConversationController controller;
-  final AppConfig config;
-  final ThemeMode themeMode;
-  final ValueChanged<ThemeMode>? onThemeModeChanged;
-  final ValueChanged<int>? onChildAgeChanged;
-  final VoidCallback? onStartTutorial;
-  final ValueChanged<bool>? onModalVisibilityChanged;
-  final bool privacyConsentGranted;
-  final bool voiceAccessEnabled;
-  final VoidCallback? onRequestVoiceAccess;
-  final VoidCallback? onManagePrivacyConsent;
-  final Future<void> Function()? onRevokePrivacyConsent;
-  final VoidCallback? onOpenHistory;
-  final VoidCallback? onOpenSettings;
+  final VoidCallback onOpenHistory;
+  final VoidCallback onOpenSettings;
   final Key? speakActionKey;
   final Key? resultPanelKey;
   final Key? historyButtonKey;
@@ -74,9 +49,8 @@ class ConversationScreen extends StatelessWidget {
                   children: <Widget>[
                     ScenicAppHeader(
                       isReady: controller.isInputAvailable,
-                      onHistory: onOpenHistory ?? () => _showHistory(context),
-                      onSettings:
-                          onOpenSettings ?? () => _showSettings(context),
+                      onHistory: onOpenHistory,
+                      onSettings: onOpenSettings,
                       historyButtonKey: historyButtonKey,
                       settingsButtonKey: settingsButtonKey,
                     ),
@@ -144,50 +118,6 @@ class ConversationScreen extends StatelessWidget {
         );
       },
     );
-  }
-
-  Future<void> _showSettings(BuildContext context) async {
-    await controller.markParentDiagnosticsOpened();
-    if (!context.mounted) return;
-    onModalVisibilityChanged?.call(true);
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (_) => SettingsSheet(
-          controller: controller,
-          themeMode: themeMode,
-          onThemeModeChanged: onThemeModeChanged,
-          onChildAgeChanged: onChildAgeChanged,
-          onStartTutorial: onStartTutorial,
-          config: config,
-          privacyConsentGranted: privacyConsentGranted,
-          voiceAccessEnabled: voiceAccessEnabled,
-          onRequestVoiceAccess: onRequestVoiceAccess,
-          onManagePrivacyConsent: onManagePrivacyConsent,
-          onRevokePrivacyConsent: onRevokePrivacyConsent,
-        ),
-      );
-    } finally {
-      onModalVisibilityChanged?.call(false);
-    }
-  }
-
-  Future<void> _showHistory(BuildContext context) async {
-    onModalVisibilityChanged?.call(true);
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (_) => HistorySheet(controller: controller),
-      );
-    } finally {
-      onModalVisibilityChanged?.call(false);
-    }
   }
 }
 

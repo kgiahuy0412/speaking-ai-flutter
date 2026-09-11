@@ -11,6 +11,7 @@ import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/learning_audio_dependencies.dart';
+import '../../../core/audio/main_assistant_audio_state.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
 import '../../../core/audio/streaming_speech_input.dart';
@@ -19,6 +20,7 @@ import '../../../core/device/aiv0_ble_control.dart';
 import '../../../core/device/h20_connection_state.dart';
 import '../../../core/device/main_button_coordinator.dart';
 import '../../../l10n/display_language.dart';
+import '../application/conversation_settings_port.dart';
 import '../application/continuous_translation_session.dart';
 import '../application/offline_language_service.dart';
 import '../application/vietnamese_transcript_corrector.dart';
@@ -26,14 +28,8 @@ import '../domain/conversation_models.dart';
 import '../domain/conversation_repository.dart';
 import '../domain/speech_gated_batch_upload_session.dart';
 
-enum H20HardwareTestPhase {
-  idle,
-  openingRoute,
-  recording,
-  playing,
-  completed,
-  error,
-}
+export '../application/conversation_settings_port.dart'
+    show H20HardwareTestPhase, H20HardwareTestResult;
 
 enum ConversationTurnEndReason {
   completed,
@@ -43,40 +39,11 @@ enum ConversationTurnEndReason {
   failed,
 }
 
-class H20HardwareTestResult {
-  const H20HardwareTestResult({
-    required this.completedAt,
-    required this.inputRouteVerified,
-    required this.outputRouteVerified,
-    this.recordedDuration,
-    this.inputDeviceName,
-    this.outputDeviceName,
-    this.playbackAudible,
-  });
-
-  final DateTime completedAt;
-  final bool inputRouteVerified;
-  final bool outputRouteVerified;
-  final Duration? recordedDuration;
-  final String? inputDeviceName;
-  final String? outputDeviceName;
-  final bool? playbackAudible;
-
-  H20HardwareTestResult copyWith({bool? playbackAudible}) {
-    return H20HardwareTestResult(
-      completedAt: completedAt,
-      inputRouteVerified: inputRouteVerified,
-      outputRouteVerified: outputRouteVerified,
-      recordedDuration: recordedDuration,
-      inputDeviceName: inputDeviceName,
-      outputDeviceName: outputDeviceName,
-      playbackAudible: playbackAudible ?? this.playbackAudible,
-    );
-  }
-}
-
 class ConversationController extends ChangeNotifier
-    implements LearningAudioDependencies {
+    implements
+        ConversationSettingsPort,
+        LearningAudioDependencies,
+        MainAssistantAudioState {
   static const double translatedSpeechPlaybackRate = 0.57;
 
   ConversationController({
@@ -365,25 +332,35 @@ class ConversationController extends ChangeNotifier
   final List<NativeSpeechDiagnostic> _nativeSpeechDiagnosticLog =
       <NativeSpeechDiagnostic>[];
 
+  @override
   ConversationPhase phase = ConversationPhase.idle;
   ConversationProcessingStage processingStage =
       ConversationProcessingStage.recognizing;
   PracticeContext context = PracticeContext.home;
+  @override
   AsrMode asrMode;
+  @override
   int vadSilenceMs = 700;
   double amplitude = 0;
   ConversationResult? result;
   bool? qualityApproved;
   String? errorMessage;
   String? transientMessage;
+  @override
   DisplayLanguage displayLanguage = DisplayLanguage.vietnamese;
   bool bleDiagnosticRunning = false;
+  @override
   bool h20HardwareTestModeEnabled = false;
+  @override
   H20HardwareTestPhase h20HardwareTestPhase = H20HardwareTestPhase.idle;
+  @override
   H20HardwareTestResult? h20HardwareTestResult;
+  @override
   String? h20HardwareTestMessage;
+  @override
   NativeSpeechDiagnostic? nativeSpeechDiagnostic;
 
+  @override
   int get childAge => _childAge;
 
   void setChildAge(int age) {
@@ -725,6 +702,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   void setDisplayLanguage(DisplayLanguage language) {
     if (language == displayLanguage) {
       return;
@@ -741,6 +719,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   String get inputLabel {
     if (usesHfpInput || _usingHfpRoute) {
       final name = hfpAudioStatus.deviceName?.trim();
@@ -771,6 +750,7 @@ class ConversationController extends ChangeNotifier
       );
   bool get supportsInnotrikBle => bluetoothAudioStatus.isBridgeSupported;
   bool get canUseInnotrikBle => bluetoothAudioStatus.isConnected;
+  @override
   BluetoothAudioStatus get hfpAudioStatus =>
       _hfpAudioControl?.status ??
       const BluetoothAudioStatus(
@@ -805,26 +785,35 @@ class ConversationController extends ChangeNotifier
   bool get canUseHfp =>
       hfpAudioStatus.isConnected || hfpAudioStatus.deviceId != null;
   bool get hasSelectedHfpInput => hfpAudioStatus.deviceId != null;
+  @override
   Aiv0BleStatus get aiv0BleStatus =>
       _aiv0BleControl?.status ?? const Aiv0BleStatus.disabled();
   bool get supportsAiv0Ble => aiv0BleStatus.phase != Aiv0BlePhase.disabled;
+  @override
   bool get canUseAiv0Ble => aiv0BleStatus.isConnected;
+  @override
   H20ConnectionState h20ConnectionState({bool mainTurnActive = false}) =>
       H20ConnectionState.from(
         hfpStatus: hfpAudioStatus,
         bleStatus: aiv0BleStatus,
         mainTurnActive: mainTurnActive,
       );
+  @override
   List<Aiv0ButtonEvent> get aiv0ButtonEventLog =>
       List<Aiv0ButtonEvent>.unmodifiable(_aiv0ButtonEventLog);
+  @override
   String get aiv0MainDispatchStatus => _aiv0MainDispatchStatus;
+  @override
   DateTime? get aiv0MainDispatchAt => _aiv0MainDispatchAt;
+  @override
   List<NativeSpeechDiagnostic> get nativeSpeechDiagnosticLog =>
       List<NativeSpeechDiagnostic>.unmodifiable(_nativeSpeechDiagnosticLog);
+  @override
   bool get supportsBrowserHfp =>
       (_hfpAudioControl?.usesBrowserAudioInput ?? false) &&
       _audioInput is ChunkedAudioInput;
   bool get isBrowserHfpMode => supportsBrowserHfp && _hfpInputSelected;
+  @override
   bool get usesHfpInput => _hfpInputSelected;
   bool get _usesNativeUtteranceScopedHfpCapture =>
       usesHfpInput &&
@@ -833,7 +822,9 @@ class ConversationController extends ChangeNotifier
       usesHfpInput || _usingHfpRoute || _audioInput.isBluetooth;
   bool get isInputAvailable => _audioInput.isAvailable;
   bool get isRecording => phase == ConversationPhase.recording;
+  @override
   bool get isPlaybackPlaying => _playbackPlaying;
+  @override
   bool get isPreparingMicrophone => _preparingMicrophone;
   bool get isContinuousHfpSessionActive => _continuousHfpSessionActive;
   ConversationTurnEndReason? get lastTurnEndReason => _lastTurnEndReason;
@@ -851,6 +842,7 @@ class ConversationController extends ChangeNotifier
       hfpAudioStatus.isBusy ||
       phase == ConversationPhase.recording ||
       phase == ConversationPhase.processing;
+  @override
   bool get isBusy =>
       isRecordingStartBlocked ||
       aiv0BleStatus.phase == Aiv0BlePhase.scanning ||
@@ -1021,6 +1013,7 @@ class ConversationController extends ChangeNotifier
   Future<void> stopPushToTalk() =>
       _continuousTranslationSession.stopPushToTalk();
 
+  @override
   Future<List<Aiv0BleDevice>> scanAiv0Devices() async {
     final control = _aiv0BleControl;
     if (control == null || isBusy) return const [];
@@ -1040,6 +1033,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> connectAiv0Device(Aiv0BleDevice device) async {
     final control = _aiv0BleControl;
     if (control == null || isBusy) return;
@@ -1059,6 +1053,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> disconnectAiv0Device() async {
     if (isBusy) return;
     await _aiv0BleControl?.disconnect();
@@ -1416,6 +1411,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<List<BluetoothAudioDevice>> scanInnotrikDevices() async {
     final control = _bluetoothAudioControl;
     if (control == null || isBusy) {
@@ -1437,6 +1433,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> connectInnotrikDevice(BluetoothAudioDevice device) async {
     final control = _bluetoothAudioControl;
     if (control == null || isBusy) {
@@ -1471,6 +1468,7 @@ class ConversationController extends ChangeNotifier
     notifyListeners();
   }
 
+  @override
   Future<List<HfpAudioDevice>> findHfpDevices() async {
     final control = _hfpAudioControl;
     if (control == null || isBusy) {
@@ -1539,6 +1537,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> connectHfpDevice(HfpAudioDevice device) async {
     final control = _hfpAudioControl;
     if (control == null || isBusy) {
@@ -1567,6 +1566,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> disconnectHfpDevice() async {
     if (isBusy) {
       return;
@@ -1584,6 +1584,7 @@ class ConversationController extends ChangeNotifier
     notifyListeners();
   }
 
+  @override
   Future<void> setH20HardwareTestMode(bool enabled) async {
     if (enabled == h20HardwareTestModeEnabled) return;
     if (!enabled && h20HardwareTestActive) {
@@ -1600,6 +1601,7 @@ class ConversationController extends ChangeNotifier
   /// Opens the verified HFP/SCO route and records locally. No repository or
   /// network API is touched. A second tap (or MAIN after ODM confirmation)
   /// stops capture and immediately replays the local file through H20.
+  @override
   Future<void> toggleH20OfflineRecordingTest() async {
     if (h20HardwareTestPhase == H20HardwareTestPhase.recording) {
       await stopAndReplayH20OfflineRecording();
@@ -1703,6 +1705,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<void> playH20BundledSpeakerTest() async {
     if (!h20HardwareTestModeEnabled) {
       throw StateError('Hãy bật chế độ kiểm tra phần cứng offline trước.');
@@ -1758,6 +1761,7 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   void confirmH20PlaybackAudible(bool audible) {
     final current = h20HardwareTestResult;
     if (current == null) return;
@@ -1814,6 +1818,7 @@ class ConversationController extends ChangeNotifier
     if (_usingHfpRoute) await _stopHfpRoute();
   }
 
+  @override
   Future<void> testInnotrikMicrophone() async {
     if (!canUseInnotrikBle || isBusy || _audioInput is! ChunkedAudioInput) {
       return;
@@ -3733,10 +3738,12 @@ class ConversationController extends ChangeNotifier
     }
   }
 
+  @override
   Future<List<ConversationHistoryItem>> loadHistory() {
     return _repository.fetchHistory();
   }
 
+  @override
   Future<void> playHistoryItem(ConversationHistoryItem item) async {
     final audioUri = item.audioUri;
     if (audioUri == null) {
@@ -3746,6 +3753,7 @@ class ConversationController extends ChangeNotifier
     await _playbackService.play(audioUri);
   }
 
+  @override
   Future<void> playHistoryUserAudio(ConversationHistoryItem item) async {
     if (!item.hasUserAudio) {
       throw StateError('Bản ghi âm này không còn được lưu trên máy chủ.');
@@ -3761,6 +3769,7 @@ class ConversationController extends ChangeNotifier
     await _playbackService.play(audioUri);
   }
 
+  @override
   Future<ConversationLearningOutcome> reviewHistoryItem(
     ConversationHistoryItem item,
     bool approved,
@@ -3771,10 +3780,12 @@ class ConversationController extends ChangeNotifier
     );
   }
 
+  @override
   Future<void> deleteHistoryItem(ConversationHistoryItem item) {
     return _repository.deleteHistoryItem(item.conversationId);
   }
 
+  @override
   Future<void> clearHistory() {
     return _repository.clearHistory();
   }
@@ -3863,6 +3874,7 @@ class ConversationController extends ChangeNotifier
     notifyListeners();
   }
 
+  @override
   void setVadSilence(int milliseconds) {
     if (isBusy) {
       return;

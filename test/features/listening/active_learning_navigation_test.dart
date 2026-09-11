@@ -1,4 +1,4 @@
-import 'package:ai_speaking_flutter_app/features/listening/presentation/active_learning_navigation.dart';
+import 'package:ai_speaking_flutter_app/core/navigation/active_learning_navigation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

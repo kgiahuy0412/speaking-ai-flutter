@@ -145,6 +145,10 @@ Quy tắc:
 
 ## 6. Thứ tự triển khai
 
+Trạng thái trên nhánh `codex/audio-session-modularization`: các giai đoạn 0–6
+đã có commit độc lập; giai đoạn 7 đã vượt qua kiểm tra kiến trúc, analyzer và
+toàn bộ 697 test không-golden trước bước commit/build cuối.
+
 ### Giai đoạn 0 — Khóa baseline bằng test
 
 Mục đích: ghi lại hành vi hiện tại trước khi thay đổi kiến trúc.
@@ -471,4 +475,3 @@ Không tự quyết định nếu gặp một trong các trường hợp:
 - Analyze, test, Android release build và iOS Codemagic đều đạt.
 - Test thiết bị thật online/offline/background/H20 đạt trên cả Android và iOS.
 - Có thể rollback từng giai đoạn độc lập về baseline `97261f9`.
-

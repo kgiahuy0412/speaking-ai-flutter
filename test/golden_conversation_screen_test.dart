@@ -1,5 +1,4 @@
 import 'package:ai_speaking_flutter_app/app/app_theme.dart';
-import 'package:ai_speaking_flutter_app/config/app_config.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
@@ -35,11 +34,8 @@ void main() {
         theme: buildAppTheme(),
         home: ConversationScreen(
           controller: controller,
-          config: AppConfig(
-            backendBaseUri: _previewBackendUri,
-            useDemoBackend: true,
-            childAge: 6,
-          ),
+          onOpenHistory: _noopCallback,
+          onOpenSettings: _noopCallback,
         ),
       ),
     );
@@ -77,11 +73,8 @@ void main() {
         theme: buildAppTheme(),
         home: ConversationScreen(
           controller: controller,
-          config: AppConfig(
-            backendBaseUri: _previewBackendUri,
-            useDemoBackend: true,
-            childAge: 6,
-          ),
+          onOpenHistory: _noopCallback,
+          onOpenSettings: _noopCallback,
         ),
       ),
     );
@@ -119,11 +112,8 @@ void main() {
         theme: buildAppTheme(),
         home: ConversationScreen(
           controller: controller,
-          config: AppConfig(
-            backendBaseUri: _previewBackendUri,
-            useDemoBackend: true,
-            childAge: 6,
-          ),
+          onOpenHistory: _noopCallback,
+          onOpenSettings: _noopCallback,
         ),
       ),
     );
@@ -165,11 +155,8 @@ void main() {
         theme: buildAppTheme(),
         home: ConversationScreen(
           controller: controller,
-          config: AppConfig(
-            backendBaseUri: _previewBackendUri,
-            useDemoBackend: true,
-            childAge: 6,
-          ),
+          onOpenHistory: _noopCallback,
+          onOpenSettings: _noopCallback,
         ),
       ),
     );
@@ -225,6 +212,8 @@ void main() {
   });
 }
 
+void _noopCallback() {}
+
 Future<void> _noopMainPress() async {}
 
 Future<void> _precacheConversationAssets(WidgetTester tester) async {
@@ -248,8 +237,6 @@ Future<void> _loadGoldenFonts() async {
     ..addFont(rootBundle.load('assets/fonts/MaterialIcons-Regular.otf'));
   await Future.wait<void>(<Future<void>>[roboto.load(), materialIcons.load()]);
 }
-
-final _previewBackendUri = Uri.parse('https://api.example.com');
 
 const _previewResult = ConversationResult(
   conversationId: 'conv_preview',

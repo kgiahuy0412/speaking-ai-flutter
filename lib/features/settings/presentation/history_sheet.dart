@@ -6,15 +6,15 @@ import '../../../app/app_theme.dart';
 import '../../../app/homi_ui.dart';
 import '../../../app/mascot_assets.dart';
 import '../../../l10n/display_language.dart';
+import '../../conversation/application/conversation_settings_port.dart';
 import '../../conversation/domain/conversation_models.dart';
-import '../../conversation/presentation/conversation_controller.dart';
 
 enum _HistoryFilter { all, approved, rejected, pending }
 
 class HistorySheet extends StatefulWidget {
   const HistorySheet({required this.controller, super.key});
 
-  final ConversationController controller;
+  final ConversationHistoryPort controller;
 
   @override
   State<HistorySheet> createState() => _HistorySheetState();
