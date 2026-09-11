@@ -151,6 +151,9 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
   var _playingPrompt = false;
   var _recording = false;
   var _recordingUsesIosSpeech = false;
+  var _correctionRepeatPendingResolve = false;
+  LessonAttemptOutcome _correctionRepeatOutcome =
+      LessonAttemptOutcome.needsPractice;
   var _busy = false;
   var _promptRequest = 0;
   String? _message;
@@ -283,6 +286,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
   @override
   Future<void> pauseForMainAssistant() async {
     _pausedForMainAssistant = true;
+    _correctionRepeatPendingResolve = false;
     _promptRequest += 1;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
@@ -544,6 +548,37 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     _recordingAutoStopTimer = null;
     setState(() => _busy = true);
     var shouldOpenMicrophoneAgain = false;
+    if (_correctionRepeatPendingResolve) {
+      try {
+        if (_recordingUsesIosSpeech && widget.iosSpeechInput != null) {
+          await widget.iosSpeechInput!.cancel().catchError((Object _) {});
+        } else {
+          await widget.mediaService.cancelRecording().catchError((Object _) {});
+        }
+        if (!mounted || _pausedForMainAssistant || request != _promptRequest) {
+          return;
+        }
+        final outcome = _correctionRepeatOutcome;
+        _correctionRepeatPendingResolve = false;
+        setState(() {
+          _recording = false;
+          _recordingUsesIosSpeech = false;
+        });
+        shouldOpenMicrophoneAgain = await _resolveCurrent(
+          correct: false,
+          outcome: outcome,
+        );
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      if (shouldOpenMicrophoneAgain &&
+          mounted &&
+          !_pausedForMainAssistant &&
+          !_recording) {
+        await _startRecording();
+      }
+      return;
+    }
     try {
       final usesIosSpeech = _recordingUsesIosSpeech;
       final LessonAttemptOutcome outcome;
@@ -652,13 +687,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
       case LessonAttemptOutcome.needsPractice:
       case LessonAttemptOutcome.retry:
         if (_attemptNumber >= 2) {
-          if (widget.isReinforcement) {
-            await _speakFeedback(LessonFeedbackKind.give);
-            await _saveNeedsPractice();
-            if (!mounted || _pausedForMainAssistant) return false;
-            return _resolveCurrent(correct: false, outcome: outcome);
-          }
-          return _giveAnswerAndResolve(outcome: outcome, skip: false);
+          return _prepareCorrectionRepeat(outcome);
         }
         await _speakFeedback(LessonFeedbackKind.retry);
         if (widget.isReinforcement && mounted && !_pausedForMainAssistant) {
@@ -751,6 +780,35 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     return _resolveCurrent(correct: false, outcome: outcome);
   }
 
+  Future<bool> _prepareCorrectionRepeat(LessonAttemptOutcome outcome) async {
+    await _speakFeedback(LessonFeedbackKind.give);
+    if (!mounted || _pausedForMainAssistant) return false;
+    await _saveNeedsPractice();
+    if (!mounted || _pausedForMainAssistant) return false;
+    await widget.mediaService.prepareSelectedLessonOutput().catchError((
+      Object error,
+    ) {
+      debugPrint('HOMI mission correction route failed: $error');
+    });
+    for (final line in <({String text, String locale})>[
+      (text: _mission.correctAnswer, locale: 'en-US'),
+      if (_mission.correctVietnamese.trim().isNotEmpty)
+        (text: _mission.correctVietnamese, locale: 'vi-VN'),
+      (text: 'Bạn nói lại tiếng Anh nhé.', locale: 'vi-VN'),
+    ]) {
+      try {
+        await _speakPromptAndWait(line.text, locale: line.locale);
+      } catch (error) {
+        // One failed line must not suppress the remaining model/invitation.
+        debugPrint('HOMI mission correction line failed: $error');
+      }
+    }
+    if (!mounted || _pausedForMainAssistant) return false;
+    _correctionRepeatOutcome = outcome;
+    _correctionRepeatPendingResolve = true;
+    return true;
+  }
+
   Future<void> _saveNeedsPractice() async {
     final callback = widget.onNeedsPractice;
     if (callback == null) return;
@@ -811,6 +869,7 @@ class _LessonMissionScreenState extends State<LessonMissionScreen>
     required LessonAttemptOutcome outcome,
   }) async {
     if (_pausedForMainAssistant) return false;
+    _correctionRepeatPendingResolve = false;
     final mission = _mission;
     // An evaluator can resolve late as the route is transitioning. Never let a
     // duplicate callback turn one authored prompt into multiple score entries.

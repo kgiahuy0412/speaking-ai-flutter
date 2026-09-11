@@ -174,6 +174,7 @@ void main() {
       final mediaService = _SilentMediaService(
         existingRecordingPath: 'C:\\recordings\\saved-v4-attempt.m4a',
       );
+      final voicePrompt = _SilentVoicePromptService();
       final lesson = _v4Lesson();
 
       await tester.pumpWidget(
@@ -182,7 +183,7 @@ void main() {
           store,
           const Key('v4-activity-completion'),
           mediaService: mediaService,
-          voicePromptService: _SilentVoicePromptService(),
+          voicePromptService: voicePrompt,
           completionChoiceRecognizer: _FixedCompletionChoiceRecognizer(
             'Dừng lại',
           ),
@@ -208,6 +209,12 @@ void main() {
 
       expect(await store.hasCompletedV4LessonActivity(lesson.id), isTrue);
       expect(store.completedSentences, lesson.sentences.length);
+      expect(
+        voicePrompt.spoken,
+        contains(
+          'Giỏi lắm! Bạn đã hoàn thành bài học và còn 3 Ngôi sao chưa chinh phục.',
+        ),
+      );
       expect(find.byKey(const Key('v4-choice-relearn')), findsOneWidget);
       expect(mediaService.startRecordingCount, startsBeforeCompletion + 1);
       expect(mediaService.recording, isTrue);
@@ -657,11 +664,16 @@ class _SilentMediaService extends LessonMediaService {
 }
 
 class _SilentVoicePromptService implements VoicePromptService {
-  @override
-  Future<void> speak(String text, {String locale = 'vi-VN'}) async {}
+  final List<String> spoken = <String>[];
 
   @override
-  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {}
+  Future<void> speak(String text, {String locale = 'vi-VN'}) =>
+      speakAndWait(text, locale: locale);
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) async {
+    spoken.add(text);
+  }
 
   @override
   Future<void> stop() async {}

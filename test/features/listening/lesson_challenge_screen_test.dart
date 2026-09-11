@@ -423,9 +423,17 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     await tester.pump();
     await tester.pump();
-    expect(find.text('Câu 2/2'), findsOneWidget);
+    expect(find.text('Câu 1/2'), findsOneWidget);
     expect(evaluator.evaluationCalls, 2);
     expect(mediaService.recordingStarts, 3);
+
+    // The third turn is an unscored imitation after HOMI gives the answer.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Câu 2/2'), findsOneWidget);
+    expect(evaluator.evaluationCalls, 2);
+    expect(mediaService.recordingStarts, 4);
     expect(earnedStars, isEmpty);
     expect(needsPractice, <String>['challenge:1']);
     expect(
@@ -434,6 +442,8 @@ void main() {
         'vi-VN|Bạn thử lại nhé.',
         'vi-VN|HOMI nói mẫu nhé.',
         'en-US|Go straight.',
+        'vi-VN|Đi thẳng.',
+        'vi-VN|Bạn nói lại tiếng Anh nhé.',
       ]),
     );
   });

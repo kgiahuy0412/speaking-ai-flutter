@@ -84,12 +84,32 @@ class LessonMediaService {
     }
   }
 
+  bool _recordingReplayRequest = false;
+
   Future<void> play(
     Uri uri, {
     LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
   }) async {
+    if (!_recordingReplayRequest) {
+      await _setRecordingReplayActive(false);
+    }
     await _preparePlaybackRoute(route);
     await _activePlayback.play(uri);
+  }
+
+  /// Plays the child's own recording with recording-specific loudness. This is
+  /// intentionally separate from [play], so lesson samples and HOMI prompts
+  /// retain their established volume.
+  Future<void> playRecording(Uri uri) async {
+    await _setRecordingReplayActive(true);
+    _recordingReplayRequest = true;
+    try {
+      // Call the public method so test/custom media services that override
+      // playback keep observing the same lesson event.
+      await play(uri);
+    } finally {
+      _recordingReplayRequest = false;
+    }
   }
 
   Stream<bool> get playbackPlayingStream => _activePlayback.playingStream;
@@ -136,6 +156,33 @@ class LessonMediaService {
     Uri uri, {
     Duration timeout = const Duration(seconds: 45),
     LessonPlaybackRoute route = LessonPlaybackRoute.selectedLessonDevice,
+  }) async {
+    if (!_recordingReplayRequest) {
+      await _setRecordingReplayActive(false);
+    }
+    await _playToCompletion(uri, timeout: timeout, route: route);
+  }
+
+  Future<void> playRecordingToCompletion(
+    Uri uri, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    await _setRecordingReplayActive(true);
+    _recordingReplayRequest = true;
+    try {
+      // Preserve the existing public override point used by injected lesson
+      // media services while the real implementation applies replay gain.
+      await playToCompletion(uri, timeout: timeout);
+    } finally {
+      _recordingReplayRequest = false;
+      await _setRecordingReplayActive(false);
+    }
+  }
+
+  Future<void> _playToCompletion(
+    Uri uri, {
+    required Duration timeout,
+    required LessonPlaybackRoute route,
   }) async {
     final playback = _activePlayback;
     await _preparePlaybackRoute(route);
@@ -223,9 +270,22 @@ class LessonMediaService {
     if (completion != null && !completion.isCompleted) {
       completion.complete();
     }
-    await _playbackService?.stop();
+    final playback = _playbackService;
+    await playback?.stop();
+    if (playback is RecordingReplayAwareAudioPlaybackService) {
+      await (playback as RecordingReplayAwareAudioPlaybackService)
+          .setRecordingReplayActive(false);
+    }
     if (releaseAudioRoute) {
       await _releaseHfpRoute();
+    }
+  }
+
+  Future<void> _setRecordingReplayActive(bool active) async {
+    final playback = _activePlayback;
+    if (playback is RecordingReplayAwareAudioPlaybackService) {
+      await (playback as RecordingReplayAwareAudioPlaybackService)
+          .setRecordingReplayActive(active);
     }
   }
 

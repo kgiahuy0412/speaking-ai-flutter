@@ -48,6 +48,22 @@ struct IOSNativeSpeechAudioRoutePolicy {
       return portType == .bluetoothHFP
     }
   }
+
+  static func acceptsOutput(
+    portType: AVAudioSession.Port,
+    for source: IOSNativeSpeechAudioSource
+  ) -> Bool {
+    switch source {
+    case .builtInMic:
+      // A2DP/LE are output-only routes for this capture configuration. During
+      // the transition from lesson playback iOS can expose the built-in input
+      // before it has finished leaving A2DP. Starting AVAudioEngine in that
+      // short window fails with the CoreAudio fourcc `what` (2003329396).
+      return portType != .bluetoothA2DP && portType != .bluetoothLE
+    case .hfp:
+      return IOSHfpRoutePolicy.isHfpOutput(portType)
+    }
+  }
 }
 
 /// Reads a conventional dBFS value from the PCM formats commonly delivered by
@@ -108,11 +124,14 @@ struct IOSAudioBufferLevel {
   }
 }
 
-/// Raises only the persisted child recording (about +8 dB). Recognition still
+/// Raises only the persisted child recording (about +12 dB). Recognition still
 /// receives the untouched microphone buffer, so matching accuracy and voice
 /// activity thresholds are unchanged.
 struct IOSLessonRecordingGain {
-  static let defaultLinearGain: Double = 2.5
+  // HFP capture is notably quieter than authored lesson audio on the small
+  // speaker. Raise only the persisted replay copy to roughly +12 dB; Apple
+  // Speech continues to receive the untouched microphone buffer.
+  static let defaultLinearGain: Double = 4.0
 
   static func apply(
     to buffer: AVAudioPCMBuffer,
@@ -220,6 +239,7 @@ struct IOSSpeechStopSalvagePolicy {
 struct IOSAudioEngineStartupPolicy {
   static let maxAttempts = 2
   static let retryDelayNanoseconds: UInt64 = 150_000_000
+  static let requiredStableRouteConfirmations = 2
 
   static func shouldRetry(afterAttempt attempt: Int) -> Bool {
     attempt < maxAttempts
@@ -1361,6 +1381,7 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler, IOSBackgr
     _ audioSource: IOSNativeSpeechAudioSource,
     attempts: Int = 20
   ) async throws {
+    var consecutiveMatches = 0
     for attempt in 0..<attempts {
       let inputConfirmed = audioSession.currentRoute.inputs.contains(where: {
         IOSNativeSpeechAudioRoutePolicy.accepts(
@@ -1368,12 +1389,19 @@ final class IOSSpeechRecognizerBridge: NSObject, FlutterStreamHandler, IOSBackgr
           for: audioSource
         )
       })
-      let outputConfirmed = audioSource != .hfp
-        || audioSession.currentRoute.outputs.contains(where: {
-          IOSHfpRoutePolicy.isHfpOutput($0.portType)
-        })
+      let outputConfirmed = audioSession.currentRoute.outputs.contains(where: {
+        IOSNativeSpeechAudioRoutePolicy.acceptsOutput(
+          portType: $0.portType,
+          for: audioSource
+        )
+      })
       if inputConfirmed && outputConfirmed {
-        return
+        consecutiveMatches += 1
+        if consecutiveMatches >= IOSAudioEngineStartupPolicy.requiredStableRouteConfirmations {
+          return
+        }
+      } else {
+        consecutiveMatches = 0
       }
       if attempt + 1 < attempts {
         try await Task<Never, Never>.sleep(nanoseconds: 100_000_000)

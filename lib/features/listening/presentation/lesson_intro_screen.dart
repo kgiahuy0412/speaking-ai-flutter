@@ -149,8 +149,12 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
           'Lesson intro fallback failed for ${widget.lesson.id}: $error',
         );
         debugPrintStack(stackTrace: stackTrace);
-        _showIntroPlaybackFailure();
-        return;
+        if (!widget.relearnFromBeginning) {
+          _showIntroPlaybackFailure();
+          return;
+        }
+        // The remaining-Star reminder is helpful but must never become a gate
+        // that leaves relearn parked on the intro screen.
       }
     } else {
       try {
@@ -200,9 +204,9 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
     final opened = await widget.progressStore.hasOpenedLearningGuide();
     var resumeStage = ListeningResumeStage.core;
     if (widget.lesson.usesV4Flow) {
-      resumeStage = await widget.progressStore.readResumeStage(
-        widget.lesson.id,
-      );
+      resumeStage = widget.relearnFromBeginning
+          ? ListeningResumeStage.core
+          : await widget.progressStore.readResumeStage(widget.lesson.id);
       if (!widget.relearnFromBeginning &&
           resumeStage == ListeningResumeStage.core &&
           completed >= widget.lesson.sentences.length &&
@@ -577,7 +581,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return;
     }
     _movingForward = true;
-    await widget.mediaService.stopPlayback();
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
     if (!mounted || _pausedForMainAssistant) {
       _movingForward = false;
       return;
@@ -596,6 +600,8 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
         levelContent: widget.levelContent,
         progressStore: widget.progressStore,
         mediaService: widget.mediaService,
+        isRelearn: widget.relearnFromBeginning,
+        relearnTopicSequence: widget.relearnTopicSequence,
         guideAudioLibrary: _guideAudioLibrary,
         onTopicCompleted: widget.onTopicCompleted,
       ),
@@ -607,7 +613,7 @@ class _LessonIntroScreenState extends State<LessonIntroScreen>
       return;
     }
     _movingForward = true;
-    await widget.mediaService.stopPlayback();
+    await widget.mediaService.stopPlayback().catchError((Object _) {});
     if (!mounted || _pausedForMainAssistant) {
       _movingForward = false;
       return;

@@ -108,7 +108,16 @@ void main() {
     }
 
     expect(evaluator.attemptNumbers, <int>[1, 1, 2]);
+    expect(find.textContaining('Câu 1/4'), findsOneWidget);
+    expect(mediaService.recordingStarts, 4);
+
+    // The correction imitation does not consume a third scored attempt.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
+    await tester.pump();
     expect(find.textContaining('Câu 2/4'), findsOneWidget);
+    expect(evaluator.attemptNumbers, <int>[1, 1, 2]);
+    expect(mediaService.recordingStarts, 5);
     expect(
       voicePrompt.spoken,
       containsAllInOrder(<String>[
@@ -116,6 +125,8 @@ void main() {
         'vi-VN|Bạn thử lại nhé.',
         'vi-VN|HOMI nói mẫu nhé.',
         'en-US|Wake up at seven.',
+        'vi-VN|Thức dậy lúc bảy giờ.',
+        'vi-VN|Bạn nói lại tiếng Anh nhé.',
       ]),
     );
   });

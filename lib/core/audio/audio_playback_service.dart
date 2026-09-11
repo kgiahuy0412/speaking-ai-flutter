@@ -81,6 +81,16 @@ abstract interface class PlaybackRateAwareAudioPlaybackService {
   void setPlaybackRate(double rate);
 }
 
+/// Optional capability for the child's locally captured recording.
+///
+/// A recording made through a small HFP microphone is commonly quieter than
+/// authored lesson audio. Keeping this as a separate playback mode prevents a
+/// recording-volume fix from also making HOMI prompts and lesson samples too
+/// loud.
+abstract interface class RecordingReplayAwareAudioPlaybackService {
+  Future<void> setRecordingReplayActive(bool active);
+}
+
 class JustAudioPlaybackService
     implements
         AudioPlaybackService,
@@ -89,7 +99,8 @@ class JustAudioPlaybackService
         UserGestureAudioPlaybackService,
         DirectUserGestureAudioPlaybackService,
         CommunicationRouteAwareAudioPlaybackService,
-        PlaybackRateAwareAudioPlaybackService {
+        PlaybackRateAwareAudioPlaybackService,
+        RecordingReplayAwareAudioPlaybackService {
   static Future<void>? _assetCacheRefresh;
   static const MethodChannel _backgroundLearningChannel = MethodChannel(
     'ailingo_background_learning',
@@ -97,40 +108,69 @@ class JustAudioPlaybackService
   // A modest boost makes speech clearer on small speakers and HFP headsets
   // without pushing typical voice recordings into heavy clipping.
   static const double androidPlaybackGainDb = androidSpeechBoostDb;
+  static const double androidRecordingReplayGainDb = 12.0;
 
-  JustAudioPlaybackService({AudioPlayer? player, DeviceAudioCache? cache})
-    : _cache = cache ?? DeviceAudioCache(),
-      _ownsCache = cache == null,
-      _browserPlayback = createBrowserAudioPlayback(),
-      _player = player ?? _createDefaultPlayer() {
+  factory JustAudioPlaybackService({
+    AudioPlayer? player,
+    DeviceAudioCache? cache,
+  }) {
+    late final ({AudioPlayer player, AndroidLoudnessEnhancer? loudnessEnhancer})
+    setup;
+    if (player != null) {
+      setup = (player: player, loudnessEnhancer: null);
+    } else {
+      setup = _createDefaultPlayer();
+    }
+    return JustAudioPlaybackService._(
+      player: setup.player,
+      loudnessEnhancer: setup.loudnessEnhancer,
+      cache: cache,
+    );
+  }
+
+  JustAudioPlaybackService._({
+    required AudioPlayer player,
+    required AndroidLoudnessEnhancer? loudnessEnhancer,
+    DeviceAudioCache? cache,
+  }) : _cache = cache ?? DeviceAudioCache(),
+       _ownsCache = cache == null,
+       _browserPlayback = createBrowserAudioPlayback(),
+       _player = player,
+       _androidLoudnessEnhancer = loudnessEnhancer {
     _audioSession = AudioSession.instance;
   }
 
-  static AudioPlayer _createDefaultPlayer() {
+  static ({AudioPlayer player, AndroidLoudnessEnhancer? loudnessEnhancer})
+  _createDefaultPlayer() {
     final androidEffects = <AndroidAudioEffect>[];
+    AndroidLoudnessEnhancer? loudnessEnhancer;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      final loudnessEnhancer = AndroidLoudnessEnhancer();
+      loudnessEnhancer = AndroidLoudnessEnhancer();
       // These setters update the effect's initial configuration synchronously
       // while the player is inactive, so playback starts with the boost ready.
       unawaited(loudnessEnhancer.setTargetGain(androidPlaybackGainDb));
       unawaited(loudnessEnhancer.setEnabled(true));
       androidEffects.add(loudnessEnhancer);
     }
-    return AudioPlayer(
-      audioPipeline: AudioPipeline(androidAudioEffects: androidEffects),
-      audioLoadConfiguration: const AudioLoadConfiguration(
-        androidLoadControl: AndroidLoadControl(
-          minBufferDuration: Duration(milliseconds: 600),
-          maxBufferDuration: Duration(seconds: 8),
-          bufferForPlaybackDuration: Duration(milliseconds: 180),
-          bufferForPlaybackAfterRebufferDuration: Duration(milliseconds: 500),
-          prioritizeTimeOverSizeThresholds: true,
+    return (
+      player: AudioPlayer(
+        audioPipeline: AudioPipeline(androidAudioEffects: androidEffects),
+        audioLoadConfiguration: const AudioLoadConfiguration(
+          androidLoadControl: AndroidLoadControl(
+            minBufferDuration: Duration(milliseconds: 600),
+            maxBufferDuration: Duration(seconds: 8),
+            bufferForPlaybackDuration: Duration(milliseconds: 180),
+            bufferForPlaybackAfterRebufferDuration: Duration(milliseconds: 500),
+            prioritizeTimeOverSizeThresholds: true,
+          ),
         ),
       ),
+      loudnessEnhancer: loudnessEnhancer,
     );
   }
 
   final AudioPlayer _player;
+  final AndroidLoudnessEnhancer? _androidLoudnessEnhancer;
   final BrowserAudioPlayback? _browserPlayback;
   final DeviceAudioCache _cache;
   final bool _ownsCache;
@@ -142,6 +182,15 @@ class JustAudioPlaybackService
   int _preloadRevision = 0;
   bool _communicationRouteActive = false;
   double _playbackRate = 1.0;
+
+  @override
+  Future<void> setRecordingReplayActive(bool active) async {
+    final enhancer = _androidLoudnessEnhancer;
+    if (enhancer == null) return;
+    await enhancer.setTargetGain(
+      active ? androidRecordingReplayGainDb : androidPlaybackGainDb,
+    );
+  }
 
   @override
   void setPlaybackRate(double rate) {

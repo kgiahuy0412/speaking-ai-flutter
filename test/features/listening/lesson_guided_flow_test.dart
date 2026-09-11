@@ -498,7 +498,17 @@ void main() {
       await _pumpGuidedSpeechTurn(tester);
 
       expect(mediaService.recording, isTrue);
+      expect(find.text('Sentence 1'), findsOneWidget);
+      expect(evaluator.evaluationCalls, 2);
+
+      // Stop the unscored imitation turn; only then does Review/next sentence
+      // begin, without a third evaluator call.
+      await tester.tap(find.byKey(const Key('record-lesson-sentence')));
+      await _pumpGuidedSpeechTurn(tester);
+
+      expect(mediaService.recording, isTrue);
       expect(find.text('Sentence 2'), findsOneWidget);
+      expect(evaluator.evaluationCalls, 2);
       expect(progressStore.needsPractice, contains(0));
       expect(vocabularyStore.entries, hasLength(1));
       expect(
@@ -516,6 +526,33 @@ void main() {
       await tester.pump();
     },
   );
+
+  testWidgets('relearn ignores archived recordings and opens a fresh turn', (
+    tester,
+  ) async {
+    await _usePhoneSurface(tester);
+    final mediaService = _GuidedMediaService(
+      recordedSentenceNumbers: const <int>{1},
+    );
+    final progressStore = _MemoryProgressStore()..currentSentence = 1;
+
+    await tester.pumpWidget(
+      _subject(
+        _lesson(v4: true, sentenceCount: 2),
+        mediaService,
+        guideAudioLibrary: _silentGuideAudioLibrary(),
+        progressStore: progressStore,
+        isRelearn: true,
+      ),
+    );
+    await _pumpGuidedSpeechTurn(tester);
+
+    expect(mediaService.recording, isTrue);
+    expect(mediaService.startedSentenceIds, <String>['GUIDED-FLOW_S1']);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 
   testWidgets(
     'V2 asks neutrally and retries when ASR could not hear the sentence',
@@ -1888,6 +1925,7 @@ Widget _subject(
   LessonCompletionChoiceRecognizer? completionChoiceRecognizer,
   VocabularyStore? vocabularyStore,
   VoidCallback? onTopicCompleted,
+  bool isRelearn = false,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -1916,6 +1954,7 @@ Widget _subject(
       // cue used by the preserved single-sentence flow.
       voicePromptService: voicePromptService ?? _FakeVoicePromptService(),
       completionChoiceRecognizer: completionChoiceRecognizer,
+      isRelearn: isRelearn,
       onTopicCompleted: onTopicCompleted,
     ),
   );

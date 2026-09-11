@@ -604,6 +604,12 @@ final class IOSAudioSessionCoordinator: NSObject {
     if let preferredInput {
       try ensurePreferredInput(preferredInput, caller: caller)
     }
+    if activate {
+      // A previous built-in-micro turn may have explicitly selected the phone
+      // speaker. Clear that override before iOS negotiates the two-way HFP
+      // route; otherwise an HFP input can be paired with the wrong output.
+      try ensureOutputOverride(.none, caller: caller)
+    }
   }
 
   func clearPreferredInput(caller: String) throws {
@@ -702,6 +708,7 @@ final class IOSAudioSessionCoordinator: NSObject {
         try ensureCategory(mode: .voiceChat, options: [.defaultToSpeaker], caller: caller)
         try ensureActive(caller: caller)
         try ensurePreferredInput(input, caller: caller)
+        try ensureOutputOverride(.speaker, caller: caller)
       }
       trace(stage: "audio_session_active", caller: caller, values: ["audioSource": target.rawValue])
       if !captureWasAlreadyPrepared {
@@ -749,6 +756,7 @@ final class IOSAudioSessionCoordinator: NSObject {
         try ensureCategory(mode: .voiceChat, options: [.defaultToSpeaker], caller: caller)
         try ensureActive(caller: caller)
         try ensurePreferredInput(input, caller: caller)
+        try ensureOutputOverride(.speaker, caller: caller)
       }
       trace(
         stage: "background_capture_audio_active",

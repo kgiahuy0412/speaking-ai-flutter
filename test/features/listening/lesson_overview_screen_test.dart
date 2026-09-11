@@ -227,6 +227,40 @@ void main() {
     expect(find.textContaining('Mình cùng nghe bài này nhé.'), findsNothing);
   });
 
+  testWidgets('relearn still opens practice when its Star reminder TTS fails', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: LessonIntroScreen(
+          language: DisplayLanguage.vietnamese,
+          startAge: 8,
+          endAge: 10,
+          topic: listeningCatalogs[2].topics.first,
+          lesson: _lesson,
+          progressStore: _OverviewProgressStore(),
+          mediaService: _OverviewMediaService(),
+          guideAudioLibrary: LessonGuideAudioLibrary(
+            assetPaths: const <String>[],
+          ),
+          voicePromptService: const _FailingVoicePromptService(),
+          relearnFromBeginning: true,
+        ),
+      ),
+    );
+    await tester.pump();
+    for (
+      var attempt = 0;
+      attempt < 12 && find.byType(LessonPracticeScreen).evaluate().isEmpty;
+      attempt += 1
+    ) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.byType(LessonPracticeScreen), findsOneWidget);
+  });
+
   testWidgets('intro opens V4 practice directly without overview prompts', (
     tester,
   ) async {
@@ -331,6 +365,24 @@ class _ImmediateVoicePromptService implements VoicePromptService {
   Future<void> dispose() async {}
 }
 
+class _FailingVoicePromptService implements VoicePromptService {
+  const _FailingVoicePromptService();
+
+  @override
+  Future<void> speak(String text, {String locale = 'vi-VN'}) =>
+      Future<void>.error(StateError('TTS unavailable'));
+
+  @override
+  Future<void> speakAndWait(String text, {String locale = 'vi-VN'}) =>
+      Future<void>.error(StateError('TTS unavailable'));
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 class _TransitionVoicePromptService implements VoicePromptService {
   final List<String> spoken = <String>[];
   final Completer<void> _overviewRelease = Completer<void>();
@@ -407,6 +459,9 @@ class _OverviewProgressStore extends ListeningProgressStore {
 
 class _OverviewMediaService extends LessonMediaService {
   final List<Uri> playedUris = <Uri>[];
+
+  @override
+  Future<void> prepareSelectedLessonOutput() async {}
 
   @override
   Future<void> playToCompletion(

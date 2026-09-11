@@ -97,6 +97,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   bool _playingPrompt = false;
   bool _recording = false;
   bool _recordingUsesIosSpeech = false;
+  bool _correctionRepeatPendingAdvance = false;
   bool _busy = false;
   String? _message;
   int _request = 0;
@@ -221,6 +222,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   @override
   Future<void> pauseForMainAssistant() async {
     _pausedForMainAssistant = true;
+    _correctionRepeatPendingAdvance = false;
     _request += 1;
     _recordingAutoStopTimer?.cancel();
     _recordingAutoStopTimer = null;
@@ -534,6 +536,31 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     _recordingAutoStopTimer = null;
     setState(() => _busy = true);
     var shouldOpenMicrophoneAgain = false;
+    if (_correctionRepeatPendingAdvance) {
+      try {
+        if (_recordingUsesIosSpeech && widget.iosSpeechInput != null) {
+          await widget.iosSpeechInput!.cancel().catchError((Object _) {});
+        } else {
+          await widget.mediaService.cancelRecording().catchError((Object _) {});
+        }
+        if (!mounted || _pausedForMainAssistant || request != _request) return;
+        _correctionRepeatPendingAdvance = false;
+        setState(() {
+          _recording = false;
+          _recordingUsesIosSpeech = false;
+        });
+        shouldOpenMicrophoneAgain = await _advance();
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      if (shouldOpenMicrophoneAgain &&
+          mounted &&
+          !_pausedForMainAssistant &&
+          !_recording) {
+        await _startRecording();
+      }
+      return;
+    }
     try {
       final usesIosSpeech = _recordingUsesIosSpeech;
       final LessonAttemptOutcome outcome;
@@ -649,7 +676,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
       return mounted;
     }
     if (_attemptNumber >= 2) {
-      return _giveAnswerAndAdvance(skip: false);
+      return _prepareCorrectionRepeat();
     }
     await _speakFeedback(LessonFeedbackKind.retry);
     return mounted;
@@ -732,6 +759,34 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
     return _advance();
   }
 
+  Future<bool> _prepareCorrectionRepeat() async {
+    await _speakFeedback(LessonFeedbackKind.give);
+    if (!mounted || _pausedForMainAssistant) return false;
+    await _saveNeedsPractice();
+    if (!mounted || _pausedForMainAssistant) return false;
+    await widget.mediaService.prepareSelectedLessonOutput().catchError((
+      Object error,
+    ) {
+      debugPrint('HOMI challenge correction route failed: $error');
+    });
+    for (final line in <({String text, String locale})>[
+      (text: _expectedEnglish, locale: 'en-US'),
+      if (_expectedVietnamese.trim().isNotEmpty)
+        (text: _expectedVietnamese, locale: 'vi-VN'),
+      (text: 'Bạn nói lại tiếng Anh nhé.', locale: 'vi-VN'),
+    ]) {
+      try {
+        await _speakPromptAndWait(line.text, locale: line.locale);
+      } catch (error) {
+        // One failed line must not suppress the remaining model/invitation.
+        debugPrint('HOMI challenge correction line failed: $error');
+      }
+    }
+    if (!mounted || _pausedForMainAssistant) return false;
+    _correctionRepeatPendingAdvance = true;
+    return true;
+  }
+
   Future<void> _saveNeedsPractice() async {
     final callback = widget.onNeedsPractice;
     if (callback == null) return;
@@ -775,6 +830,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
 
   Future<bool> _advance() async {
     if (_pausedForMainAssistant) return false;
+    _correctionRepeatPendingAdvance = false;
     if (_inRolePlay) {
       final nextIndex = _rolePlayTurnIndex + 1;
       if (nextIndex < widget.lesson.rolePlay!.turns.length) {
@@ -825,6 +881,7 @@ class _LessonChallengeScreenState extends State<LessonChallengeScreen>
   Future<void> _restartRolePlay() async {
     if (!_hasRolePlay || _busy || _recording) return;
     setState(() {
+      _correctionRepeatPendingAdvance = false;
       _rolePlayTurnIndex = 0;
       _attemptNumber = 0;
       _message = null;

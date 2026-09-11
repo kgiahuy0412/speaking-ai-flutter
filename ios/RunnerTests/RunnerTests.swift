@@ -450,6 +450,7 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(IOSAudioEngineStartupPolicy.shouldRetry(afterAttempt: 1))
     XCTAssertFalse(IOSAudioEngineStartupPolicy.shouldRetry(afterAttempt: 2))
     XCTAssertGreaterThan(IOSAudioEngineStartupPolicy.retryDelayNanoseconds, 0)
+    XCTAssertEqual(IOSAudioEngineStartupPolicy.requiredStableRouteConfirmations, 2)
   }
 
   func testIOSAudioOwnershipKeepsActiveLessonAcrossBackgroundAudioGap() {
@@ -1050,7 +1051,7 @@ class RunnerTests: XCTestCase {
 
     IOSLessonRecordingGain.apply(to: buffer)
 
-    XCTAssertEqual(try XCTUnwrap(buffer.floatChannelData?[0][0]), 0.5, accuracy: 0.001)
+    XCTAssertEqual(try XCTUnwrap(buffer.floatChannelData?[0][0]), 0.8, accuracy: 0.001)
     XCTAssertEqual(try XCTUnwrap(buffer.floatChannelData?[0][1]), 1, accuracy: 0.001)
   }
 
@@ -1071,6 +1072,18 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(
       IOSNativeSpeechAudioRoutePolicy.accepts(
         portType: .bluetoothHFP,
+        for: .builtInMic
+      )
+    )
+    XCTAssertTrue(
+      IOSNativeSpeechAudioRoutePolicy.acceptsOutput(
+        portType: .builtInSpeaker,
+        for: .builtInMic
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechAudioRoutePolicy.acceptsOutput(
+        portType: .bluetoothA2DP,
         for: .builtInMic
       )
     )
@@ -1097,6 +1110,18 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(
       IOSNativeSpeechAudioRoutePolicy.accepts(
         portType: .builtInMic,
+        for: .hfp
+      )
+    )
+    XCTAssertTrue(
+      IOSNativeSpeechAudioRoutePolicy.acceptsOutput(
+        portType: .bluetoothHFP,
+        for: .hfp
+      )
+    )
+    XCTAssertFalse(
+      IOSNativeSpeechAudioRoutePolicy.acceptsOutput(
+        portType: .bluetoothA2DP,
         for: .hfp
       )
     )

@@ -304,7 +304,10 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.byKey(const Key('skip-lesson-intro')));
-    await tester.pumpAndSettle();
+    // Practice deliberately keeps an active guided-audio/microphone sequence,
+    // so waiting for every scheduled frame to settle would never finish.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(SongKaraokeScreen), findsNothing);
     expect(find.byType(LessonReviewScreen), findsNothing);

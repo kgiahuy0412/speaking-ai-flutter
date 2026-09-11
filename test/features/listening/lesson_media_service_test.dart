@@ -267,6 +267,30 @@ void main() {
     await mediaService.dispose();
   });
 
+  test('recording replay gain is isolated from normal lesson audio', () async {
+    final playback = _RecordingGainControlledPlaybackService();
+    final mediaService = LessonMediaService(playbackService: playback);
+
+    final replay = mediaService.playRecordingToCompletion(
+      Uri.file('C:\\recordings\\lesson-attempt.wav'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(playback.recordingReplayStates, <bool>[true]);
+    playback.finish();
+    await replay;
+    expect(playback.recordingReplayStates, <bool>[true, false]);
+
+    final normal = mediaService.playToCompletion(
+      Uri.parse('https://example.test/lesson-sample.mp3'),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(playback.recordingReplayStates.last, isFalse);
+    playback.finish();
+    await normal;
+    await mediaService.dispose();
+  });
+
   test('iOS lesson recording configuration is input-capable', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -522,6 +546,16 @@ class _RouteAwareControlledPlaybackService extends _ControlledPlaybackService
   Future<PlaybackStartMetrics> play(Uri uri) {
     events.add('play');
     return super.play(uri);
+  }
+}
+
+class _RecordingGainControlledPlaybackService extends _ControlledPlaybackService
+    implements RecordingReplayAwareAudioPlaybackService {
+  final List<bool> recordingReplayStates = <bool>[];
+
+  @override
+  Future<void> setRecordingReplayActive(bool active) async {
+    recordingReplayStates.add(active);
   }
 }
 

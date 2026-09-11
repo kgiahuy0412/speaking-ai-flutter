@@ -129,6 +129,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   bool _completionChoiceRecording = false;
   bool _completionChoiceStopping = false;
   bool _completionChoiceUsesIosNativeSpeech = false;
+  bool _correctionRepeatPendingAdvance = false;
   bool _pausedForMainAssistant = false;
   bool _virtualCommandPending = false;
   int _newStarsThisLesson = 0;
@@ -266,10 +267,9 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     } catch (_) {
       // A fresh or restricted browser session starts without skip markers.
     }
-    final sentenceIndex = currentSentence.clamp(
-      0,
-      widget.lesson.sentences.length - 1,
-    );
+    final sentenceIndex = widget.isRelearn
+        ? 0
+        : currentSentence.clamp(0, widget.lesson.sentences.length - 1);
     if (!mounted) {
       return;
     }
@@ -294,7 +294,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         // Resume metadata is best-effort; the lesson itself remains usable.
       }
     }
-    await _activateCurrentSentence(autoPlay: true);
+    await _activateCurrentSentence(
+      autoPlay: true,
+      restoreExistingRecording: !widget.isRelearn,
+    );
   }
 
   Future<void> _resumeV4Stage(ListeningResumeStage stage) async {
@@ -312,7 +315,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await _showV4CompletionChoice(announceLevel: false);
         return;
       case ListeningResumeStage.core:
-        await _activateCurrentSentence(autoPlay: true);
+        await _activateCurrentSentence(
+          autoPlay: true,
+          restoreExistingRecording: !widget.isRelearn,
+        );
         return;
     }
   }
@@ -329,6 +335,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         _message = null;
         _attemptNumber = 1;
         _guidedSequenceStarted = false;
+        _correctionRepeatPendingAdvance = false;
       });
     }
     if (restoreExistingRecording) {
@@ -363,6 +370,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   @override
   Future<void> pauseForMainAssistant() async {
     _pausedForMainAssistant = true;
+    _correctionRepeatPendingAdvance = false;
     _mainPauseGeneration += 1;
     _recordingStartRequest += 1;
     _recordingLifecycleGeneration += 1;
@@ -838,7 +846,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     final parsed = Uri.tryParse(path);
     final uri = parsed != null && parsed.hasScheme ? parsed : Uri.file(path);
-    await _runMediaAction(() => widget.mediaService.play(uri));
+    await _runMediaAction(() => widget.mediaService.playRecording(uri));
   }
 
   Future<void> _playAttemptRecordingToCompletion(
@@ -853,7 +861,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         ? const Duration(seconds: 10)
         : requestedTimeout;
     try {
-      await widget.mediaService.playToCompletion(uri, timeout: timeout);
+      await widget.mediaService.playRecordingToCompletion(
+        uri,
+        timeout: timeout,
+      );
     } catch (error) {
       // Playback must not discard a valid attempt. Scoring can still continue
       // and the recording card remains available for a manual replay.
@@ -1050,6 +1061,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         return;
       }
       setState(() => _mediaBusy = false);
+      if (_correctionRepeatPendingAdvance) {
+        _correctionRepeatPendingAdvance = false;
+        await _advanceToNext(autoPlaySentence: true);
+        return;
+      }
       if (_usesGuideV2) {
         final evaluationRequest = ++_attemptEvaluationRequest;
         final evaluatedSentenceIndex = _sentenceIndex;
@@ -1194,6 +1210,17 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         return;
       }
     }
+    if (_correctionRepeatPendingAdvance) {
+      _correctionRepeatPendingAdvance = false;
+      if (mounted) {
+        setState(() {
+          _mediaBusy = false;
+          _evaluatingAttempt = false;
+        });
+      }
+      await _advanceToNext(autoPlaySentence: true);
+      return;
+    }
     setState(() {
       _mediaBusy = false;
       _evaluatingAttempt = true;
@@ -1311,17 +1338,23 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
               )
             : LessonGuideFlowV2.good;
         setState(() => _message = correctPrompt.text);
-        await _playPrompt(correctPrompt);
+        await _playPromptBestEffort(correctPrompt);
         // V4 introduces a first-ever star only after the normal correct-answer
         // feedback. This preserves the authored order: praise, star, then the
         // one-time explanation of what stars mean.
         if (widget.lesson.usesV4Flow) {
-          await _awardLessonStar(
-            starId: 'core:${sentence.id}',
-            english: sentence.english,
-            vietnamese: sentence.vietnamese,
-            vocabularyId: sentence.id,
-          );
+          try {
+            await _awardLessonStar(
+              starId: 'core:${sentence.id}',
+              english: sentence.english,
+              vietnamese: sentence.vietnamese,
+              vocabularyId: sentence.id,
+            );
+          } catch (error) {
+            // Local Star/vocabulary persistence is best-effort and cannot
+            // strand the learner after a correctly scored sentence.
+            debugPrint('HOMI could not persist the lesson Star: $error');
+          }
         }
         if (!_isCurrentEvaluation(
           evaluationRequest,
@@ -1371,7 +1404,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _recordingDuration = null;
           _message = feedback;
         });
-        await _playPrompt(
+        await _playPromptBestEffort(
           LessonGuidePrompt(audioCode: 'NO_RESPONSE', text: feedback),
         );
         return _isCurrentEvaluation(
@@ -1381,12 +1414,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         );
       case LessonAttemptOutcome.retry:
         if (attemptNumber >= 2) {
-          await _markNeedsPracticeAndAdvance(
+          return _prepareNeedsPracticeCorrectionRepeat(
             evaluationRequest: evaluationRequest,
             sentenceIndex: sentenceIndex,
             sentence: sentence,
           );
-          return false;
         }
         final prompt = widget.lesson.usesV4Flow
             ? LessonGuidePrompt(
@@ -1403,7 +1435,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           _recordingDuration = null;
           _message = prompt.text;
         });
-        await _playPrompt(prompt);
+        await _playPromptBestEffort(prompt);
         if (!_isCurrentEvaluation(
           evaluationRequest,
           sentenceIndex,
@@ -1411,17 +1443,35 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         )) {
           return false;
         }
-        // The authored second attempt begins only after the full model is
-        // replayed in English and Vietnamese, followed by the invitation.
-        await _playSample();
-        return false;
+        // The authored second scored attempt begins only after the full model
+        // and invitation. If an audio source fails, keep the state machine
+        // moving and still open the microphone.
+        try {
+          await _playBilingualSentenceSample();
+        } catch (error) {
+          debugPrint('HOMI retry model playback failed: $error');
+          await _speakFlowTextBestEffort(sentence.english, locale: 'en-US');
+          await _speakFlowTextBestEffort(sentence.vietnamese);
+        }
+        if (!_isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        )) {
+          return false;
+        }
+        await _playPromptBestEffort(_repeatTargetPrompt);
+        return _isCurrentEvaluation(
+          evaluationRequest,
+          sentenceIndex,
+          sentence.id,
+        );
       case LessonAttemptOutcome.needsPractice:
-        await _markNeedsPracticeAndAdvance(
+        return _prepareNeedsPracticeCorrectionRepeat(
           evaluationRequest: evaluationRequest,
           sentenceIndex: sentenceIndex,
           sentence: sentence,
         );
-        return false;
     }
   }
 
@@ -1474,14 +1524,14 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     );
   }
 
-  Future<void> _markNeedsPracticeAndAdvance({
+  Future<bool> _prepareNeedsPracticeCorrectionRepeat({
     required int evaluationRequest,
     required int sentenceIndex,
     required ListeningSentenceContent sentence,
   }) async {
     await _markSentenceNeedsPractice(sentenceIndex, sentence);
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
-      return;
+      return false;
     }
     final prompt = widget.lesson.usesV4Flow
         ? LessonGuidePrompt(
@@ -1497,11 +1547,32 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = prompt.text;
     });
-    await _playPrompt(prompt);
+    await _playPromptBestEffort(prompt);
     if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
-      return;
+      return false;
     }
-    await _advanceToNext(autoPlaySentence: true);
+    // The two scored attempts are now complete. HOMI gives the full model and
+    // opens one final unscored imitation turn before moving this target to
+    // Review. This keeps the authored retry limit while never saying
+    // “HOMI nói mẫu” and then silently skipping the sample.
+    try {
+      await _playBilingualSentenceSample();
+    } catch (error) {
+      // A missing authored clip or transient route error must not suppress the
+      // final imitation turn. The English model is also visible on the card.
+      debugPrint('HOMI correction model playback failed: $error');
+      await _speakFlowTextBestEffort(sentence.english, locale: 'en-US');
+      await _speakFlowTextBestEffort(sentence.vietnamese);
+    }
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
+      return false;
+    }
+    await _playPromptBestEffort(_repeatTargetPrompt);
+    if (!_isCurrentEvaluation(evaluationRequest, sentenceIndex, sentence.id)) {
+      return false;
+    }
+    _correctionRepeatPendingAdvance = true;
+    return true;
   }
 
   Future<void> _saveSentenceToVocabulary(
@@ -1618,17 +1689,18 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     );
     if (!isNew) return false;
     _newStarsThisLesson += 1;
+    if (mounted) {
+      await _playStarSoundEffect();
+    }
     if (totalBefore == 0 && mounted) {
-      await _playFirstStarSoundEffect();
-      if (!mounted) return true;
-      await _voicePromptService.speakAndWait(
+      await _speakFlowTextBestEffort(
         'Bạn vừa nhận một Ngôi sao! Mỗi khi nghe âm thanh này, HOMI sẽ thêm một Ngôi sao vào bộ sưu tập của bạn.',
       );
     }
     return true;
   }
 
-  Future<void> _playFirstStarSoundEffect() async {
+  Future<void> _playStarSoundEffect() async {
     try {
       final authoredUri = await _guideAudioLibrary.uriForAudioCode('SFX_STAR');
       if (authoredUri != null && mounted) {
@@ -1690,13 +1762,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
           setState(() => _mediaBusy = true);
         }
         try {
-          await _playPrompt(
+          await _playPromptBestEffort(
             LessonGuideFlowV2.ending(
               lessonCode: widget.lesson.code,
               lessonTitleEn: widget.lesson.titleEn,
             ),
           );
-          await _playPrompt(LessonGuideFlowV2.completionChoice);
+          await _playPromptBestEffort(LessonGuideFlowV2.completionChoice);
         } finally {
           if (mounted) {
             setState(() => _mediaBusy = false);
@@ -1722,7 +1794,10 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingDuration = null;
       _message = null;
     });
-    await _activateCurrentSentence(autoPlay: autoPlaySentence);
+    await _activateCurrentSentence(
+      autoPlay: autoPlaySentence,
+      restoreExistingRecording: !widget.isRelearn,
+    );
   }
 
   Future<void> _previous({bool autoPlaySentence = false}) async {
@@ -1831,11 +1906,11 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
               : ListeningResumeStage.challenge,
         );
         if (widget.lesson.hasV4SongStage) {
-          await _voicePromptService.speakAndWait(
+          await _speakFlowTextBestEffort(
             v4SongPrealert(widget.lesson.songTitle!),
           );
         } else {
-          await _voicePromptService.speakAndWait(v4ChallengeIntro);
+          await _speakFlowTextBestEffort(v4ChallengeIntro);
         }
         if (!mounted) return;
         final selectedChallenges = const AuthoredQuestionSelector()
@@ -1950,38 +2025,27 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
 
   Future<void> _announceV4ActivityMilestone() async {
     final topic = widget.topicContent;
-    if (topic == null || _nextLessonInTopic != null) {
-      final earnedStars = await widget.progressStore.readEarnedStars(
-        widget.lesson.id,
-      );
-      final remainingStars = LessonStarFlow.remainingStarCount(
-        widget.lesson,
-        earnedStars,
-      );
-      if (remainingStars == 0) {
-        await _voicePromptService.speakAndWait(
-          'Excellent! Bạn đã hoàn thành bài học và chinh phục đủ tất cả Ngôi sao rồi!',
-        );
-        return;
-      }
-      if (_newStarsThisLesson > 0) {
-        await _voicePromptService.speakAndWait(
-          'Giỏi lắm! Bạn đã hoàn thành bài học và có thêm $_newStarsThisLesson Ngôi sao!',
-        );
-        return;
-      }
-      await _voicePromptService.speakAndWait(
-        'Giỏi lắm! Bạn đã hoàn thành bài học rồi.',
-      );
+    final earnedStars = await widget.progressStore.readEarnedStars(
+      widget.lesson.id,
+    );
+    final remainingStars = LessonStarFlow.remainingStarCount(
+      widget.lesson,
+      earnedStars,
+    );
+    final starSummary = remainingStars == 0
+        ? 'Excellent! Bạn đã hoàn thành bài học và chinh phục đủ tất cả Ngôi sao rồi!'
+        : _newStarsThisLesson > 0
+        ? 'Giỏi lắm! Bạn đã hoàn thành bài học, có thêm $_newStarsThisLesson Ngôi sao và còn $remainingStars Ngôi sao chưa chinh phục.'
+        : 'Giỏi lắm! Bạn đã hoàn thành bài học và còn $remainingStars Ngôi sao chưa chinh phục.';
+    await _speakFlowTextBestEffort(starSummary);
+    if (!mounted || topic == null || _nextLessonInTopic != null) {
       return;
     }
     if (await _allTopicsInCurrentLevelCompleted()) {
-      await _voicePromptService.speakAndWait(
-        'Bạn đã hoàn thành tất cả Chủ đề rồi!',
-      );
+      await _speakFlowTextBestEffort('Bạn đã hoàn thành tất cả Chủ đề rồi!');
       return;
     }
-    await _voicePromptService.speakAndWait(
+    await _speakFlowTextBestEffort(
       'Tuyệt lắm! Bạn đã hoàn thành chủ đề ${topic.titleEn} rồi!',
     );
   }
@@ -1999,7 +2063,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         await widget.progressStore.markCourseCompleted(courseId);
         await widget.progressStore.markCourseCompletionEventCreated(courseId);
         if (announceLevel) {
-          await _voicePromptService.speakAndWait(
+          await _speakFlowTextBestEffort(
             'Excellent! Bạn đã hoàn thành toàn bộ khóa học rồi!',
           );
         }
@@ -2013,7 +2077,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         );
         if (!mounted) return;
         if (action == V4CompletionAction.requestNewCourse) {
-          await _voicePromptService.speakAndWait(
+          await _speakFlowTextBestEffort(
             'Bạn nhờ ba mẹ chọn khóa học mới trên điện thoại nhé.',
           );
           _returnToListening();
@@ -2036,7 +2100,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         return;
       }
       if (announceLevel) {
-        await _voicePromptService.speakAndWait(
+        await _speakFlowTextBestEffort(
           'Tuyệt lắm! Bạn đã hoàn thành Level ${level.number} rồi!',
         );
       }
@@ -2100,7 +2164,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
   }) async {
     if (!mounted) return null;
     final prompt = v4CompletionPrompt(stage, nextLevel: nextLevel);
-    await _voicePromptService.speakAndWait(prompt);
+    await _speakFlowTextBestEffort(prompt);
     if (!mounted) return null;
     _v4CompletionChoiceVisible = true;
     _activeV4CompletionStage = stage;
@@ -2452,7 +2516,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         ),
       );
       if (!mounted) return false;
-      await _voicePromptService.speakAndWait(
+      await _speakFlowTextBestEffort(
         'Xong rồi. Mình thử lại Nhiệm vụ cuối Level nhé.',
       );
       savedSelection = const <String>[];
@@ -2465,7 +2529,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       ListeningResumeStage.mission,
     );
     if (!isResumingMission && !resumeReinforcement) {
-      await _voicePromptService.speakAndWait(v4MissionIntro);
+      await _speakFlowTextBestEffort(v4MissionIntro);
       if (!mounted) return false;
     }
 
@@ -2565,7 +2629,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
         return false;
       }
       if (missionAttempt <= 1) {
-        await _voicePromptService.speakAndWait(
+        await _speakFlowTextBestEffort(
           'Mình luyện nhanh vài phần rồi thử lại nhé.',
         );
       } else {
@@ -2576,7 +2640,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       if (!mounted) {
         return false;
       }
-      await _voicePromptService.speakAndWait(
+      await _speakFlowTextBestEffort(
         'Xong rồi. Mình thử lại Nhiệm vụ cuối Level nhé.',
       );
       savedSelection = const <String>[];
@@ -2827,6 +2891,7 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
       _recordingStartPending = false;
       _mediaBusy = false;
       _message = null;
+      _correctionRepeatPendingAdvance = false;
     });
     await _activateCurrentSentence(autoPlay: true);
   }
@@ -2880,7 +2945,13 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     try {
       final readyCuePlayer = _voicePromptService;
       if (readyCuePlayer is SpeechReadyCuePlayer) {
-        await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+        try {
+          await (readyCuePlayer as SpeechReadyCuePlayer).playSpeechReadyCue();
+        } catch (error) {
+          // The cue only tells a screen-free learner when to speak. It must
+          // never become a prerequisite for opening the microphone.
+          debugPrint('HOMI completion ready cue failed: $error');
+        }
       }
       if (!mounted ||
           _pausedForMainAssistant ||
@@ -3402,6 +3473,37 @@ class _LessonPracticeScreenState extends State<LessonPracticeScreen>
     }
     await widget.mediaService.prepareSelectedLessonOutput();
     await _speakLessonPrompt(prompt.text);
+  }
+
+  Future<void> _playPromptBestEffort(LessonGuidePrompt prompt) async {
+    try {
+      await _playPrompt(prompt).timeout(const Duration(seconds: 20));
+    } catch (error) {
+      debugPrint(
+        'HOMI lesson prompt ${prompt.audioCode} failed; continuing flow: $error',
+      );
+      await widget.mediaService.stopPlayback().catchError((Object _) {});
+      await _voicePromptService.stop().catchError((Object _) {});
+    }
+  }
+
+  Future<void> _speakFlowTextBestEffort(
+    String text, {
+    String locale = 'vi-VN',
+  }) async {
+    if (!mounted || _pausedForMainAssistant) return;
+    try {
+      await widget.mediaService.prepareSelectedLessonOutput();
+      await _speakLessonPrompt(
+        text,
+        locale: locale,
+      ).timeout(const Duration(seconds: 20));
+    } catch (error) {
+      debugPrint(
+        'HOMI flow narration failed; continuing state machine: $error',
+      );
+      await _voicePromptService.stop().catchError((Object _) {});
+    }
   }
 
   Future<void> _speakLessonPrompt(
