@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_theme.dart';
+import '../../../app/device_connection_feedback_overlay.dart';
 import '../../../app/learning_scenery.dart';
 import '../../../app/mascot_assets.dart';
 import '../../listening/domain/listening_catalog.dart';
@@ -61,7 +62,7 @@ class StartupSetupScreen extends StatefulWidget {
   final Future<void> Function() onGrantPrivacyConsent;
   final Future<void> Function() onContinueWithoutVoice;
   final VoidCallback onRetryPermissions;
-  final Future<void> Function() onSetupH20;
+  final Future<bool> Function() onSetupH20;
   final ValueChanged<int> onAgeSelected;
   final Future<void> Function() onCompleteSetup;
   final bool androidOfflineEnglishModelOptionAvailable;
@@ -81,14 +82,18 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   late bool _voiceDataAccepted;
   bool _h20SetupRequested = false;
   bool _choiceInProgress = false;
+  DeviceConnectionFeedbackStage? _deviceConnectionFeedbackStage;
 
   bool get _privacyChoiceMade =>
       widget.privacyConsentGranted || widget.limitedModeSelected;
 
-  bool get _h20Ready => widget.h20BleConnected && widget.h20HfpConfigured;
+  bool get _h20Ready => widget.h20BleConnected;
 
   bool get _canComplete =>
-      widget.limitedModeSelected || widget.microphoneGranted;
+      widget.limitedModeSelected ||
+      (widget.microphoneGranted &&
+          (!widget.bluetoothRequired ||
+              (widget.bluetoothGranted && widget.h20BleConnected)));
 
   @override
   void initState() {
@@ -112,49 +117,58 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final stepNumber = _step.index + 1;
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: LearningScenery(
-        overlayOpacity: 0.025,
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Column(
-                children: <Widget>[
-                  _SetupHeader(
-                    stepNumber: stepNumber,
-                    totalSteps: _ParentSetupStep.values.length,
-                    canGoBack: _step.index > 0,
-                    onBack: _goBack,
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: KeyedSubtree(
-                          key: ValueKey<_ParentSetupStep>(_step),
-                          child: switch (_step) {
-                            _ParentSetupStep.privacy => _buildPrivacyStep(
-                              theme,
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: LearningScenery(
+            overlayOpacity: 0.025,
+            child: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    children: <Widget>[
+                      _SetupHeader(
+                        stepNumber: stepNumber,
+                        totalSteps: _ParentSetupStep.values.length,
+                        canGoBack: _step.index > 0,
+                        onBack: _goBack,
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: KeyedSubtree(
+                              key: ValueKey<_ParentSetupStep>(_step),
+                              child: switch (_step) {
+                                _ParentSetupStep.privacy => _buildPrivacyStep(
+                                  theme,
+                                ),
+                                _ParentSetupStep.profile => _buildProfileStep(
+                                  theme,
+                                ),
+                                _ParentSetupStep.permissions =>
+                                  _buildPermissionsStep(theme),
+                              },
                             ),
-                            _ParentSetupStep.profile => _buildProfileStep(
-                              theme,
-                            ),
-                            _ParentSetupStep.permissions =>
-                              _buildPermissionsStep(theme),
-                          },
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+        if (_deviceConnectionFeedbackStage != null)
+          DeviceConnectionFeedbackOverlay(
+            stage: _deviceConnectionFeedbackStage!,
+          ),
+      ],
     );
   }
 
@@ -474,13 +488,15 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
             _DeviceChoiceCard(
               key: const Key('startup-h20-choice'),
               icon: Icons.bluetooth_audio_rounded,
-              title: 'Kết nối thiết bị (tùy chọn)',
+              title: 'Kết nối thiết bị',
               description:
                   'Bật thiết bị và Bluetooth trên điện thoại, sau đó nhấn nút bên dưới. HOMI sẽ tự kiểm tra kết nối.',
               selected: _h20Ready,
               status: _h20Ready
-                  ? 'Đã kết nối và sẵn sàng'
-                  : widget.h20HfpConfigured || widget.h20BleConnected
+                  ? widget.h20HfpConfigured
+                        ? 'Đã kết nối và chọn mic thiết bị'
+                        : 'BLE đã kết nối • mic sẽ được tự chọn khi sẵn sàng'
+                  : widget.h20HfpConfigured
                   ? 'Đang hoàn tất kết nối…'
                   : _h20SetupRequested
                   ? 'Chưa kết nối • kiểm tra thiết bị đã bật và ở gần'
@@ -495,7 +511,7 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
               const _InfoBox(
                 icon: Icons.phone_iphone_rounded,
                 text:
-                    'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
+                    'Cần kết nối BLE với thiết bị trước khi bắt đầu phiên học. Việc chọn micro HFP sẽ được HOMI thực hiện tự động sau đó.',
               ),
             ],
           ],
@@ -523,7 +539,9 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
         if (!_canComplete) ...<Widget>[
           const SizedBox(height: 10),
           Text(
-            'Cần cấp quyền micro để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
+            widget.microphoneGranted && widget.bluetoothGranted
+                ? 'Cần kết nối BLE với thiết bị để bắt đầu, hoặc quay lại chọn chế độ không dùng giọng nói.'
+                : 'Cần cấp đủ quyền micro và Bluetooth để tiếp tục, hoặc quay lại chọn chế độ không dùng giọng nói.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -552,11 +570,25 @@ class _StartupSetupScreenState extends State<StartupSetupScreen> {
     setState(() {
       _choiceInProgress = true;
       _h20SetupRequested = true;
+      _deviceConnectionFeedbackStage = DeviceConnectionFeedbackStage.connecting;
     });
     try {
-      await widget.onSetupH20();
+      final connected = await widget.onSetupH20();
+      if (!mounted) return;
+      if (connected) {
+        setState(() {
+          _deviceConnectionFeedbackStage =
+              DeviceConnectionFeedbackStage.connected;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+      }
     } finally {
-      if (mounted) setState(() => _choiceInProgress = false);
+      if (mounted) {
+        setState(() {
+          _choiceInProgress = false;
+          _deviceConnectionFeedbackStage = null;
+        });
+      }
     }
   }
 

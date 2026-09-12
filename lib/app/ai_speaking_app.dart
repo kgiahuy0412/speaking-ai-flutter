@@ -54,6 +54,7 @@ import '../features/voice_navigation/presentation/main_voice_assistant_button.da
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
+import 'device_connection_feedback_overlay.dart';
 import 'mascot_assets.dart';
 
 enum _H20AutoConnectReason { background, parentSetup }
@@ -135,6 +136,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _isRestoringHfpAfterPhysicalMain = false;
   bool _offlineSpeechModelPreparationRunning = false;
   bool _offlineSpeechModelPreparationFinished = false;
+  StreamSubscription<Aiv0BleStatus>? _aiv0BleFeedbackSubscription;
+  Timer? _deviceConnectionFeedbackTimer;
+  DeviceConnectionFeedbackStage? _deviceConnectionFeedbackStage;
+  bool _aiv0AutoConnectAttemptActive = false;
+  bool _lastAiv0AutoConnectSucceeded = false;
+  bool _androidHfpAutoSelectionInProgress = false;
   AndroidOfflineSpeechModelConsent _offlineSpeechModelConsent =
       AndroidOfflineSpeechModelConsent.undecided;
   Timer? _offlineSpeechModelTimer;
@@ -642,12 +649,32 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       }
     }
 
-    final bleConnected =
-        controller.canUseAiv0Ble || await control.autoConnectKnownOrNearby();
+    final alreadyConnected = controller.canUseAiv0Ble;
+    if (!alreadyConnected) {
+      _aiv0AutoConnectAttemptActive = true;
+      _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage.connecting);
+    }
+    var bleConnected = alreadyConnected;
+    try {
+      bleConnected =
+          alreadyConnected || await control.autoConnectKnownOrNearby();
+    } catch (error) {
+      debugPrint('Automatic H20 BLE connection was skipped: $error');
+    } finally {
+      _aiv0AutoConnectAttemptActive = false;
+    }
+    _lastAiv0AutoConnectSucceeded = bleConnected;
     if (!bleConnected) {
+      _hideDeviceConnectionFeedback();
       return;
     }
+    if (!alreadyConnected) {
+      _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage.connected);
+    }
     debugPrint('H20 BLE Control connected automatically.');
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(_autoSelectConnectedAndroidHfp());
+    }
     if (defaultTargetPlatform == TargetPlatform.iOS &&
         !controller.usesHfpInput) {
       debugPrint(
@@ -656,9 +683,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
   }
 
-  Future<void> _configureH20ForParentSetup() async {
+  Future<bool> _configureH20ForParentSetup() async {
     if (!_privacyConsentGranted) {
-      return;
+      return false;
     }
     await _requestStartupPermissions(
       parentInitiated: true,
@@ -666,9 +693,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     if (!_microphonePermissionGranted ||
         (_bluetoothPermissionRequired && !_bluetoothPermissionGranted)) {
-      return;
+      return false;
     }
     _lastAiv0AutoConnectAttempt = null;
+    _lastAiv0AutoConnectSucceeded = false;
     await _autoConnectH20Ble(reason: _H20AutoConnectReason.parentSetup);
     if (defaultTargetPlatform == TargetPlatform.android) {
       final deviceId = _aiv0BleControl?.status.deviceId?.trim();
@@ -685,6 +713,93 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     }
     if (mounted) {
       setState(() {});
+    }
+    return _lastAiv0AutoConnectSucceeded ||
+        _controller?.canUseAiv0Ble == true ||
+        _aiv0BleControl?.status.isConnected == true;
+  }
+
+  void _handleAiv0BleFeedbackStatus(Aiv0BleStatus status) {
+    if (status.isConnected) {
+      if (_deviceConnectionFeedbackStage ==
+          DeviceConnectionFeedbackStage.connecting) {
+        _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage.connected);
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        unawaited(_autoSelectConnectedAndroidHfp());
+      }
+      return;
+    }
+    if (status.phase == Aiv0BlePhase.scanning ||
+        status.phase == Aiv0BlePhase.connecting ||
+        status.phase == Aiv0BlePhase.reconnecting) {
+      _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage.connecting);
+      return;
+    }
+    if (!_aiv0AutoConnectAttemptActive) {
+      _hideDeviceConnectionFeedback();
+    }
+  }
+
+  void _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage stage) {
+    if (!_startupReady || !mounted) return;
+    _deviceConnectionFeedbackTimer?.cancel();
+    if (_deviceConnectionFeedbackStage != stage) {
+      setState(() => _deviceConnectionFeedbackStage = stage);
+    }
+    if (stage == DeviceConnectionFeedbackStage.connected) {
+      _deviceConnectionFeedbackTimer = Timer(
+        const Duration(milliseconds: 900),
+        _hideDeviceConnectionFeedback,
+      );
+    }
+  }
+
+  void _hideDeviceConnectionFeedback() {
+    _deviceConnectionFeedbackTimer?.cancel();
+    _deviceConnectionFeedbackTimer = null;
+    if (!mounted || _deviceConnectionFeedbackStage == null) return;
+    setState(() => _deviceConnectionFeedbackStage = null);
+  }
+
+  Future<void> _autoSelectConnectedAndroidHfp() async {
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        _androidHfpAutoSelectionInProgress) {
+      return;
+    }
+    final controller = _controller;
+    final ble = _aiv0BleControl;
+    if (controller == null ||
+        ble == null ||
+        !controller.canUseAiv0Ble ||
+        controller.usesHfpInput) {
+      return;
+    }
+    _androidHfpAutoSelectionInProgress = true;
+    try {
+      for (var attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+        }
+        if (!controller.canUseAiv0Ble || controller.usesHfpInput) return;
+        final selected = await controller.autoConnectH20Hfp(
+          bleDeviceName:
+              ble.status.deviceName ?? controller.aiv0BleStatus.deviceName,
+          requireConnected: true,
+        );
+        if (selected) {
+          debugPrint(
+            'Connected Android H20 HFP microphone selected automatically.',
+          );
+          return;
+        }
+      }
+      debugPrint(
+        'Android BLE is ready but its paired HFP profile is not connected yet; phone microphone remains available.',
+      );
+    } finally {
+      _androidHfpAutoSelectionInProgress = false;
     }
   }
 
@@ -903,6 +1018,9 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _deviceAudioCache = deviceAudioCache;
     _phoneMicrophoneInput = phoneMicrophoneInput;
     _aiv0BleControl = aiv0BleControl;
+    _aiv0BleFeedbackSubscription = aiv0BleControl.statusStream.listen(
+      _handleAiv0BleFeedbackStatus,
+    );
     _nativeHfpAudioControl = nativeHfpAudioControl;
     _audioTurnCoordinator = audioTurnCoordinator;
     _hfpAudioRouteCoordinator = hfpAudioRouteCoordinator;
@@ -1717,6 +1835,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _offlineSpeechModelTimer?.cancel();
+    _deviceConnectionFeedbackTimer?.cancel();
+    unawaited(_aiv0BleFeedbackSubscription?.cancel());
     unawaited(_offlineTranslator.close());
     _controller?.removeListener(_synchronizeMainSpeakingSession);
     _mainSpeakingSessionController.removeListener(
@@ -1776,6 +1896,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                       onLongPressReleased: _handleScreenMainRelease,
                     ),
                   ),
+                ),
+              if (_deviceConnectionFeedbackStage != null)
+                DeviceConnectionFeedbackOverlay(
+                  stage: _deviceConnectionFeedbackStage!,
                 ),
             ],
           ),

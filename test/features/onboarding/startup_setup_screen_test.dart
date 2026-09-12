@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'finishes in three steps with phone microphone while H20 is optional',
+    'requires a real BLE connection before a voice setup can finish',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -13,6 +13,7 @@ void main() {
       var permissionsGranted = false;
       var limitedModeSelected = false;
       var offlineEnglishModelAllowed = false;
+      var bleConnected = false;
       int? selectedAge;
       var completed = false;
 
@@ -29,7 +30,7 @@ void main() {
               microphoneGranted: permissionsGranted,
               bluetoothRequired: true,
               bluetoothGranted: permissionsGranted,
-              h20BleConnected: false,
+              h20BleConnected: bleConnected,
               h20HfpConfigured: false,
               selectedAge: selectedAge,
               aiSubprocessors: 'HOMI backend trên Railway và Cloudflare',
@@ -52,7 +53,10 @@ void main() {
               onRetryPermissions: () {
                 setState(() => permissionsGranted = true);
               },
-              onSetupH20: () async {},
+              onSetupH20: () async {
+                setState(() => bleConnected = true);
+                return true;
+              },
               onAgeSelected: (age) => setState(() => selectedAge = age),
               onCompleteSetup: () async {
                 setState(() => completed = true);
@@ -100,9 +104,8 @@ void main() {
 
       expect(find.text('Cấp quyền và kết nối thiết bị'), findsOneWidget);
       expect(find.text('Bước 3/3 • Dành cho phụ huynh'), findsOneWidget);
-      expect(find.text('Kết nối thiết bị (tùy chọn)'), findsOneWidget);
+      expect(find.text('Kết nối thiết bị'), findsNWidgets(2));
       expect(find.textContaining('H20'), findsNothing);
-      expect(find.textContaining('BLE'), findsNothing);
       expect(find.textContaining('HFP'), findsNothing);
       await tester.ensureVisible(
         find.byKey(const Key('startup-request-permissions')),
@@ -123,14 +126,27 @@ void main() {
 
       final completeButton = find.byKey(const Key('startup-confirm-age'));
       await tester.ensureVisible(completeButton);
-      expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
+      expect(tester.widget<FilledButton>(completeButton).onPressed, isNull);
       expect(find.byKey(const Key('startup-use-phone-mic')), findsNothing);
       expect(
-        find.text(
-          'HOMI sẽ dùng micro điện thoại cho đến khi thiết bị kết nối xong.',
-        ),
+        find.textContaining('Cần kết nối BLE với thiết bị trước'),
         findsOneWidget,
       );
+
+      await tester.ensureVisible(find.byKey(const Key('startup-setup-h20')));
+      await tester.tap(find.byKey(const Key('startup-setup-h20')));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('device-connection-feedback-connected')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(milliseconds: 901));
+      expect(
+        find.byKey(const Key('device-connection-feedback-overlay')),
+        findsNothing,
+      );
+      await tester.ensureVisible(completeButton);
+      expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
       await tester.tap(completeButton);
 
       expect(selectedAge, 8);
@@ -171,7 +187,7 @@ void main() {
               setState(() => limited = true);
             },
             onRetryPermissions: () {},
-            onSetupH20: () async {},
+            onSetupH20: () async => false,
             onAgeSelected: (value) => setState(() => age = value),
             onCompleteSetup: () async {
               setState(() => completed = true);
@@ -232,7 +248,7 @@ void main() {
           onGrantPrivacyConsent: () async {},
           onContinueWithoutVoice: () async {},
           onRetryPermissions: () {},
-          onSetupH20: () async {},
+          onSetupH20: () async => false,
           onAgeSelected: (_) {},
           onCompleteSetup: () async {},
         ),

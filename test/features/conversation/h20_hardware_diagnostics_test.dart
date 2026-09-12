@@ -185,6 +185,36 @@ void main() {
   });
 
   test(
+    'background auto-selection waits for an actually connected HFP',
+    () async {
+      final hfp = _FakeHfpAudioControl(
+        devices: const <HfpAudioDevice>[
+          HfpAudioDevice(id: 'airpods', name: 'AirPods Pro', isConnected: true),
+          HfpAudioDevice(id: 'h20', name: 'H20', isConnected: false),
+        ],
+      );
+      final controller = ConversationController(
+        audioInput: _FakeAudioInput(),
+        hfpAudioControl: hfp,
+        playbackService: _FakePlaybackService(),
+        repository: _NoNetworkRepository(),
+        childAge: 6,
+      );
+
+      expect(
+        await controller.autoConnectH20Hfp(
+          bleDeviceName: 'H20',
+          requireConnected: true,
+        ),
+        isFalse,
+      );
+      expect(hfp.connectedDevice, isNull);
+      expect(controller.usesHfpInput, isFalse);
+      controller.dispose();
+    },
+  );
+
+  test(
     'BLE long press stops once and release does not restart capture',
     () async {
       final aiv0 = _FakeAiv0BleControl(protocolConfirmed: true);

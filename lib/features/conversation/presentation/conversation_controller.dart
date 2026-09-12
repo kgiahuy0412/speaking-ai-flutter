@@ -1498,7 +1498,10 @@ class ConversationController extends ChangeNotifier
   /// paired by iOS. Pairing Classic Bluetooth is not available to apps, but an
   /// existing HFP input can be discovered and selected without opening the
   /// Settings sheet. Unrelated Bluetooth microphones are deliberately ignored.
-  Future<bool> autoConnectH20Hfp({String? bleDeviceName}) async {
+  Future<bool> autoConnectH20Hfp({
+    String? bleDeviceName,
+    bool requireConnected = false,
+  }) async {
     final control = _hfpAudioControl;
     if (control == null ||
         supportsBrowserHfp ||
@@ -1517,7 +1520,7 @@ class ConversationController extends ChangeNotifier
         devices,
         bleDeviceName: bleDeviceName,
       );
-      if (device == null) {
+      if (device == null || (requireConnected && !device.isConnected)) {
         return false;
       }
       await control.connect(device);
