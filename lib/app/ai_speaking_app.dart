@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../core/auth/installation_auth_session.dart';
 import '../core/audio/audio_playback_service.dart';
+import '../core/audio/audio_turn_coordinator.dart';
 import '../core/audio/browser_hfp_audio_control.dart';
 import '../core/audio/device_audio_cache.dart';
 import '../core/audio/hfp_audio_control.dart';
@@ -54,6 +55,7 @@ import '../features/voice_navigation/presentation/main_voice_assistant_button.da
 import '../l10n/display_language.dart';
 import 'app_theme.dart';
 import 'app_theme_mode.dart';
+import 'device_connection_feedback_gate.dart';
 import 'device_connection_feedback_overlay.dart';
 import 'mascot_assets.dart';
 
@@ -137,8 +139,11 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
   bool _offlineSpeechModelPreparationRunning = false;
   bool _offlineSpeechModelPreparationFinished = false;
   StreamSubscription<Aiv0BleStatus>? _aiv0BleFeedbackSubscription;
+  StreamSubscription<AudioTurnDiagnostic>? _audioTurnDiagnosticSubscription;
   Timer? _deviceConnectionFeedbackTimer;
   DeviceConnectionFeedbackStage? _deviceConnectionFeedbackStage;
+  final DeviceConnectionFeedbackGate _deviceConnectionFeedbackGate =
+      DeviceConnectionFeedbackGate();
   bool _aiv0AutoConnectAttemptActive = false;
   bool _lastAiv0AutoConnectSucceeded = false;
   bool _androidHfpAutoSelectionInProgress = false;
@@ -586,6 +591,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     if (control == null ||
         controller == null ||
         controller.isBusy ||
+        _isAppAudioPlaybackActive ||
         _isActivatingMainAssistant ||
         _mainSpeakingSessionController.isActive ||
         (voiceController?.isMainButtonSessionActive ?? false) ||
@@ -728,6 +734,7 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       if (defaultTargetPlatform == TargetPlatform.android) {
         unawaited(_autoSelectConnectedAndroidHfp());
       }
+      _deviceConnectionFeedbackGate.clear();
       return;
     }
     if (status.phase == Aiv0BlePhase.scanning ||
@@ -743,6 +750,13 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
 
   void _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage stage) {
     if (!_startupReady || !mounted) return;
+    if (!_deviceConnectionFeedbackGate.shouldPresent(
+      stage,
+      playbackActive: _isAppAudioPlaybackActive,
+    )) {
+      _hideDeviceConnectionFeedback();
+      return;
+    }
     _deviceConnectionFeedbackTimer?.cancel();
     if (_deviceConnectionFeedbackStage != stage) {
       setState(() => _deviceConnectionFeedbackStage = stage);
@@ -760,6 +774,47 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _deviceConnectionFeedbackTimer = null;
     if (!mounted || _deviceConnectionFeedbackStage == null) return;
     setState(() => _deviceConnectionFeedbackStage = null);
+  }
+
+  bool get _isAppAudioPlaybackActive {
+    return _deviceConnectionFeedbackGate.isPlaybackActive(
+      currentMode: _audioTurnCoordinator?.currentToken?.mode,
+      conversationPlaybackActive: _controller?.isPlaybackPlaying ?? false,
+      mainSpeakingPlaybackActive:
+          _mainSpeakingSessionController.state ==
+          MainSpeakingSessionState.playing,
+    );
+  }
+
+  void _synchronizeDeviceConnectionFeedback() {
+    if (!mounted || !_startupReady) {
+      return;
+    }
+    final playbackActive = _isAppAudioPlaybackActive;
+    if (playbackActive) {
+      if (_deviceConnectionFeedbackStage != null) {
+        if (_deviceConnectionFeedbackStage ==
+            DeviceConnectionFeedbackStage.connecting) {
+          _deviceConnectionFeedbackGate.shouldPresent(
+            DeviceConnectionFeedbackStage.connecting,
+            playbackActive: true,
+          );
+        }
+        _hideDeviceConnectionFeedback();
+      }
+      return;
+    }
+    final status = _aiv0BleControl?.status;
+    final bleConnecting =
+        status?.phase == Aiv0BlePhase.scanning ||
+        status?.phase == Aiv0BlePhase.connecting ||
+        status?.phase == Aiv0BlePhase.reconnecting;
+    if (_deviceConnectionFeedbackGate.consumeDeferredConnecting(
+      playbackActive: false,
+      bleConnecting: bleConnecting,
+    )) {
+      _showDeviceConnectionFeedback(DeviceConnectionFeedbackStage.connecting);
+    }
   }
 
   Future<void> _autoSelectConnectedAndroidHfp() async {
@@ -1023,12 +1078,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
     _nativeHfpAudioControl = nativeHfpAudioControl;
     _audioTurnCoordinator = audioTurnCoordinator;
+    _audioTurnDiagnosticSubscription = audioTurnCoordinator.diagnostics.listen(
+      (_) => _synchronizeDeviceConnectionFeedback(),
+    );
     _hfpAudioRouteCoordinator = hfpAudioRouteCoordinator;
     _webBatchStreamingSpeechInput = webBatchStreamingSpeechInput;
     _controller = controller;
     _voiceNavigationController = voiceNavigationController;
     voiceNavigationController?.addListener(_synchronizeMainAssistantSession);
     controller.addListener(_synchronizeMainSpeakingSession);
+    controller.addListener(_synchronizeDeviceConnectionFeedback);
   }
 
   void _startBackgroundWork() {
@@ -1845,8 +1904,10 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     _offlineSpeechModelTimer?.cancel();
     _deviceConnectionFeedbackTimer?.cancel();
     unawaited(_aiv0BleFeedbackSubscription?.cancel());
+    unawaited(_audioTurnDiagnosticSubscription?.cancel());
     unawaited(_offlineTranslator.close());
     _controller?.removeListener(_synchronizeMainSpeakingSession);
+    _controller?.removeListener(_synchronizeDeviceConnectionFeedback);
     _mainSpeakingSessionController.removeListener(
       _synchronizePendingMainSpeakingAudioHandoff,
     );
