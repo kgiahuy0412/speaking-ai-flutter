@@ -1478,8 +1478,16 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
     );
   }
 
-  void _startMainSpeakingMode() {
+  Future<void> _startMainSpeakingMode() async {
     if (!_voiceAccessEnabled) {
+      return;
+    }
+    // A navigation choice that leaves listening is a transfer, not a temporary
+    // MAIN interruption. Do not let the paused lesson resume after the
+    // conversation screen has already taken ownership of audio.
+    _appFlowCoordinator.forgetPausedModule();
+    await _voiceNavigationController?.pause();
+    if (!mounted || !_voiceAccessEnabled) {
       return;
     }
     _hasMainSpeakingTurnStarted = false;
@@ -1493,12 +1501,12 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
       // Preserve the established Android lifecycle from main. Android opens
       // its HFP/SpeechRecognizer route per turn; only iOS needs one explicit
       // continuous AVAudioSession lease before the first turn.
-      _synchronizeMainSpeakingSession();
+      await _startNextMainSpeakingTurn();
       return;
     }
     final generation = ++_mainSpeakingHfpSessionGeneration;
     _isPreparingMainSpeakingHfpSession = true;
-    unawaited(_prepareMainSpeakingHfpSession(generation));
+    await _prepareMainSpeakingHfpSession(generation);
   }
 
   Future<void> _prepareMainSpeakingHfpSession(int generation) async {
@@ -1916,6 +1924,8 @@ class _AiSpeakingAppState extends State<AiSpeakingApp>
                   themeMode: _themeMode,
                   onThemeModeChanged: _setThemeMode,
                   onChildAgeChanged: _setChildAge,
+                  onActiveLearningExitCommitted:
+                      _appFlowCoordinator.forgetPausedModule,
                   onMainSpeakingModeStarted: _startMainSpeakingMode,
                   onScreenMainPressed: _voiceAccessEnabled
                       ? _handleScreenMainShortPress

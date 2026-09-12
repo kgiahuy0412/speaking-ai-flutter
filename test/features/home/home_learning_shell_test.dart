@@ -751,7 +751,9 @@ void main() {
         _app(
           controller,
           voiceNavigationController: voiceNavigationController,
-          onMainSpeakingModeStarted: () => didStartMainSpeakingMode = true,
+          onMainSpeakingModeStarted: () async {
+            didStartMainSpeakingMode = true;
+          },
         ),
       );
       await tester.pumpAndSettle();
@@ -797,7 +799,9 @@ void main() {
       _app(
         controller,
         voiceNavigationController: voiceNavigationController,
-        onMainSpeakingModeStarted: () => didStartContinuousMode = true,
+        onMainSpeakingModeStarted: () async {
+          didStartContinuousMode = true;
+        },
       ),
     );
     await tester.pumpAndSettle();
@@ -820,6 +824,87 @@ void main() {
     voiceNavigationController.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'leaving listening waits for the continuous translation microphone handoff',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final speechInput = _FakeStreamingSpeechInput();
+      final voiceNavigationController = VoiceNavigationController(
+        speechInput: speechInput,
+        ownsSpeechInput: true,
+      );
+      final controller = _controller();
+      final handoff = Completer<void>();
+      var handoffCount = 0;
+      var exitCommitted = false;
+      var exitWasCommittedWhenHandoffStarted = false;
+
+      await tester.pumpWidget(
+        _app(
+          controller,
+          voiceNavigationController: voiceNavigationController,
+          listeningContentFuture: AssetListeningContentRepository(
+            bundle: rootBundle,
+          ).load(),
+          onActiveLearningExitCommitted: () => exitCommitted = true,
+          onMainSpeakingModeStarted: () async {
+            exitWasCommittedWhenHandoffStarted = exitCommitted;
+            handoffCount += 1;
+            await handoff.future;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('topic-listening-edge-tab')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TopicListeningScreen), findsOneWidget);
+
+      expect(
+        await voiceNavigationController.activateFromMainButton(
+          activeLearning: true,
+        ),
+        isTrue,
+      );
+      expect(
+        await voiceNavigationController.dispatchRecognizedText(
+          'Con muốn học cái khác',
+        ),
+        isTrue,
+      );
+
+      var navigationCompleted = false;
+      final navigation = voiceNavigationController
+          .dispatchRecognizedText('Dịch sang tiếng Anh')
+          .then((value) {
+            navigationCompleted = true;
+            return value;
+          });
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(handoffCount, 1);
+      expect(exitWasCommittedWhenHandoffStarted, isTrue);
+      expect(navigationCompleted, isFalse);
+      expect(voiceNavigationController.isListening, isFalse);
+      expect(find.byType(TopicListeningScreen).hitTestable(), findsNothing);
+      expect(find.byType(ConversationScreen).hitTestable(), findsOneWidget);
+
+      handoff.complete();
+      expect(await navigation, isTrue);
+      await tester.pump();
+      expect(navigationCompleted, isTrue);
+
+      controller.dispose();
+      voiceNavigationController.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
 
 Widget _app(
@@ -829,7 +914,8 @@ Widget _app(
   VoiceNavigationController? voiceNavigationController,
   Future<ListeningContentCatalog>? listeningContentFuture,
   MainSpeakingSessionController? speakingSessionController,
-  VoidCallback? onMainSpeakingModeStarted,
+  VoidCallback? onActiveLearningExitCommitted,
+  Future<void> Function()? onMainSpeakingModeStarted,
   ValueChanged<bool>? onModalVisibilityChanged,
   ValueChanged<int>? onChildAgeChanged,
   Future<bool> Function(BuildContext)? parentAccessGate,
@@ -841,6 +927,7 @@ Widget _app(
     voiceNavigationController: voiceNavigationController,
     listeningContentFuture: listeningContentFuture,
     listeningProgressStore: _HomeListeningProgressStore(),
+    onActiveLearningExitCommitted: onActiveLearningExitCommitted,
     onMainSpeakingModeStarted: onMainSpeakingModeStarted,
     onScreenMainPressed: voiceNavigationController == null
         ? null

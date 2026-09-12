@@ -35,6 +35,7 @@ class HomeLearningShell extends StatefulWidget {
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
     this.onChildAgeChanged,
+    this.onActiveLearningExitCommitted,
     this.onMainSpeakingModeStarted,
     this.onScreenMainPressed,
     this.onVocabularyVoiceChoiceRequested,
@@ -59,7 +60,8 @@ class HomeLearningShell extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
   final ValueChanged<int>? onChildAgeChanged;
-  final VoidCallback? onMainSpeakingModeStarted;
+  final VoidCallback? onActiveLearningExitCommitted;
+  final Future<void> Function()? onMainSpeakingModeStarted;
   final Future<void> Function()? onScreenMainPressed;
   final Future<void> Function({
     String? noSpeechRetryPrompt,
@@ -453,6 +455,12 @@ class _HomeLearningShellState extends State<HomeLearningShell>
               useChinese ? '设置' : 'Cài đặt',
           };
     if (intent.destination != VoiceNavigationDestination.topics) {
+      if (_openingTopics) {
+        // This is a committed feature change, not a temporary MAIN pause.
+        // Clear the old module's resume ownership before its route starts
+        // closing so no listener can wake that lesson during the transition.
+        widget.onActiveLearningExitCommitted?.call();
+      }
       await _closeTopicListeningIfNeeded();
       if (!mounted) {
         return;
@@ -466,9 +474,19 @@ class _HomeLearningShellState extends State<HomeLearningShell>
 
     switch (intent.destination) {
       case VoiceNavigationDestination.conversation:
+        if (intent.enterMainSpeakingMode) {
+          // Closing the listening route resumes Android's optional wake-word
+          // listener. Cancel that old owner before the conversation feature
+          // takes the shared recognizer, otherwise both starts can cross and
+          // the translation screen is left visible without a live microphone.
+          await _prepareVoiceNavigationForMainSpeakingHandoff();
+          if (!mounted) {
+            return;
+          }
+        }
         _showConversation();
         if (intent.enterMainSpeakingMode) {
-          widget.onMainSpeakingModeStarted?.call();
+          await widget.onMainSpeakingModeStarted?.call();
         }
       case VoiceNavigationDestination.vocabulary:
         _showVocabulary();
@@ -506,6 +524,11 @@ class _HomeLearningShellState extends State<HomeLearningShell>
     if (closed != null) {
       await closed;
     }
+  }
+
+  Future<void> _prepareVoiceNavigationForMainSpeakingHandoff() async {
+    _voiceNavigationRestartTimer?.cancel();
+    await widget.voiceNavigationController?.pause();
   }
 
   void _showVoiceNavigationMessage(String message) {

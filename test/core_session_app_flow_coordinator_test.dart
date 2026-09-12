@@ -76,6 +76,22 @@ void main() {
     expect(module.isPausedForMain, isFalse);
     expect(coordinator.activeModulePausedForMain, isFalse);
   });
+
+  test('navigation handoff does not resume the lesson being left', () async {
+    final registry = ActiveLearningModuleRegistry();
+    addTearDown(registry.dispose);
+    final module = _FakeActiveModule();
+    registry.register(module);
+    final coordinator = AppFlowCoordinator(registry: registry);
+    await coordinator.pauseForMainAssistant();
+
+    coordinator.forgetPausedModule();
+    await coordinator.resumeAfterMainAssistant();
+
+    expect(module.commands, isEmpty);
+    expect(module.isPausedForMain, isTrue);
+    expect(coordinator.activeModulePausedForMain, isFalse);
+  });
 }
 
 class _FakeActiveModule implements ActiveLearningModuleController {
