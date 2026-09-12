@@ -73,7 +73,11 @@ void main() {
           hasLength(1),
           reason: 'Fallback speech: ${voice.spoken}',
         );
-        expect(media.played.single.path, endsWith('${id}_PROMPT.mp3'));
+        expect(media.played.single.scheme, 'https');
+        expect(
+          media.played.single.path,
+          matches('/${id}_PROMPT-[0-9a-f]{16}\\.mp3\$'),
+        );
         expect(voice.spoken, isEmpty);
         await tester.pump(const Duration(seconds: 12));
         expect(media.recordingStarts, 0);

@@ -97,6 +97,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
         forcePhoneSpeaker: forcePhoneSpeaker,
         forceMediaPlayback: forceMediaPlayback,
         assetPath: arguments?["assetPath"] as? String,
+        filePath: arguments?["filePath"] as? String,
         waitForCompletion: call.method == "speakAndWait",
         result: result
       )
@@ -116,6 +117,7 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     forcePhoneSpeaker: Bool,
     forceMediaPlayback: Bool,
     assetPath: String?,
+    filePath: String?,
     waitForCompletion: Bool,
     result: @escaping FlutterResult
   ) {
@@ -135,13 +137,29 @@ final class VoicePromptBridge: NSObject, AVSpeechSynthesizerDelegate, AVAudioPla
     } else {
       result(nil)
     }
-    if let assetPath, assetPath.hasPrefix("assets/audio/"), !assetPath.contains("..") {
+    if filePath != nil || (assetPath?.hasPrefix("assets/audio/") == true && assetPath?.contains("..") == false) {
       do {
-        let assetKey = FlutterDartProject.lookupKey(forAsset: assetPath)
-        guard let assetURL = Bundle.main.url(forResource: assetKey, withExtension: nil) else {
+        let audioURL: URL
+        if let filePath {
+          let localURL = URL(fileURLWithPath: filePath).resolvingSymlinksInPath()
+          let support = try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: false
+          ).appendingPathComponent("rule_audio_cache", isDirectory: true).resolvingSymlinksInPath()
+          guard localURL.path.hasPrefix(support.path + "/") else {
+            throw ReadyCueError.playbackFailed
+          }
+          audioURL = localURL
+        } else if let assetPath {
+          let assetKey = FlutterDartProject.lookupKey(forAsset: assetPath)
+          guard let assetURL = Bundle.main.url(forResource: assetKey, withExtension: nil) else {
+            throw ReadyCueError.playbackFailed
+          }
+          audioURL = assetURL
+        } else {
           throw ReadyCueError.playbackFailed
         }
-        let player = try AVAudioPlayer(contentsOf: assetURL)
+        let player = try AVAudioPlayer(contentsOf: audioURL)
         player.delegate = self
         player.volume = 1.0
         player.numberOfLoops = 0

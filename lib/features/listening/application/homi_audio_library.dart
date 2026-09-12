@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 class HomiAudioClip {
   HomiAudioClip.fromJson(Map<String, dynamic> json)
     : id = json['id'] as String,
-      uri = Uri(scheme: 'asset', path: '/${json['asset']}'),
+      uri = json['audioUrl'] is String
+          ? Uri.parse(json['audioUrl'] as String)
+          : Uri(scheme: 'asset', path: '/${json['asset']}'),
       text = json['text'] as String,
       locale = json['locale'] as String,
       kind = json['kind'] as String,

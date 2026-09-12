@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
-/// Exact Vietnamese text -> local audio. Never sends text or credentials over
-/// the network. Existing curriculum recordings retain their original voice.
+/// Exact Vietnamese text -> authored recording. The small indexes are bundled;
+/// recordings use their Cloudinary URL after migration.
 class BundledVoicePromptLibrary {
   BundledVoicePromptLibrary({AssetBundle? bundle})
     : _bundle = bundle ?? rootBundle;
@@ -13,6 +13,7 @@ class BundledVoicePromptLibrary {
   static final shared = BundledVoicePromptLibrary();
   final AssetBundle _bundle;
   Future<Map<String, String>>? _index;
+  final Map<String, Uri> _remoteUris = <String, Uri>{};
 
   static String normalize(String text) =>
       text.trim().replaceAll(RegExp(r'\s+'), ' ');
@@ -26,8 +27,25 @@ class BundledVoicePromptLibrary {
     return index[normalize(text)];
   }
 
+  Future<Uri?> uriFor(String text, {String locale = 'vi-VN'}) async {
+    final asset = await assetFor(text, locale: locale);
+    if (asset == null) return null;
+    return _remoteUris[asset] ?? Uri(scheme: 'asset', path: '/$asset');
+  }
+
+  void _readRemoteUri(Map<String, dynamic> clip) {
+    final url = clip['audioUrl'] as String?;
+    if (url == null) return;
+    final uri = Uri.parse(url);
+    if (!uri.isScheme('https') || uri.host != 'res.cloudinary.com') {
+      throw const FormatException('Invalid recorded prompt URL');
+    }
+    _remoteUris[clip['asset'] as String] = uri;
+  }
+
   Future<Map<String, String>> _load() async {
     final index = <String, String>{};
+    _remoteUris.clear();
     // Exclude hooks/SFX/context-dependent feedback: their original callers
     // select by ID or age, so a text match must never replay unrelated effects.
     final existing =
@@ -35,6 +53,7 @@ class BundledVoicePromptLibrary {
             as Map<String, dynamic>;
     for (final raw in existing['clips'] as List<dynamic>) {
       final clip = raw as Map<String, dynamic>;
+      _readRemoteUri(clip);
       if (clip['locale'] == 'vi-VN' &&
           (clip['kind'] == 'system' || clip['kind'] == 'core')) {
         index.putIfAbsent(
@@ -48,6 +67,7 @@ class BundledVoicePromptLibrary {
             as Map<String, dynamic>;
     for (final raw in generated['clips'] as List<dynamic>) {
       final clip = raw as Map<String, dynamic>;
+      _readRemoteUri(clip);
       final asset = clip['asset'] as String;
       if (clip['locale'] == 'vi-VN' &&
           asset.startsWith('assets/audio/elevenlabs_vi/') &&

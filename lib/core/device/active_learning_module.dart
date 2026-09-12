@@ -158,9 +158,10 @@ class ActiveLearningModuleRegistry extends ChangeNotifier {
     try {
       return await active.handleMainCommand(command).timeout(_operationTimeout);
     } on TimeoutException {
-      return const ActiveLearningCommandResult.busy(
-        spokenReply: 'Bài học đang xử lý. Con thử lại sau một chút nhé.',
-      );
+      // The lesson operation continues after this deadline (for example, a
+      // sample is still playing or downloading). Speaking a retry message
+      // here would overlap that audio and incorrectly imply it had stopped.
+      return const ActiveLearningCommandResult.busy();
     } catch (_) {
       return const ActiveLearningCommandResult.busy();
     }

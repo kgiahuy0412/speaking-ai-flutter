@@ -29,48 +29,78 @@
 </head>
 <body>
   <script>
-    window.innotrikVoicePromptSpeak = function (text, locale) {
-      if (!('speechSynthesis' in window) || !text) return;
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = locale || 'vi-VN';
-      utterance.rate = 0.92;
-      utterance.pitch = 1.05;
-      utterance.volume = 1.0;
-      window.speechSynthesis.speak(utterance);
+    let activePromptAudio = null;
+    let finishActivePrompt = null;
+    window.innotrikVoicePromptStop = function () {
+      if (finishActivePrompt) finishActivePrompt('cancelled');
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     };
-    window.innotrikVoicePromptSpeakAndWait = function (text, locale) {
+    window.innotrikVoicePromptSpeakAndWait = function (text, locale, audioUrl) {
+      window.innotrikVoicePromptStop();
       return new Promise(function (resolve) {
-        if (!('speechSynthesis' in window) || !text) {
+        if (!text) {
           resolve('skipped');
           return;
         }
-
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = locale || 'vi-VN';
-        utterance.rate = 0.92;
-        utterance.pitch = 1.05;
-        utterance.volume = 1.0;
-
         let finished = false;
-        const finish = function () {
+        let loadTimeout;
+        const clearAudio = function () {
+          window.clearTimeout(loadTimeout);
+          if (!activePromptAudio) return;
+          activePromptAudio.onended = null;
+          activePromptAudio.onerror = null;
+          activePromptAudio.onplaying = null;
+          activePromptAudio.pause();
+          activePromptAudio.removeAttribute('src');
+          activePromptAudio.load();
+          activePromptAudio = null;
+        };
+        const finish = function (status) {
           if (finished) return;
           finished = true;
           window.clearTimeout(safetyTimeout);
-          resolve('completed');
+          clearAudio();
+          if (finishActivePrompt === finish) finishActivePrompt = null;
+          resolve(typeof status === 'string' ? status : 'completed');
         };
-        utterance.onend = finish;
-        utterance.onerror = finish;
         const safetyTimeout = window.setTimeout(
-          finish,
-          Math.max(4000, 1500 + (String(text).length * 180)),
+          () => {
+            finish('timeout');
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+          },
+          Math.min(44000, 10000 + Math.max(4000, 1500 + (String(text).length * 180))),
         );
-        window.speechSynthesis.speak(utterance);
+        finishActivePrompt = finish;
+        let usingDeviceVoice = false;
+        const deviceVoice = function () {
+          if (finished || usingDeviceVoice) return;
+          usingDeviceVoice = true;
+          clearAudio();
+          if (!('speechSynthesis' in window)) { finish('unavailable'); return; }
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = locale || 'vi-VN';
+          utterance.rate = 0.92;
+          utterance.pitch = 1.05;
+          utterance.volume = 1.0;
+          utterance.onend = finish;
+          utterance.onerror = finish;
+          window.speechSynthesis.speak(utterance);
+        };
+        if (audioUrl) {
+          const audio = new Audio(audioUrl);
+          activePromptAudio = audio;
+          audio.onended = finish;
+          audio.onerror = deviceVoice;
+          audio.onplaying = () => window.clearTimeout(loadTimeout);
+          loadTimeout = window.setTimeout(deviceVoice, 8000);
+          audio.play().catch(deviceVoice);
+        } else {
+          deviceVoice();
+        }
       });
     };
-    window.innotrikVoicePromptStop = function () {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    window.innotrikVoicePromptSpeak = function (text, locale, audioUrl) {
+      window.innotrikVoicePromptSpeakAndWait(text, locale, audioUrl);
     };
     window.innotrikSpeechReadyCue = function () {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;

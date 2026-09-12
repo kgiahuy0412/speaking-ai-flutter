@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:ai_speaking_flutter_app/core/audio/audio_input.dart';
 import 'package:ai_speaking_flutter_app/core/audio/audio_playback_service.dart';
+import 'package:ai_speaking_flutter_app/core/audio/cloudinary_audio_library.dart';
 import 'package:ai_speaking_flutter_app/core/audio/hfp_audio_control.dart';
 import 'package:ai_speaking_flutter_app/core/audio/streaming_speech_input.dart';
 import 'package:ai_speaking_flutter_app/core/device/aiv0_ble_control.dart';
@@ -13,6 +14,7 @@ import 'package:ai_speaking_flutter_app/features/conversation/presentation/conve
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'H20 loopback records and plays locally without repository calls',
     () async {
@@ -58,7 +60,7 @@ void main() {
     },
   );
 
-  test('bundled speaker test uses an APK asset and no network', () async {
+  test('speaker test selects the Cloudinary sample without backend calls', () async {
     final hfp = _FakeHfpAudioControl();
     final playback = _FakePlaybackService();
     final repository = _NoNetworkRepository();
@@ -73,10 +75,12 @@ void main() {
     await controller.setH20HardwareTestMode(true);
     await controller.playH20BundledSpeakerTest();
 
-    expect(playback.playedUris.single.scheme, 'asset');
+    expect(playback.playedUris.single.scheme, 'https');
     expect(
-      playback.playedUris.single.path,
-      'assets/audio/A-3-5/GUIDE_RECORD/A035_GUIDE_RECORD_01.mp3',
+      playback.playedUris.single,
+      await CloudinaryAudioLibrary.shared.uriForAsset(
+        'assets/audio/A-3-5/GUIDE_RECORD/A035_GUIDE_RECORD_01.mp3',
+      ),
     );
     expect(controller.h20HardwareTestResult?.outputRouteVerified, isTrue);
     expect(repository.networkCallCount, 0);

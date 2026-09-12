@@ -1,5 +1,9 @@
 # Giọng tiếng Việt tạo sẵn bằng ElevenLabs
 
+> Cập nhật 11/09/2026: bộ thu âm bên dưới đã chuyển sang Cloudinary và không
+> còn đóng gói MP3 trong ứng dụng. Xem [cơ chế phát và cập nhật hiện tại](cloudinary-app-audio.md).
+> Nội dung dưới đây mô tả lần tạo và tích hợp bản ghi ban đầu.
+
 Ngày tạo: 11/09/2026. Voice: `nbv4fVbfyLxvuHzyIeDo`.
 Model: `eleven_flash_v2_5`, ngôn ngữ `vi`, MP3 44.1 kHz / 128 kbps.
 

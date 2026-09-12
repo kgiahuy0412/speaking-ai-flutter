@@ -32,6 +32,30 @@ void main() {
   });
 
   test(
+    'a slow lesson command stays silent while its audio operation continues',
+    () async {
+      final commandGate = Completer<void>();
+      final registry = ActiveLearningModuleRegistry(
+        operationTimeout: const Duration(milliseconds: 5),
+      );
+      final module = _FakeActiveModule(commandGate: commandGate);
+      registry.register(module);
+
+      final result = await registry.interruptAndExecute(
+        ActiveLearningCommand.replayCurrent,
+      );
+      expect(result.status, ActiveLearningCommandStatus.busy);
+      expect(result.spokenReply, isNull);
+      expect(module.completedCommands, isEmpty);
+
+      commandGate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(module.completedCommands, [ActiveLearningCommand.replayCurrent]);
+      registry.dispose();
+    },
+  );
+
+  test(
     'registry restores the route below after the top route closes',
     () async {
       final registry = ActiveLearningModuleRegistry();
@@ -102,13 +126,16 @@ void main() {
 }
 
 class _FakeActiveModule implements ActiveLearningModuleController {
-  _FakeActiveModule({this.onPause, this.pauseGate});
+  _FakeActiveModule({this.onPause, this.pauseGate, this.commandGate});
 
   final void Function()? onPause;
   final Completer<void>? pauseGate;
+  final Completer<void>? commandGate;
   int pauses = 0;
   bool paused = false;
   final List<ActiveLearningCommand> commands = <ActiveLearningCommand>[];
+  final List<ActiveLearningCommand> completedCommands =
+      <ActiveLearningCommand>[];
 
   @override
   ActiveLearningModuleKind get moduleKind =>
@@ -122,11 +149,13 @@ class _FakeActiveModule implements ActiveLearningModuleController {
     ActiveLearningCommand command,
   ) async {
     commands.add(command);
+    await commandGate?.future;
     if (command == ActiveLearningCommand.stop) {
       paused = true;
     } else if (command == ActiveLearningCommand.resume) {
       paused = false;
     }
+    completedCommands.add(command);
     return const ActiveLearningCommandResult.handled();
   }
 

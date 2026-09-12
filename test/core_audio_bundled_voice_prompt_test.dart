@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:ai_speaking_flutter_app/core/audio/bundled_voice_prompt_library.dart';
+import 'package:ai_speaking_flutter_app/core/audio/cloudinary_audio_library.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service_native.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/recorded_lesson_voice_prompt_service.dart';
@@ -13,7 +15,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
-    'all generated speech is bundled, unique and uses the requested voice',
+    'all generated speech has a remote URL, is unique and keeps the requested voice',
     () async {
       final index =
           jsonDecode(
@@ -32,10 +34,17 @@ void main() {
       )).listAssets().toSet();
       for (final clip in clips) {
         expect(clip['locale'], 'vi-VN');
-        expect(assets, contains(clip['asset']), reason: clip['text'] as String);
         expect(
-          (await rootBundle.load(clip['asset'] as String)).lengthInBytes,
-          greaterThan(1000),
+          assets,
+          isNot(contains(clip['asset'])),
+          reason: clip['text'] as String,
+        );
+        expect(Uri.parse(clip['audioUrl'] as String).scheme, 'https');
+        expect(
+          await CloudinaryAudioLibrary.shared.uriForAsset(
+            clip['asset'] as String,
+          ),
+          Uri.parse(clip['audioUrl'] as String),
         );
       }
     },
@@ -76,7 +85,10 @@ void main() {
         return null;
       });
       addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
-      const service = MethodChannelVoicePromptService(channel: channel);
+      final service = MethodChannelVoicePromptService(
+        channel: channel,
+        audioFileResolver: _cachedAudio,
+      );
       var completed = false;
       final speech = service
           .speakAndWaitOnSelectedMediaOutput(
@@ -85,10 +97,7 @@ void main() {
           .then((_) => completed = true);
       final call = await started.future;
       expect(call.method, 'speakAndWait');
-      expect(
-        call.arguments['assetPath'],
-        'assets/audio/elevenlabs_vi/main_opening.mp3',
-      );
+      expect(call.arguments['filePath'], _cachedFile.toFilePath());
       expect(call.arguments['forceMediaPlayback'], isTrue);
       expect(
         completed,
@@ -165,17 +174,24 @@ void main() {
       addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
       final service = RecordedLessonVoicePromptService(
         mediaService: _Media(),
-        fallback: const MethodChannelVoicePromptService(channel: channel),
+        fallback: MethodChannelVoicePromptService(
+          channel: channel,
+          audioFileResolver: _cachedAudio,
+        ),
       );
       await service.speakAndWait(MainVoiceAssistantFlow.openingPrompt);
-      expect(
-        received?.arguments['assetPath'],
-        'assets/audio/elevenlabs_vi/main_opening.mp3',
-      );
+      expect(received?.arguments['filePath'], _cachedFile.toFilePath());
       expect(received?.arguments['forceMediaPlayback'], isTrue);
       await service.dispose();
     },
   );
+}
+
+final _cachedFile = Uri.file('${Directory.systemTemp.path}/homi-prompt.mp3');
+Future<Uri?> _cachedAudio(Uri uri) async {
+  expect(uri.scheme, 'https');
+  expect(uri.host, 'res.cloudinary.com');
+  return _cachedFile;
 }
 
 class _MissingBundle extends CachingAssetBundle {

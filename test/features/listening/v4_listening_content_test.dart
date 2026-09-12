@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:ai_speaking_flutter_app/core/audio/cloudinary_audio_library.dart';
+
 import 'package:ai_speaking_flutter_app/features/listening/domain/listening_content.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -238,26 +240,30 @@ void main() {
           for (final lesson in songLessons)
             lesson.id: lesson.songAudioUri.toString(),
         },
-        equals(const <String, String>{
-          'c35-l1-t02-b02':
-              'asset:///assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3',
-          'c35-l3-t09-b02':
-              'asset:///assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3',
-          'c35-l3-t10-b02':
-              'asset:///assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3',
-          'c67-l3-t08-b01':
-              'asset:///assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3',
-          'c810-l1-t01-b02':
-              'asset:///assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3',
+        equals(<String, String>{
+          'c35-l1-t02-b02': (await CloudinaryAudioLibrary.shared.uriForAsset(
+            'assets/audio/A-6-7/SONGS/A067_T05_SONG01_FULL_EN.mp3',
+          )).toString(),
+          'c35-l3-t09-b02': (await CloudinaryAudioLibrary.shared.uriForAsset(
+            'assets/audio/A-6-7/SONGS/A067_T08_SONG01_FULL_EN.mp3',
+          )).toString(),
+          'c35-l3-t10-b02': (await CloudinaryAudioLibrary.shared.uriForAsset(
+            'assets/audio/A-6-7/SONGS/A067_T07_SONG01_FULL_EN.mp3',
+          )).toString(),
+          'c67-l3-t08-b01': (await CloudinaryAudioLibrary.shared.uriForAsset(
+            'assets/audio/A-8-10/SONGS/A0810_T04_SONG01_FULL_EN.mp3',
+          )).toString(),
+          'c810-l1-t01-b02': (await CloudinaryAudioLibrary.shared.uriForAsset(
+            'assets/audio/A-8-10/SONGS/A0810_T03_SONG01_FULL_EN.mp3',
+          )).toString(),
         }),
       );
       for (final lesson in songLessons) {
         expect(lesson.hasV4SongStage, isTrue, reason: lesson.id);
         expect(lesson.songAudioId, '${lesson.code}_SONG', reason: lesson.id);
         expect(lesson.fullAudioUri, isNull, reason: lesson.id);
-        final assetPath = lesson.songAudioUri!.path.replaceFirst('/', '');
-        final audio = await rootBundle.load(assetPath);
-        expect(audio.lengthInBytes, greaterThan(0), reason: assetPath);
+        expect(lesson.songAudioUri!.scheme, 'https');
+        expect(lesson.songAudioUri!.host, 'res.cloudinary.com');
       }
     });
 
@@ -296,10 +302,11 @@ void main() {
           final sourceAudioUrl = entry['sourceAudioUrl'] as String?;
           return entry['qaStatus'] == 'READY_SOURCE_AUDIO' &&
               sourceAudioUrl != null &&
-              sourceAudioUrl.startsWith('asset:///assets/audio/');
+              sourceAudioUrl.startsWith('https://res.cloudinary.com/');
         }),
         isTrue,
-        reason: 'Every V4 song must resolve to its approved bundled recording.',
+        reason:
+            'Every V4 song must resolve to its approved Cloudinary recording.',
       );
     });
   });

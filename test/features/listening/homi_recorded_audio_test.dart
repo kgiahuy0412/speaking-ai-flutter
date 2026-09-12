@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:ai_speaking_flutter_app/core/audio/cloudinary_audio_library.dart';
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/homi_audio_library.dart';
 import 'package:ai_speaking_flutter_app/features/listening/application/lesson_media_service.dart';
@@ -41,7 +42,11 @@ void main() {
       locale: 'en-US',
       audioId: 'C35-L1-T01-B01-T01_EN',
     );
-    expect(media.played.single.path, endsWith('/C35-L1-T01-B01-T01_EN.mp3'));
+    expect(media.played.single.scheme, 'https');
+    expect(
+      _originalPath(media.played.single),
+      endsWith('/C35-L1-T01-B01-T01_EN.mp3'),
+    );
     expect(nativeCalls, isEmpty);
     await service.dispose();
     expect(nativeCalls, isEmpty, reason: 'The parent owns native TTS.');
@@ -80,58 +85,77 @@ void main() {
     expect(bundle.reads, 2);
   });
 
-  test('all imported clips are declared in the Flutter bundle', () async {
-    final index =
-        jsonDecode(await rootBundle.loadString(HomiAudioLibrary.assetPath))
-            as Map<String, dynamic>;
-    final clips = (index['clips'] as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-    final assets = (await AssetManifest.loadFromAssetBundle(
-      rootBundle,
-    )).listAssets().toSet();
-    expect(clips, hasLength(4916));
-    expect(clips.map((c) => c['id']).toSet(), hasLength(clips.length));
-    for (final clip in clips) {
-      expect(assets, contains(clip['asset']), reason: clip['id'] as String);
-    }
-    final catalog =
-        jsonDecode(
-              await rootBundle.loadString('assets/data/listening_lessons.json'),
-            )
-            as Map<String, dynamic>;
-    final targets = (catalog['groups'] as List<dynamic>)
-        .expand((g) => g['topics'] as List<dynamic>)
-        .expand((t) => t['lessons'] as List<dynamic>)
-        .expand((l) => l['sentences'] as List<dynamic>)
-        .toList();
-    expect(targets.where((t) => t['audioUrl'] != null), hasLength(600));
-    expect(
-      targets.where((t) => t['vietnameseAudioUrl'] != null),
-      hasLength(600),
-    );
-    expect(
-      targets.where((t) => t['audioUrl'] == null).single['id'],
-      'C1112-L2-T04-B01-T03',
-    );
-    for (final kind in [
-      'system',
-      'feedback',
-      'core',
-      'hook',
-      'challenge',
-      'mission',
-      'sfx',
-    ]) {
-      final sample = clips.firstWhere((c) => c['kind'] == kind);
-      final bytes = await rootBundle.load(sample['asset'] as String);
-      expect(bytes.lengthInBytes, greaterThan(100), reason: kind);
-    }
-  });
+  test(
+    'all imported clips have Cloudinary URLs and are excluded from the bundle',
+    () async {
+      final index =
+          jsonDecode(await rootBundle.loadString(HomiAudioLibrary.assetPath))
+              as Map<String, dynamic>;
+      final clips = (index['clips'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      final assets = (await AssetManifest.loadFromAssetBundle(
+        rootBundle,
+      )).listAssets().toSet();
+      expect(clips, hasLength(4916));
+      expect(clips.map((c) => c['id']).toSet(), hasLength(clips.length));
+      for (final clip in clips) {
+        expect(
+          assets,
+          isNot(contains(clip['asset'])),
+          reason: clip['id'] as String,
+        );
+        expect(Uri.parse(clip['audioUrl'] as String).scheme, 'https');
+        expect(
+          await CloudinaryAudioLibrary.shared.uriForAsset(
+            clip['asset'] as String,
+          ),
+          Uri.parse(clip['audioUrl'] as String),
+        );
+      }
+      final catalog =
+          jsonDecode(
+                await rootBundle.loadString(
+                  'assets/data/listening_lessons.json',
+                ),
+              )
+              as Map<String, dynamic>;
+      final targets = (catalog['groups'] as List<dynamic>)
+          .expand((g) => g['topics'] as List<dynamic>)
+          .expand((t) => t['lessons'] as List<dynamic>)
+          .expand((l) => l['sentences'] as List<dynamic>)
+          .toList();
+      expect(targets.where((t) => t['audioUrl'] != null), hasLength(600));
+      expect(
+        targets.where((t) => t['vietnameseAudioUrl'] != null),
+        hasLength(600),
+      );
+      expect(
+        targets.where((t) => t['audioUrl'] == null).single['id'],
+        'C1112-L2-T04-B01-T03',
+      );
+      for (final kind in [
+        'system',
+        'feedback',
+        'core',
+        'hook',
+        'challenge',
+        'mission',
+        'sfx',
+      ]) {
+        final sample = clips.firstWhere((c) => c['kind'] == kind);
+        expect(
+          Uri.parse(sample['audioUrl'] as String).host,
+          'res.cloudinary.com',
+          reason: kind,
+        );
+      }
+    },
+  );
 
   test('production IDs and dynamic text select their recorded clips', () async {
     final library = HomiAudioLibrary();
     expect(
-      (await library.uriForAudioCode('CORE_SPEAK_01'))?.path,
+      _originalPath((await library.uriForAudioCode('CORE_SPEAK_01'))!),
       endsWith('/system/CORE_SPEAK_01.mp3'),
     );
     expect(
@@ -196,7 +220,7 @@ void main() {
     await service.speakAndWait(
       'Bài này là Count With Me. Nghe thật kỹ nhé. Bắt đầu nhé.',
     );
-    expect(media.played.map((u) => u.path.split('/').last), [
+    expect(media.played.map((u) => _originalPath(u).split('/').last), [
       'NEXT_LESSON_INTRO_LESSON_TABLE_005.mp3',
       'C35-L1-T02-B02_ENTRY.mp3',
       'DETAIL_TRANSITION.mp3',
@@ -213,7 +237,7 @@ void main() {
     );
     await service.speakAndWait('Mình học tiếp bài Count With Me nhé.');
     expect(
-      media.played.single.path,
+      _originalPath(media.played.single),
       endsWith('RESUME_CORE_LESSON_TABLE_005.mp3'),
     );
   });
@@ -322,6 +346,9 @@ void main() {
     },
   );
 }
+
+String _originalPath(Uri uri) =>
+    uri.path.replaceFirst(RegExp(r'-[0-9a-f]{16}(?=\.mp3$)'), '');
 
 class _Media extends LessonMediaService {
   final played = <Uri>[];

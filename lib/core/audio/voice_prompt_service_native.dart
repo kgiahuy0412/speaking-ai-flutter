@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import 'audio_gain.dart';
 import 'bundled_voice_prompt_library.dart';
+import 'device_audio_cache.dart';
 import 'voice_prompt_service_base.dart';
 
 VoicePromptService createPlatformVoicePromptService() =>
@@ -20,11 +21,15 @@ class MethodChannelVoicePromptService
   const MethodChannelVoicePromptService({
     MethodChannel channel = const MethodChannel('ailingo_voice_prompt'),
     BundledVoicePromptLibrary? library,
+    Future<Uri?> Function(Uri)? audioFileResolver,
   }) : _channel = channel,
-       _library = library;
+       _library = library,
+       _audioFileResolver = audioFileResolver;
 
   final MethodChannel _channel;
   final BundledVoicePromptLibrary? _library;
+  final Future<Uri?> Function(Uri)? _audioFileResolver;
+  static final DeviceAudioCache _recordedAudioCache = DeviceAudioCache();
   // All instances of a native channel share one player. Stop/new speech must
   // also invalidate older asynchronous asset lookups across those instances.
   static final Map<String, int> _revisions = <String, int>{};
@@ -102,11 +107,25 @@ class MethodChannelVoicePromptService
     }
     final revision = _nextRevision();
     String? asset;
+    String? filePath;
     try {
-      asset = await (_library ?? BundledVoicePromptLibrary.shared).assetFor(
+      final uri = await (_library ?? BundledVoicePromptLibrary.shared).uriFor(
         text,
         locale: locale,
       );
+      if (_revisions[_channel.name] != revision) return;
+      if (uri != null && uri.isScheme('asset')) {
+        asset = uri.path.replaceFirst(RegExp(r'^/'), '');
+      } else if (uri != null) {
+        // A complete local download works with both native players and keeps
+        // their existing H20 routing and completion callbacks intact.
+        final local = await (_audioFileResolver ?? _recordedAudioCache.cache)(
+          uri,
+        );
+        if (local != null && local.isScheme('file')) {
+          filePath = local.toFilePath();
+        }
+      }
     } catch (_) {
       // Missing/corrupt optional packs keep the existing device voice usable.
     }
@@ -119,6 +138,7 @@ class MethodChannelVoicePromptService
         'forcePhoneSpeaker': forcePhoneSpeaker,
         'forceMediaPlayback': forceMediaPlayback,
         'assetPath': ?asset,
+        'filePath': ?filePath,
       });
     } on MissingPluginException {
       // The prompt is supplementary. The visible message remains available on

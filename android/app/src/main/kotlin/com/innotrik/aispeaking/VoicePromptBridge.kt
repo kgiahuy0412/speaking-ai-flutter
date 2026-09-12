@@ -32,6 +32,7 @@ class VoicePromptBridge(
     )
 
     private val appContext = context.applicationContext
+    private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val methodChannel = MethodChannel(messenger, "ailingo_voice_prompt")
     private val mainHandler = Handler(Looper.getMainLooper())
     private var textToSpeech: TextToSpeech? = null
@@ -107,7 +108,9 @@ class VoicePromptBridge(
                 val locale = call.argument<String>("locale")?.trim().orEmpty()
                 val gainDb = requestedGainDb(call)
                 if (text.isNotEmpty()) {
-                    speak(text, locale.ifEmpty { "vi-VN" }, gainDb, assetPath = call.argument<String>("assetPath"))
+                    speak(text, locale.ifEmpty { "vi-VN" }, gainDb,
+                        assetPath = call.argument<String>("assetPath"),
+                        filePath = call.argument<String>("filePath"))
                 }
                 result.success(null)
             }
@@ -124,6 +127,7 @@ class VoicePromptBridge(
                         gainDb,
                         completion = result,
                         assetPath = call.argument<String>("assetPath"),
+                        filePath = call.argument<String>("filePath"),
                     )
                 }
             }
@@ -147,7 +151,12 @@ class VoicePromptBridge(
         gainDb: Double,
         completion: MethodChannel.Result? = null,
         assetPath: String? = null,
+        filePath: String? = null,
     ) {
+        if (filePath != null) {
+            playRecordedPrompt(null, text, localeTag, gainDb, completion, filePath)
+            return
+        }
         if (assetPath != null && assetPath.startsWith("assets/audio/") && !assetPath.contains("..")) {
             playRecordedPrompt(assetPath, text, localeTag, gainDb, completion)
             return
@@ -195,6 +204,7 @@ class VoicePromptBridge(
             clearSynthesizedPrompt()
             // Keep prompts functional on TTS engines that do not implement
             // file synthesis, although this fallback cannot receive the boost.
+            engine.setAudioAttributes(promptAudioAttributes())
             val fallbackStatus =
                 engine.speak(text, TextToSpeech.QUEUE_FLUSH, speechParameters, utteranceId)
             if (fallbackStatus == TextToSpeech.ERROR) {
@@ -206,14 +216,44 @@ class VoicePromptBridge(
     private fun requestedGainDb(call: MethodCall): Double =
         (call.argument<Number>("gainDb")?.toDouble() ?: 8.0).coerceIn(0.0, 12.0)
 
-    // Recorded MP3s use the same communication output as synthesized prompts,
-    // including H20/HFP, and complete only when playback actually finishes.
+    private fun promptAudioAttributes(): AudioAttributes {
+        // Match lesson playback's media volume on the phone, while retaining
+        // the communication stream when an H20/HFP session already owns it.
+        @Suppress("DEPRECATION")
+        val communicationActive = audioManager.isBluetoothScoOn ||
+            audioManager.mode == AudioManager.MODE_IN_COMMUNICATION ||
+            audioManager.mode == AudioManager.MODE_IN_CALL
+        return AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .setUsage(
+                if (communicationActive) AudioAttributes.USAGE_VOICE_COMMUNICATION
+                else AudioAttributes.USAGE_MEDIA,
+            )
+            .build()
+    }
+
+    private fun applyPromptGain(player: MediaPlayer, gainMillibels: Int) {
+        promptLoudnessEnhancer?.release()
+        promptLoudnessEnhancer = try {
+            LoudnessEnhancer(player.audioSessionId).apply {
+                setTargetGain(gainMillibels)
+                enabled = true
+            }
+        } catch (_: RuntimeException) {
+            // Some devices do not implement this optional audio effect.
+            null
+        }
+    }
+
+    // Recorded MP3s share the lesson/TTS gain and output stream, including
+    // H20/HFP, and complete only when playback actually finishes.
     private fun playRecordedPrompt(
-        assetPath: String,
+        assetPath: String?,
         text: String,
         localeTag: String,
         gainDb: Double,
         completion: MethodChannel.Result?,
+        filePath: String? = null,
     ) {
         completePendingPrompt()
         completeReadyCue()
@@ -240,21 +280,22 @@ class VoicePromptBridge(
             speak(text, localeTag, gainDb, completion = pending)
         }
         try {
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .build(),
-            )
-            val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(assetPath)
-            appContext.assets.openFd(key).use { asset ->
-                player.setDataSource(asset.fileDescriptor, asset.startOffset, asset.length)
+            player.setAudioAttributes(promptAudioAttributes())
+            if (filePath != null) {
+                val file = File(filePath).canonicalFile
+                val audioDirectory = File(appContext.filesDir, "rule_audio_cache").canonicalFile
+                require(file.path.startsWith(audioDirectory.path + File.separator) && file.isFile)
+                player.setDataSource(file.path)
+            } else {
+                val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(requireNotNull(assetPath))
+                appContext.assets.openFd(key).use { asset ->
+                    player.setDataSource(asset.fileDescriptor, asset.startOffset, asset.length)
+                }
             }
             player.setVolume(1.0f, 1.0f)
             player.setOnPreparedListener { ready ->
                 if (promptPlayer !== ready || promptPlaybackId != utteranceId) return@setOnPreparedListener
-                // Authored audio is already mastered; do not apply the device
-                // TTS +8 dB boost, which can clip prerecorded speech.
+                applyPromptGain(ready, (gainDb * 100.0).roundToInt())
                 try { ready.start() } catch (_: RuntimeException) { fallbackToDeviceVoice() }
             }
             player.setOnCompletionListener {
@@ -322,26 +363,14 @@ class VoicePromptBridge(
         promptPlaybackFile = audioFile
         promptPlayer = player
         try {
-            player.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .build(),
-            )
+            player.setAudioAttributes(promptAudioAttributes())
             player.setDataSource(audioFile.absolutePath)
             player.setVolume(1.0f, 1.0f)
             player.setOnPreparedListener { preparedPlayer ->
                 if (promptPlayer !== preparedPlayer || promptPlaybackId != utteranceId) {
                     return@setOnPreparedListener
                 }
-                promptLoudnessEnhancer = try {
-                    LoudnessEnhancer(preparedPlayer.audioSessionId).apply {
-                        setTargetGain(gainMillibels)
-                        enabled = true
-                    }
-                } catch (_: RuntimeException) {
-                    null
-                }
+                applyPromptGain(preparedPlayer, gainMillibels)
                 preparedPlayer.start()
             }
             player.setOnCompletionListener {

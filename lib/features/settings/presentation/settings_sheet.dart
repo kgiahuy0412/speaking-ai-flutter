@@ -2648,7 +2648,7 @@ class _H20OfflineHardwareTestCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: canStart ? () => onSpeakerTest() : null,
                 icon: const Icon(Icons.volume_up_rounded),
-                label: Text(context.tr('Test loa offline', '离线测试扬声器')),
+                label: Text(context.tr('Test loa bằng audio mẫu', '示范音频测试扬声器')),
               ),
               FilledButton.icon(
                 onPressed: canToggleRecording ? () => onRecord() : null,

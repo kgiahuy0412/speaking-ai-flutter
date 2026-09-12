@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
+import '../../../core/audio/cloudinary_audio_library.dart';
 import 'homi_audio_library.dart';
 
 enum LessonGuideCue {
@@ -23,7 +24,9 @@ class LessonGuideAudioLibrary {
     AssetBundle? bundle,
     Random? random,
     List<String>? assetPaths,
-  }) : _bundle = bundle ?? rootBundle,
+  }) : _cloudAudio = bundle == null
+           ? CloudinaryAudioLibrary.shared
+           : CloudinaryAudioLibrary(bundle: bundle),
        _random = random ?? Random(),
        _providedAssetPaths = assetPaths == null
            ? null
@@ -37,7 +40,7 @@ class LessonGuideAudioLibrary {
     '.wav',
   };
 
-  final AssetBundle _bundle;
+  final CloudinaryAudioLibrary _cloudAudio;
   final Random _random;
   final List<String>? _providedAssetPaths;
   Future<List<String>>? _assetPathsFuture;
@@ -59,7 +62,7 @@ class LessonGuideAudioLibrary {
       return null;
     }
     final selected = candidates[_random.nextInt(candidates.length)];
-    return Uri(scheme: 'asset', path: '/$selected');
+    return _uriForIdentifier(selected);
   }
 
   /// Resolves a V2 guide by its stable audio code, regardless of the folder in
@@ -91,7 +94,7 @@ class LessonGuideAudioLibrary {
                   : filename.substring(0, extensionIndex))
               .toLowerCase();
       if (basename == normalizedCode) {
-        return Uri(scheme: 'asset', path: '/$asset');
+        return _uriForIdentifier(asset);
       }
     }
     return null;
@@ -102,10 +105,13 @@ class LessonGuideAudioLibrary {
     if (provided != null) {
       return provided.map(_normalizePath).toList(growable: false)..sort();
     }
-    final manifest = await AssetManifest.loadFromAssetBundle(_bundle);
-    return manifest.listAssets().map(_normalizePath).toList(growable: false)
-      ..sort();
+    return _cloudAudio.assetIdentifiers();
   }
+
+  Future<Uri?> _uriForIdentifier(String asset) async =>
+      _providedAssetPaths != null
+      ? Uri(scheme: 'asset', path: '/$asset')
+      : _cloudAudio.uriForAsset(asset);
 
   static bool _isSupportedAudio(String assetPath) {
     final normalized = assetPath.toLowerCase();

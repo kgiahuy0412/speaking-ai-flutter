@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ai_speaking_flutter_app/core/audio/voice_prompt_service_native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,7 +48,10 @@ void main() {
             .setMockMethodCallHandler(channel, null);
       });
 
-      const service = MethodChannelVoicePromptService(channel: channel);
+      final service = MethodChannelVoicePromptService(
+        channel: channel,
+        audioFileResolver: _cachedAudio,
+      );
       await service.speakAndWait('HOMI nghe đây.');
 
       expect(receivedCall?.method, 'speakAndWait');
@@ -56,7 +61,7 @@ void main() {
         'gainDb': 8.0,
         'forcePhoneSpeaker': false,
         'forceMediaPlayback': false,
-        'assetPath': 'assets/audio/elevenlabs_vi/vi_95beda2290338453cc60.mp3',
+        'filePath': _cachedFile.toFilePath(),
       });
     },
   );
@@ -74,7 +79,10 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    const service = MethodChannelVoicePromptService(channel: channel);
+    final service = MethodChannelVoicePromptService(
+      channel: channel,
+      audioFileResolver: _cachedAudio,
+    );
     await service.speakAndWaitOnPhoneSpeaker('Nói theo cô nhé.');
 
     expect(receivedCall?.method, 'speakAndWait');
@@ -84,7 +92,7 @@ void main() {
       'gainDb': 8.0,
       'forcePhoneSpeaker': true,
       'forceMediaPlayback': false,
-      'assetPath': 'assets/audio/elevenlabs_vi/vi_a15ca5a2266d274ad7f9.mp3',
+      'filePath': _cachedFile.toFilePath(),
     });
   });
 
@@ -162,3 +170,6 @@ void main() {
     });
   });
 }
+
+final _cachedFile = Uri.file('${Directory.systemTemp.path}/homi-prompt.mp3');
+Future<Uri?> _cachedAudio(Uri uri) async => _cachedFile;

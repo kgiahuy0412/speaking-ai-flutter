@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/audio/adaptive_voice_activity_detector.dart';
 import '../../../core/audio/audio_input.dart';
 import '../../../core/audio/audio_playback_service.dart';
+import '../../../core/audio/cloudinary_audio_library.dart';
 import '../../../core/audio/hfp_audio_control.dart';
 import '../../../core/audio/offline_intent_recognizer.dart';
 import '../../../core/audio/realtime_fallback_buffer.dart';
@@ -1740,13 +1741,16 @@ class ConversationController extends ChangeNotifier {
         throw StateError('Android chưa xác nhận loa H20 trên đường HFP/SCO.');
       }
       h20HardwareTestPhase = H20HardwareTestPhase.playing;
-      h20HardwareTestMessage = 'Đang phát file có sẵn trong APK qua H20…';
+      h20HardwareTestMessage =
+          'Đang phát audio mẫu qua H20 (cần mạng nếu chưa tải)…';
       notifyListeners();
-      await _playH20TestUri(
-        Uri.parse(
-          'asset:assets/audio/A-3-5/GUIDE_RECORD/A035_GUIDE_RECORD_01.mp3',
-        ),
+      final sampleUri = await CloudinaryAudioLibrary.shared.uriForAsset(
+        'assets/audio/A-3-5/GUIDE_RECORD/A035_GUIDE_RECORD_01.mp3',
       );
+      if (sampleUri == null) {
+        throw StateError('Không tìm thấy audio kiểm tra loa.');
+      }
+      await _playH20TestUri(sampleUri);
       final route = hfp.status;
       h20HardwareTestResult = H20HardwareTestResult(
         completedAt: DateTime.now(),
@@ -1757,7 +1761,7 @@ class ConversationController extends ChangeNotifier {
       );
       h20HardwareTestPhase = H20HardwareTestPhase.completed;
       h20HardwareTestMessage =
-          'Đã phát file offline. Hãy xác nhận âm thanh phát từ loa H20.';
+          'Đã phát audio mẫu. Hãy xác nhận âm thanh phát từ loa H20.';
       notifyListeners();
     } catch (error) {
       await _failH20HardwareTest(error);
